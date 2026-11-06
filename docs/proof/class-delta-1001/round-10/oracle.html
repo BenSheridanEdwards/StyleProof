@@ -1,0 +1,174 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 20px;
+        background: #f6f8fa;
+        color: #18262e;
+        font:
+          15px/1.5 system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      main {
+        max-width: 728px;
+        margin: auto;
+        background: #fff;
+        border: 1px solid #d9e1e6;
+        border-radius: 16px;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 24px;
+        margin: 0 0 5px;
+      }
+      p {
+        margin: 0 0 16px;
+        color: #4c5b66;
+      }
+      .legend {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+        font-size: 13px;
+        margin: 18px 0;
+      }
+      .key:before {
+        content: '';
+        display: inline-block;
+        width: 11px;
+        height: 11px;
+        background: #bd6475;
+        margin-right: 6px;
+        border-radius: 3px;
+      }
+      .key:last-child:before {
+        background: #247ca5;
+      }
+      .chart {
+        display: grid;
+        grid-template-columns: 52px 1fr;
+        gap: 20px 16px;
+        margin-bottom: 22px;
+      }
+      .seed {
+        padding-top: 13px;
+        font-size: 13px;
+      }
+      .pair {
+        display: grid;
+        gap: 8px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding-right: 45px;
+        height: 20px;
+      }
+      .bar {
+        height: 14px;
+        flex-shrink: 0;
+        border-radius: 3px;
+        min-width: 2px;
+      }
+      .old {
+        background: #bd6475;
+      }
+      .fixed {
+        background: #247ca5;
+      }
+      b {
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+      }
+      .foot {
+        border-top: 1px solid #e0e5e8;
+        padding-top: 16px;
+        font-size: 13px;
+      }
+      .foot strong {
+        color: #18262e;
+      }
+      .foot p {
+        margin: 5px 0 0;
+      }
+      @media (max-width: 440px) {
+        body {
+          padding: 10px;
+        }
+        main {
+          padding: 18px;
+        }
+        h1 {
+          font-size: 21px;
+        }
+        .chart {
+          column-gap: 10px;
+        }
+        .legend {
+          gap: 8px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Expanded runtime oracle</h1>
+      <p>Runtime literals without a positive role · lower is better</p>
+      <div class="legend"><span class="key">Previous a9883f84d</span><span class="key">Fixed d6465072d</span></div>
+      <div class="chart">
+        <div class="seed">Seed 1</div>
+        <div class="pair">
+          <div class="row">
+            <div class="bar old" style="width: 100%"></div>
+            <b>4,102</b>
+          </div>
+          <div class="row">
+            <div class="bar fixed" style="width: 21.599219892735253%"></div>
+            <b>886</b>
+          </div>
+        </div>
+        <div class="seed">Seed 2</div>
+        <div class="pair">
+          <div class="row">
+            <div class="bar old" style="width: 96.85519258898098%"></div>
+            <b>3,973</b>
+          </div>
+          <div class="row">
+            <div class="bar fixed" style="width: 21.550463188688447%"></div>
+            <b>884</b>
+          </div>
+        </div>
+        <div class="seed">Seed 3</div>
+        <div class="pair">
+          <div class="row">
+            <div class="bar old" style="width: 98.92735251097025%"></div>
+            <b>4,058</b>
+          </div>
+          <div class="row">
+            <div class="bar fixed" style="width: 23.086299366162848%"></div>
+            <b>947</b>
+          </div>
+        </div>
+      </div>
+      <div class="foot">
+        <strong>0 type false positives / 650,023 type literals</strong>
+        <p>48,000 accepted programs · four languages · three seeds</p>
+        <p>
+          Hidden counts unchanged: 763 with a gap, 1,024 without. The fix leaves 930 non-explicit runtime literals.
+          These lexical residuals remain visible in the oracle.
+        </p>
+        <p>Both columns use the same generator, including compact runtime comparisons. Source: oracle.json.</p>
+      </div>
+    </main>
+  </body>
+</html>

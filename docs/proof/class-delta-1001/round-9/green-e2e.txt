@@ -1,0 +1,10 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:99680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round9.e2e.spec.ts:10:1 › real Git/Chromium compact type alias cannot lower the red-to-blue J2 range (879ms)
+
+  1 passed (1.3s)

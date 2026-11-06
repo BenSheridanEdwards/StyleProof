@@ -1,0 +1,46 @@
+✖ computed lookup key: J3 only (3.803416ms)
+✖ dataset lookup key in class expression: J3 only (1.031958ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 64.906834
+
+✖ failing tests:
+
+test at test/class-join-round4.test.mjs:67:3
+✖ computed lookup key: J3 only (3.803416ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:75:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round4.test.mjs:67:3
+✖ dataset lookup key in class expression: J3 only (1.031958ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":32}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":32}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:75:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

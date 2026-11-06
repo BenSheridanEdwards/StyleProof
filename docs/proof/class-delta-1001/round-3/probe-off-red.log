@@ -1,0 +1,30 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:51515) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round3.e2e.spec.ts:153:1 › Change Reach off adds no CDP probe and cannot verify class absence (110ms)
+
+
+  1) [chromium] › test/class-join-round3.e2e.spec.ts:153:1 › Change Reach off adds no CDP probe and cannot verify class absence
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 0
+    Received: 1
+
+      158 |   try {
+      159 |     const map=await captureStyleMap(page,{captureStates:false,stabilize:false});
+    > 160 |     expect(calls).toBe(0);
+          |                   ^
+      161 |     expect(map.classPresence?.shadowRootsVerified).toBeUndefined();
+      162 |   } finally { context.newCDPSession = create; }
+      163 | });
+        at <checkout>/test/class-join-round3.e2e.spec.ts:160:19
+
+    Error Context: test-results/test-class-join-round3.e2e-59ca0-cannot-verify-class-absence-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round3.e2e.spec.ts:153:1 › Change Reach off adds no CDP probe and cannot verify class absence

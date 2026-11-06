@@ -1,0 +1,653 @@
+✖ allow-list tagged translation: J3 only (3.797209ms)
+✖ allow-list tagged CSS: J3 only (0.59875ms)
+✖ allow-list tagged standalone class value: J3 only (0.513917ms)
+✖ allow-list in operator: J3 only (0.326292ms)
+✖ allow-list instanceof operand: J3 only (0.320666ms)
+✖ allow-list optional call: J3 only (0.284208ms)
+✖ allow-list non-null call: J3 only (0.217917ms)
+✖ allow-list generic call: J3 only (0.422791ms)
+✔ allow-list generic helper call: J3 only (0.272167ms)
+✖ allow-list comment beside equality: J3 only (0.461917ms)
+✖ allow-list line comment beside equality: J3 only (0.270541ms)
+✖ allow-list comment after left operand: J3 only (0.206834ms)
+✖ allow-list optional computed lookup: J3 only (0.2105ms)
+✖ allow-list optional object lookup: J3 only (0.291792ms)
+✖ allow-list cast object lookup: J3 only (0.209917ms)
+✖ allow-list satisfies object lookup: J3 only (0.14675ms)
+✖ allow-list less than: J3 only (0.148166ms)
+✖ allow-list less than or equal: J3 only (0.233ms)
+✖ allow-list greater than: J3 only (0.153834ms)
+✖ allow-list greater than or equal: J3 only (0.135708ms)
+✖ allow-list arrow body: J3 only (0.116334ms)
+✖ allow-list void operand: J3 only (0.084042ms)
+✖ allow-list increment assignment: J3 only (0.097875ms)
+✖ allow-list ordinary assignment: J3 only (0.112ms)
+✖ allow-list unary operand: J3 only (0.106333ms)
+✖ allow-list arithmetic operand: J3 only (0.210167ms)
+✖ allow-list and left operand: J3 only (0.111709ms)
+✔ allow-list direct helper argument: positive (0.096833ms)
+✔ allow-list helper array: positive (0.231458ms)
+✔ allow-list helper object key: positive (0.140208ms)
+✖ allow-list helper object condition: J3 only (0.15375ms)
+✔ allow-list false and result: positive (0.152ms)
+✔ allow-list or result: positive (0.115ms)
+✔ allow-list nullish result: positive (0.112625ms)
+✔ allow-list ternary consequent: positive (0.100167ms)
+✔ allow-list ternary alternate: positive (0.104917ms)
+✔ allow-list nested positive roles: positive (0.127084ms)
+✔ allow-list comments in positive roles: positive (0.12525ms)
+✔ allow-list direct class attribute: positive (0.411083ms)
+✔ allow-list queried class assignment: positive (0.188375ms)
+✖ non-class syntax refactor cannot lower J2: cn('card', t`open`) (0.197ms)
+✖ non-class syntax refactor cannot lower J2: cn('card', 'open' in flags && 'tab') (0.151166ms)
+✖ replacement-hunk matching preserves card: "const K = 'open';\ncn('card', t(K));" (0.157042ms)
+✔ replacement-hunk matching preserves card: "cn('card', t(K));\nconst K = 'open';" (0.124083ms)
+✖ replacement-hunk matching preserves card: "const K = 'open';\n\n\ncn('card', t(K));" (0.159208ms)
+✔ replacement-hunk matching preserves card: "cn('card', t(K));\n\nconst K = 'open';" (0.10625ms)
+✖ same token in a different positive role or slot remains changed (0.280625ms)
+✖ depth limit outside a class context names the uncaptured remainder on both sides (0.639208ms)
+ℹ tests 48
+ℹ suites 0
+ℹ pass 15
+ℹ fail 33
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 84.687958
+
+✖ failing tests:
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list tagged translation: J3 only (3.797209ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list tagged CSS: J3 only (0.59875ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":6},"end":{"line":1,"column":11}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":6},"end":{"line":1,"column":11}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list tagged standalone class value: J3 only (0.513917ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":16},"end":{"line":1,"column":21}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":16},"end":{"line":1,"column":21}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list in operator: J3 only (0.326292ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list instanceof operand: J3 only (0.320666ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list optional call: J3 only (0.284208ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":21},"end":{"line":1,"column":26}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":21},"end":{"line":1,"column":26}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list non-null call: J3 only (0.217917ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":15},"end":{"line":1,"column":20}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":15},"end":{"line":1,"column":20}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list generic call: J3 only (0.422791ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":22}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":22}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list comment beside equality: J3 only (0.461917ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":24},"end":{"line":1,"column":29}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":24},"end":{"line":1,"column":29}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list line comment beside equality: J3 only (0.270541ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":2,"column":0},"end":{"line":2,"column":5}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":2,"column":0},"end":{"line":2,"column":5}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list comment after left operand: J3 only (0.206834ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list optional computed lookup: J3 only (0.2105ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list optional object lookup: J3 only (0.291792ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list cast object lookup: J3 only (0.209917ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list satisfies object lookup: J3 only (0.14675ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":17},"end":{"line":1,"column":20}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list less than: J3 only (0.148166ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list less than or equal: J3 only (0.233ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list greater than: J3 only (0.153834ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":16}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list greater than or equal: J3 only (0.135708ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":17}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list arrow body: J3 only (0.116334ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list void operand: J3 only (0.084042ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list increment assignment: J3 only (0.097875ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":8},"end":{"line":1,"column":13}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list ordinary assignment: J3 only (0.112ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":7},"end":{"line":1,"column":12}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":7},"end":{"line":1,"column":12}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list unary operand: J3 only (0.106333ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":4},"end":{"line":1,"column":9}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":4},"end":{"line":1,"column":9}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list arithmetic operand: J3 only (0.210167ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":7},"end":{"line":1,"column":12}},"token":"old","explicit":true,"status":"unmeasured","why":"class-list or source evidence unavailable; see J3 run-level gaps","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":7},"end":{"line":1,"column":12}},"token":"new","explicit":true,"status":"unmeasured","why":"class-list or source evidence unavailable; see J3 run-level gaps","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list and left operand: J3 only (0.111709ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":8}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:98:3
+✖ allow-list helper object condition: J3 only (0.15375ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":18}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":18}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:104:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:119:3
+✖ non-class syntax refactor cannot lower J2: cn('card', t`open`) (0.197ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":12},"end":{"line":1,"column":18}},"token":"open","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":19}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:122:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:119:3
+✖ non-class syntax refactor cannot lower J2: cn('card', 'open' in flags && 'tab') (0.151166ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":11},"end":{"line":1,"column":17}},"token":"open","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":31},"end":{"line":1,"column":37}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:122:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:135:3
+✖ replacement-hunk matching preserves card: "const K = 'open';\ncn('card', t(K));" (0.157042ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":9}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":19}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":10},"end":{"line":1,"column":16}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":2,"column":3},"end":{"line":2,"column":9}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:139:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:135:3
+✖ replacement-hunk matching preserves card: "const K = 'open';\n\n\ncn('card', t(K));" (0.159208ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":9}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":19}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":10},"end":{"line":1,"column":16}},"token":"open","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":4,"column":3},"end":{"line":4,"column":9}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:139:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:146:1
+✖ same token in a different positive role or slot remains changed (0.280625ms)
+  AssertionError [ERR_ASSERTION]: []
+
+  0 !== 4
+
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:148:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 4,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round5.test.mjs:152:1
+✖ depth limit outside a class context names the uncaptured remainder on both sides (0.639208ms)
+  AssertionError [ERR_ASSERTION]: []
+      at TestContext.<anonymous> (test/class-join-round5.test.mjs:164:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

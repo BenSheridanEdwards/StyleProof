@@ -375,7 +375,7 @@ async function runPool(primary: Page, ctx: Ctx, counters: Counts, defined: strin
         st.queue.length = 0;
       }
     } finally {
-      st.queue.push(...sink);
+      sink.forEach((appended) => st.queue.push(appended));
       active--;
       finish();
     }

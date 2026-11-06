@@ -1,0 +1,31 @@
+✖ reach corpus retains and verifies base-side J3 removals on replacement lines (57.367416ms)
+▶ reach corpus rejects incomplete ledgers even when CSS expectations match
+  ✔ partial (55.167583ms)
+  ✔ missing-scenario (53.888792ms)
+✔ reach corpus rejects incomplete ledgers even when CSS expectations match (109.323917ms)
+▶ reach corpus rejects missing or drifting ledgers before scoring cases
+  ✔ missing-preflight (52.919417ms)
+  ✔ drift (52.028208ms)
+✔ reach corpus rejects missing or drifting ledgers before scoring cases (105.213542ms)
+✔ reach corpus scores CSS with source classifier keys and explanations (56.133708ms)
+✔ J3 class vocabulary reads ledger keys (7.325625ms)
+✔ reach corpus probe rejects unmocked imports (53.963667ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 445.429375
+
+✖ failing tests:
+
+test at test/reach-corpus.test.mjs:214:1
+✖ reach corpus retains and verifies base-side J3 removals on replacement lines (57.367416ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'length')
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:218:38)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)

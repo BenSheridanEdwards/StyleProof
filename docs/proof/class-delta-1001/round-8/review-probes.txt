@@ -1,0 +1,12 @@
+app.ts     "export const subscribe = (cb: Cb): (() => void) => { el.classList.add('tk1'); return () => el.classList.remov   tk1:E tk2:-
+app.tsx    "export const Card = (p: Props): (JSX.Element | null) => { return <div className=\"tk1 js-x\">x</div>; };"       tk1 js-x:E
+app.tsx    "export const Card = (p: Props): (JSX.Element | null) => <div className=\"tk1\">x</div>;"                        tk1:E
+app.ts     "const o = { open: (e: Ev): void => { el.className = 'tk1'; } };"                                                tk1:E
+app.ts     "const o = { open: (e: Ev): (() => void) => { el.className = 'tk1'; return f; } };"                              tk1:E
+app.ts     "const o = { open: (e: Ev): Promise<void> => cn('tk1') };"                                                       tk1:E
+app.ts     "function setup() {\n  const narrow = width < 640;\n  el.className = narrow ? 'tk1' : 'tk2';\n  const wide = w   tk1:E tk2:E
+app.ts     "function setup() {\n  if (count < 1) return;\n  el.className = 'tk1';\n  if (count > 9) el.className = 'tk2';   tk1:E tk2:E
+app.ts     "function setup() {\n  const a = i < n\n  el.className = 'tk1'\n  const b = j > m\n}"                            tk1:E
+app.ts     "const ok = n < 3, cls = cn('tk1'), big = n > 9;"                                                                tk1:E
+app.tsx    "function Row() { const few = items.length < 3; return <li className=\"tk1\">{few ? 'a' : 'b'}</li>; }"          tk1:E
+app.tsx    "function Row() { const few = items.length < 3; const many = items.length > 9; return <li className=\"tk1\">x<   tk1:E

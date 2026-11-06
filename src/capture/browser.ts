@@ -140,6 +140,9 @@ export function injectPathOf(generatedIdSources: string[]): void {
 
 export type CaptureArgs = {
   skipSel: string;
+  frameworkSkipSel?: string;
+  captureClassPresence?: boolean;
+  routeAnnouncerSel?: string;
   motionOnly: boolean;
   captureText: boolean;
   captureComponent?: boolean;
@@ -151,6 +154,9 @@ export type PageCapture = {
   elements: Record<string, ElementEntry>;
   shadowHosts: number;
   sameOriginFrames: number;
+  frames: number;
+  ignored: boolean;
+  outsideBody: number;
   scrollX: number;
   scrollY: number;
   documentHeight: number;
@@ -160,6 +166,9 @@ export type PageCapture = {
 // fallow-ignore-next-line complexity
 export function capturePage({
   skipSel,
+  frameworkSkipSel,
+  captureClassPresence = false,
+  routeAnnouncerSel = '',
   motionOnly,
   captureText,
   captureComponent,
@@ -321,12 +330,17 @@ export function capturePage({
   const all = [document.documentElement, document.body, ...document.querySelectorAll('body *')];
   let shadowHosts = 0;
   let sameOriginFrames = 0;
+  let ignored = false;
   for (const el of all) {
-    if (el === frame || (skipSel && el.matches(skipSel))) continue;
+    if (el === frame) continue;
+    if (skipSel && el.matches(skipSel)) {
+      if (captureClassPresence && (!frameworkSkipSel || !el.matches(frameworkSkipSel))) ignored = true;
+      continue;
+    }
     const tag = el.tagName.toLowerCase();
     if (tag === 'script' || tag === 'style' || tag === 'link' || tag === 'noscript') continue;
     if (!motionOnly && (el as Element & { shadowRoot?: ShadowRoot | null }).shadowRoot) shadowHosts++;
-    if (!motionOnly && (tag === 'iframe' || tag === 'frame')) {
+    if (!motionOnly && ['iframe', 'frame', 'object', 'embed'].includes(tag)) {
       try {
         if ((el as HTMLIFrameElement).contentDocument) sameOriginFrames++;
       } catch {
@@ -388,7 +402,33 @@ export function capturePage({
   }
   frame.remove();
   assertFrozen();
-  return { defaults, elements, shadowHosts, sameOriginFrames, scrollX, scrollY, documentHeight };
+  const frames = captureClassPresence ? document.querySelectorAll('iframe, frame, object, embed').length : 0;
+  const omitted = new Set<Element>();
+  if (captureClassPresence) {
+    for (const el of document.querySelectorAll('html > :not(head):not(body)')) omitted.add(el);
+    for (const el of document.querySelectorAll('head, head *')) {
+      const author =
+        el !== document.head &&
+        !el.matches('meta, link, script, style, title, base, noscript, template') &&
+        (!frameworkSkipSel || !el.matches(frameworkSkipSel));
+      if (author || getComputedStyle(el).display !== 'none') omitted.add(el);
+    }
+    // Framework ownership covers the announcer host and shadow tree, not author light DOM.
+    if (routeAnnouncerSel) for (const el of document.querySelectorAll(`:is(${routeAnnouncerSel}) *`)) omitted.add(el);
+  }
+  const outsideBody = omitted.size;
+  return {
+    defaults,
+    elements,
+    shadowHosts,
+    sameOriginFrames,
+    frames,
+    ignored,
+    outsideBody,
+    scrollX,
+    scrollY,
+    documentHeight,
+  };
 }
 
 /** Poll using the capture function installed in this settle's non-enumerable window store. */

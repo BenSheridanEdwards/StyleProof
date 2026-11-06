@@ -1,0 +1,261 @@
+✔ compact type stays non-explicit: ts function f<T extends A<B>={class:'tk-old'}>() {} (6.53275ms)
+✔ compact type stays non-explicit: tsx function f<T extends A<B>={class:'tk-old'}>() {} (0.790334ms)
+✔ compact type stays non-explicit: vue function f<T extends A<B>={class:'tk-old'}>() {} (1.4495ms)
+✔ compact type stays non-explicit: svelte function f<T extends A<B>={class:'tk-old'}>() {} (0.643166ms)
+✖ compact type stays non-explicit: ts type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (1.1195ms)
+✖ compact type stays non-explicit: tsx type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.482041ms)
+✖ compact type stays non-explicit: vue type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.523ms)
+✖ compact type stays non-explicit: svelte type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.426458ms)
+✔ compact type stays non-explicit: ts type C<T=A<B>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.41625ms)
+✔ compact type stays non-explicit: tsx type C<T=A<B>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.412542ms)
+✔ compact type stays non-explicit: vue type C<T=A<B>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.685ms)
+✔ compact type stays non-explicit: svelte type C<T=A<B>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.389625ms)
+✔ compact type stays non-explicit: ts type C<T=A<B<C>>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.321541ms)
+✔ compact type stays non-explicit: tsx type C<T=A<B<C>>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.31425ms)
+✔ compact type stays non-explicit: vue type C<T=A<B<C>>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.328542ms)
+✔ compact type stays non-explicit: svelte type C<T=A<B<C>>>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.371375ms)
+✔ compact type stays non-explicit: ts let x: A<{class:'tk-old'}>=v; (0.691042ms)
+✔ compact type stays non-explicit: tsx let x: A<{class:'tk-old'}>=v; (0.215791ms)
+✔ compact type stays non-explicit: vue let x: A<{class:'tk-old'}>=v; (0.256708ms)
+✔ compact type stays non-explicit: svelte let x: A<{class:'tk-old'}>=v; (0.241ms)
+✔ compact type stays non-explicit: ts function f<T>(x:A<{class:'tk-old'}>=v) {} (0.378791ms)
+✔ compact type stays non-explicit: tsx function f<T>(x:A<{class:'tk-old'}>=v) {} (0.240375ms)
+✔ compact type stays non-explicit: vue function f<T>(x:A<{class:'tk-old'}>=v) {} (0.286083ms)
+✔ compact type stays non-explicit: svelte function f<T>(x:A<{class:'tk-old'}>=v) {} (0.253333ms)
+✔ compact type stays non-explicit: ts const f = <T,>(x:A<{class:'tk-old'}>=v) => x; (0.465542ms)
+✔ compact type stays non-explicit: tsx const f = <T,>(x:A<{class:'tk-old'}>=v) => x; (0.425917ms)
+✔ compact type stays non-explicit: vue const f = <T,>(x:A<{class:'tk-old'}>=v) => x; (0.351958ms)
+✔ compact type stays non-explicit: svelte const f = <T,>(x:A<{class:'tk-old'}>=v) => x; (0.33425ms)
+✖ compact boundary preserves runtime values: let x:A<B>={class:'runtime'}; (1.486541ms)
+✖ compact boundary preserves runtime values: function f<T>(x:A<B>={class:'runtime'}) {} (0.144833ms)
+✖ compact boundary preserves runtime values: const f=<T,>(x:A<B>={class:'runtime'})=>x; (0.093625ms)
+✔ compact boundary preserves runtime values: function f<T extends A<B>=C>() { el.className='runtime'; } (0.062042ms)
+✔ compact boundary preserves runtime values: const n = x>=1; const s=x>>=1; el.className='runtime'; (0.029667ms)
+✔ compact boundary preserves runtime values: const n = x<y; const s=x>=1; el.className='runtime'; (0.029875ms)
+✖ ASI alias terminates before declaration starter: abstract class X { m() { el.className='runtime'; } } (0.117166ms)
+✔ ASI alias terminates before declaration starter: declare namespace X { const p: {class:'tk-old'}; }
+el.className='runtime'; (0.068875ms)
+✖ ASI alias terminates before declaration starter: enum X { A=(el.className='runtime',1) } (0.087334ms)
+✖ ASI alias terminates before declaration starter: namespace X { el.className='runtime'; } (0.070416ms)
+✖ four megabytes of template occurrences complete without an argument-stack overflow (1080.334417ms)
+ℹ tests 39
+ℹ suites 0
+ℹ pass 28
+ℹ fail 11
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1282.136584
+
+✖ failing tests:
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:39:5
+✖ compact type stays non-explicit: ts type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (1.1195ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.ts","side":"base","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":35}},"token":"tk-old","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.ts","side":"base","range":{"start":{"line":1,"column":48},"end":{"line":1,"column":56}},"token":"tk-old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.ts","side":"head","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":35}},"token":"tk-new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.ts","side":"head","range":{"start":{"line":1,"column":48},"end":{"line":1,"column":56}},"token":"tk-new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:61:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:39:5
+✖ compact type stays non-explicit: tsx type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.482041ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":35}},"token":"tk-old","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":48},"end":{"line":1,"column":56}},"token":"tk-old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":35}},"token":"tk-new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":48},"end":{"line":1,"column":56}},"token":"tk-new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:61:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:39:5
+✖ compact type stays non-explicit: vue type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.523ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.vue","side":"base","range":{"start":{"line":2,"column":27},"end":{"line":2,"column":35}},"token":"tk-old","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.vue","side":"base","range":{"start":{"line":2,"column":48},"end":{"line":2,"column":56}},"token":"tk-old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.vue","side":"head","range":{"start":{"line":2,"column":27},"end":{"line":2,"column":35}},"token":"tk-new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.vue","side":"head","range":{"start":{"line":2,"column":48},"end":{"line":2,"column":56}},"token":"tk-new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:61:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:39:5
+✖ compact type stays non-explicit: svelte type C<T>=T extends {class:'tk-old'}?{className:'tk-old'}:never; (0.426458ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"app.svelte","side":"base","range":{"start":{"line":2,"column":27},"end":{"line":2,"column":35}},"token":"tk-old","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.svelte","side":"base","range":{"start":{"line":2,"column":48},"end":{"line":2,"column":56}},"token":"tk-old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.svelte","side":"head","range":{"start":{"line":2,"column":27},"end":{"line":2,"column":35}},"token":"tk-new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.svelte","side":"head","range":{"start":{"line":2,"column":48},"end":{"line":2,"column":56}},"token":"tk-new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:61:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:85:3
+✖ compact boundary preserves runtime values: let x:A<B>={class:'runtime'}; (1.486541ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.tsx').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:86:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:85:3
+✖ compact boundary preserves runtime values: function f<T>(x:A<B>={class:'runtime'}) {} (0.144833ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.tsx').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:86:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:85:3
+✖ compact boundary preserves runtime values: const f=<T,>(x:A<B>={class:'runtime'})=>x; (0.093625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.tsx').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:86:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:95:3
+✖ ASI alias terminates before declaration starter: abstract class X { m() { el.className='runtime'; } } (0.117166ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:97:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:95:3
+✖ ASI alias terminates before declaration starter: enum X { A=(el.className='runtime',1) } (0.087334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:97:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:95:3
+✖ ASI alias terminates before declaration starter: namespace X { el.className='runtime'; } (0.070416ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').some((l) => l.explicit && l.words.some((w) => w.token === 'runtime')))
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:97:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at ../../../../Codex/class-delta-1001-r9/baseline-1a/test/class-join-round9.test.mjs:105:1
+✖ four megabytes of template occurrences complete without an argument-stack overflow (1080.334417ms)
+  RangeError [Error]: Maximum call stack size exceeded
+      at readLiterals (file://<baseline>/dist/class-join-literals.js:85:14)
+      at classLiterals (file://<baseline>/dist/class-join-literals.js:119:12)
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round9.test.mjs:110:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

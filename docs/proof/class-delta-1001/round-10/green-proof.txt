@@ -1,0 +1,30 @@
+✔ codeValue handles many disjoint backtick runs without spreading arguments (5.345667ms)
+✔ closed-root inventory traverses a wide CDP document without argument spreading (111.549917ms)
+✔ compact runtime angles stay runtime: ts el.className=n<lo?'a':n>=hi?'b':'c'; (2.285375ms)
+✔ compact runtime angles stay runtime: tsx el.className=n<lo?'a':n>=hi?'b':'c'; (0.575292ms)
+✔ compact runtime angles stay runtime: vue el.className=n<lo?'a':n>=hi?'b':'c'; (0.793959ms)
+✔ compact runtime angles stay runtime: svelte el.className=n<lo?'a':n>=hi?'b':'c'; (0.312625ms)
+✔ compact runtime angles stay runtime: ts cn(a<b?'a':'b',c>=d&&'c'); (0.216541ms)
+✔ compact runtime angles stay runtime: tsx cn(a<b?'a':'b',c>=d&&'c'); (0.106708ms)
+✔ compact runtime angles stay runtime: vue cn(a<b?'a':'b',c>=d&&'c'); (0.172208ms)
+✔ compact runtime angles stay runtime: svelte cn(a<b?'a':'b',c>=d&&'c'); (0.181958ms)
+✔ compact runtime angles stay runtime: ts s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.1055ms)
+✔ compact runtime angles stay runtime: tsx s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.0935ms)
+✔ compact runtime angles stay runtime: vue s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.114708ms)
+✔ compact runtime angles stay runtime: svelte s>>=1;el.className=n<lo?'a':n>=hi?'b':'c'; (0.091042ms)
+✔ unresolved gaps aggregate per file/side with exact counts and bounded deterministic samples (5.884375ms)
+✔ production array append and maximum calls never spread data into function arguments (125.989709ms)
+▶ four-megabyte template file classifies, assesses captured directories and writes a CLI report
+  ✔ classifyClassReach bounds unresolved detail before report assessment (1549.257125ms)
+  ✔ assessReachDirs succeeds at the default warn level (3666.967084ms)
+  ✔ styleproof-report exits zero and writes budgeted report artifacts (3757.770625ms)
+✔ four-megabyte template file classifies, assesses captured directories and writes a CLI report (9365.288375ms)
+ℹ {"bytes":4194326,"lines":110377,"unresolved":331131}
+ℹ tests 20
+ℹ suites 0
+ℹ pass 20
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9835.342083

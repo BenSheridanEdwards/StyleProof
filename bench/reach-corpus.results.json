@@ -1,18 +1,25 @@
 {
-  "generated": "2026-11-05T19:50:32.982Z",
+  "generated": "2026-11-06T05:51:07.630Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
   "j2Gaps": {
     "declared": [],
     "complete": []
   },
+  "j3Gaps": {
+    "declared": [],
+    "complete": []
+  },
+  "provenance": "No per-occurrence provenance is recorded; J3 cannot reach or corroborate J2.",
   "totals": {
-    "cases": 16,
-    "visual": 15,
-    "todayShownDeclared": "1/15",
-    "todayShownComplete": "14/15",
+    "cases": 18,
+    "visual": 17,
+    "todayShownDeclared": "3/17",
+    "todayShownComplete": "16/17",
     "missesNamedByReach": "14/14",
     "residual": [],
+    "unknownDeclared": 7,
+    "unknownComplete": 8,
     "failed": []
   },
   "cases": [
@@ -235,8 +242,10 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:40: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -248,8 +257,10 @@
           "units": [
             ".css-11ycpj1: reached (matched in a captured state)",
             ".css-xgzlw4: reached (matched in a captured state)",
-            "app.jsx:40: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -263,24 +274,69 @@
           "today": "missed",
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran"
+            "J2": "never-ran",
+            "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:51: never-rendered (an anchor in the changed range never ran); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:53: never-rendered (an anchor in the changed range never ran); J3: head:53:27 fault-badge--loud never-rendered"
           ],
-          "prototypeJ3": "never-rendered",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 53,
+                  "column": 27
+                },
+                "end": {
+                  "line": 53,
+                  "column": 73
+                }
+              },
+              "token": "fault-badge--loud",
+              "explicit": true,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:51: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:53: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:53:27 fault-badge--loud unknown"
           ],
-          "prototypeJ3": "reached",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 53,
+                  "column": 27
+                },
+                "end": {
+                  "line": 53,
+                  "column": 73
+                }
+              },
+              "token": "fault-badge--loud",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -294,24 +350,110 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber never-rendered"
           ],
-          "prototypeJ3": "never-rendered",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 48
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
           "ok": true
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber unknown"
           ],
-          "prototypeJ3": "reached",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 48
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
           "ok": true
         }
       }
@@ -325,24 +467,110 @@
           "today": "missed",
           "reach": "unknown",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype never-rendered (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red unknown"
           ],
-          "prototypeJ3": "never-rendered",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 36
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
           "ok": true
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
-            "J2": "ran"
+            "J2": "ran",
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3-prototype reached (#1001 re-judges per-occurrence provenance)"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red unknown"
           ],
-          "prototypeJ3": "reached",
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 36
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
           "ok": true
         }
       }
@@ -358,8 +586,10 @@
             "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered (an anchor in the changed range never ran)"
+            "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -368,8 +598,10 @@
             "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered (an anchor in the changed range never ran)"
+            "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -386,8 +618,10 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:67: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -397,8 +631,10 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:67: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -415,8 +651,10 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:68: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
@@ -426,7 +664,329 @@
             "J2": "ran"
           },
           "units": [
-            "app.jsx:68: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+            "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "same-line-class-style",
+      "category": "residual",
+      "desc": "class delta on a healthy element cannot corroborate a style value on the same line",
+      "scenarios": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:74: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:74:34 same-line-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-new",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:74: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:74:34 same-line-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-new",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "same-token-collision",
+      "category": "residual",
+      "desc": "two constants change the same token; healthy deltas never identify the unopened overlay occurrence",
+      "scenarios": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:10: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:10:21 collision-new unknown",
+            "app.jsx:11: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:11:24 collision-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:10: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:10:21 collision-new unknown",
+            "app.jsx:11: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:11:24 collision-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
           ],
           "ok": true
         }

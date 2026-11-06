@@ -1,0 +1,582 @@
+✖ add has positive class evidence (4.962541ms)
+✖ add later argument has positive class evidence (0.505666ms)
+✖ remove has J3-only class evidence (0.319334ms)
+✖ contains has J3-only class evidence (0.230042ms)
+✖ toggle no force has J3-only class evidence (0.21375ms)
+✖ toggle false has J3-only class evidence (0.261333ms)
+✖ toggle true has J3-only class evidence (0.200375ms)
+✖ replace first argument has J3-only class evidence (0.208542ms)
+✖ replace second argument has positive class evidence (0.5425ms)
+✖ replace third argument has J3-only class evidence (0.290625ms)
+✖ data-class has J3-only class evidence (0.535791ms)
+✖ aria-class has J3-only class evidence (0.151583ms)
+✖ nested non-helper call has J3-only class evidence (0.144416ms)
+✖ non-helper in class assignment has J3-only class evidence (0.146834ms)
+✖ non-helper in template substitution has J3-only class evidence (0.317ms)
+✖ nested recognised helper has positive class evidence (0.173458ms)
+✖ aligned unchanged words survive column movement: card → btn card (0.650292ms)
+✖ aligned unchanged words survive column movement: btn card → card (0.185875ms)
+✔ aligned unchanged words survive column movement: card → card btn (0.202834ms)
+✖ aligned unchanged words survive column movement: card card → btn card card (0.172417ms)
+✖ aligned unchanged words survive column movement: old card known → new btn card known (0.16875ms)
+✖ version one cannot prove class absence (0.165083ms)
+✔ outside-body children cannot prove class absence (0.092541ms)
+✔ unverified shadow roots cannot prove class absence (0.103208ms)
+✔ unstable omission facts cannot prove class absence (0.084292ms)
+✔ an unpaired base surface leaves both sides conservative (0.094667ms)
+✔ an unpaired head surface leaves both sides conservative (0.079916ms)
+✖ self-check keeps omission uncertainty: 0 → 1 (0.165ms)
+✖ self-check keeps omission uncertainty: 1 → 0 (0.042542ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 6
+ℹ fail 23
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 93.764834
+
+✖ failing tests:
+
+test at test/class-join-round3.test.mjs:58:3
+✖ add has positive class evidence (4.962541ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(combined.every((u) => u.status === (positive ? 'never-rendered' : 'reached')))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ add later argument has positive class evidence (0.505666ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(combined.every((u) => u.status === (positive ? 'never-rendered' : 'reached')))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ remove has J3-only class evidence (0.319334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ contains has J3-only class evidence (0.230042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ toggle no force has J3-only class evidence (0.21375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ toggle false has J3-only class evidence (0.261333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ toggle true has J3-only class evidence (0.200375ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ replace first argument has J3-only class evidence (0.208542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ replace second argument has positive class evidence (0.5425ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(combined.every((u) => u.status === (positive ? 'never-rendered' : 'reached')))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ replace third argument has J3-only class evidence (0.290625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ data-class has J3-only class evidence (0.535791ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ aria-class has J3-only class evidence (0.151583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ nested non-helper call has J3-only class evidence (0.144416ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ non-helper in class assignment has J3-only class evidence (0.146834ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ non-helper in template substitution has J3-only class evidence (0.317ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit === positive))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:61:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:58:3
+✖ nested recognised helper has positive class evidence (0.173458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(combined.every((u) => u.status === (positive ? 'never-rendered' : 'reached')))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:63:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:81:3
+✖ aligned unchanged words survive column movement: card → btn card (0.650292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  +     'base',
+  +     'card'
+  +   ],
+  +   [
+        'head',
+        'btn'
+      ],
+  +   [
+  +     'head',
+  +     'card'
+  +   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:82:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'card' ], [ 'head', 'btn' ], [ 'head', 'card' ] ],
+    expected: [ [ 'head', 'btn' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:81:3
+✖ aligned unchanged words survive column movement: btn card → card (0.185875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'btn'
+      ],
+  +   [
+  +     'base',
+  +     'card'
+  +   ],
+  +   [
+  +     'head',
+  +     'card'
+  +   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:82:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'btn' ], [ 'base', 'card' ], [ 'head', 'card' ] ],
+    expected: [ [ 'base', 'btn' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:81:3
+✖ aligned unchanged words survive column movement: card card → btn card card (0.172417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  +     'base',
+  +     'card'
+  +   ],
+  +   [
+        'head',
+        'btn'
+      ],
+  +   [
+  +     'head',
+  +     'card'
+  +   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:82:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'card' ], [ 'head', 'btn' ], [ 'head', 'card' ] ],
+    expected: [ [ 'head', 'btn' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:81:3
+✖ aligned unchanged words survive column movement: old card known → new btn card known (0.16875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'old'
+      ],
+      [
+        'head',
+  +     'btn'
+  -     'new'
+      ],
+      [
+        'head',
+  +     'new'
+  -     'btn'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:82:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'old' ], [ 'head', 'btn' ], [ 'head', 'new' ] ],
+    expected: [ [ 'base', 'old' ], [ 'head', 'new' ], [ 'head', 'btn' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:94:3
+✖ version one cannot prove class absence (0.165083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.status === 'unknown'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:96:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:117:3
+✖ self-check keeps omission uncertainty: 0 → 1 (0.165ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - true
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:121:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:117:3
+✖ self-check keeps omission uncertainty: 1 → 0 (0.042542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + undefined
+  - true
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:121:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

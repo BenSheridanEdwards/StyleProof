@@ -1,0 +1,30 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 1 test using 1 worker
+
+(node:58435) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round6.e2e.spec.ts:10:1 › real Git/Chromium inline type-alias refactor cannot lower J2 (765ms)
+
+
+  1) [chromium] › test/class-join-round6.e2e.spec.ts:10:1 › real Git/Chromium inline type-alias refactor cannot lower J2
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      69 |     expect(head.length).toBeGreaterThan(0);
+      70 |     // Erased type tokens remain unmeasured in J2, even though the handler ran.
+    > 71 |     expect(head.every((u) => u.status === 'unmeasured')).toBe(true);
+         |                                                          ^
+      72 |     expect(report.classes.every((u) => !u.explicit)).toBe(true);
+      73 |   } finally {
+      74 |     process.chdir(previous);
+        at <workspace>/test/class-join-round6.e2e.spec.ts:71:58
+
+    Error Context: test-results/test-class-join-round6.e2e-5c2a2-as-refactor-cannot-lower-J2-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join-round6.e2e.spec.ts:10:1 › real Git/Chromium inline type-alias refactor cannot lower J2

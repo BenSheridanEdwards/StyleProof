@@ -1,0 +1,29 @@
+✖ unchanged literals survive inserted literals: constant before (3.717667ms)
+✔ unchanged literals survive inserted literals: constant after (0.640083ms)
+✔ additional identical class literals retain their new occurrence (0.466458ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 2
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.017334
+
+✖ failing tests:
+
+test at test/class-join-round4.test.mjs:115:3
+✖ unchanged literals survive inserted literals: constant before (3.717667ms)
+  AssertionError [ERR_ASSERTION]: [{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":3},"end":{"line":1,"column":9}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"base","range":{"start":{"line":1,"column":13},"end":{"line":1,"column":18}},"token":"new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":10},"end":{"line":1,"column":15}},"token":"new","explicit":false,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"app.tsx","side":"head","range":{"start":{"line":1,"column":20},"end":{"line":1,"column":26}},"token":"card","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}]
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:121:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

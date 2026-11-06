@@ -11,6 +11,7 @@ async function corpusProbe(mode, rootUrl) {
   const joins = await import(new URL('bench/reach-joins.mjs', rootUrl));
   const findingMatch = await import(new URL('bench/finding-match.mjs', rootUrl));
   const classifier = await import(new URL('dist/rule-reach.js', rootUrl));
+  const classClassifier = await import(new URL('dist/class-join.js', rootUrl));
   const scriptClassifier = await import(new URL('dist/script-join.js', rootUrl));
   const sourceRanges = await import(new URL('dist/script-join-git.js', rootUrl));
   const source = new URL('bench/reach-corpus.mjs', rootUrl);
@@ -32,6 +33,21 @@ async function corpusProbe(mode, rootUrl) {
       },
     ],
   };
+  if (mode.startsWith('base-j3')) {
+    corpus.cases[0].unit.js = '{}';
+    corpus.cases[0].expect = Object.fromEntries(
+      ['declared', 'complete'].map((side) => [
+        side,
+        {
+          reach: 'unknown',
+          classCount: 1,
+          baseClassCount: 1,
+          joins: { J2: 'ran', J3: 'unknown' },
+          baseJ3: 'unknown',
+        },
+      ]),
+    );
+  }
 
   let captures = 0;
   let receipt;
@@ -105,11 +121,28 @@ async function corpusProbe(mode, rootUrl) {
     '../dist/capture.js': capture,
     '../dist/rule-reach.js': classifier,
     '../dist/script-join.js': scriptClassifier,
+    '../dist/class-join.js': classClassifier,
     '../dist/script-join-git.js': sourceRanges,
     '../dist/diff.js': { diffStyleMaps: () => [] },
     './reach-joins.mjs': { ...joins, diffHunks: () => [], lineExecution: () => new Map() },
     './finding-match.mjs': findingMatch,
   };
+  let probeGaps = [];
+  if (mode.startsWith('base-j3')) {
+    const units = ['base', 'head'].map((side) => ({
+      sourceKey: 'app.jsx',
+      side,
+      range: { start: { line: 1, column: 0 }, end: { line: 1, column: 2 } },
+      token: 'probe',
+      status: side === 'base' && mode === 'base-j3-wrong' ? 'never-rendered' : 'unknown',
+      why: 'probe',
+      level: 'warn',
+      execution: 'ran',
+    }));
+    mocks['./reach-joins.mjs'].diffHunks = () => [{ base: [1], head: [1] }];
+    mocks['../dist/script-join.js'] = { ...scriptClassifier, classifyScriptReach: () => ({ units, gaps: probeGaps }) };
+    mocks['../dist/class-join.js'] = { ...classClassifier, classifyClassReach: () => ({ units, gaps: probeGaps }) };
+  }
 
   if (mode === 'unmocked-import') delete mocks['./finding-match.mjs'];
   const sentinel = new Error('corpus exit');
@@ -118,13 +151,15 @@ async function corpusProbe(mode, rootUrl) {
   const context = (await import('node:vm')).createContext({
     console: { log: (text) => stdout.push(text), error: (text) => stderr.push(text) },
     process: {
-      argv: mode === 'complete' ? [] : ['--check'],
+      argv: mode === 'complete' || mode === 'base-j3' ? [] : ['--check'],
       exit: (code) => {
         exitCode = code;
         throw sentinel;
       },
     },
   });
+
+  probeGaps = (await import('node:vm')).runInContext('[]', context);
 
   const module = new SourceTextModule(readFileSync(source, 'utf8'), {
     context,
@@ -175,6 +210,17 @@ function runCorpusProbe(mode) {
 
   return JSON.parse(child.stdout);
 }
+
+test('reach corpus retains and verifies base-side J3 removals on replacement lines', () => {
+  const good = runCorpusProbe('base-j3');
+  assert.equal(good.exitCode, 0, good.stderr.join('\n'));
+  const result = good.receipt.cases[0].scenarios.declared;
+  assert.equal(result.baseClassUnits.length, 1);
+  assert.equal(result.baseClassUnits[0].side, 'base');
+  const wrong = runCorpusProbe('base-j3-wrong');
+  assert.equal(wrong.exitCode, 1);
+  assert.match(wrong.stderr.join('\n'), /base.*J3|J3.*base/);
+});
 
 test('reach corpus rejects incomplete ledgers even when CSS expectations match', async (t) => {
   for (const [mode, ledger, unreadable] of [

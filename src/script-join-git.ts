@@ -214,8 +214,8 @@ function joinFiles(
 
   for (const file of candidates) {
     const result = changesForFile(file, roots, blobs);
-    changes.push(...result.changes);
-    gaps.push(...result.gaps);
+    result.changes.forEach((change) => changes.push(change));
+    result.gaps.forEach((gap) => gaps.push(gap));
 
     if (result.changes.length && !result.gaps.length) unjudged.delete(file.path);
   }

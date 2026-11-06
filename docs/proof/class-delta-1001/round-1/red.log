@@ -1,0 +1,591 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-round1.test.mjs
+✖ inserted sibling retains its occurrence when the opposite blob has the same word position (3.354083ms)
+✖ inserted constant retains its occurrence when the opposite blob has the same word position (0.280583ms)
+✖ deleted constant retains its occurrence when the opposite blob has the same word position (0.294166ms)
+✔ replacement exclusion uses the hunk-relative counterpart, not global line numbers (0.638125ms)
+✖ a class-constant refactor with identical captured class lists never lowers J2 (4.003792ms)
+✖ tokens present on a new element cannot be never-rendered (0.418083ms)
+✖ tokens present on a tag change cannot be never-rendered (0.26325ms)
+✖ tokens present on a volatile cannot be never-rendered (0.150167ms)
+✔ only absence from every captured element on the occurrence side is negative (0.436125ms)
+✖ a missing base vocabulary does not poison healthy head evidence (0.504042ms)
+✖ file-specific source gaps do not poison another file or the opposite side (0.653833ms)
+✖ helper object keys retains known class-token occurrences (0.184292ms)
+✖ nested templates retains known class-token occurrences (0.37525ms)
+✖ Vue object binding retains known class-token occurrences (0.419ms)
+✖ Vue array binding retains known class-token occurrences (0.185208ms)
+✖ Svelte directive retains known class-token occurrences (0.12025ms)
+✖ Svelte interpolation retains known class-token occurrences (0.115667ms)
+✖ unparsed explicit class contexts produce named side/file gaps (0.23825ms)
+✔ nested prose under a class helper remains a named conservative candidate (0.138709ms)
+✖ CSS vocabulary respects escaped identifiers, attributes and selector functions (0.082542ms)
+✖ substitution literals adjoining static text are fragments rather than whole class tokens (0.253917ms)
+✔ positions retain JavaScript line terminators and UTF-16 columns (1.271791ms)
+✖ one MB of string literals scans in under one second (5005.67525ms)
+✖ one MB of template literals scans in under one second (5004.622958ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 4
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 10103.895792
+
+✖ failing tests:
+
+test at test/class-join-round1.test.mjs:58:3
+✖ inserted sibling retains its occurrence when the opposite blob has the same word position (3.354083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:60:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:58:3
+✖ inserted constant retains its occurrence when the opposite blob has the same word position (0.280583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:60:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:58:3
+✖ deleted constant retains its occurrence when the opposite blob has the same word position (0.294166ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:60:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:76:1
+✖ a class-constant refactor with identical captured class lists never lowers J2 (4.003792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.status === 'unknown'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:80:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:93:3
+✖ tokens present on a new element cannot be never-rendered (0.418083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(judge(edits("'old'", "'new'"), base, head).units.every((u) => u.status === 'unknown'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:99:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:93:3
+✖ tokens present on a tag change cannot be never-rendered (0.26325ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(judge(edits("'old'", "'new'"), base, head).units.every((u) => u.status === 'unknown'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:99:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:93:3
+✖ tokens present on a volatile cannot be never-rendered (0.150167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(judge(edits("'old'", "'new'"), base, head).units.every((u) => u.status === 'unknown'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:99:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:107:1
+✖ a missing base vocabulary does not poison healthy head evidence (0.504042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'unmeasured',
+  +   'unmeasured'
+  -   'unknown'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:109:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'unmeasured', 'unmeasured' ],
+    expected: [ 'unmeasured', 'unknown' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:115:1
+✖ file-specific source gaps do not poison another file or the opposite side (0.653833ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+
+    [
+      [
+        'broken.tsx',
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'broken.tsx',
+        'head',
+        'unmeasured'
+  ...
+        'base',
+  +     'unmeasured'
+  -     'unknown'
+      ],
+      [
+        'healthy.tsx',
+        'head',
+  +     'unmeasured'
+  -     'unknown'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:124:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'broken.tsx', 'base', 'unmeasured' ], [ 'broken.tsx', 'head', 'unmeasured' ], [ 'healthy.tsx', 'base', 'unmeasured' ], [ 'healthy.tsx', 'head', 'unmeasured' ] ],
+    expected: [ [ 'broken.tsx', 'base', 'unknown' ], [ 'broken.tsx', 'head', 'unmeasured' ], [ 'healthy.tsx', 'base', 'unknown' ], [ 'healthy.tsx', 'head', 'unknown' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ helper object keys retains known class-token occurrences (0.184292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ nested templates retains known class-token occurrences (0.37525ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ Vue object binding retains known class-token occurrences (0.419ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ Vue array binding retains known class-token occurrences (0.185208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ Svelte directive retains known class-token occurrences (0.12025ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:149:3
+✖ Svelte interpolation retains known class-token occurrences (0.115667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'old',
+  -   'new'
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:151:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'old', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:158:1
+✖ unparsed explicit class contexts produce named side/file gaps (0.23825ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:160:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:178:1
+✖ CSS vocabulary respects escaped identifiers, attributes and selector functions (0.082542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   'ghost-old',
+  +   'ghost-new'
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:179:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'ghost-old', 'ghost-new' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:193:1
+✖ substitution literals adjoining static text are fragments rather than whole class tokens (0.253917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     level: 'warn',
+  +     range: {
+  +       end: {
+  +         column: 25,
+  +         line: 1
+  +       },
+  +       start: {
+  +         column: 20,
+  +         line: 1
+  +       }
+  +     },
+  +     side: 'base',
+  +     sourceKey: 'app.tsx',
+  +     status: 'never-rendered',
+  +     token: 'old',
+  +     why: 'class token never landed on a captured element'
+  +   },
+  +   {
+  +     level: 'warn',
+  +     range: {
+  +       end: {
+  +         column: 25,
+  +         line: 1
+  +       },
+  +       start: {
+  +         column: 20,
+  +         line: 1
+  +       }
+  +     },
+  +     side: 'head',
+  +     sourceKey: 'app.tsx',
+  +     status: 'never-rendered',
+  +     token: 'new',
+  +     why: 'class token never landed on a captured element'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:197:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { sourceKey: 'app.tsx', side: 'base', range: [Object], token: 'old', status: 'never-rendered', why: 'class token never landed on a captured element', level: 'warn' }, { sourceKey: 'app.tsx', side: 'head', range: [Object], token: 'new', status: 'never-rendered', why: 'class token never landed on a captured element', level: 'warn' } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round1.test.mjs:212:3
+✖ one MB of string literals scans in under one second (5005.67525ms)
+  Error: spawnSync <node> ETIMEDOUT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:214:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -60,
+    code: 'ETIMEDOUT',
+    syscall: 'spawnSync <node>',
+    path: '<node>',
+    spawnargs: [ '--input-type=module', '-e', `import {classLiterals} from './dist/class-join-literals.js'; const line = "const C = 'old known';\\n"; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,'app.ts'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));` ],
+    error: Error: spawnSync <node> ETIMEDOUT
+        at Object.spawnSync (node:internal/child_process:1175:20)
+        at spawnSync (node:child_process:976:24)
+        at execFileSync (node:child_process:1019:15)
+        at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:214:20)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    status: null,
+    signal: 'SIGTERM',
+    output: [ null, '', '' ],
+    pid: 82060,
+    stdout: '',
+    stderr: ''
+  }
+
+test at test/class-join-round1.test.mjs:212:3
+✖ one MB of template literals scans in under one second (5004.622958ms)
+  Error: spawnSync <node> ETIMEDOUT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:214:20)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -60,
+    code: 'ETIMEDOUT',
+    syscall: 'spawnSync <node>',
+    path: '<node>',
+    spawnargs: [ '--input-type=module', '-e', 'import {classLiterals} from \'./dist/class-join-literals.js\'; const line = "const C = `btn ${on ? \\"old\\" : \\"new\\"}`;\\n"; const text=line.repeat(Math.ceil(1_000_000/line.length)); const start=performance.now(); const literals=classLiterals(text,\'app.ts\'); console.log(JSON.stringify({bytes:text.length,ms:performance.now()-start,count:literals.length}));' ],
+    error: Error: spawnSync <node> ETIMEDOUT
+        at Object.spawnSync (node:internal/child_process:1175:20)
+        at spawnSync (node:child_process:976:24)
+        at execFileSync (node:child_process:1019:15)
+        at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:214:20)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:974:7),
+    status: null,
+    signal: 'SIGTERM',
+    output: [ null, '', '' ],
+    pid: 82085,
+    stdout: '',
+    stderr: ''
+  }
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,75 @@
+✖ framework bindings preserve J3-only contexts: App.svelte <div data-class="old"/> (4.438958ms)
+✔ framework bindings preserve J3-only contexts: App.vue <div data-class="old"/> (0.4455ms)
+✖ framework bindings preserve J3-only contexts: App.svelte <div class="card {t('old')}"/> (0.460459ms)
+✖ framework bindings preserve J3-only contexts: App.vue <div :class="cn('card', t('old'))"/> (0.314334ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 1
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 75.764375
+
+✖ failing tests:
+
+test at test/class-join-round3.test.mjs:110:4
+✖ framework bindings preserve J3-only contexts: App.svelte <div data-class="old"/> (4.438958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every(u=>!u.explicit))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:115:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:110:4
+✖ framework bindings preserve J3-only contexts: App.svelte <div class="card {t('old')}"/> (0.460459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every(u=>!u.explicit))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:115:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round3.test.mjs:110:4
+✖ framework bindings preserve J3-only contexts: App.vue <div :class="cn('card', t('old'))"/> (0.314334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every(u=>!u.explicit))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round3.test.mjs:115:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

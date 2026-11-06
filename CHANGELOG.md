@@ -7,6 +7,44 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
+  Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
+  any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
+  Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
+  omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
+  older version-2 maps without document-boundary verification, unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
+  prose is skipped. Only positive class values can lower J2, never upgrade it. A token-role allow-list grants
+  explicit roles to class attributes / `.className =` values, bare helper arguments and their array
+  elements/object keys, ternary results and logical RHS values recursively inside positive roles,
+  classList.add arguments, replace's second argument, supported framework bindings and known cva class values.
+  Non-helper/optional/non-null/generic calls, tagged templates, binary/relational operands, lookups,
+  case labels, arrow bodies, unary/void expressions and ordinary assignments remain J3-only, as do
+  query/removal/toggle classList arguments, dataset/data-class and vocabulary-only candidates. Comments
+  do not change roles. The role reader reuses the existing lexer and a bounded bracket/work stack, with
+  no new runtime dependencies. Unknown expressions stay J3-only; unreadable brackets and depth
+  limits name the unmeasured remainder. A regression pins runtime dependencies to pngjs only. Findings stay warn-only at both levels, with
+  bounded detail and full counts. Whole replacement hunks match ordered token values plus role/slot,
+  preserving unchanged arguments when constants move to other lines; pure additions/deletions retain
+  occurrences. CSS escapes, simple Vue/Svelte bindings, Solid classList keys, nested templates and cva
+  variant values are supported. Fragments and unresolved explicit contexts get scoped gaps. Template
+  depth limits always cover the capped template through EOF, even outside class contexts. JSX values
+  use decoded spelling; encoded component markup and escaped dynamic templates stay unmeasured.
+  Inherited type mode keeps annotations, nested generics/tuples/conditionals, aliases/interfaces,
+  return types and assertions non-explicit, including generic constraints/defaults. Runtime
+  initializers, parenthesized arrow returns, ASI statements and case-expression blocks keep positive class values.
+  Angle matching stops at statement/operator/declarator boundaries; opaque TSX generic prefixes use
+  the existing TS lexer in J3. Both-direction oracle tests pin type negatives, runtime positives and separate hidden/gap counts.
+  Compact type closers separate initialization, ASI declaration starters resume runtime discovery,
+  and runtime compact comparisons remain operators. Capture, report assembly and Markdown escaping avoid unbounded argument spreads on multi-megabyte inputs. Unresolved explicit contexts collapse to one gap per file and side with a distinct occurrence count and ten sampled ranges, preserving exact internal range evidence and the existing report budget.
+  Unsupported lexical forms may still omit occurrences and gaps, a documented checking limit. Bracket caps discard
+  the unfinished statement back to the previous top-level semicolon, preserve earlier
+  statement roles, and cover the unread remainder through EOF where class-role analysis runs. Template depth
+  gaps remain unconditional, and flat else-if chains do not consume nesting depth.
+  Source positions, template walks, hunk matches, scoped gaps and negative joins are indexed.
+  Omission facts remain opt-in, preserving default capture output. Plain `{ class: 'economy' }`
+  properties remain explicit for Vue h() props, a documented data-object/type/name ambiguity;
+  aliases and data flow remain unsupported. The corpus checks base removals too (#1001).
+
 - Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
   on compared elements when the capture recorded the layer and a compared owner.
   Exact form-state probes remain available with layer metadata present, including inside

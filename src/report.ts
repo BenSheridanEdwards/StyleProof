@@ -567,14 +567,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
   const reachStrip = reach ? reachStripLines(reach) : [];
-  md.lines.push(
-    '## 🗺️ StyleProof report',
-    '',
-    ...productStateWarningLines(comparison, gates.legacyPairs),
-    ...headline,
-    ...reachStrip,
-    ...stateCoverageLines(ctx),
-  );
+  md.lines.push('## 🗺️ StyleProof report', '');
+  productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
+  headline.forEach((appended) => md.lines.push(appended));
+  reachStrip.forEach((appended) => md.lines.push(appended));
+  stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
   if (reach && !md.lines.includes(reachStrip[1])) {

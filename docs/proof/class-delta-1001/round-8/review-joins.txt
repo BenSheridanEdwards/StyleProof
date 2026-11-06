@@ -1,0 +1,15 @@
+"export const subscribe = (cb: Cb): (() => void) => { el.className = 'tk-new js-hook'; return f; };"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]
+"export const subscribe = (cb: Cb): (() => void) => { el.className = 'tk-new'; return f; };"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]
+"export const subscribe = (cb: Cb): (() => void) => { el.className = `tk-new ${x}`; return f; };"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]
+"const narrow = w < 640; el.className = 'tk-new js-hook'; const wide = w > 1280;"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]
+"export const Card = (p: P): (JSX.Element | null) => <div className=\"tk-new js-hook\">x</div>;"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]

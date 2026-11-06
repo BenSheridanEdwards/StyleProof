@@ -1,3 +1,12 @@
+import {
+  classifyClassReach,
+  combineClassReach,
+  classJoinGap,
+  type ClassUnit,
+  type ClassJoinGap,
+  type ClassMapPair,
+} from '../class-join.js';
+import { classSectionLines, classSummary } from './class-units.js';
 import { scriptUnitRanges } from './script-units.js';
 import { scriptGapLines } from './script-gap-details.js';
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
@@ -16,6 +25,7 @@ import { createMapLoader, type RenderCtx } from './shared.js';
 
 export type ReachGap =
   | ScriptJoinGap
+  | ClassJoinGap
   | {
       join: 'J1' | 'J2' | 'J3';
       status: 'unknown' | 'unmeasured';
@@ -43,6 +53,10 @@ export type ReportReach = {
   scriptCounts: Record<ScriptUnit['status'], number>;
   /** Actual J2 evidence gaps before presentation truncation; notices never add to this count. */
   scriptGapCount?: number;
+  /** J3 findings remain advisory at either level. No occurrence provenance is recorded. */
+  classes?: ClassUnit[];
+  classCounts?: Record<ClassUnit['status'], number>;
+  classGapCount?: number;
   gaps: ReachGap[];
 };
 
@@ -86,6 +100,7 @@ export function assessReachMaps(
   head: StyleMap[],
   level: ChangeReachLevel,
   sourceDiff?: ScriptChanges,
+  pairs: readonly ClassMapPair[] = [],
 ): ReportReach | undefined {
   if (level === 'warn' && ![...base, ...head].some((map) => map.reach || map.scriptReach)) return undefined;
   const result = classifyRuleReach(base, head);
@@ -99,6 +114,16 @@ export function assessReachMaps(
       : [],
   };
 
+  const classReach = classifyClassReach(base, head, diff.changes, pairs);
+  if (!sourceDiff)
+    classReach.gaps.push(
+      classJoinGap(
+        'changed source ranges unavailable; captureScriptReach and clean captured git revisions are required to list class occurrences',
+      ),
+    );
+  diff.gaps
+    .map((gap) => classJoinGap(`changed class occurrences unmeasured: ${gap.reason}`, gap.side))
+    .forEach((appended) => classReach.gaps.push(appended));
   const script = classifyScriptReach(
     base,
     head,
@@ -108,6 +133,7 @@ export function assessReachMaps(
     ),
   );
 
+  script.units = combineClassReach(script.units, classReach.units);
   const gaps: ReachGap[] = [...ledgerGaps(base, 'base'), ...ledgerGaps(head, 'head'), ...script.gaps, ...diff.gaps];
 
   if (result.ledger !== 'complete' && !gaps.some((gap) => gap.kind === 'ledger')) {
@@ -119,18 +145,15 @@ export function assessReachMaps(
       remedy: 'recapture with `captureReach`',
     });
   }
-  const remedy = 'none yet: a later Change Reach phase (#934) adds it';
-  gaps.push(
-    {
-      join: 'J1',
-      status: 'unknown',
-      kind: 'not-built',
-      reason:
-        "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
-      remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
-    },
-    { join: 'J3', status: 'unmeasured', kind: 'not-built', reason: 'class-list deltas are not recorded yet', remedy },
-  );
+  gaps.push({
+    join: 'J1',
+    status: 'unknown',
+    kind: 'not-built',
+    reason:
+      "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+    remedy: 'add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join',
+  });
+  classReach.gaps.forEach((appended) => gaps.push(appended));
   const counts: ReportReach['counts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 };
   for (const rule of result.rules) counts[rule.status]++;
   const scriptCounts: ReportReach['scriptCounts'] = { reached: 0, 'never-rendered': 0, unmeasured: 0, unknown: 0 };
@@ -140,7 +163,8 @@ export function assessReachMaps(
   const complete =
     gaps.length === 0 &&
     result.rules.every((rule) => rule.status === 'reached') &&
-    script.units.every((unit) => unit.status === 'reached');
+    script.units.every((unit) => unit.status === 'reached') &&
+    classReach.units.every((unit) => unit.status === 'reached');
 
   const blocking =
     level === 'gate'
@@ -158,6 +182,14 @@ export function assessReachMaps(
     rules: result.rules,
     unreadableSheets: result.unreadableSheets,
     scripts: script.units,
+    classes: classReach.units,
+    classCounts: {
+      reached: 0,
+      'never-rendered': classReach.units.filter((unit) => unit.status === 'never-rendered').length,
+      unknown: classReach.units.filter((unit) => unit.status === 'unknown').length,
+      unmeasured: classReach.units.filter((unit) => unit.status === 'unmeasured').length,
+    },
+    classGapCount: gaps.filter((gap) => gap.join === 'J3').length,
     scriptCounts,
     scriptGapCount: gaps.filter((gap) => gap.join === 'J2').length,
     gaps,
@@ -179,7 +211,13 @@ export function assessReach(
     base,
     head,
     level,
-    readScriptChanges(ctx.beforeDir, ctx.afterDir, { baseMaps: base, headMaps: head }),
+    [...base, ...head].some((map) => map.scriptReach)
+      ? readScriptChanges(ctx.beforeDir, ctx.afterDir, { baseMaps: base, headMaps: head })
+      : undefined,
+    [...captureKeysIn(ctx.beforeDir)]
+      .filter((key) => captureKeysIn(ctx.afterDir).includes(key))
+      .sort(compareSourceKeys)
+      .map((key) => ({ base: ctx.load(ctx.beforeDir, key), head: ctx.load(ctx.afterDir, key) })),
   );
 }
 
@@ -196,15 +234,23 @@ export function reachStripLines(reach: ReportReach): string[] {
     reach.ledger === 'complete' &&
     reach.gaps.length === 0 &&
     reach.rules.every((rule) => rule.status === 'reached') &&
-    (reach.scripts ?? []).every((unit) => unit.status === 'reached')
+    (reach.scripts ?? []).every((unit) => unit.status === 'reached') &&
+    (reach.classes ?? []).every((unit) => unit.status === 'reached')
   ) {
     return ['', '**Reach complete** — every changed rule matched a captured element in a captured state.'];
   }
 
-  const scriptStrip = scriptStripLines(reach);
+  const scriptStrip = [
+    ...scriptStripLines(reach),
+    '',
+    `**J3 class reach (warn-only)**${classSummary(reach).replace('; J3:', ' —')}. No per-occurrence render provenance is recorded.`,
+  ];
 
   const unchecked =
-    "Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS) and class-list deltas." +
+    "Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS)." +
+    (reach.gaps.some((gap) => gap.join === 'J3')
+      ? ' Class-list deltas are not checked where J3 source, vocabulary or pairing evidence is unavailable; see J3 gaps.'
+      : '') +
     (reach.level === 'gate' ? " These are not held by `changeReach: 'gate'`." : '');
   const never = reach.counts['never-rendered'];
   const unmeasured = reach.counts.unmeasured;
@@ -233,8 +279,8 @@ export function reachStripLines(reach: ReportReach): string[] {
     parts.push(`${blind} changed in a channel computed styles cannot hold`);
     remedies.push('review the changes under **Changed in a channel computed styles cannot hold**');
   }
-  parts.push(...ledger.map(gapReason));
-  remedies.push(...ledger.map((gap) => gap.remedy));
+  ledger.map(gapReason).forEach((appended) => parts.push(appended));
+  ledger.map((gap) => gap.remedy).forEach((appended) => remedies.push(appended));
   return [
     '',
     `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
@@ -258,7 +304,7 @@ export function reachSectionLines(reach: ReportReach): string[] {
   const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  const scriptLines = scriptSectionLines(reach);
+  const scriptLines = [...scriptSectionLines(reach), ...classSectionLines(reach)];
 
   if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return scriptLines;
 
@@ -309,7 +355,7 @@ export function reachSectionLines(reach: ReportReach): string[] {
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
 
-  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\`${scriptSummary(reach)}`;
+  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\`${scriptSummary(reach)}${classSummary(reach)}`;
 }
 
 function scriptSummary(reach: ReportReach): string {
@@ -355,17 +401,13 @@ function scriptSectionLines(reach: ReportReach): string[] {
     const hidden = ranges.slice(group.length);
 
     if (!ranges.length) continue;
-    lines.push(
-      '',
-      `**${status}**`,
-      '',
-      '| Source | Side | Execution | Why |',
-      '| --- | --- | --- | --- |',
-      ...group.map(
+    lines.push('', `**${status}**`, '', '| Source | Side | Execution | Why |', '| --- | --- | --- | --- |');
+    group
+      .map(
         (unit) =>
           `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}${unit.count > 1 ? ` (${unit.count} units)` : ''}`)} | ${unit.side} | ${unit.execution} | ${escapeInlineMarkdown(unit.why)} |`,
-      ),
-    );
+      )
+      .forEach((appended) => lines.push(appended));
     if (hidden.length)
       lines.push(
         '',
@@ -373,7 +415,10 @@ function scriptSectionLines(reach: ReportReach): string[] {
       );
   }
 
-  if (gaps.length) lines.push('', '**J2 run-level gaps (unmeasured)**', '', ...scriptGapLines(gaps));
+  if (gaps.length) {
+    lines.push('', '**J2 run-level gaps (unmeasured)**', '');
+    scriptGapLines(gaps).forEach((appended) => lines.push(appended));
+  }
 
   return lines;
 }

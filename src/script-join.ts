@@ -19,6 +19,14 @@ export type ScriptChange = {
   contentHash: string;
   /** Full JavaScript lines containing the range, starting at range.start.line; token evidence and residual names only. Never persisted. */
   text: string;
+  /** Full git-side source for J3 lexical context only. Never persisted. */
+  classSource?: string;
+  /** Opposite blob supplies replacement-hunk token alignment. Never persisted. */
+  classOtherSource?: string;
+  /** Only a replacement block can align class words across both complete hunk sides. Never persisted. */
+  classCounterpart?: { range: SourceSpan; current: SourcePosition; end?: SourcePosition };
+  /** Raw changed columns, before J2 expands to evaluation tokens. J3 excludes unchanged words. */
+  classRange?: SourceSpan;
   /** Bounded preceding source lines used only to name parameter residuals. Never persisted. */
   parameterContext?: { before: string; after: string };
   /** File-wide raw-text flag from this side's full source blob. Never persisted. */
@@ -35,7 +43,16 @@ export type ScriptExecution = 'ran' | 'never-ran' | 'partly-ran' | 'not-loaded' 
 
 export type ScriptUnit = Omit<
   ScriptChange,
-  'text' | 'parameterContext' | 'generatorFile' | 'language' | 'contentHash' | 'unmeasuredReason'
+  | 'text'
+  | 'classSource'
+  | 'classOtherSource'
+  | 'classCounterpart'
+  | 'classRange'
+  | 'parameterContext'
+  | 'generatorFile'
+  | 'language'
+  | 'contentHash'
+  | 'unmeasuredReason'
 > & {
   execution: ScriptExecution;
   status: 'reached' | 'never-rendered' | 'unmeasured' | 'unknown';

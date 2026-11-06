@@ -1,0 +1,62 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-round1.test.mjs
+✔ inserted sibling retains its occurrence when the opposite blob has the same word position (3.109875ms)
+✔ inserted constant retains its occurrence when the opposite blob has the same word position (0.315667ms)
+✔ deleted constant retains its occurrence when the opposite blob has the same word position (0.314ms)
+✔ replacement exclusion uses the hunk-relative counterpart, not global line numbers (0.786ms)
+✔ a class-constant refactor with identical captured class lists never lowers J2 (1.278542ms)
+✔ tokens present on a new element cannot be never-rendered (0.327834ms)
+✔ tokens present on a tag change cannot be never-rendered (0.192292ms)
+✔ tokens present on a volatile cannot be never-rendered (0.131542ms)
+✔ only absence from every captured element on the occurrence side is negative (0.449125ms)
+✔ a missing base vocabulary does not poison healthy head evidence (0.319958ms)
+✔ file-specific source gaps do not poison another file or the opposite side (0.240208ms)
+✔ helper object keys retains known class-token occurrences (0.234333ms)
+✔ nested templates retains known class-token occurrences (0.338625ms)
+✔ Vue object binding retains known class-token occurrences (0.24875ms)
+✔ Vue array binding retains known class-token occurrences (0.290625ms)
+✔ Svelte directive retains known class-token occurrences (0.170834ms)
+✔ Svelte interpolation retains known class-token occurrences (0.212125ms)
+✔ unparsed explicit class contexts produce named side/file gaps (0.159667ms)
+✔ nested prose under a class helper remains a named conservative candidate (0.110542ms)
+✔ CSS vocabulary respects escaped identifiers, attributes and selector functions (0.185834ms)
+✔ substitution literals adjoining static text are fragments rather than whole class tokens (0.122666ms)
+✔ positions retain JavaScript line terminators and UTF-16 columns (1.2335ms)
+✔ one MB of string literals scans in under one second (164.597167ms)
+ℹ {"kind":"string","bytes":1000017,"ms":116.05250000000001,"count":43479}
+✔ one MB of template literals scans in under one second (206.905833ms)
+ℹ {"kind":"template","bytes":1000038,"ms":151.272875,"count":76926}
+✖ a bare className assignment with no static tokens is a scoped gap (3.283459ms)
+ℹ tests 25
+ℹ suites 0
+ℹ pass 24
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 459.07775
+
+✖ failing tests:
+
+test at test/class-join-round1.test.mjs:225:1
+✖ a bare className assignment with no static tokens is a scoped gap (3.283459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round1.test.mjs:227:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.

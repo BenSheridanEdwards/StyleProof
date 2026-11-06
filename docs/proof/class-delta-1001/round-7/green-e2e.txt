@@ -1,0 +1,5 @@
+Running 1214 tests using 4 workers
+  ✓   137 [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=false (877ms)
+  ✓   141 [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=true (843ms)
+  1 skipped
+  1213 passed (8.2m)

@@ -1,0 +1,23 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+
+Running 8 tests using 1 worker
+
+(node:16824) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control (166ms)
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+  ✓  2 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ticker (1.5s)
+  ✓  3 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore (129ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  4 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with shadow (152ms)
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  5 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame (156ms)
+  ✓  6 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 unopened constant is never-rendered (882ms)
+  ✓  7 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 collision stays unknown (920ms)
+  ✓  8 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown (1.4s)
+
+  8 passed (5.7s)

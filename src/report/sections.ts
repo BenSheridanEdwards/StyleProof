@@ -126,7 +126,9 @@ function renderOneSided(
 
     if (tiles.length > 0) {
       const caption = `${side} · ${formatSurfaceWithContext(p.sd.surface, map)}`;
-      md.push(...oneSidedTileLines(ctx, tiles, png.height, `${text.alt} — ${side}`, caption));
+      oneSidedTileLines(ctx, tiles, png.height, `${text.alt} — ${side}`, caption).forEach((appended) =>
+        md.push(appended),
+      );
       json.image = `${tiles[0].stem}.png`;
       // Additive (#756): every tile, and how much of the captured height they show.
       json.images = tiles.map((t) => `${t.stem}.png`);

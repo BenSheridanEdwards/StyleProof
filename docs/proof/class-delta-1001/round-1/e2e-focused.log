@@ -1,0 +1,12 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 3 tests using 1 worker
+
+(node:5875) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 unopened constant is never-rendered (993ms)
+  ✓  2 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 collision stays unknown (926ms)
+  ✓  3 [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown (902ms)
+
+  3 passed (4.3s)

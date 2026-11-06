@@ -1,153 +1,117 @@
 # Reach corpus: method and results
 
-The fixture measures whether unopened-state restyles appear in the computed-style
-diff and whether reach names missing evidence. `bench/reach-corpus.results.json`
-is the measured receipt; `pnpm run bench:reach:check` is the CI oracle.
+`bench/reach-corpus.results.json` is the measured receipt;
+`pnpm run bench:reach:check` is the CI oracle. “Complete” names the five-state spec,
+not reach-complete certification.
 
 ## Method
 
-There are 16 seeded changes (15 visual and one non-visual error handler). The
-**declared** scenario captures home only; **complete** captures all five fixture
-states. “Complete” names that spec, not reach-complete certification. esbuild
-source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
+There are 18 seeded changes: 17 visual and one non-visual error handler. Declared
+captures only home; complete captures home, fault, status-bad, dark and wide.
+esbuild source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
 `diffStyleMaps` supply the evidence. Healthy repeated captures must have identical
-style and reach evidence. Every changed unit must have exactly one case owner.
+style and reach evidence. Every changed source unit has exactly one case owner.
 
 J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` and
-`classifyScriptReach` from `src/` on stored capture evidence. The corpus constructs
-one-line patches by hand and judges the head unit (base for a removed line); it
-does not run `readScriptChanges`. Unit and e2e tests cover the real Git/manifest
-adapter, including comparison SHAs, multiline hunks, capture prefixes, patch
-pairing, source hashes and expression starts.
+`classifyScriptReach`; J3 uses `classifyClassReach` and `combineClassReach` from
+`src/`. There is no token-name J3 prototype. The historical noise runner's adapter
+also calls src J3; its previously recorded receipt is historical, not remeasured.
+The corpus constructs one-line patches and selects head units (base for removals),
+not `readScriptChanges`. Real Git/manifest and Chromium tests exercise the adapter,
+captured revision SHAs, project prefixes and report filename pairing.
 
-The temporary fixture is a Git repository, so each capture resolves its actual
-`src/base` or `src/head` project-root prefix. After rebasing onto the injected-script
-capture fix (#1287), the corpus asserts **zero J2 run-level gaps** for every source
-unit. The receipt's `j2Gaps` records the empty lists; any gap fails the oracle.
-Case statuses judge mapped source units; the run is not reach-complete.
+The temporary fixture is a Git repository, so captures resolve actual
+`src/base`/`src/head` project prefixes. Every source unit asserts zero J2 and J3
+run-level gaps. Class-case expectations also assert the number and status of every
+selected occurrence, including both constants in the same-token collision. Base-side
+removals on replacement lines have independent counts and status expectations; they
+are retained under `baseClassUnits` in the receipt.
+No per-occurrence render provenance is recorded. A delta is unknown, never reached
+or J2 corroboration. Token absence is negative evidence only when every map on the occurrence side records
+no omissions with verified version-2 facts and complete pairing: volatile elements,
+ignore lists, untraversed author roots/documents, outside-body children, unstable
+facts and version-1/legacy maps leave absence unknown. Only positive class-context
+negatives may lower J2; vocabulary-only candidates cannot. Token presence, including
+on unpaired elements or unchanged class lists, stays unknown.
 
-**J3-prototype is separate evidence.** The token-name `classReach` prototype is
-retained for branch-class, module-constant and colliding-constant, but never
-overrides or corroborates the src J2 status. Results have a separate
-`prototypeJ3` field and printed J3-prototype label. #1001 re-judges these cases
-under ADR 0009 per-occurrence provenance. A token delta is not that provenance.
+## Before/after (#1001)
 
-## Results and correction
+The baseline is main after #1000 / PR #1302 (`0cc4bd2dc`). Its corpus log is retained
+in `docs/proof/class-delta-1001/corpus-before.log`.
 
-| Measurement                                  | Original prototype (14 cases) | Rejected join head (16 cases) | Corrected join (16 cases) |
-| -------------------------------------------- | ----------------------------- | ----------------------------- | ------------------------- |
-| Declared: visual changes shown               | 1/13                          | 1/15                          | 1/15                      |
-| Complete: visual changes shown               | 12/13                         | 14/15                         | 14/15                     |
-| Declared: unknown cases                      | 0                             | 3                             | 5                         |
-| Complete: unknown cases                      | 0                             | 3                             | 6                         |
-| Declared: misses named by non-reached status | 11/12                         | 14/14                         | 14/14                     |
-| Error handler, both scenarios                | never-rendered                | never-rendered                | never-rendered            |
+| Measurement                   | Before: src J1/J2, separate J3 prototype | After: src J1/J2/J3 |
+| ----------------------------- | ---------------------------------------- | ------------------- |
+| Cases / visual                | 16 / 15                                  | 18 / 17             |
+| Declared visual changes shown | 1/15                                     | 3/17                |
+| Complete visual changes shown | 14/15                                    | 16/17               |
+| Declared misses named         | 14/14                                    | 14/14               |
+| Declared unknown cases        | 5                                        | 7                   |
+| Complete unknown cases        | 6                                        | 8                   |
+| Total unknown scenario cells  | 11                                       | 15                  |
+| Error handler, both scenarios | never-rendered                           | never-rendered      |
 
-The correction moves **five result cells** to unknown: module-constant and
-colliding-constant in both scenarios, and branch-class in complete. This is
-**three existing cases**, not five cases. Compared with the original prototype,
-the existing runtime-css-in-js case also moved to unknown in both scenarios;
-the render-scope-value and eager-jsx-element cases were newly added. The corrected
-receipt contains eleven unknown cells: five declared and six complete.
-Round four changes no case status: **zero cells moved to unknown**. Resolving the
-temporary Git root removes the two previously unchecked prefix gaps; the two
-unsupported-script gaps remain explicit and asserted.
-After the round-five rebase, #1287 excludes those injected scripts and removes
-both unsupported-script gaps. No case status changes; unknown counts stay five
-declared and six complete.
+On the **16 existing cases**, no combined case changes relative to main. Declared
+module-constant is a vocabulary-only candidate: its head J3 token is absent and
+reads never-rendered, but cannot lower its ran/unknown J2 range. Round two restores
+that combined cell to unknown. Colliding-constant stays unknown: its head token
+`tone-red` appears on the healthy delete link; its base `tone-amber` is absent and
+negative on declared. Both complete sides are unknown.
 
-| Case               | Src J2 declared | Src J2 complete | J3-prototype declared / complete |
-| ------------------ | --------------- | --------------- | -------------------------------- |
-| branch-class       | never-rendered  | unknown         | never-rendered / reached         |
-| module-constant    | unknown         | unknown         | never-rendered / reached         |
-| colliding-constant | unknown         | unknown         | never-rendered / reached         |
-| runtime-css-in-js  | unknown         | unknown         | n/a                              |
-| render-scope-value | unknown         | unknown         | n/a                              |
-| eager-jsx-element  | unknown         | unknown         | n/a                              |
-| error-handler      | never-rendered  | never-rendered  | n/a                              |
+The two new ADR cases add four unknown cells versus main (11 → 15). Declared/complete
+unknown totals are **7/8**, versus main's **5/6**, round zero's **5/8**, and round
+one's **6/8**. Shown counts and the 14/14 declared misses named are unchanged from
+round one. No corpus token status changes from round one's corrected presence rule.
 
-The value definitions execute without proving their values rendered. Even a
-computed-style finding on the complete spec does not supply exact-range
-corroboration. Thus those src J2 units stay unknown. The healthy page never enters
-the fault badge branch, so branch-class remains never-rendered there.
+| Case                  | Declared J2 / J3 / combined                 | Complete J2 / J3 / combined |
+| --------------------- | ------------------------------------------- | --------------------------- |
+| branch-class          | never-ran / never-rendered / never-rendered | ran / unknown / unknown     |
+| module-constant       | ran / never-rendered / unknown              | ran / unknown / unknown     |
+| colliding-constant    | ran / unknown / unknown                     | ran / unknown / unknown     |
+| same-line-class-style | ran / unknown / unknown                     | ran / unknown / unknown     |
+| same-token-collision  | ran / unknown / unknown                     | ran / unknown / unknown     |
 
-Round eight changes **zero case statuses and zero cells to unknown**. Eager JSX
-remains ran/unknown in both scenarios: its opening tag, properties and text have
-token-start anchors; the closing tag is delimiter syntax, not a second evaluation
-of its name. All 32 expectations and the zero-gap assertion remain unchanged.
-The refreshed receipt adds the general throwing-expression limit to ran/unknown
-reasons; J3-prototype rows still cannot corroborate J2.
-
-Round nine also moves **zero cases and zero cells to unknown**. Eager JSX and
-render-scope values remain ran/unknown in both scenarios, with all 32 expectations
-and the zero-gap assertion unchanged. Additional real-esbuild/Chromium regressions
-cover folded template substitutions, mapped idle arms and live controls; these are
-outside the corpus's hand-built one-line patches.
-
-Round ten preserves **all 32 expectations, zero J2 gaps and the 5/6 unknown
-totals**. No case or scenario cell changes status. Eager JSX and render-scope
-values remain unknown; the additional lexical-boundary cases exercise real Git
-in the browser suite rather than changing the corpus method or expectations.
-
-Round 11 keeps all 32 expectations and zero J2 gaps. Unknown totals remain five
-in declared and six in complete; eager JSX and render-scope values stay unknown
-in both. Zero case statuses or result cells move to unknown. The refreshed receipt
-changes only its timestamp and three never-ran explanations to name an anchor,
-rather than claim the whole expression never evaluated. The new `.ts` assertion
-and parameter cases run in unit tests and the real-Chromium/Git adapter spec;
-the corpus still uses hand-built one-line patches and selects the head unit.
-
-Round 12 also passes all 32 expectations with zero J2 gaps and unchanged 5/6
-unknown totals. No case status or result cell moves to unknown; eager JSX and
-render-scope values remain unknown. The receipt changes only its timestamp.
-Generator creation/iteration and live/idle TSX generic regressions run through
-the real Chromium/Git adapter spec; the corpus method stays unchanged.
-
-Round 13 retains all 32 expectations and zero J2 gaps. Unknown totals remain five
-in declared and six in complete; no case status or result cell moves to unknown,
-and eager JSX/render-scope values stay unknown in both. Only the receipt timestamp
-changes. Whole-file generator recognition and its intentional outside-generator
-over-flagging are covered by unit and real-Chromium/Git tests. The corpus still
-uses hand-built one-line patches and selects the head unit.
-
-Round 14's raw generator-pattern policy retains all 32 expectations, zero J2 gaps
-and unchanged five/six unknown totals. No case status or result cell moves to
-unknown; eager JSX and render-scope values remain unknown. Only the timestamp
-changes in the receipt. Unit and real-Chromium/Git tests pin the intentional raw
-multiplication/string/comment/regex over-flagging and apostrophe boundaries; the
-corpus still uses hand-built one-line patches and selects the head unit.
-
-Round 15 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
-totals. No case status or result cell moves to unknown; eager JSX and render-scope
-values stay unknown. Only the timestamp changes in the receipt. Unit and real
-Chromium/Git tests cover widened raw header shapes with/without yield, including
-all eight independent QA repros; the corpus still uses hand-built one-line patches
-and selects the head unit.
-
-Round 16 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
-totals. No case status or result cell moves to unknown; eager JSX and render-scope
-values stay unknown. Only the timestamp changes in the receipt. Unit and real
-Chromium/Git tests pin braced Unicode names and quoted line continuations without
-yield, and the documented limit for no-yield computed/generic contents above 512
-characters. The corpus uses hand-built one-line patches and selects the head unit.
-
-Round 17 retains all 32 expectations, zero J2 gaps and unchanged five/six unknown
-totals. No case status or result cell moves to unknown; eager JSX and render-scope
-values stay unknown. Only the timestamp changes in the receipt. Unit and real
-Chromium/Git tests cover capped valid regex literals, nested template/tag scans,
-eight-digit braced escapes and the short-regex control. The corpus uses hand-built
-one-line patches and selects the head unit.
+The same-line case computes a style object on every render; Banner applies it
+only when fault is open, while its class changes on healthy. The class occurrence
+has a delta but no provenance, and cannot corroborate the style value on that same
+line. Both stay unknown. In the same-token case both module constants change
+`collision-old` to `collision-new`; one renders on healthy and one only in fault.
+Both selected occurrences are unknown even when only healthy is captured.
 
 ## Limits
 
-This is a synthetic fixture, not a consumer noise-rate measurement. Block entry
-still cannot prove default parameter values, destructuring defaults, logical
+This synthetic fixture does not measure consumer noise. J2 block entry cannot
+prove value rendering, default parameter values, destructuring defaults, logical
 assignment RHS, later optional-chain links or code after a throwing expression.
-J2 findings remain advisory under both levels. The error handler remains named
-noise. The keyframes change remains a J1 blind channel. J3 per-occurrence
-provenance is not built, and these results never establish reach-complete.
+The non-visual error handler remains named noise; keyframes remain a blind channel.
+J3 skips prose, checks presence on all captured elements (including unpaired),
+and cannot reach an occurrence
+without future source-mapped render provenance. Missing class vocabulary, ledgers,
+source ranges or paired captures remain named unmeasured gaps. J2/J3 findings and
+gaps stay advisory at both levels and prevent reach-complete. The changed-stylesheet
+and other ADR attribution joins remain unbuilt.
 
-```sh
-pnpm run bench:reach        # write receipt
-pnpm run bench:reach:check  # check every expectation
-```
+Round three retains the measured 7/8 unknown totals and all combined/J3 corpus
+statuses. The capture/context fixes do not change this fully paired fixture;
+base-removal counts/statuses remain independently asserted.
+
+Round four preserves every round-three corpus status and the 7/8 unknown totals.
+Predicate/lookup literals and dataset assignments cannot lower J2; unchanged class
+arguments survive inserted constants. Omission facts are opt-in, and complete facts
+now verify head content and announcer author children. Older version-2 facts without
+document-boundary verification remain conservative. This fixture has no such
+omissions, and the independent base-removal checks continue to pass.
+
+Round five preserves every round-four case, J3/base-removal status and count, with
+7/8 unknown totals and zero J2/J3 gaps. The positive AST role allow-list and ordered
+whole-hunk token/role/slot matching do not change this fixture. The measured
+receipt differs only in its generation timestamp.
+
+The dependency-free correction replaces the Babel role reader with the existing
+lexer and an in-repo bounded bracket/work stack. Its receipt matches round five
+exactly except the generation timestamp: all 36 scenario cells, base removals,
+zero J2/J3 gaps and 7/8 unknown totals are unchanged. Runtime dependency files
+match origin/main, with pngjs as the sole runtime dependency.
+
+Round six retains every corpus status/count and the 7/8 unknown totals. Inline
+type scopes, completed-prefix preservation and iterative flat ternary chains do
+not change this fixture; independent base removals and zero J2/J3 gaps still pass.

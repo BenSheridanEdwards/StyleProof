@@ -70,7 +70,7 @@ function jsxTextRanges(line: string): ScriptToken[] {
   for (let cursor = 0; cursor < line.length; cursor++) {
     const boundary = jsxBoundary(line, cursor, seen);
     if (boundary) {
-      ranges.push(...boundary.tokens);
+      boundary.tokens.forEach((token) => ranges.push(token));
       cursor = boundary.end;
       seen = true;
       continue;
@@ -223,7 +223,7 @@ export function scriptTokens(line: string, sourceKey = '', language?: 'ts'): Scr
     }
     const piece = templatePiece(line, cursor, substitutions);
     if (piece) {
-      tokens.push(...piece.tokens);
+      piece.tokens.forEach((token) => tokens.push(token));
       cursor = piece.end;
       continue;
     }

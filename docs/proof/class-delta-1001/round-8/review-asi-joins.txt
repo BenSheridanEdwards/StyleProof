@@ -1,0 +1,6 @@
+"let timer: number | undefined\ntry {\n  el.className = 'tk-new js-hook'\n} catch {}"
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]
+"<script lang=\"ts\">\n  let timer: number | undefined\n  async function open() {\n    el.className
+  J3 units: ["base:tk-old:never-rendered:explicit","head:tk-new:never-rendered:explicit"]  gaps: 0 []
+  combined: ["base:never-rendered","head:never-rendered"]

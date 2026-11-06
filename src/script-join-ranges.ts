@@ -226,6 +226,10 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
           sources.head.typescript.has(lines.head[0]) ? 'ts' : undefined,
         )
       : undefined;
+  const raw =
+    lines.base.length === 1 && lines.head.length === 1
+      ? differingColumns(sources.base.lines[lines.base[0] - 1] ?? '', sources.head.lines[lines.head[0] - 1] ?? '')
+      : undefined;
   const endings = { base: endingIndex(sources.base, lines.base), head: endingIndex(sources.head, lines.head) };
   return (['base', 'head'] as const).flatMap((side) => {
     const source = sources[side],
@@ -234,7 +238,7 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
       const changedEnding = [...(other.get(source.lines[line - 1]) ?? [])].some(
         (ending) => ending !== source.endings[line - 1],
       );
-      return changedLine(
+      const entries = changedLine(
         source,
         line,
         changedEnding ? undefined : columns?.[side],
@@ -244,6 +248,37 @@ function blockChanges(lines: ChangedLines, sources: { base: Source; head: Source
           ? 'line ending changed; execution anchors cannot attribute an EOF newline or CRLF/LF change'
           : undefined,
       );
+      const offset = source.gitStarts[line - 1];
+      const opposite = side === 'base' ? 'head' : 'base';
+      const counterpart = lines[opposite][0];
+      const otherSource = sources[opposite];
+      const endOf = (s: Source, changed: number[]) => {
+        const last = changed.at(-1)!;
+        return positionAt(s, s.gitStarts[last - 1] + s.lines[last - 1].length);
+      };
+      return entries.map((entry) => ({
+        ...entry,
+        ...(raw
+          ? {
+              classRange: {
+                start: positionAt(source, offset + raw.start),
+                end: positionAt(source, offset + (side === 'base' ? raw.baseEnd : raw.headEnd)),
+              },
+            }
+          : {}),
+        ...(counterpart
+          ? {
+              classCounterpart: {
+                current: positionAt(source, source.gitStarts[lines[side][0] - 1]),
+                end: endOf(source, lines[side]),
+                range: {
+                  start: positionAt(otherSource, otherSource.gitStarts[counterpart - 1]),
+                  end: endOf(otherSource, lines[opposite]),
+                },
+              },
+            }
+          : {}),
+      }));
     });
   });
 }
@@ -255,7 +290,7 @@ export function changedScriptRanges(patch: string, texts: ScriptTexts, sourceKey
   let position: { base: number; head: number } | undefined;
   let block: ChangedLines = { base: [], head: [] };
   const flush = () => {
-    changes.push(...blockChanges(block, sources, sourceKey));
+    blockChanges(block, sources, sourceKey).forEach((change) => changes.push(change));
     block = { base: [], head: [] };
   };
   for (const line of patch.split('\n')) {
@@ -275,5 +310,9 @@ export function changedScriptRanges(patch: string, texts: ScriptTexts, sourceKey
     }
   }
   flush();
-  return changes;
+  return changes.map((change) => ({
+    ...change,
+    classSource: texts[change.side],
+    classOtherSource: texts[change.side === 'base' ? 'head' : 'base'],
+  }));
 }
