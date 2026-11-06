@@ -75,7 +75,7 @@ test('img swaps, data hashes, picture/srcset and empty lazy currentSrc are captu
   const image = (color: string) =>
     `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10" fill="${color}"/></svg>`)}`;
   const markup = (color: string) =>
-    `<!doctype html><picture><source srcset="${image(color)}"><img class="target" width="10" height="10"></picture><img class="lazy" loading="lazy" style="position:absolute;top:99999px" src="/lazy.png">`;
+    `<!doctype html><picture><source srcset="${image(color)}"><img class="target" width="10" height="10"></picture><img class="lazy" loading="lazy" style="position:absolute;top:99999px" src="http://lazy.test/lazy.png">`;
   await page.route('**/lazy.png', (route) => route.abort());
   const before = await capture(page, markup('blue'));
   const after = await capture(page, markup('red'));
@@ -84,6 +84,7 @@ test('img swaps, data hashes, picture/srcset and empty lazy currentSrc are captu
   expect(img.style['img currentSrc']).toMatch(/^data:sha256:[0-9a-f]{64}$/);
   expect(JSON.stringify(after)).not.toContain('data:image/svg+xml');
   expect(Object.values(after.elements).find((entry) => entry.cls === 'lazy')!.style['img currentSrc']).toBe('');
+  expect(await page.locator('img.lazy').evaluate((element) => element.complete)).toBe(false);
 });
 
 test('pseudo-elements and forced-state references report their own keyframes body', async ({ page }) => {

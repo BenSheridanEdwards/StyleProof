@@ -262,8 +262,7 @@ export function installVisualChannels(enabled: boolean): void {
     });
   const imageSource = (element: HTMLImageElement): string => {
     const source = element.currentSrc;
-    if (!source)
-      return element.complete && !element.getAttribute('src') && !element.getAttribute('srcset') ? '(no source)' : '';
+    if (!source) return element.complete ? '(no source)' : '';
     const url = new URL(source, document.baseURI);
     if (url.protocol === 'blob:') return '(blob URL; not compared)';
     if (!/^https?:$/.test(url.protocol)) return source;
@@ -272,14 +271,14 @@ export function installVisualChannels(enabled: boolean): void {
     const has = (name: string): boolean => names.includes(name);
     const aws = has('x-amz-signature') || has('x-amz-credential');
     const google = has('x-goog-signature') || has('x-goog-credential');
-    const signed = has('signature') || has('key-pair-id') || has('awsaccesskeyid');
+    const signed = has('signature') || has('key-pair-id');
     const sas = has('sig');
     const retained = query.filter((_, index) => {
       const name = names[index];
-      if (name === 'token' || name === 'access_token') return false;
+      if (name === 'token' || name === 'access_token' || name === 'awsaccesskeyid') return false;
       if (aws && name.startsWith('x-amz-')) return false;
       if (google && name.startsWith('x-goog-')) return false;
-      if (signed && /^(?:signature|key-pair-id|awsaccesskeyid|expires|policy)$/.test(name)) return false;
+      if (signed && /^(?:signature|key-pair-id|expires|policy)$/.test(name)) return false;
       return !(sas && /^(?:sig|se|sp|sv|st|sr|ss|srt|si|skt|ske|skoid|sktid|sks|skv|sdd|spr)$/.test(name));
     });
     // Keep the original spelling/order of every non-credential field; URLSearchParams.delete re-encodes it.

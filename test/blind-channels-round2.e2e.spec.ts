@@ -264,3 +264,29 @@ test('duplicate-offset merge applies CSS text once per group with linear input w
   expect(work.writes).toBe(1);
   expect(work.characters).toBeLessThan(20000);
 });
+
+test('an access-key field alone is redacted without hiding unsigned Expires or Policy identity', async ({ page }) => {
+  await imageRoutes(page);
+  for (const field of ['Expires', 'Policy']) {
+    const html = (value: string) =>
+      `<img width="10" height="10" src="http://assets.test/a.svg?AWSAccessKeyId=fixture-private&${field}=${value}">`;
+    const before = await capture(page, html('first'));
+    const after = await capture(page, html('second'));
+    expect(sourceOf(before)).toBe(`http://assets.test/a.svg?${field}=first`);
+    expect(changes(before, after).map((property) => property.prop)).toContain('img currentSrc');
+    expect(JSON.stringify([before, after])).not.toContain('fixture-private');
+    expect(report(before, after)).not.toContain('fixture-private');
+  }
+});
+
+test('a complete image with no selected source stays compared when srcset has no valid candidate', async ({ page }) => {
+  await imageRoutes(page);
+  const before = await capture(page, '<img width="10" height="10" src="http://assets.test/a.svg">');
+  const after = await capture(page, '<img width="10" height="10" srcset=",">');
+  expect(
+    await page.locator('img').evaluate((element) => ({ complete: element.complete, source: element.currentSrc })),
+  ).toEqual({ complete: true, source: '' });
+  expect(sourceOf(after)).toBe('(no source)');
+  expect(changes(before, after).map((property) => property.prop)).toContain('img currentSrc');
+  expect(report(before, after)).not.toContain('unloaded image');
+});

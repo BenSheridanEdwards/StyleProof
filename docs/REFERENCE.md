@@ -1507,11 +1507,12 @@ without re-encoding retained parameters. Provider markers bound the removal:
 
 - S3 V4 `X-Amz-Signature` or `X-Amz-Credential` removes `X-Amz-*`;
   GCS V4 `X-Goog-Signature` or `X-Goog-Credential` removes `X-Goog-*`.
-- `Signature`, `Key-Pair-Id`, or `AWSAccessKeyId` removes those fields plus
-  `Expires` and `Policy` (S3 V2/CloudFront).
+- `Signature` or `Key-Pair-Id` removes those fields plus `Expires` and `Policy`
+  (S3 V2/CloudFront).
 - `sig` removes Azure SAS fields `sig`, `se`, `sp`, `sv`, `st`, `sr`, `ss`, `srt`,
   `si`, `skt`, `ske`, `skoid`, `sktid`, `sks`, `skv`, `sdd`, and `spr`.
-- Generic `token` and `access_token` are always removed.
+- `token`, `access_token`, and `AWSAccessKeyId` are always removed. An access-key
+  field alone does not remove unsigned `Expires` or `Policy` fields.
 
 Unsigned parameters such as `?sp=1`, other parameters, and fragments retain
 identity. Data URIs become `data:sha256:<digest>`. Blob URLs are stored as the
@@ -1519,8 +1520,10 @@ stable marker `(blob URL; not compared)` with a named **not compared (blob URL)*
 report limit: no per-run UUID or blob bytes are stored or compared. Empty
 lazy/unloaded sources remain empty in the map; either side empty skips that image
 comparison and the report names **not compared (unloaded image)**, including empty
-versus empty. These image limits cover resting and captured forced-state layers. A complete image with no `src`/`srcset` records `(no source)`, so
-removing a loaded source is compared. Self-check compares the shared
+versus empty. These image limits cover resting and captured forced-state layers.
+A complete image with no selected source records `(no source)`, including an
+invalid `srcset` with no usable candidate, so removing a loaded source is compared.
+Self-check compares the shared
 dictionary and every property-layer reference/source, including missing or unknown
 evidence the compatibility diff skips. Body storage is shared across elements.
 

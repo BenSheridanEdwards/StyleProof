@@ -1,0 +1,52 @@
+Already up to date
+Done in 80ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:85839) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round2.e2e.spec.ts:268:1 › an access-key field alone is redacted without hiding unsigned Expires or Policy identity (196ms)
+(node:85844) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/blind-channels-round2.e2e.spec.ts:282:1 › a complete image with no selected source stays compared when srcset has no valid candidate (212ms)
+
+
+  1) [chromium] › test/blind-channels-round2.e2e.spec.ts:268:1 › an access-key field alone is redacted without hiding unsigned Expires or Policy identity
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "http://assets.test/a.svg?Expires=first"
+    Received: "http://assets.test/a.svg"
+
+      273 |     const before = await capture(page, html('first'));
+      274 |     const after = await capture(page, html('second'));
+    > 275 |     expect(sourceOf(before)).toBe(`http://assets.test/a.svg?${field}=first`);
+          |                              ^
+      276 |     expect(changes(before, after).map((property) => property.prop)).toContain('img currentSrc');
+      277 |     expect(JSON.stringify([before, after])).not.toContain('fixture-private');
+      278 |     expect(report(before, after)).not.toContain('fixture-private');
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:275:30
+
+    Error Context: test-results/test-blind-channels-round2-f1eeb--Expires-or-Policy-identity-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round2.e2e.spec.ts:282:1 › a complete image with no selected source stays compared when srcset has no valid candidate
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "(no source)"
+    Received: ""
+
+      287 |     await page.locator('img').evaluate((element) => ({ complete: element.complete, source: element.currentSrc })),
+      288 |   ).toEqual({ complete: true, source: '' });
+    > 289 |   expect(sourceOf(after)).toBe('(no source)');
+          |                           ^
+      290 |   expect(changes(before, after).map((property) => property.prop)).toContain('img currentSrc');
+      291 |   expect(report(before, after)).not.toContain('unloaded image');
+      292 | });
+        at <checkout>/test/blind-channels-round2.e2e.spec.ts:289:27
+
+    Error Context: test-results/test-blind-channels-round2-f106f-cset-has-no-valid-candidate-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:268:1 › an access-key field alone is redacted without hiding unsigned Expires or Policy identity
+    [chromium] › test/blind-channels-round2.e2e.spec.ts:282:1 › a complete image with no selected source stays compared when srcset has no valid candidate
