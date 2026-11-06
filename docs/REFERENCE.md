@@ -2416,15 +2416,26 @@ separately; complex directives/frontmatter, custom syntax, spreads and data flow
 remain residuals. This is a conservative expression reader, not a full JS/TS
 parser: function/method parameters and type-only bodies supply no positive roles,
 and ambiguous call/declaration forms stay J3-only. Inline type annotations after
-binding/parameter names (including optional `?:`), return types, generic `extends`
-constraints, and `as`/`satisfies` object types are type scope. Property-value and
-ternary colons retain runtime class values. Malformed brackets produce a
+binding/parameter names (including optional `?:`) and return types start an
+inherited type mode. Type aliases, interfaces, implements clauses, assertions
+(`as`/`satisfies`) and balanced type arguments/parameters (including extends and
+defaults) also enter type mode. Nested object, tuple, parenthesized, generic,
+union/intersection and conditional types keep that mode; their class-shaped
+properties cannot lower J2. Initializers, parameter separators, semicolons,
+recognized statement ends and function bodies resume runtime discovery.
+Property-value and runtime ternary colons retain class values; case/default and
+statement labels (including Svelte `$:`) retain runtime blocks. Balanced angles
+that are ambiguous with comparisons are conservatively treated as type syntax;
+recognized JSX class attributes remain runtime. Unbalanced angles stay operators.
+This lexical boundary can lose negative evidence; it does not type-check bindings
+or promise full TypeScript grammar coverage. Malformed brackets produce a
 named extraction gap; unknown expressions never inherit explicit evidence.
 Bracket and expression nesting are capped at 128 only when role analysis runs:
 files with recognized class syntax, or explicit class-binding expressions. Files
-without class syntax do not guarantee a bracket-depth gap. Completed roots before
-a bracket cap keep their roles; the gap covers the first unfinished frame through
-EOF (the entire unread expression within a template substitution). Flat else-if
+without class syntax do not guarantee a bracket-depth gap. Completed statements before
+a bracket cap keep their roles; the unfinished statement is dropped back to the
+previous top-level semicolon and covered through EOF. With implicit semicolons,
+that conservative gap can include earlier statements (the entire unread expression within a template substitution). Flat else-if
 ternary chains are walked iteratively without increasing depth per alternate or
 building an unbounded role path. Template depth always produces its named gap,
 including outside class contexts. JSX literal escapes/entities use

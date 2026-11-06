@@ -4,6 +4,8 @@ export type RoleToken = Part & {
   text: string;
   kind: 'word' | 'literal' | 'group' | 'operator' | 'unknown';
   attribute?: true;
+  typeOnly?: true;
+  runtimeBlock?: true;
   children?: RoleToken[];
   literal?: Literal;
 };
@@ -86,7 +88,13 @@ export function roleTokens(source: ClassSource, range: Part = { start: 0, end: s
   const nodes: RoleToken[] = [],
     state: TokenCursor = { cursor: range.start, stack: [{ nodes, open: '', start: range.start }] };
   while (state.cursor < range.end && state.limit === undefined && !state.failed) tokenStep(source, state);
-  if (state.limit !== undefined) return { nodes, limit: state.limit };
+  if (state.limit !== undefined) {
+    let keep = nodes.length;
+    while (keep > 0 && nodes[keep - 1].text !== ';') keep--;
+    const limit = nodes[keep]?.start ?? state.limit;
+    nodes.length = keep;
+    return { nodes, limit };
+  }
   return state.failed || state.stack.length !== 1 ? { nodes: [], failed: true } : { nodes };
 }
 export function splitTokens(nodes: RoleToken[], separator = ','): RoleToken[][] {

@@ -4,6 +4,7 @@ import { expressionTasks, objectTasks } from './class-join-role-children.js';
 import { propertyName, propertyParts } from './class-join-role-roots.js';
 import { childRole, type ClassRoles, type PositiveRole, type RoleTask } from './class-join-role-types.js';
 import type { ClassSource, Part } from './class-join-source.js';
+import { markTypeScopes } from './class-join-type-scope.js';
 export type RoleReader = { source: ClassSource; result: ClassRoles; limit?: number };
 export function depthGap(reader: RoleReader, start: number): void {
   reader.limit = Math.min(reader.limit ?? start, start);
@@ -44,6 +45,7 @@ function opaqueTasks(reader: RoleReader, task: RoleTask): RoleTask[] {
   for (let i = 0; i < task.nodes.length; i++) {
     const node = task.nodes[i],
       key = (i === 0 || task.nodes[i - 1].text === ',') && task.nodes[i + 1]?.text === ':';
+    if (node.typeOnly) continue;
     record(reader, node, undefined, task.config === 'excluded', key);
     if (node.children) result.push({ nodes: node.children, depth: task.depth + 1, config: task.config });
     if (node.literal) result.push(...templateTasks(reader, node, { ...task, role: undefined }));
@@ -154,6 +156,7 @@ export function decodeAttribute(reader: RoleReader, node: RoleToken): void {
 }
 export function readRolePart(reader: RoleReader, part: Part): RoleToken[] {
   const parsed = roleTokens(reader.source, part);
+  markTypeScopes(parsed.nodes, reader.source.text);
   if (parsed.limit !== undefined) depthGap(reader, part.start);
   if (parsed.failed)
     reader.result.contexts.push({

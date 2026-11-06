@@ -45,20 +45,8 @@ export function rootValue(source: ClassSource, nodes: RoleToken[], index: number
   const values = attribute && first.text === '{' ? first.children! : nodes.slice(index + 2, end);
   return { values, end, role: valueRole(name), attribute, span: tokenSpan(nodes.slice(index, end)) };
 }
-/** A return annotation can occur in an object method; property values stay runtime. */
-export function typeGroup(nodes: RoleToken[], index: number, object: boolean, annotation: boolean): boolean {
-  if (nodes[index].text !== '{') return false;
-  const previous = nodes[index - 1]?.text;
-  if (['extends', 'as', 'satisfies'].includes(previous)) return true;
-  if (previous !== ':' || !annotation) return false;
-  const target = nodes[index - 2];
-  if (target?.kind === 'group' && target.text === '(') return true;
-  return (
-    !object && (target?.kind === 'word' || target?.kind === 'group' || target?.text === '?' || target?.text === '!')
-  );
-}
 export function objectGroup(nodes: RoleToken[], index: number, parent: string): boolean {
-  if (nodes[index].text !== '{') return false;
+  if (nodes[index].text !== '{' || nodes[index].runtimeBlock) return false;
   const previous = nodes[index - 1]?.text;
   return previous === undefined
     ? parent === '(' || parent === '['
