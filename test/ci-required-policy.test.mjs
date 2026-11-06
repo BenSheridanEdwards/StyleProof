@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { load, dump } from 'js-yaml';
 import test from 'node:test';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +10,7 @@ import { productChange, requiredStep, runRequired, sameTreeChange } from './help
 // Execute the real required step with its own env wiring. H fixtures in
 // browser-lanes.test.mjs feed actual CLI outputs into this same Bash harness.
 const ci = fs.readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const workflow = load(ci);
 const step = requiredStep();
 const browserLanes = ['e2e', 'e2e-evidence', 'detection-corpus'];
 const badResults = ['skipped', 'cancelled', 'failure', ''];
@@ -18,7 +20,7 @@ test('the required step reads the tree decision, proof and every needed job resu
   assert.equal(step.env.E2E_PROOF, 'needs.changes.outputs.e2e_proof');
   assert.equal(step.env.CHANGES_RESULT, 'needs.changes.result');
 
-  const needs = ci.match(/\n {2}required:\n(?: {4}.+\n)*? {4}needs:\s+\[([^\]]+)\]/)?.[1].split(', ');
+  const needs = workflow.jobs.required.needs;
   assert.deepEqual(
     needs,
     'changes build coverage coverage-shards e2e e2e-evidence cli-smoke detection-corpus'.split(' '),
@@ -180,21 +182,18 @@ const workflowNames = [
   'phase1-advisory-dogfood.yml',
 ];
 const expectedSteps = [
-  '    steps:',
-  '      - uses: actions/checkout@v7',
-  '        with:',
-  '          fetch-depth: 2',
-  '      - id: decide',
-  '        run: node scripts/browser-lanes.mjs --github',
-].join('\n');
+  { uses: 'actions/checkout@v7', with: { 'fetch-depth': 2 } },
+  { id: 'decide', run: 'node scripts/browser-lanes.mjs --github' },
+];
 
 for (const name of workflowNames) {
   test(`${name}: changes checks out two commits and runs the shared tree decider without dependencies`, () => {
     const source = fs.readFileSync(new URL(`../.github/workflows/${name}`, import.meta.url), 'utf8');
-    const changes = source.match(/^ {2}changes:\n[\s\S]*?(?=\n {2}[\w-]+:)/m)?.[0];
+    const parsed = load(source);
+    const changes = parsed.jobs.changes;
     assert.ok(changes, `${name} has a changes job`);
-    assert.doesNotMatch(source, /\n {4}paths:/, `${name} starts on every pull_request`);
-    assert.equal(changes.split('run: node scripts/browser-lanes.mjs --github').length, 2);
+    assert.equal(parsed.on.pull_request?.paths, undefined);
+    assert.equal(parsed.on.pull_request?.['paths-ignore'], undefined);
     if (name !== 'ci.yml') {
       const sameRepository = 'github.event.pull_request.head.repo.full_name == github.repository';
       const gate =
@@ -203,22 +202,22 @@ for (const name of workflowNames) {
           : name === 'phase1-advisory-dogfood.yml'
             ? "${{ !cancelled() && needs.changes.outputs.dogfood != 'false' }}"
             : `\${{ !cancelled() && needs.changes.outputs.dogfood != 'false' && ${sameRepository} }}`;
-      assert.ok(source.includes('    needs: changes\n') && source.includes(`    if: ${gate}\n`), `${name} gate`);
+      assert.ok(
+        Object.values(parsed.jobs).some((job) => job.needs === 'changes' && job.if === gate),
+        `${name} gate`,
+      );
     }
-    assert.equal(changes.slice(changes.indexOf('    steps:')).trimEnd(), expectedSteps);
-    const outputs = changes.match(/^ {4}outputs:\n([\s\S]*?)(?=^ {4}steps:)/m)?.[1];
+    assert.deepEqual(changes.steps, expectedSteps);
+    const outputs = changes.outputs;
     if (name === 'ci.yml') {
-      assert.equal(
-        outputs,
-        '      e2e: ${{ steps.decide.outputs.lanes }}\n      e2e_proof: ${{ steps.decide.outputs.proof }}\n',
-      );
-    } else if (name === 'styleproof-dogfood.yml') {
-      assert.equal(
-        outputs,
-        "      # This lane captures PR head and base, so equal merge/base trees cannot prove it redundant.\n      dogfood: 'true'\n",
-      );
+      assert.deepEqual(outputs, {
+        e2e: '${{ steps.decide.outputs.lanes }}',
+        e2e_proof: '${{ steps.decide.outputs.proof }}',
+      });
     } else {
-      assert.equal(outputs, '      dogfood: ${{ steps.decide.outputs.lanes }}\n');
+      assert.deepEqual(outputs, {
+        dogfood: name === 'styleproof-dogfood.yml' ? 'true' : '${{ steps.decide.outputs.lanes }}',
+      });
     }
   });
 }
@@ -235,10 +234,10 @@ test('workflow decisions have no path-filter action or policy file', () => {
 });
 
 test('ci.yml gates every browser lane on the tree decision and required reads its proof', () => {
-  assert.match(ci, / {2}e2e:\n(?: {4}.+\n)* {4}if: needs\.changes\.outputs\.e2e == 'true'/);
-  assert.match(ci, / {2}detection-corpus:\n(?: {4}.+\n)* {4}if: needs\.changes\.outputs\.e2e == 'true'/);
-  assert.match(ci, /E2E_DECISION: \$\{\{ needs\.changes\.outputs\.e2e \}\}/);
-  assert.match(ci, /E2E_PROOF: \$\{\{ needs\.changes\.outputs\.e2e_proof \}\}/);
+  for (const name of ['e2e', 'detection-corpus'])
+    assert.equal(workflow.jobs[name].if, "needs.changes.outputs.e2e == 'true'");
+  assert.equal(step.env.E2E_DECISION, 'needs.changes.outputs.e2e');
+  assert.equal(step.env.E2E_PROOF, 'needs.changes.outputs.e2e_proof');
 });
 
 test('live dogfood runs when an equal merge tree hides a different PR head tree', (t) => {
@@ -283,7 +282,7 @@ test('live dogfood runs when an equal merge tree hides a different PR head tree'
   );
   assert.equal(required.passed, true, required.output);
   const source = fs.readFileSync(new URL('../.github/workflows/styleproof-dogfood.yml', import.meta.url), 'utf8');
-  const liveDecision = source.match(/^ {6}dogfood: '([^']+)'$/m)?.[1];
+  const liveDecision = load(source).jobs.changes.outputs.dogfood;
   assert.equal(liveDecision, 'true', 'the PR-head lane cannot borrow a merge-tree proof');
   assert.notEqual(liveDecision, 'false', 'the unchanged dogfood condition selects this lane');
   assert.match(source, /Capture declared surfaces at the PR head/);
@@ -302,4 +301,9 @@ test('docs/proof/new/report.png: the real tree decision makes required reject sk
   );
   assert.equal(required.passed, false, required.output);
   assert.match(required.output, /E2E_RESULT was 'skipped' \(want success\)/);
+});
+
+test('required-step execution survives YAML reformatting and comments', () => {
+  const reformatted = '# Equivalent workflow\n' + dump(workflow, { indent: 4, lineWidth: -1, sortKeys: true });
+  assert.deepEqual(requiredStep(reformatted), requiredStep(ci));
 });
