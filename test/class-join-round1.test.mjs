@@ -218,11 +218,11 @@ test('positions retain JavaScript line terminators and UTF-16 columns', () => {
 });
 
 for (const kind of ['string', 'template'])
-  test(`one MB of ${kind} literals scans with linear growth`, (t) => {
+  test(`two MB of ${kind} literals scans with linear growth`, (t) => {
     const line = kind === 'string' ? "const C = 'old known';\n" : 'const C = `btn ${on ? "old" : "new"}`;\n';
     assertLinearScaling(t, {
       name: `${kind} literal extraction`,
-      n: Math.ceil(1_000_000 / (4 * line.length)),
+      n: Math.ceil(1_000_000 / (2 * line.length)),
       make: (count) => line.repeat(count),
       run: (text) => classLiterals(text, 'app.ts'),
       check: (literals, text, count) => {
