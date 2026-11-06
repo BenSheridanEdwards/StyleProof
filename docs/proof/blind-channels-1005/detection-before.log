@@ -1,0 +1,64 @@
+StyleProof detection corpus — 56 cases on detection-fixture.html
+
+  detect  46/46  (100.0% — seeded changes surfaced)
+  clean   7/7  (computed-identical changes stayed silent)
+  blind   3/3  (documented boundaries held)
+
+  ✓ color-cta-bg [color] CTA background blue→red — 1 finding(s) on target
+  ✓ color-title-text [color] title text colour change — 1 finding(s) on target
+  ✓ color-card-border [color] card border colour — 3 finding(s) on target
+  ✓ color-nav-bg [color] nav background — 1 finding(s) on target
+  ✓ color-badge-opacity [color] badge opacity — 1 finding(s) on target
+  ✓ color-card-shadow [color] card gains a shadow — 3 finding(s) on target
+  ✓ color-hero-gradient [color] hero background gains a gradient — 1 finding(s) on target
+  ✓ color-card-border-width [color] card border thickens — 3 finding(s) on target
+  ✓ type-title-size [typography] title font-size bump — 1 finding(s) on target
+  ✓ type-cardtitle-weight [typography] card title weight — 3 finding(s) on target
+  ✓ type-cardtext-leading [typography] card text line-height — 3 finding(s) on target
+  ✓ type-navlink-tracking [typography] nav link letter-spacing — 2 finding(s) on target
+  ✓ type-lede-family [typography] lede font family — 1 finding(s) on target
+  ✓ type-badge-transform [typography] badge uppercase — 2 finding(s) on target
+  ✓ type-navlink-decoration [typography] nav link underline — 2 finding(s) on target
+  ✓ type-navlink-style [typography] nav link italic — 2 finding(s) on target
+  ✓ space-card-margin [spacing] card margin — 3 finding(s) on target
+  ✓ space-cta-padding [spacing] CTA padding — 1 finding(s) on target
+  ✓ space-cards-gap [spacing] cards gap widens — 1 finding(s) on target
+  ✓ space-hero-width [spacing] hero max-width clamps — 1 finding(s) on target
+  ✓ space-card-minheight [spacing] card min-height — 3 finding(s) on target
+  ✓ space-cta-radius [spacing] CTA pill — 1 finding(s) on target
+  ✓ space-list-indent [spacing] list indents — 1 finding(s) on target
+  ✓ layout-cards-display [layout] cards flex→block — 1 finding(s) on target
+  ✓ layout-cards-direction [layout] cards row→column — 1 finding(s) on target
+  ✓ layout-nav-justify [layout] nav justify change — 1 finding(s) on target
+  ✓ layout-badge-absolute [layout] badge absolute positioned — 1 finding(s) on target
+  ✓ layout-overlay-z [layout] overlay z-index — 1 finding(s) on target
+  ✓ layout-card-overflow [layout] card overflow hidden — 3 finding(s) on target
+  ✓ layout-badge-hidden [layout] badge visibility hidden — 2 finding(s) on target
+  ✓ layout-badge-removed [layout] badge display:none — 2 finding(s) on target
+  ✓ layout-grid-columns [layout] grid 2→3 columns — 1 finding(s) on target
+  ✓ layout-nav-align [layout] nav align-items — 1 finding(s) on target
+  ✓ layout-footer-align [layout] footer centered — 1 finding(s) on target
+  ✓ layout-cardtext-wrap [layout] card text nowrap (computes to text-wrap-mode) — 3 finding(s) on target
+  ✓ layout-badge-rotate [layout] badge rotated — 1 finding(s) on target
+  ✓ layout-img-filter [layout] image desaturated — 1 finding(s) on target
+  ✓ layout-cta-cursor [layout] CTA cursor change — 1 finding(s) on target
+  ✓ layout-img-fit [layout] img object-fit — 1 finding(s) on target
+  ✓ layout-item-marker [layout] list marker style — 6 finding(s) on target
+  ✓ layout-panel-maxwidth [layout] form panel clamps — 1 finding(s) on target
+  ✓ state-cta-hover [state] CTA hover colour — 1 finding(s) on target
+  ✓ state-field-focus [state] field focus outline — 1 finding(s) on target
+  ✓ pseudo-badge-marker [state] badge ::before marker colour — 1 finding(s) on target
+  ✓ clean-hex-vs-name [no-op] white → #ffffff equivalent — zero findings
+  ✓ clean-margin-longhand [no-op] margin 0 restated as four longhands — zero findings
+  ✓ clean-weight-alias [no-op] 700 → bold alias — zero findings
+  ✓ clean-var-equivalent [no-op] direct colour → identical via custom property — zero findings
+  ✓ clean-duplicate-decl [no-op] identical value redeclared — zero findings
+  ✓ clean-visibility-default [no-op] explicit default visibility — zero findings
+  ✓ clean-display-same [no-op] block redeclared on a block box — zero findings
+  ✓ blind-keyframes [blind] @keyframes internals rewritten — animation-name unchanged, bodies are not computed styles — zero findings
+  ✓ blind-img-src [blind] img src swapped blue→red — element attributes are not computed styles — zero findings
+  ✓ blind-aria-label [blind] aria-label added — accessibility metadata is outside style evidence — zero findings
+  ✓ dom-link-href [dom] link href change — href is in the anchor element fingerprint, so the element re-keys as removed+added — 5 finding(s) on target
+  ✓ text-title [dom] title copy change — advisory text layer, captured when captureText is on — 1 finding(s) on target
+
+receipt → bench/detection-corpus.results.json

@@ -1,0 +1,94 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 5 tests using 1 worker
+
+(node:20568) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged (167ms)
+(node:20574) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  2 [chromium] › test/blind-channels.e2e.spec.ts:36:1 › inactive media/supports and losing cascade layers cannot replace the winning keyframes (217ms)
+  ✘  3 [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical (371ms)
+(node:20584) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  4 [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured (190ms)
+(node:20590) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  5 [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body (205ms)
+
+
+  1) [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged 
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "animation keyframes (pulse)"
+    Received array: []
+
+      20 |   const before = await capture(page, animation('from { opacity: 0; } to { opacity: 1; }'));
+      21 |   const after = await capture(page, animation('from { opacity: 0; } to { opacity: .5; }'));
+    > 22 |   expect(props(before, after).map((p) => p.prop)).toContain('animation keyframes (pulse)');
+         |                                                   ^
+      23 |   expect(props(before, after).map((p) => p.prop)).not.toContain('animation-name');
+      24 |   const legacyBefore = await capture(page, animation('to { opacity: 1; }'), {
+      25 |     ...options,
+        at <checkout>/test/blind-channels.e2e.spec.ts:22:51
+
+    Error Context: test-results/test-blind-channels.e2e-ke-7505c-t-captures-remain-unchanged-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical 
+
+    TypeError: Cannot read properties of undefined (reading 'keyframes')
+
+      67 |   expect(JSON.stringify(after)).toEqual(JSON.stringify(again));
+      68 |   const many = await capture(page, animation('to { opacity: 1; }') + '<div class="target"></div>'.repeat(300));
+    > 69 |   expect(Object.keys(many.visualChannels!.keyframes)).toHaveLength(1);
+         |                                           ^
+      70 |   expect(JSON.stringify(many.visualChannels).length).toBeLessThan(500);
+      71 | });
+      72 |
+        at <checkout>/test/blind-channels.e2e.spec.ts:69:43
+
+    Error Context: test-results/test-blind-channels.e2e-ke-52f0f-and-captures-byte-identical-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured 
+
+    Error: expect(received).toContain(expected) // indexOf
+
+    Expected value: "img currentSrc"
+    Received array: []
+
+      79 |   const before = await capture(page, markup('blue'));
+      80 |   const after = await capture(page, markup('red'));
+    > 81 |   expect(props(before, after).map((p) => p.prop)).toContain('img currentSrc');
+         |                                                   ^
+      82 |   const img = Object.values(after.elements).find((entry) => entry.cls === 'target')!;
+      83 |   expect(img.style['img currentSrc']).toMatch(/^data:sha256:[0-9a-f]{64}$/);
+      84 |   expect(JSON.stringify(after)).not.toContain('data:image/svg+xml');
+        at <checkout>/test/blind-channels.e2e.spec.ts:81:51
+
+    Error Context: test-results/test-blind-channels.e2e-im-cb0ba-azy-currentSrc-are-captured-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body 
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      102 |         finding.props.some((p) => p.prop === 'animation keyframes (pulse)'),
+      103 |     ),
+    > 104 |   ).toBe(true);
+          |     ^
+      105 | });
+      106 |
+        at <checkout>/test/blind-channels.e2e.spec.ts:104:5
+
+    Error Context: test-results/test-blind-channels.e2e-ps-84a5f-rt-their-own-keyframes-body-chromium/error-context.md
+
+  4 failed
+    [chromium] › test/blind-channels.e2e.spec.ts:17:1 › keyframes body changes surface with the same animation-name; default captures remain unchanged 
+    [chromium] › test/blind-channels.e2e.spec.ts:60:1 › keyframe selectors and declaration order normalise; bodies are shared and captures byte-identical 
+    [chromium] › test/blind-channels.e2e.spec.ts:73:1 › img swaps, data hashes, picture/srcset and empty lazy currentSrc are captured 
+    [chromium] › test/blind-channels.e2e.spec.ts:88:1 › pseudo-elements and forced-state references report their own keyframes body 
+  1 passed (3.0s)
