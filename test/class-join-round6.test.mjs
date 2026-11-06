@@ -60,10 +60,10 @@ test('the depth gap covers unread words in an incomplete enclosing helper', () =
   assert.ok(gap.range.start.column <= source.indexOf("'old'"), JSON.stringify(gap));
 });
 
-test('flat else-if arms scale linearly to ten thousand without a depth gap', (t) => {
+test('flat else-if arms scale linearly to eighty thousand without a depth gap', (t) => {
   assertLinearScaling(t, {
     name: 'flat else-if extraction',
-    n: 2500,
+    n: 20000,
     make: (count) => 'el.className=' + Array.from({ length: count }, (_, i) => `a${i}?'old':`).join('') + "'new';",
     run: (source) => classLiterals(source, 'app.ts'),
     check: (literals, source, count) => {

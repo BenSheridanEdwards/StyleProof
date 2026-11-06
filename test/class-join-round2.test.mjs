@@ -156,7 +156,7 @@ test('Solid classList object keys yield explicit class occurrences', () => {
   );
 });
 
-test('scoped gaps and negative lookups scale linearly from 4k to 16k lines', (t) => {
+test('scoped gaps and negative lookups scale linearly with 4N lines', (t) => {
   const make = (count) => {
     const source = 'el.className="old"; el.className=dynamic;\n'.repeat(count);
     return Array.from({ length: count }, (_, i) => ({
@@ -170,7 +170,7 @@ test('scoped gaps and negative lookups scale linearly from 4k to 16k lines', (t)
   };
   assertLinearScaling(t, {
     name: 'scoped gap classification',
-    n: 4000,
+    n: 8000,
     make,
     run: judge,
     check: (result, changes, count) => {
@@ -183,7 +183,7 @@ test('scoped gaps and negative lookups scale linearly from 4k to 16k lines', (t)
   });
   assertLinearScaling(t, {
     name: 'negative evidence lookup',
-    n: 4000,
+    n: 128000,
     make: (count) => {
       const changes = make(count),
         result = judge(changes);
