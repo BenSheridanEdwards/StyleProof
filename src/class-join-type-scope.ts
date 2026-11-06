@@ -15,7 +15,21 @@ const declarations = new Set(['let', 'const', 'var', 'using']);
 const typePrefixes = new Set(['as', 'satisfies']);
 const typeSyntax = /[:<]|\b(?:as|satisfies|type|interface|implements)\b/;
 const statementWords = new Set(['function', 'class', 'interface', 'type', 'export', 'import', 'return', 'throw']);
-const typeOperators = new Set(['|', '&', '?', ':', 'extends', 'keyof', 'typeof', 'readonly', 'infer', 'unique']);
+const typeOperators = new Set([
+  '|',
+  '&',
+  '?',
+  ':',
+  '=>',
+  'extends',
+  'keyof',
+  'typeof',
+  'readonly',
+  'infer',
+  'unique',
+  'is',
+  'asserts',
+]);
 /** Balance angles once per sibling sequence; ambiguous balanced groups stay conservative. */
 function angleEnds(nodes: RoleToken[]): Map<number, number> {
   const ends = new Map<number, number>(),
@@ -106,9 +120,13 @@ function statementBoundary(frame: Frame, state: Cursor, index: number, text: str
   state.declaration = false;
 }
 /** A body follows a completed return/heritage type; an object type starts an operand. */
-function typeStep(state: Cursor, node: RoleToken): boolean {
+function typeStep(state: Cursor, node: RoleToken, previous?: RoleToken): boolean {
   const mode = state.mode!;
-  if (['=', ',', ';', '=>'].includes(node.text) || (node.text === '{' && mode.body && !mode.operand)) {
+  if (
+    ['=', ',', ';'].includes(node.text) ||
+    (node.text === '=>' && mode.body && previous?.text !== '(') ||
+    (node.text === '{' && mode.body && !mode.operand)
+  ) {
     state.mode = undefined;
     return false;
   }
@@ -141,7 +159,7 @@ function markFrame(frame: Frame, pending: Frame[], text: string): void {
       i = end;
       continue;
     }
-    if (state.mode && typeStep(state, node)) continue;
+    if (state.mode && typeStep(state, node, frame.nodes[i - 1])) continue;
     runtimeStep(frame, state, i);
     if (node.children) pending.push(childFrame(frame, state, i));
   }

@@ -14,6 +14,16 @@ const qaForms = [
   "function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {}",
 ];
 const typeForms = [
+  "type X = () => A extends B ? { class: 'old' } : C;",
+  "let f: () => A extends B ? { class: 'old' } : C;",
+
+  "let f: () => { class: 'old' };",
+  "function f(e: () => { class: 'old' }) {}",
+  "type X = () => { class: 'old' };",
+  "const f = value as () => { class: 'old' };",
+  "function f(): () => { class: 'old' } { return value; }",
+  "function f(x: unknown): x is { class: 'old' } { return true; }",
+
   "let m: Record<string, { className: 'old' }>;",
   "function f(e: Record<K, { class: 'old' }>) {}",
   "new Map<string, { class: 'old' }>();",
@@ -62,6 +72,7 @@ for (const source of [
   "type X = { class: 'type' }\nel.className='old';",
   "let p: Record<K, { class: 'type' }>\nel.className='old';",
   "const p = value as { class: 'type' }\nel.className='old';",
+  "const f = (r): { class: 'type' } => { el.className='old'; return value; };",
   "const cfg = on ? value : { class: 'old' };",
 ])
   test(`runtime boundary keeps positive values: ${source}`, () => {
@@ -157,6 +168,7 @@ test('dev-only TypeScript AST oracle: 8000 nested type-position literals have ze
     (v) => `A extends B ? C : ${v}`,
     (v) => `[a: A, b?: ${v}]`,
     (v) => `{ nested: ${v} }`,
+    (v) => `(() => ${v})`,
   ];
   const failures = [];
   let checked = 0;
