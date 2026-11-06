@@ -284,3 +284,106 @@ test('omitted HTML images do not promise complete findings in capped JSON', () =
   assert.match(html, /1 image omitted/);
   assert.doesNotMatch(html, /report.json holds the full data/);
 });
+
+test('wide table cells carry escaped plain-text column labels', () => {
+  const html = renderReportHtml(
+    [
+      '| **Rule** | _Change_ | `Gated by` | [Source](https://example.com) |',
+      '| --- | --- | --- | --- |',
+      '| .panel | changed | — | app.css |',
+      '',
+      '| **<img src=x onerror="alert(1)"> & "quoted"** | Change | Source | Why |',
+      '| --- | --- | --- | --- |',
+      '| value | changed | app.css | never matched |',
+    ].join('\n'),
+  );
+  for (const label of ['Rule', 'Change', 'Gated by', 'Source']) {
+    assert.ok(html.includes(`data-label="${label}"`));
+  }
+  assert.ok(html.includes('data-label="&lt;img src=x onerror=&quot;alert(1)&quot;&gt; &amp; &quot;quoted&quot;"'));
+  assert.doesNotMatch(html, /data-label="<|<img src=x/);
+});
+
+for (const columnCount of [1, 2, 3, 4, 5]) {
+  test(`a ${columnCount}-column table ${columnCount >= 4 ? 'gets' : 'does not get'} the wide class`, () => {
+    const row = (value) => '| ' + Array(columnCount).fill(value).join(' | ') + ' |';
+    const html = renderReportHtml([row('Header'), row('---'), row('Value')].join('\n'));
+    assert.equal(/<table[^>]*class="wide-table"/.test(html), columnCount >= 4);
+    assert.equal((html.match(/data-label="Header"/g) ?? []).length, columnCount >= 4 ? columnCount : 0);
+  });
+}
+
+test('generated Change Reach tables carry all five column labels', async () => {
+  const { assessReachMaps, reachSectionLines } = await import('../dist/report/reach.js');
+  const capture = (hash) => ({
+    reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules: [{ key: '.panel', hash, sheet: 0 }] },
+    scriptReach: { version: 1, window: 'navigation', status: 'measured', scripts: [] },
+  });
+  const reach = assessReachMaps([capture('before')], [capture('after')], 'warn');
+  const markdown = reachSectionLines(reach).join('\n');
+  assert.match(markdown, /Changed but never matched/);
+  // This renderer does not yet join script execution to changed lines or emit a script table.
+  assert.ok(reach.gaps.some((gap) => gap.join === 'J2' && gap.status === 'unmeasured'));
+  const html = renderReportHtml(markdown);
+  for (const label of ['Rule', 'Change', 'Gated by', 'Source', 'Why']) {
+    assert.ok(html.includes(`data-label="${label}"`));
+  }
+  assert.match(html, /<table[^>]*class="wide-table"/);
+});
+
+for (const rowCount of [1, 2000]) {
+  test(`a three-column table with ${rowCount} rows keeps main's exact markup and byte cost`, () => {
+    const markdown = [
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...Array(rowCount).fill('| `color` | `#111` | `#222` |'),
+    ].join('\n');
+    const expected =
+      '<table><thead><tr><th>Property</th><th>Before</th><th>After</th></tr></thead><tbody>' +
+      '<tr><td><code>color</code></td><td><code>#111</code></td><td><code>#222</code></td></tr>'.repeat(rowCount) +
+      '</tbody></table>';
+    const table = renderReportHtml(markdown).match(/<table\b[\s\S]*?<\/table>/)[0];
+    assert.equal(table, expected);
+  });
+}
+
+test('a wide header without body rows keeps ordinary visible table markup', () => {
+  const html = renderReportHtml('| Rule | Change | Source | Why |\n| --- | --- | --- | --- |');
+  assert.ok(
+    html.includes('<table><thead><tr><th>Rule</th><th>Change</th><th>Source</th><th>Why</th></tr></thead></table>'),
+  );
+  assert.doesNotMatch(html, /class="wide-table"/);
+});
+
+test('wide tables add one label per cell without redundant descendant roles', () => {
+  const markdown = [
+    '| Rule | Change | Gated by | Source | Why |',
+    '| --- | --- | --- | --- | --- |',
+    ...Array(2000).fill('| `.panel` | changed | — | `/app.css` | Never matched |'),
+  ].join('\n');
+  const table = renderReportHtml(markdown).match(/<table\b[\s\S]*?<\/table>/)[0];
+  assert.doesNotMatch(table, /<(?:thead|tbody|tr|th|td)[^>]* role=/);
+  assert.equal((table.match(/data-label=/g) ?? []).length, 10000);
+  const nativeTable = table.replace(/ class="wide-table"| role="table"| scope="col"| data-label="[^"]*"/g, '');
+  assert.ok(Buffer.byteLength(table) < Buffer.byteLength(nativeTable) * 1.9);
+});
+
+test('only exceptionally long visible tokens opt ordinary tables into constrained sizing', () => {
+  const render = (value) => renderReportHtml(`| Property | Value |\n| --- | --- |\n| width | ${value} |`);
+  assert.doesNotMatch(render('&'.repeat(30)), /class="long-value-table"/);
+  assert.doesNotMatch(render('A'.repeat(79)), /class="long-value-table"/);
+  assert.doesNotMatch(render('`' + 'A'.repeat(79) + '`'), /class="long-value-table"/);
+  assert.doesNotMatch(render('[crop](https://example.com/' + 'x'.repeat(90) + ')'), /class="long-value-table"/);
+  assert.doesNotMatch(render('&amp;'.repeat(20)), /class="long-value-table"/);
+  assert.match(render('`[crop](https://example.com/' + 'x'.repeat(90) + ')`'), /class="long-value-table"/);
+  assert.match(render('A'.repeat(80)), /<table class="long-value-table">/);
+});
+
+test('wide header labels use image alternative text without carrying HTML', () => {
+  const html = renderReportHtml(
+    '| ![Rule label](/rule.png) | **Change** | Source | Why |\n| --- | --- | --- | --- |\n| .panel | changed | app.css | unmatched |',
+  );
+  assert.ok(html.includes('data-label="Rule label"'));
+  assert.ok(html.includes('data-label="Change"'));
+  assert.doesNotMatch(html, /data-label="[^"\n]*<(?:img|strong|script)/);
+});

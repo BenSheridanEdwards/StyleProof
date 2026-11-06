@@ -51,7 +51,7 @@ const isSafeUrl = (url: string) => {
  * reinterpreted; `_` only marks emphasis at word boundaries so identifiers
  * like `STYLE_REVIEW_REQUIRED` survive intact.
  */
-function inline(text: string): string {
+function inline(text: string, plainText = false): string {
   const staged: string[] = [];
   const stage = (html: string) => {
     staged.push(html);
@@ -59,8 +59,10 @@ function inline(text: string): string {
   };
   const restore = (html: string) => html.replace(/\uE000(\d+)\uE000/g, (_m, index) => staged[Number(index)]);
   const protectedText = text
-    .replace(CODE_SPAN, (_m, _fence, code) => stage(`<code>${escapeHtml(unpad(code))}</code>`))
-    .replace(STYLEPROOF_COMMENT, (comment) => stage(comment))
+    .replace(CODE_SPAN, (_m, _fence, code) =>
+      stage(plainText ? escapeHtml(unpad(code)) : `<code>${escapeHtml(unpad(code))}</code>`),
+    )
+    .replace(STYLEPROOF_COMMENT, (comment) => stage(plainText ? '' : comment))
     .replace(BACKSLASH_ESCAPE, (_m, char: string) => stage(escapeHtml(char)))
     .replace(NAMED_ENTITY, (entity) => stage(entity));
   // A link whose resolved target is not http(s) or relative stays literal text.
@@ -69,14 +71,14 @@ function inline(text: string): string {
   const html = escapeHtml(protectedText)
     .replace(
       /!\[([^\]]*)\]\(([^)\s]+)\)/g,
-      link((alt, src) => `<img src="${src}" alt="${alt}" loading="lazy">`),
+      link((alt, src) => (plainText ? alt : `<img src="${src}" alt="${alt}" loading="lazy">`)),
     )
     .replace(
       /\[([^\]]+)\]\(([^)\s]+)\)/g,
-      link((label, href) => `<a href="${href}">${label}</a>`),
+      link((label, href) => (plainText ? label : `<a href="${href}">${label}</a>`)),
     )
-    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-    .replace(/(^|[\s(>"'])_(\S(?:[^_]*\S)?)_(?=[\s).,;:!?"'<]|$)/g, '$1<em>$2</em>');
+    .replace(/\*\*([^*]+)\*\*/g, plainText ? '$1' : '<strong>$1</strong>')
+    .replace(/(^|[\s(>"'])_(\S(?:[^_]*\S)?)_(?=[\s).,;:!?"'<]|$)/g, plainText ? '$1$2' : '$1<em>$2</em>');
   return restore(html);
 }
 
@@ -128,11 +130,23 @@ function renderTable(rows: string[]): string {
   const isSeparator = (cells: string[]) => cells.length > 0 && cells.every((cell) => TABLE_SEPARATOR_CELL.test(cell));
   const [header, ...rest] = rows.map(cellsOf);
   const body = rest.filter((cells) => !isSeparator(cells));
-  const thead = `<thead><tr>${header.map((cell) => `<th>${inline(cell)}</th>`).join('')}</tr></thead>`;
+  const wide = header.length >= 4 && body.length > 0;
+  // Measure visible runs, not Markdown targets or escaped entity lengths. Labels stay escaped below.
+  const visibleText = (cell: string) =>
+    inline(cell, true)
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&amp;/g, '&');
+  const hasLongValue =
+    !wide && [header, ...body].some((cells) => cells.some((cell) => /\S{80}/u.test(visibleText(cell))));
+  // Render escaped label text directly, without generating or stripping HTML tags.
+  const labels = wide ? header.map((cell) => inline(cell, true)) : [];
+  const thead = `<thead><tr>${header.map((cell) => `<th${wide ? ' scope="col"' : ''}>${inline(cell)}</th>`).join('')}</tr></thead>`;
   const tbody = body.length
-    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell) => `<td>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
+    ? `<tbody>${body.map((cells) => `<tr>${cells.map((cell, index) => `<td${wide ? ` data-label="${labels[index] ?? ''}"` : ''}>${inline(cell)}</td>`).join('')}</tr>`).join('')}</tbody>`
     : '';
-  return `<table>${thead}${tbody}</table>`;
+  return `<table${wide ? ' class="wide-table" role="table"' : hasLongValue ? ' class="long-value-table"' : ''}>${thead}${tbody}</table>`;
 }
 
 type Block = { html: string; next: number };
@@ -204,6 +218,19 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   const maxBytes = options?.maxBytes ?? 2_000_000;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
   const body = renderBlocks(markdown.split('\n')).join('\n');
+  // Reports without wide tables need no card CSS, preserving room for findings under small byte caps.
+  const wideTableStyles = body.includes('class="wide-table"')
+    ? `
+    .wide-table, .wide-table tbody, .wide-table tr, .wide-table td { display: block; }
+    .wide-table thead { position: absolute; inline-size: 1px; block-size: 1px;
+      overflow: clip; clip-path: inset(50%); white-space: nowrap; }
+    .wide-table tbody { display: grid; gap: 12px; }
+    .wide-table tbody tr { border: 1px solid oklch(0.881 0.014 243); border-radius: 6px; padding: 6px 0; }
+    .wide-table td { border: 0; padding: 4px 12px; overflow-wrap: anywhere; }
+    .wide-table td code { overflow-wrap: anywhere; }
+    .wide-table td::before { content: attr(data-label); content: attr(data-label) / ""; margin-inline-end: 8px;
+      color: oklch(0.496 0.013 248); font-size: 0.8em; font-weight: 600; }`
+    : '';
   let page = `<!doctype html>
 <html lang="en">
 <head>
@@ -214,7 +241,7 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   :root { color-scheme: light; }
   body { margin: 0; color: #1f2328; background: #fff;
     font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  main { container-type: inline-size; max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
   h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
   h3 { margin-top: 28px; }
   img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
@@ -222,6 +249,14 @@ export function renderReportHtml(markdown: string, options?: { outDir: string; m
   th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
   th { background: #f6f8fa; }
   code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+  @container (max-width: 560px) {
+    .long-value-table { inline-size: 100%; table-layout: fixed; }
+    th, td, td code { overflow-wrap: break-word; }
+    table:not(.wide-table):has(th:nth-child(3):last-child) :is(th, td) {
+      padding-inline: clamp(8px, calc(7cqi - 12px), 12px);
+    }
+${wideTableStyles}
+  }
   details { margin: 8px 0; }
   summary { cursor: pointer; color: #0969da; }
   sub { color: #59636e; }
