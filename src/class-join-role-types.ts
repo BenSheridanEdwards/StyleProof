@@ -1,12 +1,11 @@
 /** Positive roles are transient syntax evidence, never render provenance. */
-import type { Node } from '@babel/types';
+import type { RoleToken } from './class-join-role-tokens.js';
 export type PositiveRole = { kind: string; slot: string; containers?: boolean };
 export type RoleTask = {
-  node: Node;
-  context: boolean;
+  nodes: RoleToken[];
   role?: PositiveRole;
-  key?: boolean;
   config?: 'options' | 'variants' | 'values' | 'compound-list' | 'compound' | 'excluded';
+  depth: number;
 };
 export type RoleState = {
   context: boolean;

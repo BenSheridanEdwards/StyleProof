@@ -1,107 +1,95 @@
-/** Parse syntax, then grant explicit evidence only through approved AST value roles. */
-import { parse, parseExpression, type ParserOptions } from '@babel/parser';
-import type { Node } from '@babel/types';
-import { classListMethod, cvaTasks, helperName, rootValue } from './class-join-role-roots.js';
-import { literalRole, positiveChildren, syntaxChildren } from './class-join-role-children.js';
-import type { ClassRoles, RoleTask, RoleState } from './class-join-role-types.js';
-import { classSource, literalAt, type ClassSource } from './class-join-source.js';
-
-function options(key: string): ParserOptions {
-  return {
-    sourceType: 'unambiguous',
-    createParenthesizedExpressions: true,
-    errorRecovery: true,
-    plugins: /\.(?:[cm]?ts)$/i.test(key) ? ['typescript'] : ['typescript', 'jsx'],
-  };
+/** Grant explicit evidence only through approved roles in the existing lexer. */
+import { classListMethod, callTasks, helperName, rootValue, objectGroup } from './class-join-role-roots.js';
+import { roleTokens, splitTokens, type RoleToken } from './class-join-role-tokens.js';
+import { decodeAttribute, depthGap, readRolePart, walkValues, type RoleReader } from './class-join-role-walk.js';
+import type { ClassRoles } from './class-join-role-types.js';
+import { classSource, type ClassSource } from './class-join-source.js';
+function declarationCall(nodes: RoleToken[], index: number, member: boolean): boolean {
+  const before = nodes[index - 1]?.text,
+    after = nodes[index + 2];
+  if (before === 'function' || (before === '*' && nodes[index - 2]?.text === 'function')) return true;
+  if (after?.text === '{' || after?.text === ':') return true;
+  return member && !['=', 'return', '(', ',', ':', '?', '=>', '&&', '||', '??'].includes(before);
 }
-function needsContext(node: Node, source: ClassSource): boolean {
-  if ((node.type === 'StringLiteral' || node.type === 'TemplateLiteral') && node.start != null) {
-    const token = source.byStart.get(node.start);
-    return !token || literalAt(source, token).end !== node.end;
-  }
-  return true;
-}
-function rootTasks(task: RoleTask, result: ClassRoles, source: ClassSource): RoleTask[] | undefined {
-  if (task.context) return;
-  const node = task.node,
-    value = rootValue(node);
-  if (value) {
-    if (needsContext(value.node, source))
-      result.contexts.push({ start: value.node.start ?? 0, end: value.node.end ?? 0 });
-    return syntaxChildren(task).map((child) =>
-      child.node === value.node ? { ...child, context: true, role: value.role } : child,
-    );
-  }
-  return callRoot(task, result, source);
-}
-function callRoot(task: RoleTask, result: ClassRoles, source: ClassSource): RoleTask[] | undefined {
-  const { node } = task;
-  if (node.type === 'CallExpression' && (helperName(node) || classListMethod(node))) {
-    const positive = !!helperName(node) || ['add', 'replace'].includes(classListMethod(node) ?? '');
-    if (positive) result.contexts.push({ start: node.start ?? 0, end: node.end ?? 0 });
-    return positiveChildren(
-      { ...task, context: true, ...(positive ? { role: { kind: 'class-call', slot: 'class-call' } } : {}) },
-      source,
-    );
-  }
-}
-function record(task: RoleTask, result: ClassRoles): void {
-  const { node } = task,
-    at = node.start;
-  if (at == null) return;
-  if (node.type !== 'StringLiteral' && node.type !== 'TemplateLiteral' && !(task.key && node.type === 'Identifier'))
+function callRoot(reader: RoleReader, nodes: RoleToken[], index: number, member: boolean): number | undefined {
+  const node = nodes[index],
+    call = nodes[index + 1];
+  if (node.kind !== 'word' || call?.text !== '(' || call.kind !== 'group' || declarationCall(nodes, index, member))
     return;
-  const previous = result.states.get(at),
-    role = literalRole(task) ?? previous?.role;
-  result.states.set(at, {
-    context: task.context || !!previous?.context,
-    ...(role ? { role } : {}),
-    ...(task.key && node.type === 'Identifier' ? { bareEnd: node.end ?? at } : {}),
-    ...cookedState(node),
-    ...(task.config === 'excluded' && !role ? { excluded: true } : {}),
-  });
+  const helper = helperName(node.text) && !['.', '?.', 'new'].includes(nodes[index - 1]?.text);
+  if (!helper && !classListMethod(nodes, index)) return;
+  if (helper || node.text === 'add' || node.text === 'replace')
+    reader.result.contexts.push({ start: node.start, end: call.end });
+  walkValues(reader, callTasks(node.text, splitTokens(call.children!), 0, helper));
+  return index + 2;
 }
-function cookedState(node: Node): Pick<RoleState, 'cooked' | 'end' | 'escapedTemplate'> {
-  if (node.type === 'StringLiteral') return { cooked: node.value, end: node.end ?? node.start ?? 0 };
-  if (node.type !== 'TemplateLiteral') return {};
-  if (node.expressions.length === 0 && node.quasis[0]?.value.cooked != null)
-    return { cooked: node.quasis[0].value.cooked, end: node.end ?? node.start ?? 0 };
-  return node.quasis.some((q) => q.value.raw.includes('\\')) ? { escapedTemplate: true } : {};
+function valueRoot(reader: RoleReader, nodes: RoleToken[], index: number, object: boolean): number | undefined {
+  const root = rootValue(reader.source, nodes, index, object);
+  if (!root) return;
+  const only = root.values.length === 1 ? root.values[0] : undefined;
+  if (only?.kind !== 'literal') reader.result.contexts.push(root.span);
+  walkValues(reader, [{ nodes: root.values, role: root.role, depth: 0 }]);
+  if (root.attribute && only) decodeAttribute(reader, only);
+  return root.end;
 }
-function valueContexts(task: RoleTask, result: ClassRoles): void {
-  const node = task.node;
-  if (task.role?.kind === 'cva-value') result.contexts.push({ start: node.start ?? 0, end: node.end ?? 0 });
-  if (task.role && node.type === 'BinaryExpression' && node.operator === '+')
-    result.contexts.push({
-      start: node.start ?? 0,
-      end: node.end ?? 0,
-      residual: 'dynamic class concatenation fragment excluded',
-    });
+type Discovery = { nodes: RoleToken[]; parent: string; object: boolean; scope?: 'class' | 'type' };
+type Header = { scope?: 'class' | 'type'; angles: number };
+function declarationHeader(nodes: RoleToken[], index: number): Header['scope'] {
+  const node = nodes[index];
+  if (node.kind !== 'word' || nodes[index + 1]?.text === ':' || nodes[index - 1]?.text === '.') return;
+  if (node.text === 'class') return 'class';
+  if ((node.text === 'interface' || node.text === 'type') && nodes[index + 1]?.kind === 'word') return 'type';
 }
-function walk(root: Node, source: ClassSource, expression: boolean): ClassRoles {
-  const result: ClassRoles = { states: new Map(), contexts: [] };
-  const pending: RoleTask[] = [
-    {
-      node: root,
-      context: expression,
-      ...(expression ? { role: { kind: 'class-value', slot: 'class-value', containers: true } } : {}),
-    },
+function headerStep(header: Header, nodes: RoleToken[], index: number): void {
+  header.scope = declarationHeader(nodes, index) ?? header.scope;
+  const node = nodes[index];
+  if (!header.scope || node.kind !== 'operator') return;
+  if (node.text === '<') header.angles++;
+  if (/^>{1,3}$/.test(node.text)) header.angles = Math.max(0, header.angles - node.text.length);
+  if (node.text === ';') header.scope = undefined;
+}
+function discoveryChildren(reader: RoleReader, part: Discovery, index: number, header: Header): Discovery[] {
+  const node = part.nodes[index];
+  const children: Discovery[] = node.children
+    ? [
+        {
+          nodes: node.children,
+          parent: node.text,
+          object: objectGroup(part.nodes, index, part.parent),
+          scope: node.text === '{' ? header.scope : undefined,
+        },
+      ]
+    : [];
+  if (node.text === '{' && header.angles === 0) header.scope = undefined;
+  return [
+    ...children,
+    ...(node.literal?.substitutions ?? []).map((substitution) => ({
+      nodes: readRolePart(reader, substitution),
+      parent: '',
+      object: false,
+    })),
   ];
-  while (pending.length) {
-    const task = pending.pop()!;
-    if (task.config && task.config !== 'excluded') {
-      pending.push(...cvaTasks(task));
+}
+function discoverPart(reader: RoleReader, part: Discovery, pending: Discovery[]): void {
+  if (part.scope === 'type') return;
+  const header: Header = { angles: 0 };
+  for (let i = 0; i < part.nodes.length && reader.limit === undefined; i++) {
+    headerStep(header, part.nodes, i);
+    const end =
+      valueRoot(reader, part.nodes, i, part.object && part.scope !== 'class') ??
+      callRoot(reader, part.nodes, i, part.scope === 'class');
+    if (end !== undefined) {
+      i = end - 1;
       continue;
     }
-    record(task, result);
-    valueContexts(task, result);
-    if (task.node.type === 'Identifier' && !task.key) continue;
-    const roots = rootTasks(task, result, source);
-    pending.push(...(roots ?? positiveChildren(task, source)));
+    pending.push(...discoveryChildren(reader, part, i, header));
   }
-  return result;
 }
-/** Script blocks use JS/TS syntax; markup bindings are read separately at exact offsets. */
+function discover(reader: RoleReader, nodes: RoleToken[]): void {
+  const pending: Discovery[] = [{ nodes, parent: '', object: false }];
+  while (pending.length && reader.limit === undefined) discoverPart(reader, pending.pop()!, pending);
+}
+/** Component script blocks and markup bindings retain separate, exact source offsets. */
 export function scriptParts(
   source: ClassSource,
   key: string,
@@ -133,31 +121,36 @@ function scriptRoles(source: ClassSource, scripts: NonNullable<ReturnType<typeof
       combined.contexts.push({
         start: part.start,
         end: part.end,
-        residual: 'class role syntax unreadable; positive values unmeasured',
         extractionGap: true,
+        residual: 'class expression unreadable; positive values unmeasured',
       });
   }
   return combined;
 }
-/** Ordinary vocabulary-only blobs need no AST; malformed supported syntax fails conservatively. */
 export function classRoles(source: ClassSource, key: string, expression = false): ClassRoles {
   const scripts = scriptParts(source, key);
   if (scripts) return scriptRoles(source, scripts);
+  const result: ClassRoles = { states: new Map(), contexts: [] },
+    reader: RoleReader = { source, result };
   if (
     !expression &&
-    !source.text.includes('\\') &&
     !source.tokens.some((token) =>
       /^(?:['"](?:class|className|classList)['"]|class|className|classList|clsx|cx|cn|classnames|classNames|cva|twMerge|twJoin)$/.test(
         source.text.slice(token.index, token.end),
       ),
     )
   )
-    return { states: new Map(), contexts: [] };
-  try {
-    const root = expression ? parseExpression(source.text, options(key)) : parse(source.text, options(key));
-    if ('errors' in root && root.errors?.length) return { states: new Map(), contexts: [], failed: true };
-    return walk(root, source, expression);
-  } catch {
-    return { states: new Map(), contexts: [], failed: true };
+    return result;
+  const parsed = roleTokens(source);
+  if (parsed.limit !== undefined) {
+    depthGap(reader, parsed.limit);
+    return result;
   }
+  if (parsed.failed) return { ...result, failed: true };
+  if (expression)
+    walkValues(reader, [
+      { nodes: parsed.nodes, role: { kind: 'class-value', slot: 'class-value', containers: true }, depth: 0 },
+    ]);
+  else discover(reader, parsed.nodes);
+  return result;
 }

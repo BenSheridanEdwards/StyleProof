@@ -13,15 +13,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
   omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
   older version-2 maps without document-boundary verification, unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
-  prose is skipped. Only positive class values can lower J2, never upgrade it. An AST allow-list grants
+  prose is skipped. Only positive class values can lower J2, never upgrade it. A token-role allow-list grants
   explicit roles to class attributes / `.className =` values, bare helper arguments and their array
   elements/object keys, ternary results and logical RHS values recursively inside positive roles,
   classList.add arguments, replace's second argument, supported framework bindings and known cva class values.
   Non-helper/optional/non-null/generic calls, tagged templates, binary/relational operands, lookups,
   case labels, arrow bodies, unary/void expressions and ordinary assignments remain J3-only, as do
   query/removal/toggle classList arguments, dataset/data-class and vocabulary-only candidates. Comments
-  do not change roles. Babel parser/types are runtime dependencies for JS/TS/JSX syntax analysis;
-  unsupported syntax emits a conservative named gap. Findings stay warn-only at both levels, with
+  do not change roles. The role reader reuses the existing lexer and a bounded bracket/work stack, with
+  no new runtime dependencies. Unknown expressions stay J3-only; unreadable brackets and depth
+  limits name the unmeasured remainder. A regression pins runtime dependencies to pngjs only. Findings stay warn-only at both levels, with
   bounded detail and full counts. Whole replacement hunks match ordered token values plus role/slot,
   preserving unchanged arguments when constants move to other lines; pure additions/deletions retain
   occurrences. CSS escapes, simple Vue/Svelte bindings, Solid classList keys, nested templates and cva

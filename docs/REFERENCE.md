@@ -2363,8 +2363,9 @@ J3 negative from an **explicit class context** can lower a J2 range that ran to
 `never-rendered`, retaining its execution. Vocabulary-only candidates never lower
 J2, even when every word is a CSS class name. Older class units lacking explicit
 context evidence also cannot lower J2.
-Explicit evidence uses a **positive syntax allow-list**, parsed with Babel's
-JavaScript/TypeScript/JSX AST (comments cannot change an operand's role). A class
+Explicit evidence uses a **positive syntax allow-list** over the existing J2
+lexer. An in-repo bracket forest and bounded work stack skip comments and retain
+source offsets without a framework parser or new runtime dependency. A class
 frame grants a positive role only to:
 
 - direct arguments of a bare, statically named class helper (`clsx`, `cx`, `cn`,
@@ -2401,8 +2402,11 @@ this spelling remain an ambiguity. Helper names and `.className` receivers are
 not type-checked. Known `cva` configuration values are supported; arbitrary
 configuration data is excluded. Framework scripts and simple bindings are parsed
 separately; complex directives/frontmatter, custom syntax, spreads and data flow
-remain residuals. Unsupported or malformed AST syntax produces a named extraction
-gap; it cannot supply explicit negative evidence. JSX literal escapes/entities use
+remain residuals. This is a conservative expression reader, not a full JS/TS
+parser: function/method parameters and type-only bodies supply no positive roles,
+and ambiguous call/declaration forms stay J3-only. Malformed brackets produce a
+named extraction gap; unknown expressions never inherit explicit evidence.
+Bracket and expression nesting are capped at 128, with a named gap through EOF. JSX literal escapes/entities use
 decoded values. Encoded component markup and escaped dynamic-template text produce
 named conservative gaps rather than guessing a runtime token.
 A class occurrence never corroborates a different style value on the same line.

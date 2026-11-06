@@ -1,0 +1,54 @@
+✖ ADR 0009 permits no runtime dependency beyond pngjs (0.939375ms)
+✖ class role nesting is capped with a named gap through EOF (8.245584ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 91.462541
+
+✖ failing tests:
+
+test at test/class-join-dependencies.test.mjs:6:1
+✖ ADR 0009 permits no runtime dependency beyond pngjs (0.939375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   '@babel/parser',
+  +   '@babel/types',
+      'pngjs'
+    ]
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:8:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ '@babel/parser', '@babel/types', 'pngjs' ],
+    expected: [ 'pngjs' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-dependencies.test.mjs:11:1
+✖ class role nesting is capped with a named gap through EOF (8.245584ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":0},"end":{"line":2,"column":21}},"words":[],"explicit":false,"context":true,"extractionGap":true,"residual":"class role syntax unreadable; positive values unmeasured"},{"range":{"start":{"line":1,"column":6015},"end":{"line":1,"column":6020}},"words":[{"token":"old","range":{"start":{"line":1,"column":6016},"end":{"line":1,"column":6019}}}],"explicit":false,"classContext":false},{"range":{"start":{"line":2,"column":15},"end":{"line":2,"column":20}},"words":[{"token":"new","range":{"start":{"line":2,"column":16},"end":{"line":2,"column":19}}}],"explicit":false,"classContext":false}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:15:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

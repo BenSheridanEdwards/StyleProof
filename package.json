@@ -114,8 +114,6 @@
     "@playwright/test": ">=1.45"
   },
   "dependencies": {
-    "@babel/parser": "^7.29.13",
-    "@babel/types": "^7.29.11",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {

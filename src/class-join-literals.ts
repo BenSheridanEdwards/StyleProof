@@ -137,7 +137,7 @@ function appendRoles(literals: ClassLiteral[], source: ClassSource, roles: Class
     literals.push({
       range: sourceSpan(source, context.start, context.end),
       words: [],
-      explicit: true,
+      explicit: !context.extractionGap,
       context: true,
       ...(context.residual ? { residual: context.residual } : {}),
       ...(context.extractionGap ? { extractionGap: true } : {}),
