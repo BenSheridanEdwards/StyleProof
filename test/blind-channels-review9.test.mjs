@@ -6,10 +6,19 @@ import { releaseVisualChannelSources } from '../dist/capture/visual-channel-boun
 import * as values from '../dist/capture/visual-channel-values.js';
 
 test('serialized channel values run without their module scope', async () => {
-  const context = vm.createContext({ window: {}, URL });
+  const context = vm.createContext({ window: {}, URL, URLSearchParams });
   await installVisualChannelValues({ evaluate: async (source) => vm.runInContext(source, context) });
   const v = context.window.__spChannelValues;
   assert.deepEqual(Object.keys(v).sort(), Object.keys(values).sort());
+  assert.equal(v.mayBeSvg('data:image/png;base64,AA'), false);
+  assert.equal(v.mayBeSvg('/a.svg', 'image/svg+xml'), true);
+  assert.equal(v.mayBeSvg('/unknown'), true);
+  assert.equal(v.mayBeSvg('/photo.png'), true);
+  for (const mime of ['image/png', 'image/jpeg', 'image/webp', 'image/avif', 'image/gif'])
+    assert.equal(v.mayBeSvg('/no-extension', mime), false);
+  assert.equal(JSON.stringify(v.contentImageSources('url("https://site.test/a.png")')), '["https://site.test/a.png"]');
+  assert.equal(JSON.stringify(v.contentImageSources('"url(text.svg)"')), '[]');
+  assert.equal(v.contentImageSources('image-set("x.svg" 1x)'), undefined);
   assert.equal(v.motionInProgress('finished', { activeDuration: 1 }), false);
   assert.equal(v.holdKeyframes(false, false, false), false);
   assert.equal(v.fixedMediaSize({ unit: 'px', value: 1 }, { unit: 'px', value: 2 }), true);

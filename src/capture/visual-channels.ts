@@ -10,7 +10,7 @@ export type VisualChannelWindow = {
   __spChannelScopesVerified?: boolean;
   __spReadInitialChannelInputs?: (roots?: number[]) => void;
   __spBeginChannelProof?: (unfreeze?: boolean, roots?: number[]) => void;
-  __spChannelHostsChecked?: boolean;
+  __spChannelImageTypes?: Map<string, string>;
   __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
@@ -35,7 +35,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spChannelHosts;
   delete target.__spChannelRoots;
   delete target.__spChannelScopesVerified;
-  delete target.__spChannelHostsChecked;
+  delete target.__spChannelImageTypes;
   delete target.__spChannelSheets;
   if (!enabled) {
     delete target.__spChannelValues;
@@ -333,20 +333,43 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
         endTime: typeof timing.endTime === 'number' ? timing.endTime : undefined,
       });
     });
+  const sourceMayResize = (source: string, element: Element): boolean => {
+    const url = new URL(source, element.ownerDocument.baseURI);
+    url.hash = '';
+    return values.mayBeSvg(source, target.__spChannelImageTypes?.get(url.href));
+  };
+  const generatedImageInput = (element: Element): boolean => {
+    if (!retainInputs) return false;
+    for (const pseudo of ['::before', '::after', '::marker']) {
+      const sources = values.contentImageSources(getComputedStyle(element, pseudo).content);
+      if (sources === undefined || sources.some((source) => sourceMayResize(source, element))) return true;
+    }
+    return false;
+  };
+  const opaqueMediaInput = (source: string, element: Element, fixed: boolean): 'opaque' | undefined =>
+    source && !fixed && sourceMayResize(source, element) ? 'opaque' : undefined;
+  const selectedImageSource = (image: HTMLImageElement): string => {
+    // A deferred image with no selected currentSrc has no animated intrinsic box yet.
+    if (!image.currentSrc && !image.complete) return '';
+    return image.currentSrc || image.getAttribute('src') || '';
+  };
+  const replacedImageSource = (element: Element): string => {
+    if (element.localName === 'video') return (element as HTMLVideoElement).poster;
+    const input = element as HTMLInputElement;
+    return input.type === 'image' ? input.src : '';
+  };
   const embeddedInput = (element: Element): Document | 'opaque' | undefined => {
     if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml') return;
     const name = element.localName;
-    if (name !== 'img' && name !== 'object' && name !== 'embed') return;
+    if (!['img', 'object', 'embed', 'input', 'video'].includes(name)) return;
+    if ((name === 'input' || name === 'video') && !retainInputs) return;
     const box = (element as Element & { computedStyleMap?: () => { get(name: string): unknown } }).computedStyleMap?.();
     const fixed = values.fixedMediaSize(box?.get('width'), box?.get('height'));
     if (element.localName === 'img') {
-      const image = element as HTMLImageElement;
-      const source =
-        image.currentSrc ||
-        image.getAttribute('src') ||
-        image.getAttribute('srcset') ||
-        image.closest('picture')?.querySelector('source[srcset]');
-      return source && !fixed ? 'opaque' : undefined;
+      return opaqueMediaInput(selectedImageSource(element as HTMLImageElement), element, fixed);
+    }
+    if (name === 'input' || name === 'video') {
+      return opaqueMediaInput(replacedImageSource(element), element, fixed);
     }
     try {
       const media = element as HTMLObjectElement & { getSVGDocument?: () => Document | null };
@@ -356,11 +379,12 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       // An inaccessible embedded document may still control its intrinsic box.
     }
     const source = element.getAttribute(element.localName === 'object' ? 'data' : 'src');
-    return source && !fixed ? 'opaque' : undefined;
+    return opaqueMediaInput(source ?? '', element, fixed);
   };
   const rootHasInput = (root: Document | ShadowRoot, pending: (Document | ShadowRoot)[]): boolean => {
     if (scopeInputs(root)) return true;
     for (const element of root.querySelectorAll('*')) {
+      if (generatedImageInput(element)) return true;
       const embedded = embeddedInput(element);
       if (embedded === 'opaque') return true;
       if (embedded) pending.push(embedded);
@@ -375,6 +399,9 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     return false;
   };
   const readInputs = (): boolean | undefined => {
+    // Default: only motion surviving the freeze holds models. Unstabilized: retain
+    // entry motion too. Every readable root/document is walked; unresolved SVG image
+    // inputs hold conservatively, while observed raster MIME types never do.
     try {
       const pending: (Document | ShadowRoot)[] = [document];
       const seen = new Set<Document | ShadowRoot>();
@@ -456,8 +483,6 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   target.__spFinishChannelProof = (verified, sheets) => {
     target.__spChannelSheets = new Set(sheets ?? []);
     target.__spChannelScopesVerified = verified;
-
-    if (verified) target.__spChannelHostsChecked = true;
     target.__spChannelNodes?.clear();
     restoreFreeze?.();
     restoreFreeze = undefined;

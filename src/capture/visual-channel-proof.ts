@@ -6,6 +6,8 @@ import {
   smilActiveDuration,
   smilClockSeconds,
   fixedMediaSize,
+  mayBeSvg,
+  contentImageSources,
   holdKeyframes,
   normalizeImageSource,
   orderIndependentFrames,
@@ -14,13 +16,15 @@ import {
   resolveEngineBody,
 } from './visual-channel-values.js';
 import { captureExpression } from './script-evaluation.js';
-import { readVisualChannelBoundaries } from './visual-channel-boundaries.js';
+import { readVisualChannelBoundaries, verifyVisualChannelBoundaries } from './visual-channel-boundaries.js';
 
 export async function installVisualChannelValues(page: Page): Promise<void> {
   await page.evaluate(
     captureExpression(`window.__spChannelValues = {
     motionInProgress: (${motionInProgress.toString()}),
     fixedMediaSize: (${fixedMediaSize.toString()}),
+    mayBeSvg: (${mayBeSvg.toString()}),
+    contentImageSources: (${contentImageSources.toString()}),
     smilClockSeconds: (${smilClockSeconds.toString()}),
     smilActiveDuration: (duration, start, element) => (${smilActiveDuration.toString()})(duration, start, element, window.__spChannelValues.smilClockSeconds),
     smilInProgress: (element) => (${smilInProgress.toString()})(element, window.__spChannelValues.smilActiveDuration),
@@ -35,14 +39,33 @@ export async function installVisualChannelValues(page: Page): Promise<void> {
   );
 }
 
+async function installImageTypes(page: Page, client: CDPSession): Promise<void> {
+  const types: [string, string][] = [];
+  try {
+    const { frameTree } = await client.send('Page.getResourceTree');
+    const pending = [frameTree];
+    while (pending.length) {
+      const tree = pending.pop()!;
+      if (tree.frame?.url && tree.frame.mimeType) types.push([tree.frame.url, tree.frame.mimeType]);
+      for (const resource of tree.resources) types.push([resource.url, resource.mimeType]);
+      for (const child of tree.childFrames ?? []) pending.push(child);
+    }
+  } catch {
+    // Missing MIME evidence holds only the affected opaque images, not every model.
+  }
+  await page.evaluate(captureExpression(`window.__spChannelImageTypes = new Map(${JSON.stringify(types)}); void 0;`));
+}
+
 /** Retain entry-time liveness only after closed roots are available, before freezing. */
 export async function prepareInitialVisualChannelInputs(page: Page): Promise<void> {
   try {
     const read = await readVisualChannelBoundaries(page);
+    await installImageTypes(page, read.catalog.client);
     await page.evaluate(
       captureExpression(`window.__spReadInitialChannelInputs(${JSON.stringify(read.roots)}); void 0;`),
     );
-    if (read.catalog.version !== read.version) throw new Error('author boundaries changed during initial read');
+    if (!(await verifyVisualChannelBoundaries(page, read)))
+      throw new Error('author boundaries changed during initial read');
   } catch {
     await page.evaluate(captureExpression('window.__spReadInitialChannelInputs(); void 0;'));
   }
@@ -112,12 +135,13 @@ export async function prepareVisualChannelSources(page: Page, unfreeze = false):
   let read: Awaited<ReturnType<typeof readVisualChannelBoundaries>> | undefined;
   try {
     read = await readVisualChannelBoundaries(page);
+    await installImageTypes(page, read.catalog.client);
     await page.evaluate(
       captureExpression(`window.__spBeginChannelProof(${unfreeze}, ${JSON.stringify(read.roots)}); void 0;`),
     );
     begun = true;
     await recordMatchedSources(read.catalog.client);
-    verified = read.catalog.version === read.version;
+    verified = await verifyVisualChannelBoundaries(page, read);
   } catch {
     // Missing or changing boundary/source evidence remains unknown.
   } finally {

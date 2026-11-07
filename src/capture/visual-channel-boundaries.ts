@@ -2,23 +2,76 @@ import type { CDPSession, Page } from '@playwright/test';
 import { captureExpression } from './script-evaluation.js';
 import { registerStyleProofSession } from './script-coverage-ownership.js';
 type BoundaryNode = {
+  nodeId?: number;
   nodeType?: number;
   nodeName?: string;
+  childNodeCount?: number;
   backendNodeId?: number;
   shadowRootType?: string;
   children?: BoundaryNode[];
   shadowRoots?: BoundaryNode[];
   contentDocument?: BoundaryNode;
 };
+type BoundaryRecord = { parent?: number; relevant: boolean };
 type Catalog = {
   client: CDPSession;
   version: number;
+  epoch: number;
   scanned: number;
   roots: number[];
   registered: Set<number>;
   sheets: Map<string, string>;
+  nodes: Map<number, BoundaryRecord>;
 };
 const catalogs = new WeakMap<Page, Catalog>();
+function couldContainBoundary(node: BoundaryNode): boolean {
+  if (node.nodeType !== 1) return false;
+  if (node.shadowRoots?.some((root) => root.shadowRootType !== 'user-agent')) return true;
+  if ((node.childNodeCount ?? 0) > (node.children?.length ?? 0)) return true;
+  const name = node.nodeName?.toLowerCase() ?? '';
+  // DOM's valid shadow host names; object/embed can introduce a document boundary.
+  return (
+    name.includes('-') ||
+    /^(?:article|aside|blockquote|body|div|footer|h[1-6]|header|main|nav|p|section|span|object|embed)$/.test(name)
+  );
+}
+function boundaryChildren(node: BoundaryNode): BoundaryNode[] {
+  const children = (node.children ?? []).slice();
+  for (const root of node.shadowRoots ?? []) if (root.shadowRootType !== 'user-agent') children.push(root);
+  if (node.contentDocument && /^(?:OBJECT|EMBED)$/.test(node.nodeName ?? '')) children.push(node.contentDocument);
+  return children;
+}
+function indexBoundaryNodes(root: BoundaryNode, parent?: number): Map<number, BoundaryRecord> {
+  const nodes = new Map<number, BoundaryRecord>();
+  const pending = [{ node: root, parent }];
+  const order: number[] = [];
+  while (pending.length) {
+    const entry = pending.pop()!;
+    const { node } = entry;
+    if (node.nodeId !== undefined) {
+      nodes.set(node.nodeId, { parent: entry.parent, relevant: couldContainBoundary(node) });
+      order.push(node.nodeId);
+    }
+    for (const child of boundaryChildren(node)) pending.push({ node: child, parent: node.nodeId ?? entry.parent });
+  }
+  for (const id of order.reverse()) {
+    const entry = nodes.get(id)!;
+    const ancestor = entry.parent === undefined ? undefined : nodes.get(entry.parent);
+    if (entry.relevant && ancestor) ancestor.relevant = true;
+  }
+  return nodes;
+}
+function insertedBoundary(state: Catalog, node: BoundaryNode, parent: number): void {
+  const added = indexBoundaryNodes(node, parent);
+  for (const [id, entry] of added) state.nodes.set(id, entry);
+  if (!(node.nodeId === undefined ? couldContainBoundary(node) : added.get(node.nodeId)?.relevant)) return;
+  state.version++;
+  let ancestor = state.nodes.get(parent);
+  while (ancestor && !ancestor.relevant) {
+    ancestor.relevant = true;
+    ancestor = ancestor.parent === undefined ? undefined : state.nodes.get(ancestor.parent);
+  }
+}
 function closedRootId(root: BoundaryNode): number | undefined {
   if (root.shadowRootType === 'open') return;
   if (root.shadowRootType !== 'closed' || root.backendNodeId === undefined) throw new Error('unreadable author root');
@@ -48,19 +101,31 @@ async function openCatalog(page: Page): Promise<Catalog> {
   const existing = catalogs.get(page);
   if (existing) return existing;
   const client = registerStyleProofSession(await page.context().newCDPSession(page));
-  const state: Catalog = { client, version: 0, scanned: -1, roots: [], registered: new Set(), sheets: new Map() };
+  const state: Catalog = {
+    client,
+    version: 0,
+    epoch: 0,
+    scanned: -1,
+    roots: [],
+    registered: new Set(),
+    sheets: new Map(),
+    nodes: new Map(),
+  };
   const changed = () => {
     state.version++;
   };
-  for (const event of [
-    'DOM.documentUpdated',
-    'DOM.shadowRootPushed',
-    'DOM.shadowRootPopped',
-    'DOM.childNodeInserted',
-    'DOM.childNodeRemoved',
-    'DOM.childNodeCountUpdated',
-  ] as const)
-    client.on(event, changed);
+  const barrier = () => {
+    state.epoch++;
+    changed();
+  };
+  client.on('DOM.documentUpdated', barrier);
+  client.on('DOM.shadowRootPopped', barrier);
+  client.on('DOM.shadowRootPushed', changed);
+  client.on('DOM.childNodeInserted', ({ node, parentNodeId }) => insertedBoundary(state, node, parentNodeId));
+  client.on('DOM.childNodeRemoved', ({ nodeId }) => {
+    if (state.nodes.get(nodeId)?.relevant !== false) changed();
+    state.nodes.delete(nodeId);
+  });
   client.on('CSS.styleSheetAdded', ({ header }) => {
     if (header.sourceURL) state.sheets.set(header.styleSheetId, header.sourceURL);
   });
@@ -96,21 +161,36 @@ async function registerRoot(state: Catalog, id: number): Promise<void> {
 /** A watched tree is reused only while no author-boundary mutation has occurred. */
 export async function readVisualChannelBoundaries(
   page: Page,
-): Promise<{ catalog: Catalog; version: number; roots: number[] }> {
+): Promise<{ catalog: Catalog; version: number; epoch: number; roots: number[] }> {
   const state = await openCatalog(page);
-  if (state.scanned !== state.version) {
+  for (let attempt = 0; state.scanned !== state.version && attempt < 3; attempt++) {
     const version = state.version;
     const { root } = await state.client.send('DOM.getDocument', { depth: -1, pierce: true });
     state.roots = closedRoots(root as BoundaryNode);
+    state.nodes = indexBoundaryNodes(root as BoundaryNode);
     for (const id of state.roots) await registerRoot(state, id);
-    if (version !== state.version) throw new Error('author boundaries changed during verification');
-    state.scanned = version;
+    if (version === state.version) state.scanned = version;
   }
-  return { catalog: state, version: state.version, roots: state.roots };
+  if (state.scanned !== state.version) throw new Error('author boundaries keep changing during verification');
+  return { catalog: state, version: state.version, epoch: state.epoch, roots: state.roots };
+}
+/** Ordinary subtree churn is harmless when the roots actually read are still complete. */
+export async function verifyVisualChannelBoundaries(
+  page: Page,
+  before: Awaited<ReturnType<typeof readVisualChannelBoundaries>>,
+): Promise<boolean> {
+  if (before.catalog.epoch !== before.epoch) return false;
+  if (before.catalog.version === before.version) return true;
+  const after = await readVisualChannelBoundaries(page);
+  const roots = new Set(before.roots);
+  return after.epoch === before.epoch && roots.size === after.roots.length && after.roots.every((id) => roots.has(id));
 }
 export async function releaseVisualChannelSources(page: Page): Promise<void> {
   const state = catalogs.get(page);
   catalogs.delete(page);
   await state?.client.detach().catch(() => {});
-  if (state) await page.evaluate(captureExpression('window.__spChannelRoots?.clear(); void 0;')).catch(() => {});
+  if (state)
+    await page
+      .evaluate(captureExpression('window.__spChannelRoots?.clear(); window.__spChannelImageTypes?.clear(); void 0;'))
+      .catch(() => {});
 }

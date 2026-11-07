@@ -268,3 +268,26 @@ export function fixedMediaSize(width: unknown, height: unknown): boolean {
     return size.unit === 'px' && typeof size.value === 'number' && Number.isFinite(size.value) && size.value >= 0;
   });
 }
+
+/** Only an observed raster MIME type proves that image motion cannot resize its box. */
+export function mayBeSvg(source: string, mime?: string): boolean {
+  const type = (/^data:([^;,]*)/i.exec(source)?.[1] ?? mime ?? '').split(';')[0].trim().toLowerCase();
+  return !/^image\/(?:a?png|x-png|jpe?g|pjpeg|webp|avif|gif|bmp|x-ms-bmp|x-icon|vnd\.microsoft\.icon)$/.test(type);
+}
+
+/** CSSOM quotes URL values; unsupported image syntax/escapes remain unresolved. */
+export function contentImageSources(content: string): string[] | undefined {
+  const sources: string[] = [];
+  const tokens =
+    /"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|(?:-webkit-)?image(?:-set)?\(|url\(\s*"((?:\\.|[^"\\])*)"\s*\)|url\(/gi;
+  for (const token of content.matchAll(tokens)) {
+    if (token[0].startsWith('"') || token[0].startsWith("'")) continue;
+    if (token[1] === undefined) return undefined;
+    try {
+      sources.push(JSON.parse('"' + token[1] + '"') as string);
+    } catch {
+      return undefined;
+    }
+  }
+  return sources;
+}

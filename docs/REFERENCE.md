@@ -1494,9 +1494,13 @@ A read-only CDP matched-rule check verifies the engine's source against the CSSO
 winner. The CSSOM name/layer index respects applying media/supports, normal cascade
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.
 Provenance and author-boundary evidence are checked on every resting/forced read.
-A capture-scoped CDP session watches native tree and shadow-root events. Its full
-pierced tree catalogue is refreshed after invalidation, including closed roots
-attached after the resting read. Closed roots are resolved once and their animation
+A capture-scoped CDP session watches shadow boundaries: root push/pop, document
+replacement, and element subtrees that can contain author roots or embedded
+documents. Text, count-only updates and known inert subtrees do not invalidate it.
+The pierced catalogue refreshes after relevant changes, including closed roots
+attached after the resting read. If a change occurs during proof, a fresh scan can
+verify the same closed-root set; root removal or document replacement remains a
+barrier. Unreadable, unstable or different boundary evidence stays unknown. Closed roots are resolved once and their animation
 lists are read in the same synchronous pass as document/open-root liveness.
 With `stabilize:false`, the catalogue is populated before the initial pre-freeze
 liveness read too, so a closed-root effect that finishes during freezing is retained
@@ -1537,12 +1541,21 @@ unknown, including on paused SVG timelines; unavailable timing stays conservativ
 An unrelated SMIL spinner can hold every model unknown, just like a surviving WAAPI
 spinner. Plain static SVG and readable static roots do not taint evidence.
 
-An opaque image or `object`/`embed` can change intrinsic layout without exposing its
-animation APIs. When it has a source and lacks two definite width/height values,
-keyframes are held unknown. Typed computed sizes distinguish explicit pixel sizes
+An SVG image or opaque `object`/`embed` can change intrinsic layout without exposing
+its animation APIs. CDP resource MIME metadata identifies loaded raster images
+(PNG, JPEG, WebP, AVIF, GIF, BMP and icons); these never hold models. Data-image MIME
+headers are recognized without reading bytes. No filename-extension inference or
+extra fetch is used. SVG and unknown types with intrinsic sizing hold keyframes
+unknown. A deferred image with no selected `currentSrc` has no active image box yet;
+its source channel is still named unloaded/not compared. Typed computed sizes distinguish explicit pixel sizes
 (including width/height attributes and CSS sizing) from intrinsic `auto`; ordinary
 explicitly sized SVG icons stay comparable. Readable embedded documents are walked
-recursively. Iframe contents are not followed for this liveness check: their content
+recursively. With `stabilize:false`, the same MIME/size check includes image inputs
+and video posters. Generated `::before`, `::after` and `::marker` content URLs also
+participate; SVG/unknown generated images are conservatively held even when styled
+to a size, because authored pseudo sizing is not proven. Unresolved CSS image
+syntax stays unknown; quoted text resembling a URL is not an image. These added
+replaced-source checks do not run in default mode. Iframe contents are not followed for this liveness check: their content
 cannot resize the iframe element, and their styles remain outside ordinary capture.
 
 With `stabilize:false`, if any covered animation or transition is in progress in the
