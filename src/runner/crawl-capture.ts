@@ -145,8 +145,16 @@ function navObserver(
 // the very operations the pin and the probe rely on. Every descriptor StyleProof builds has a null
 // prototype: one inheriting from a consumer-polluted `Object.prototype` (an inherited `get` or
 // `value`) would mean something else, or be invalid and throw.
-const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf, isExtensible, setPrototypeOf } =
-  Reflect;
+const {
+  apply,
+  defineProperty,
+  deleteProperty,
+  getOwnPropertyDescriptor,
+  getPrototypeOf,
+  isExtensible,
+  setPrototypeOf,
+} = Reflect;
+const { slice } = String.prototype;
 const { isPromise } = types;
 
 /**
@@ -276,6 +284,8 @@ function swallowRejection(value: unknown): void {
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
+// Compared through the captured `getPrototypeOf`: `instanceof` would run a replaceable `Symbol.hasInstance`.
+const PRODUCT_STATE_ERROR_PROTOTYPE: object = ProductStateIdentityError.prototype;
 
 /**
  * The declared identity for one crawled link. The function form gets a copy of the link, and a
@@ -306,10 +316,11 @@ export function crawlLinkProductState(
   try {
     return validateProductStateIdentity(declared);
   } catch (error) {
-    const reason =
-      error instanceof ProductStateIdentityError
-        ? error.message.slice(PRODUCT_STATE_ERROR_PREFIX.length)
-        : 'identity could not be read safely';
+    // The validator's own errors carry only fixed reasons; anything else is reported as unreadable.
+    const own = typeof error === 'object' && error !== null && getPrototypeOf(error) === PRODUCT_STATE_ERROR_PROTOTYPE;
+    const reason = own
+      ? (apply(slice, (error as ProductStateIdentityError).message, [PRODUCT_STATE_ERROR_PREFIX.length]) as string)
+      : 'identity could not be read safely';
     throw new ProductStateIdentityError(`crawl link '${link.key}': ${reason}`);
   }
 }

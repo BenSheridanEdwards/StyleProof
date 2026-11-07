@@ -983,8 +983,8 @@ test('crawl productState: an async function fails closed and its rejection never
       assert.throws(() => crawlLinkProductState(() => promise, link), { name: 'ProductStateIdentityError' });
     }
 
-    // A non-extensible promise is awaited unpinned only when it inherits the built-in `constructor`
-    // directly: not a subclass, and not once `Promise.prototype.constructor` has been replaced.
+    // A non-extensible promise is never awaited, so neither a subclass's `then` nor a replaced
+    // `Promise.prototype.constructor` can make StyleProof run consumer code.
     class Overriding extends Promise {
       then(...args) {
         unpinnedCalls++;
@@ -1414,6 +1414,60 @@ test('crawl productState hooks: Object.prototype.value set while StyleProof load
     `),
     { thenCalls: 0, unhandled: 0 },
   );
+});
+
+test('crawl productState hooks: Object.prototype.get set while StyleProof loads cannot break the import', () => {
+  // Reaches the load-time probe's \`constructor\` descriptor, which the \`value\` twin above does not.
+  assert.deepEqual(
+    runHookScenario(`
+      let first = true;
+      const hook = createHook({
+        init(_id, type) {
+          if (type !== 'PROMISE' || !first || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          first = false;
+          Object.defineProperty(Object.prototype, 'get', { value() {}, configurable: true, writable: true });
+        },
+      }).enable();
+      let crawlLinkProductState;
+      try {
+        ({ crawlLinkProductState } = await import(${CRAWL_CAPTURE}));
+      } finally {
+        hook.disable();
+        delete Object.prototype.get;
+      }
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.then = () => { counts.thenCalls++; };
+      callWith(crawlLinkProductState, rejected);
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState: a function that rewrites Symbol.hasInstance or String slice cannot get its text into the error', () => {
+  for (const rewrite of [
+    "Object.defineProperty(Error, Symbol.hasInstance, { value() { throw new Error('SYNTHETIC-HOOK-SENTINEL'); }, configurable: true })",
+    "String.prototype.slice = () => 'SYNTHETIC-HOOK-SENTINEL'",
+  ]) {
+    assert.deepEqual(
+      runHookScenario(`
+        const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+        const slice = String.prototype.slice;
+        try {
+          crawlLinkProductState(() => {
+            ${rewrite};
+            return { id: 'x' };
+          }, { key: 'checkout', url: '/checkout' });
+        } catch (error) {
+          counts.extra = error.name === 'ProductStateIdentityError' && !String(error.message).includes('SENTINEL');
+        } finally {
+          delete Error[Symbol.hasInstance];
+          String.prototype.slice = slice;
+        }
+      `),
+      { thenCalls: 0, unhandled: 0, extra: true },
+      rewrite,
+    );
+  }
 });
 
 test('crawl productState: Object.prototype.value cannot make an unpinned promise look like the built-in', () => {
