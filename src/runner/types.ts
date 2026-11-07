@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import type { CaptureMetadata, ForcedStateLimits, MediaState, ProductStateIdentity } from '../capture/types.js';
 import type { LiveTextDeclaration, LiveTextInput } from '../live-text.js';
-import type { LinkMatch } from '../crawl.js';
+import type { CrawlLink, LinkMatch } from '../crawl.js';
 import type { StateRecipe } from '../state-recipes.js';
 
 /** One deterministic page state worth certifying, captured at one viewport width per @media band. */
@@ -155,6 +155,12 @@ export type CrawlOptions = CaptureConfig & {
   liveStates?: SurfaceLiveState[];
   stateRecipes?: StateRecipe[];
   popups?: boolean | PopupCaptureOptions;
+  /**
+   * Explicit consumer-owned product-state identity for every crawled surface, or a function
+   * of the discovered link. As for a declared surface's `productState`, a pair is comparable
+   * only when base and head carry the same identity.
+   */
+  productState?: ProductStateIdentity | ((link: CrawlLink) => ProductStateIdentity | undefined);
   /** Max ms to wait for the crawl root's links to render (default 15000). */
   linkTimeout?: number;
   /** Also capture routes observed through the history API (default true; bounded to 64 routes / 3 passes). */

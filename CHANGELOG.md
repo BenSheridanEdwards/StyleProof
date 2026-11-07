@@ -7,6 +7,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- `defineCrawlCapture` accepts `productState` (an identity, or a function of the discovered link), so each crawled
+  page can carry product-state identity. Before, only a crawl's `variants` or `liveStates` entries could declare
+  one; the crawled page itself could not, so a crawl with neither — such as the `styleproof-init` template for
+  non-Next apps — always reported its pairs as _Product-state identity unproven_.
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.

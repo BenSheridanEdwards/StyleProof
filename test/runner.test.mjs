@@ -770,3 +770,54 @@ test('resolveOutputDir: absolute dir is respected, relative nests under baseDir'
   assert.equal(resolveOutputDir('.styleproof/maps', '/abs/target'), '/abs/target');
   assert.equal(resolveOutputDir('.styleproof/maps', 'current'), path.join('.styleproof/maps', 'current'));
 });
+
+test('crawl productState: a failure names its link without echoing input, and the function cannot move the link', async () => {
+  const { crawlLinkProductState, defineCrawlCapture } = await import('../dist/runner/crawl-capture.js');
+  const link = { key: 'checkout', url: '/checkout' };
+  const seeded = { id: 'seeded-app', revision: 'fixture-v1' };
+  const hostile = 'private[value=customer-secret]';
+  const failsSafely = (fn, reason) =>
+    assert.throws(
+      () => crawlLinkProductState(fn, link),
+      (error) => {
+        assert.equal(error.name, 'ProductStateIdentityError');
+        assert.equal(error.message, `styleproof: invalid productState — crawl link 'checkout': ${reason}`);
+        assert.equal(error.cause, undefined);
+        return true;
+      },
+    );
+
+  assert.deepEqual(crawlLinkProductState(seeded, link), seeded);
+  assert.equal(
+    crawlLinkProductState(() => undefined, link),
+    undefined,
+  );
+  failsSafely(() => {
+    throw new Error(hostile);
+  }, 'the productState function threw');
+  failsSafely(() => {
+    // A thrown value whose string form itself throws cannot escape the link-named error.
+    throw {
+      toString: () => {
+        throw new Error(hostile);
+      },
+    };
+  }, 'the productState function threw');
+  failsSafely(() => null, 'expected an object with id and revision identifiers');
+  failsSafely(() => ({ ...seeded, label: hostile }), 'only id and revision are allowed');
+  failsSafely(
+    () => ({ id: hostile, revision: 'v1' }),
+    'id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+  );
+  crawlLinkProductState((given) => {
+    given.url = '/elsewhere';
+    return seeded;
+  }, link);
+  assert.equal(link.url, '/checkout');
+
+  // A static identity is validated when the spec loads, before any crawl test registers.
+  assert.throws(
+    () => defineCrawlCapture({ from: '/', productState: { id: 'seeded-app', revision: 'v1', label: 'x' } }),
+    { name: 'ProductStateIdentityError' },
+  );
+});

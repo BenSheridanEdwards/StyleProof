@@ -1,6 +1,8 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
+import { ProductStateIdentityError, validateProductStateIdentity } from '../capture.js';
+import type { ProductStateIdentity } from '../capture/types.js';
 import { captureTestBudgetMs } from '../surface-progress.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from './browser.js';
 import { withSurfaceFailureTolerance } from './self-check.js';
@@ -136,6 +138,38 @@ function navObserver(
   };
 }
 
+const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
+
+/**
+ * The declared identity for one crawled link. The function form gets a copy of the link, and a
+ * failure names only that link and a fixed reason, so a large crawl points at its route.
+ */
+export function crawlLinkProductState(
+  productState: CrawlOptions['productState'],
+  link: CrawlLink,
+): ProductStateIdentity | undefined {
+  if (typeof productState !== 'function') return productState;
+
+  let declared: unknown;
+
+  try {
+    declared = productState({ ...link });
+  } catch {
+    // The function's own error is consumer data: never echo it, as the validator never echoes input.
+    throw new ProductStateIdentityError(`crawl link '${link.key}': the productState function threw`);
+  }
+
+  try {
+    return validateProductStateIdentity(declared);
+  } catch (error) {
+    const reason =
+      error instanceof ProductStateIdentityError
+        ? error.message.slice(PRODUCT_STATE_ERROR_PREFIX.length)
+        : 'identity could not be read safely';
+    throw new ProductStateIdentityError(`crawl link '${link.key}': ${reason}`);
+  }
+}
+
 /**
  * Like `defineStyleMapCapture`, but the surface set is DISCOVERED at run time by crawling
  * a page's links (plus routes observed through the history API). One Playwright test does
@@ -153,7 +187,9 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     exclude = {},
     observeNavigation = true,
   } = options;
-  const { widths, height, ignore, variants, liveStates, stateRecipes, popups, mediaStates } = options;
+  const { widths, height, ignore, variants, liveStates, stateRecipes, popups, mediaStates, productState } = options;
+  // A static identity fails when the spec loads, as a declared surface's does.
+  if (typeof productState !== 'function') validateProductStateIdentity(productState);
   if (!dir) return;
 
   const settings = resolveSettings(options);
@@ -190,6 +226,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
             }
             if (settle) await settle(p);
           },
+          productState: crawlLinkProductState(productState, link),
           widths,
           ignore,
           height,
