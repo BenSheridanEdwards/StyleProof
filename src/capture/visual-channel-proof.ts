@@ -35,6 +35,19 @@ export async function installVisualChannelValues(page: Page): Promise<void> {
   );
 }
 
+/** Retain entry-time liveness only after closed roots are available, before freezing. */
+export async function prepareInitialVisualChannelInputs(page: Page): Promise<void> {
+  try {
+    const read = await readVisualChannelBoundaries(page);
+    await page.evaluate(
+      captureExpression(`window.__spReadInitialChannelInputs(${JSON.stringify(read.roots)}); void 0;`),
+    );
+    if (read.catalog.version !== read.version) throw new Error('author boundaries changed during initial read');
+  } catch {
+    await page.evaluate(captureExpression('window.__spReadInitialChannelInputs(); void 0;'));
+  }
+}
+
 async function matchedSource(
   client: CDPSession,
   id: number,

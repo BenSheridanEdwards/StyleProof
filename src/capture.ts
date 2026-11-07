@@ -4,7 +4,11 @@
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
 import { releaseVisualChannelSources } from './capture/visual-channel-boundaries.js';
-import { installVisualChannelValues, prepareVisualChannelSources } from './capture/visual-channel-proof.js';
+import {
+  installVisualChannelValues,
+  prepareInitialVisualChannelInputs,
+  prepareVisualChannelSources,
+} from './capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from './capture/visual-channels.js';
 import { finalizeVisualChannels, isChannelProperty } from './visual-channels.js';
 import { classifyInventory, collectNavAffordances, type NavigableItem } from './inventory.js';
@@ -507,6 +511,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
       enabled: options.captureVisualChannels === true,
       retainInputs: options.stabilize === false,
     });
+    if (options.captureVisualChannels && options.stabilize === false) await prepareInitialVisualChannelInputs(page);
     // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.evaluate(freezeMotion, FREEZE_CSS);

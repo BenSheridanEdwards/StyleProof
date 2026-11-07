@@ -8,6 +8,7 @@ export type VisualChannelWindow = {
   __spChannelHosts?: WeakSet<Element>;
   __spChannelRoots?: Map<number, ShadowRoot>;
   __spChannelScopesVerified?: boolean;
+  __spReadInitialChannelInputs?: (roots?: number[]) => void;
   __spBeginChannelProof?: (unfreeze?: boolean, roots?: number[]) => void;
   __spChannelHostsChecked?: boolean;
   __spChannelSheets?: Set<string>;
@@ -26,6 +27,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spReadChannels;
   delete target.__spChannelBodies;
   delete target.__spBeginChannelProof;
+  delete target.__spReadInitialChannelInputs;
   delete target.__spChannelRequests;
   delete target.__spRecordChannelSource;
   delete target.__spFinishChannelProof;
@@ -393,10 +395,14 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     }
   };
   let rootIds: number[] = [];
-  const initial = retainInputs ? readInputs() : false;
+  let initial: boolean | undefined = retainInputs ? undefined : false;
   let held = false;
   target.__spChannelHosts = new WeakSet();
   target.__spChannelRoots = new Map();
+  target.__spReadInitialChannelInputs = (roots) => {
+    rootIds = roots ?? [];
+    initial = roots === undefined ? undefined : readInputs();
+  };
   let prepared: AnimationIndex | undefined;
   target.__spBeginChannelProof = (unfreeze = false, roots = []) => {
     rootIds = roots;

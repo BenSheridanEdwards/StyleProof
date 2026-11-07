@@ -1497,8 +1497,11 @@ Provenance and author-boundary evidence are checked on every resting/forced read
 A capture-scoped CDP session watches native tree and shadow-root events. Its full
 pierced tree catalogue is refreshed after invalidation, including closed roots
 attached after the resting read. Closed roots are resolved once and their animation
-lists are read in the same synchronous pass as document/open-root liveness. Static
-and finished closed-root siblings do not taint unrelated document models. Roots
+lists are read in the same synchronous pass as document/open-root liveness.
+With `stabilize:false`, the catalogue is populated before the initial pre-freeze
+liveness read too, so a closed-root effect that finishes during freezing is retained
+as an input. Unavailable or changing entry boundary evidence stays unknown.
+Static and finished closed-root siblings do not taint unrelated document models. Roots
 that cannot be read, changing boundary evidence, or unavailable CDP keep bodies
 unknown. The session and root handles are released in capture cleanup. Identical duplicate definitions stay comparable. A loaded
 opaque stylesheet does not taint a readable winner when the live model and
