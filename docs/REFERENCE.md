@@ -1496,7 +1496,10 @@ layers, imports, disabled sheets and stylesheet order, cached per root per captu
 Provenance and author-boundary evidence are checked on every resting/forced read.
 A capture-scoped CDP session watches shadow boundaries: root push/pop, document
 replacement, and element subtrees that can contain author roots or embedded
-documents. Text, count-only updates and known inert subtrees do not invalidate it.
+documents. Known text, subscribed count-only updates and inert subtrees do not invalidate it.
+New element subtrees are subscribed before proof; unresolved frontier changes and
+removal of actual shadow-bearing subtrees remain barriers even if final root ids
+match. Subtrees removed before subscription are ignored once disconnection is proven.
 The pierced catalogue refreshes after relevant changes, including closed roots
 attached after the resting read. If a change occurs during proof, a fresh scan can
 verify the same closed-root set; root removal or document replacement remains a

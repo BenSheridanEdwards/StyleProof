@@ -12,7 +12,7 @@ type BoundaryNode = {
   shadowRoots?: BoundaryNode[];
   contentDocument?: BoundaryNode;
 };
-type BoundaryRecord = { parent?: number; relevant: boolean };
+type BoundaryRecord = { parent?: number; relevant: boolean; rooted: boolean };
 type Catalog = {
   client: CDPSession;
   version: number;
@@ -22,6 +22,8 @@ type Catalog = {
   registered: Set<number>;
   sheets: Map<string, string>;
   nodes: Map<number, BoundaryRecord>;
+  pending: Set<Promise<void>>;
+  unexpanded: Set<number>;
 };
 const catalogs = new WeakMap<Page, Catalog>();
 function couldContainBoundary(node: BoundaryNode): boolean {
@@ -49,21 +51,37 @@ function indexBoundaryNodes(root: BoundaryNode, parent?: number): Map<number, Bo
     const entry = pending.pop()!;
     const { node } = entry;
     if (node.nodeId !== undefined) {
-      nodes.set(node.nodeId, { parent: entry.parent, relevant: couldContainBoundary(node) });
+      nodes.set(node.nodeId, {
+        parent: entry.parent,
+        relevant: couldContainBoundary(node),
+        rooted: node.shadowRoots?.some((shadow) => shadow.shadowRootType !== 'user-agent') ?? false,
+      });
       order.push(node.nodeId);
     }
     for (const child of boundaryChildren(node)) pending.push({ node: child, parent: node.nodeId ?? entry.parent });
   }
+  inheritBoundaryFlags(nodes, order);
+  return nodes;
+}
+function inheritBoundaryFlags(nodes: Map<number, BoundaryRecord>, order: number[]): void {
   for (const id of order.reverse()) {
     const entry = nodes.get(id)!;
     const ancestor = entry.parent === undefined ? undefined : nodes.get(entry.parent);
     if (entry.relevant && ancestor) ancestor.relevant = true;
+    if (entry.rooted && ancestor) ancestor.rooted = true;
   }
-  return nodes;
+}
+function markRooted(state: Catalog, id: number | undefined): void {
+  let node = id === undefined ? undefined : state.nodes.get(id);
+  while (node && !node.rooted) {
+    node.rooted = true;
+    node = node.parent === undefined ? undefined : state.nodes.get(node.parent);
+  }
 }
 function insertedBoundary(state: Catalog, node: BoundaryNode, parent: number): void {
   const added = indexBoundaryNodes(node, parent);
   for (const [id, entry] of added) state.nodes.set(id, entry);
+  if (node.nodeId !== undefined && added.get(node.nodeId)?.rooted) markRooted(state, parent);
   if (!(node.nodeId === undefined ? couldContainBoundary(node) : added.get(node.nodeId)?.relevant)) return;
   state.version++;
   let ancestor = state.nodes.get(parent);
@@ -71,6 +89,39 @@ function insertedBoundary(state: Catalog, node: BoundaryNode, parent: number): v
     ancestor.relevant = true;
     ancestor = ancestor.parent === undefined ? undefined : state.nodes.get(ancestor.parent);
   }
+}
+function connectedNode(state: Catalog, id: number): boolean {
+  let node = state.nodes.get(id);
+  while (node?.parent !== undefined) node = state.nodes.get(node.parent);
+  return node !== undefined;
+}
+function subscribeInsertedTree(state: Catalog, node: BoundaryNode): void {
+  if (node.nodeType !== 1 || node.nodeId === undefined) return;
+  const id = node.nodeId;
+  state.unexpanded.add(id);
+  const request = state.client
+    .send('DOM.requestChildNodes', { nodeId: id, depth: -1, pierce: true })
+    .then(() => {})
+    .catch(() => {
+      if (connectedNode(state, id)) state.version++;
+    })
+    .finally(() => {
+      state.unexpanded.delete(id);
+      state.pending.delete(request);
+    });
+  state.pending.add(request);
+}
+async function finishSubscriptions(state: Catalog): Promise<void> {
+  for (let attempt = 0; state.pending.size && attempt < 3; attempt++) await Promise.all(state.pending);
+  if (state.pending.size) throw new Error('unsettled author-boundary subscriptions');
+}
+function unexpandedAncestor(state: Catalog, id: number): boolean {
+  let next: number | undefined = id;
+  while (next !== undefined) {
+    if (state.unexpanded.has(next)) return true;
+    next = state.nodes.get(next)?.parent;
+  }
+  return false;
 }
 function closedRootId(root: BoundaryNode): number | undefined {
   if (root.shadowRootType === 'open') return;
@@ -110,6 +161,8 @@ async function openCatalog(page: Page): Promise<Catalog> {
     registered: new Set(),
     sheets: new Map(),
     nodes: new Map(),
+    pending: new Set(),
+    unexpanded: new Set(),
   };
   const changed = () => {
     state.version++;
@@ -120,9 +173,25 @@ async function openCatalog(page: Page): Promise<Catalog> {
   };
   client.on('DOM.documentUpdated', barrier);
   client.on('DOM.shadowRootPopped', barrier);
-  client.on('DOM.shadowRootPushed', changed);
-  client.on('DOM.childNodeInserted', ({ node, parentNodeId }) => insertedBoundary(state, node, parentNodeId));
+  client.on('DOM.shadowRootPushed', (event) => {
+    if (event?.root?.shadowRootType === 'user-agent') return;
+    changed();
+    markRooted(state, event?.hostId);
+  });
+  client.on('DOM.childNodeInserted', ({ node, parentNodeId }) => {
+    insertedBoundary(state, node, parentNodeId);
+    subscribeInsertedTree(state, node);
+  });
+  client.on('DOM.setChildNodes', ({ parentId, nodes }) => {
+    for (const node of nodes) insertedBoundary(state, node, parentId);
+  });
+  client.on('DOM.childNodeCountUpdated', ({ nodeId }) => {
+    // An unexpanded frontier could have hidden a transient root at Begin. A known
+    // subscribed subtree's count notifications do not invalidate its evidence.
+    if (unexpandedAncestor(state, nodeId)) barrier();
+  });
   client.on('DOM.childNodeRemoved', ({ nodeId }) => {
+    if (state.nodes.get(nodeId)?.rooted) state.epoch++;
     if (state.nodes.get(nodeId)?.relevant !== false) changed();
     state.nodes.delete(nodeId);
   });
@@ -163,12 +232,14 @@ export async function readVisualChannelBoundaries(
   page: Page,
 ): Promise<{ catalog: Catalog; version: number; epoch: number; roots: number[] }> {
   const state = await openCatalog(page);
+  await finishSubscriptions(state);
   for (let attempt = 0; state.scanned !== state.version && attempt < 3; attempt++) {
     const version = state.version;
     const { root } = await state.client.send('DOM.getDocument', { depth: -1, pierce: true });
     state.roots = closedRoots(root as BoundaryNode);
     state.nodes = indexBoundaryNodes(root as BoundaryNode);
     for (const id of state.roots) await registerRoot(state, id);
+    await finishSubscriptions(state);
     if (version === state.version) state.scanned = version;
   }
   if (state.scanned !== state.version) throw new Error('author boundaries keep changing during verification');
@@ -179,6 +250,7 @@ export async function verifyVisualChannelBoundaries(
   page: Page,
   before: Awaited<ReturnType<typeof readVisualChannelBoundaries>>,
 ): Promise<boolean> {
+  await finishSubscriptions(before.catalog);
   if (before.catalog.epoch !== before.epoch) return false;
   if (before.catalog.version === before.version) return true;
   const after = await readVisualChannelBoundaries(page);

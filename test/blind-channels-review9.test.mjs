@@ -56,7 +56,15 @@ test('serialized channel values run without their module scope', async () => {
   );
 });
 
-for (const change of ['text', 'inert element', 'host', 'new closed root', 'popped root', 'unexpanded inert'])
+for (const change of [
+  'text',
+  'inert element',
+  'host',
+  'new closed root',
+  'popped root',
+  'unexpanded inert',
+  'unexpanded count',
+])
   test(`proof revalidates boundary membership after ${change}`, async () => {
     let scans = 0,
       changed = false,
@@ -91,6 +99,10 @@ for (const change of ['text', 'inert element', 'host', 'new closed root', 'poppe
                   : [],
             },
           };
+        }
+        if (method === 'DOM.requestChildNodes' && change === 'unexpanded count') {
+          listeners.get('DOM.childNodeCountUpdated')({ nodeId: 3 });
+          return {};
         }
         if (method === 'DOM.requestChildNodes' && change === 'unexpanded inert') {
           rootAppeared = true;
@@ -141,8 +153,11 @@ for (const change of ['text', 'inert element', 'host', 'new closed root', 'poppe
     };
     try {
       await prepareVisualChannelSources(page);
-      assert.equal(finishes.at(-1), !['new closed root', 'popped root', 'unexpanded inert'].includes(change));
-      assert.equal(scans, ['text', 'inert element', 'popped root'].includes(change) ? 1 : 2);
+      assert.equal(
+        finishes.at(-1),
+        !['new closed root', 'popped root', 'unexpanded inert', 'unexpanded count'].includes(change),
+      );
+      assert.equal(scans, ['text', 'inert element', 'popped root', 'unexpanded count'].includes(change) ? 1 : 2);
     } finally {
       await releaseVisualChannelSources(page);
     }
