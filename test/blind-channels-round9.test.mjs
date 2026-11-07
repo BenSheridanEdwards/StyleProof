@@ -15,9 +15,13 @@ test('closed-root entry motion is retained after it finishes before proof', asyn
       getComputedTiming: () => ({ delay: 0, activeDuration: 1000, endTime: 1000, localTime: 100, progress: 0.1 }),
     },
   };
+  const reads = [];
   const root = {
     host: {},
-    getAnimations: () => (animation.playState === 'finished' ? [] : [animation]),
+    getAnimations: () => {
+      reads.push(animation.playState);
+      return animation.playState === 'finished' ? [] : [animation];
+    },
     querySelectorAll: () => [],
   };
   const window = {
@@ -41,8 +45,8 @@ test('closed-root entry motion is retained after it finishes before proof', asyn
         return { root: { nodeType: 9, shadowRoots: [{ shadowRootType: 'closed', backendNodeId: 42 }] } };
       if (method === 'DOM.resolveNode') return { object: { objectId: 'root' } };
       if (method === 'Runtime.callFunctionOn') {
-        vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root,42)', { window, root });
-        return {};
+        const observed = vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root,42)', { window, root });
+        return { result: { value: observed } };
       }
       return {};
     },
@@ -58,7 +62,9 @@ test('closed-root entry motion is retained after it finishes before proof', asyn
     assert.ok(events.includes('Runtime.callFunctionOn'));
     animation.playState = 'finished';
     window.__spBeginChannelProof(false, [42]);
-    assert.deepEqual(held, [[true, true, false]]);
+    assert.deepEqual(reads, ['paused', 'paused']);
+    // Registration already held the capture, so Begin short-circuits the later hold check.
+    assert.deepEqual(held, []);
   } finally {
     await releaseVisualChannelSources(page);
   }

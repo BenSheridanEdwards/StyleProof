@@ -16,7 +16,11 @@ import {
   resolveEngineBody,
 } from './visual-channel-values.js';
 import { captureExpression } from './script-evaluation.js';
-import { readVisualChannelBoundaries, verifyVisualChannelBoundaries } from './visual-channel-boundaries.js';
+import {
+  openCatalog,
+  readVisualChannelBoundaries,
+  verifyVisualChannelBoundaries,
+} from './visual-channel-boundaries.js';
 
 export async function installVisualChannelValues(page: Page): Promise<void> {
   await page.evaluate(
@@ -65,11 +69,13 @@ async function installImageTypes(page: Page, client: CDPSession): Promise<void> 
 /** Retain entry-time liveness only after closed roots are available, before freezing. */
 export async function prepareInitialVisualChannelInputs(page: Page): Promise<void> {
   try {
+    const catalog = await openCatalog(page);
+    await installImageTypes(page, catalog.client);
     const read = await readVisualChannelBoundaries(page);
-    await installImageTypes(page, read.catalog.client);
     await page.evaluate(
       captureExpression(`window.__spReadInitialChannelInputs(${JSON.stringify(read.roots)}); void 0;`),
     );
+    await read.catalog.client.send('Runtime.evaluate', { expression: captureExpression('void 0;') });
     if (!(await verifyVisualChannelBoundaries(page, read)))
       throw new Error('author boundaries changed during initial read');
   } catch {
@@ -140,8 +146,9 @@ export async function prepareVisualChannelSources(page: Page, unfreeze = false):
   let verified = false;
   let read: Awaited<ReturnType<typeof readVisualChannelBoundaries>> | undefined;
   try {
+    const catalog = await openCatalog(page);
+    await installImageTypes(page, catalog.client);
     read = await readVisualChannelBoundaries(page);
-    await installImageTypes(page, read.catalog.client);
     await page.evaluate(
       captureExpression(`window.__spBeginChannelProof(${unfreeze}, ${JSON.stringify(read.roots)}); void 0;`),
     );

@@ -86,6 +86,7 @@ for (const change of [
       __spChannelRoots: new Map(),
       __spChannelHosts: new WeakSet(),
       __spBeginChannelProof() {},
+      __spObserveChannelRoot() {},
       __spFinishChannelProof(verified) {
         finishes.push(verified);
       },
@@ -130,27 +131,35 @@ for (const change of [
           });
           return {};
         }
+        // A frame has one entry per URL; different frames can disagree.
         if (method === 'Page.getResourceTree')
           return {
             frameTree: {
+              childFrames: ['mime conflict', 'raster formats'].includes(change)
+                ? [
+                    {
+                      frame: { url: 'https://frame.test/' },
+                      resources: [
+                        {
+                          url: 'https://site.test/image',
+                          mimeType: change === 'mime conflict' ? 'image/png' : 'image/webp',
+                        },
+                      ],
+                    },
+                  ]
+                : [],
               resources:
                 change === 'mime conflict'
-                  ? [
-                      { url: 'https://site.test/image', mimeType: 'image/svg+xml' },
-                      { url: 'https://site.test/image', mimeType: 'image/png' },
-                    ]
+                  ? [{ url: 'https://site.test/image', mimeType: 'image/svg+xml' }]
                   : change === 'raster formats'
-                    ? [
-                        { url: 'https://site.test/image', mimeType: 'image/avif' },
-                        { url: 'https://site.test/image', mimeType: 'image/webp' },
-                      ]
+                    ? [{ url: 'https://site.test/image', mimeType: 'image/avif' }]
                     : [],
             },
           };
         if (method === 'DOM.resolveNode') return { object: { objectId: 'root' } };
         if (method === 'Runtime.callFunctionOn') {
-          vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root,42)', { window, root });
-          return {};
+          const observed = vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root,42)', { window, root });
+          return { result: { value: observed } };
         }
         if (method === 'Runtime.evaluate') {
           if (!changed) {
@@ -182,10 +191,7 @@ for (const change of [
       await prepareVisualChannelSources(page);
       if (change === 'mime conflict') assert.equal(window.__spChannelImageTypes.get('https://site.test/image'), true);
       if (change === 'raster formats') assert.equal(window.__spChannelImageTypes.get('https://site.test/image'), false);
-      assert.equal(
-        finishes.at(-1),
-        !['new closed root', 'popped root', 'unexpanded inert', 'unexpanded count'].includes(change),
-      );
+      assert.equal(finishes.at(-1), !['popped root', 'unexpanded count'].includes(change));
       assert.equal(
         scans,
         ['text', 'inert element', 'popped root', 'unexpanded count', 'mime conflict', 'raster formats'].includes(change)

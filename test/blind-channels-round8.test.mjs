@@ -66,6 +66,9 @@ test('late root invalidates the watched catalogue; registered roots are reused',
   const window = {
     __spChannelRoots: new Map(),
     __spChannelHosts: new WeakSet(),
+    __spObserveChannelRoot(root) {
+      assert.deepEqual(root.getAnimations(), []);
+    },
     __spBeginChannelProof(...args) {
       begins.push(args);
     },
@@ -89,8 +92,8 @@ test('late root invalidates the watched catalogue; registered roots are reused',
         return { object: { objectId: 'root' } };
       }
       if (method === 'Runtime.callFunctionOn') {
-        vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root, 42)', { window, root });
-        return {};
+        const observed = vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root, 42)', { window, root });
+        return { result: { value: observed } };
       }
       if (method === 'Runtime.evaluate') return { result: { value: [] } };
       return {};

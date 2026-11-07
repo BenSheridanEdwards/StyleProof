@@ -13,16 +13,17 @@ export function channelValuesDiffer(
   after: string,
   unsetA: string,
   unsetB: string,
+  restingA?: string,
+  restingB?: string,
 ): boolean {
-  if (before === '(keyframes unknown; not compared)' || after === '(keyframes unknown; not compared)') return false;
+  if ([before, after, restingA, restingB].includes('(keyframes unknown; not compared)')) return false;
   if (
     property === 'img currentSrc' &&
-    (!before ||
-      !after ||
+    ([before, after, restingA, restingB].some(
+      (value) => value !== undefined && (!value || value === '(blob URL; not compared)'),
+    ) ||
       before === unsetA ||
-      after === unsetB ||
-      before === '(blob URL; not compared)' ||
-      after === '(blob URL; not compared)')
+      after === unsetB)
   )
     return false;
   return before !== after;

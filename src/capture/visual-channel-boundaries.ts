@@ -12,7 +12,7 @@ type BoundaryNode = {
   shadowRoots?: BoundaryNode[];
   contentDocument?: BoundaryNode;
 };
-type BoundaryRecord = { parent?: number; relevant: boolean; rooted: boolean };
+type BoundaryRecord = { parent?: number; relevant: boolean; rooted: boolean; closedId?: number | null };
 type Catalog = {
   client: CDPSession;
   version: number;
@@ -54,7 +54,11 @@ function indexBoundaryNodes(root: BoundaryNode, parent?: number): Map<number, Bo
       nodes.set(node.nodeId, {
         parent: entry.parent,
         relevant: couldContainBoundary(node),
-        rooted: node.shadowRoots?.some((shadow) => shadow.shadowRootType !== 'user-agent') ?? false,
+        rooted:
+          node.shadowRootType === 'open' ||
+          node.shadowRootType === 'closed' ||
+          (node.shadowRoots?.some((shadow) => shadow.shadowRootType !== 'user-agent') ?? false),
+        ...(node.shadowRootType === 'closed' ? { closedId: node.backendNodeId ?? null } : {}),
       });
       order.push(node.nodeId);
     }
@@ -123,6 +127,18 @@ function unexpandedAncestor(state: Catalog, id: number): boolean {
   }
   return false;
 }
+function unreadClosedDescendant(state: Catalog, removed: number): boolean {
+  if (!state.nodes.get(removed)?.rooted) return false;
+  for (const [id, entry] of state.nodes) {
+    if (entry.closedId === undefined || (entry.closedId !== null && state.registered.has(entry.closedId))) continue;
+    let current: number | undefined = id;
+    while (current !== undefined) {
+      if (current === removed) return true;
+      current = state.nodes.get(current)?.parent;
+    }
+  }
+  return false;
+}
 function closedRootId(root: BoundaryNode): number | undefined {
   if (root.shadowRootType === 'open') return;
   if (root.shadowRootType !== 'closed' || root.backendNodeId === undefined) throw new Error('unreadable author root');
@@ -148,7 +164,7 @@ function closedRoots(root: BoundaryNode): number[] {
   }
   return result;
 }
-async function openCatalog(page: Page): Promise<Catalog> {
+export async function openCatalog(page: Page): Promise<Catalog> {
   const existing = catalogs.get(page);
   if (existing) return existing;
   const client = registerStyleProofSession(await page.context().newCDPSession(page));
@@ -172,11 +188,15 @@ async function openCatalog(page: Page): Promise<Catalog> {
     changed();
   };
   client.on('DOM.documentUpdated', barrier);
-  client.on('DOM.shadowRootPopped', barrier);
+  client.on('DOM.shadowRootPopped', (event) => {
+    if (event?.rootId === undefined || unreadClosedDescendant(state, event.rootId)) state.epoch++;
+    changed();
+  });
   client.on('DOM.shadowRootPushed', (event) => {
     if (event?.root?.shadowRootType === 'user-agent') return;
     changed();
     markRooted(state, event?.hostId);
+    if (event?.root) insertedBoundary(state, event.root, event.hostId);
   });
   client.on('DOM.childNodeInserted', ({ node, parentNodeId }) => {
     insertedBoundary(state, node, parentNodeId);
@@ -191,7 +211,7 @@ async function openCatalog(page: Page): Promise<Catalog> {
     if (unexpandedAncestor(state, nodeId)) barrier();
   });
   client.on('DOM.childNodeRemoved', ({ nodeId }) => {
-    if (state.nodes.get(nodeId)?.rooted) state.epoch++;
+    if (unexpandedAncestor(state, nodeId) || unreadClosedDescendant(state, nodeId)) state.epoch++;
     if (state.nodes.get(nodeId)?.relevant !== false) changed();
     state.nodes.delete(nodeId);
   });
@@ -217,12 +237,12 @@ async function registerRoot(state: Catalog, id: number): Promise<void> {
     const result = await state.client.send('Runtime.callFunctionOn', {
       objectId: object.objectId,
       functionDeclaration: captureExpression(
-        'function(id){ const target=window.top; target.__spChannelRoots.set(id,this); target.__spChannelHosts.add(this.host); }',
+        'function(id){ const target=window.top; target.__spChannelRoots.set(id,this); target.__spChannelHosts.add(this.host); if(!target.__spObserveChannelRoot) return false; target.__spObserveChannelRoot(this); return true; }',
       ),
       arguments: [{ value: id }],
     });
     if (result.exceptionDetails) throw new Error('unreadable author root');
-    state.registered.add(id);
+    if (result.result?.value === true) state.registered.add(id);
   } finally {
     await state.client.send('Runtime.releaseObject', { objectId: object.objectId }).catch(() => {});
   }
@@ -254,8 +274,12 @@ export async function verifyVisualChannelBoundaries(
   if (before.catalog.epoch !== before.epoch) return false;
   if (before.catalog.version === before.version) return true;
   const after = await readVisualChannelBoundaries(page);
-  const roots = new Set(before.roots);
-  return after.epoch === before.epoch && roots.size === after.roots.length && after.roots.every((id) => roots.has(id));
+  // New closed roots are synchronously observed during registration. Removed
+  // observed roots are safe too: any motion they exposed is held capture-wide.
+  const previous = new Set(before.roots);
+  return (
+    after.epoch === before.epoch && after.roots.every((id) => previous.has(id) || after.catalog.registered.has(id))
+  );
 }
 export async function releaseVisualChannelSources(page: Page): Promise<void> {
   const state = catalogs.get(page);

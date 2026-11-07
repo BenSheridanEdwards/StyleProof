@@ -7,6 +7,7 @@ export type VisualChannelWindow = {
   __spChannelNodes?: Map<number, Element>;
   __spChannelHosts?: WeakSet<Element>;
   __spChannelRoots?: Map<number, ShadowRoot>;
+  __spObserveChannelRoot?: (root: ShadowRoot) => void;
   __spChannelScopesVerified?: boolean;
   __spReadInitialChannelInputs?: (roots?: number[]) => void;
   __spBeginChannelProof?: (unfreeze?: boolean, roots?: number[]) => void;
@@ -34,6 +35,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spChannelNodes;
   delete target.__spChannelHosts;
   delete target.__spChannelRoots;
+  delete target.__spObserveChannelRoot;
   delete target.__spChannelScopesVerified;
   delete target.__spChannelImageTypes;
   delete target.__spChannelSheets;
@@ -399,14 +401,14 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
     }
     return false;
   };
-  const readInputs = (): boolean | undefined => {
+  const readInputs = (onlyRoot?: ShadowRoot): boolean | undefined => {
     // Default: only motion surviving the freeze holds models. Unstabilized: retain
     // entry motion too. Every readable root/document is walked; unresolved SVG image
     // inputs hold conservatively, while observed raster MIME types never do.
     try {
-      const pending: (Document | ShadowRoot)[] = [document];
+      const pending: (Document | ShadowRoot)[] = onlyRoot ? [onlyRoot] : [document];
       const seen = new Set<Document | ShadowRoot>();
-      for (const id of rootIds) {
+      for (const id of onlyRoot ? [] : rootIds) {
         const root = target.__spChannelRoots?.get(id);
         if (!root) throw new Error('unavailable author root');
         pending.push(root);
@@ -427,11 +429,17 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   let held = false;
   target.__spChannelHosts = new WeakSet();
   target.__spChannelRoots = new Map();
+  target.__spObserveChannelRoot = (root) => {
+    // Registration reads a closed root before it can disappear. Its motion is
+    // outside the document freeze in both modes; unavailable evidence also holds.
+    held ||= readInputs(root) !== false;
+  };
   target.__spReadInitialChannelInputs = (roots) => {
     rootIds = roots ?? [];
     initial = roots === undefined ? undefined : readInputs();
   };
   let prepared: AnimationIndex | undefined;
+  let proofFailed = false;
   target.__spBeginChannelProof = (unfreeze = false, roots = []) => {
     rootIds = roots;
     sources.clear();
@@ -483,7 +491,8 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   };
   target.__spFinishChannelProof = (verified, sheets) => {
     target.__spChannelSheets = new Set(sheets ?? []);
-    target.__spChannelScopesVerified = verified;
+    proofFailed ||= !verified;
+    target.__spChannelScopesVerified = verified && !proofFailed;
     target.__spChannelNodes?.clear();
     restoreFreeze?.();
     restoreFreeze = undefined;

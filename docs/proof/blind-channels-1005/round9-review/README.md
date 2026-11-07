@@ -18,8 +18,11 @@ __spChannelHostsChecked state is removed.
 
 Raster detection uses observed CDP Page.getResourceTree MIME metadata and data-image
 headers, with no additional fetch or blob-byte read. Known raster types cannot make an
-intrinsic animation input. Evidence is aggregated by possible SVG status, so multiple
-raster formats stay raster while conflicting or missing evidence stays conservative.
+intrinsic animation input. Within the current CDP resource snapshot, evidence is
+aggregated by possible SVG status: multiple raster formats stay raster while
+conflicting or missing evidence stays conservative. This is not response history;
+an earlier SVG response hidden by a later raster response at the same URL remains
+a stabilize:false limit, documented in REFERENCE.
 Deferred images without a selected currentSrc have no active image box yet; their source
 channel still names unloaded/not compared. SVG/unknown intrinsic images hold models.
 Under stabilize:false, image inputs, video posters and generated content URLs also

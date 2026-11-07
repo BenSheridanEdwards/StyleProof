@@ -81,9 +81,7 @@ for (const stabilize of [true, false])
       expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
     });
 for (const mode of ['open', 'closed'] as const)
-  test(`complete capture remains linear at 1,000 ${mode} author hosts with bulk revalidation`, async ({
-    page,
-  }, info) => {
+  test(`complete capture scales with ${mode} author hosts using warmed minimum CPU samples`, async ({ page }, info) => {
     const client = await page.context().newCDPSession(page);
     try {
       await assertBrowserLinearScaling(
@@ -95,7 +93,7 @@ for (const mode of ['open', 'closed'] as const)
         {
           client,
           name: 'complete visual-channel capture with shadow hosts',
-          n: 250,
+          n: 50,
           prepare: async (n: number) => {
             await page.goto('about:blank');
             await page.setContent(

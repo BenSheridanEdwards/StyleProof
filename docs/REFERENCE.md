@@ -1497,16 +1497,20 @@ Provenance and author-boundary evidence are checked on every resting/forced read
 A capture-scoped CDP session watches shadow boundaries: root push/pop, document
 replacement, and element subtrees that can contain author roots or embedded
 documents. Known text, subscribed count-only updates and inert subtrees do not invalidate it.
-New element subtrees are subscribed before proof; unresolved frontier changes and
-removal of actual shadow-bearing subtrees remain barriers even if final root ids
-match. Subtrees removed before subscription are ignored once disconnection is proven.
+New element subtrees are subscribed before proof. Unresolved frontier changes and
+subtrees removed before subscription completes remain barriers, even if final root
+ids match. Removing an open root, or a closed root already observed, is safe; removing
+a shadow-bearing subtree with an unread closed root makes the capture unknown.
 The pierced catalogue refreshes after relevant changes, including closed roots
-attached after the resting read. If a change occurs during proof, a fresh scan can
-verify the same closed-root set; root removal or document replacement remains a
-barrier. Unreadable, unstable or different boundary evidence stays unknown. Closed roots are resolved once and their animation
-lists are read in the same synchronous pass as document/open-root liveness.
+attached after the resting read. Closed-root registration synchronously walks that
+root's liveness before acknowledging it, retaining any active input capture-wide.
+Fresh scans can therefore accept static newcomers and removal of observed roots.
+Document replacement, unread roots and unresolved frontier evidence remain barriers.
+A completed failed proof stays unknown for the whole capture, including forced reads.
+Closed roots are resolved once and their animation lists also participate in the
+same synchronous pass as document/open-root liveness.
 With `stabilize:false`, the catalogue is populated before the initial pre-freeze
-liveness read too, so a closed-root effect that finishes during freezing is retained
+liveness read too, with a catalogue-session round trip before verification, so a closed-root effect that finishes during freezing is retained
 as an input. Unavailable or changing entry boundary evidence stays unknown.
 Static and finished closed-root siblings do not taint unrelated document models. Roots
 that cannot be read, changing boundary evidence, or unavailable CDP keep bodies
@@ -1565,6 +1569,15 @@ to a size, because authored pseudo sizing is not proven. Unresolved CSS image
 syntax stays unknown; quoted text resembling a URL is not an image. These added
 replaced-source checks do not run in default mode. Iframe contents are not followed for this liveness check: their content
 cannot resize the iframe element, and their styles remain outside ordinary capture.
+
+Three replaced-image paths remain limits with `stabilize:false`: `list-style-image`
+(including inside markers), element-level `content:url(...)`, and an earlier SVG
+response for a URL whose latest CDP resource entry reports raster MIME. The resource
+tree contains only the latest entry per URL in each frame; aggregation covers the
+current snapshot, not response history. Animated SVG layout through these paths
+can leave a model known and report sampled progress as a keyframes body change.
+Settle these inputs before capture or use default stabilization. These are named
+limits, not proof that every unstable replaced-image input is covered.
 
 With `stabilize:false`, if any covered animation or transition is in progress in the
 resting read, **every keyframe body is unknown**. Running effects and paused active

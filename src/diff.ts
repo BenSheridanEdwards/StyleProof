@@ -139,7 +139,8 @@ function diffProps(
     const before = propsA[prop] ?? fallbackA[prop] ?? unsetA;
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
     if (isChannelProperty(prop)) {
-      if (channelValuesDiffer(prop, before, after, unsetA, unsetB)) changed.push({ prop, before, after });
+      if (channelValuesDiffer(prop, before, after, unsetA, unsetB, fallbackA[prop], fallbackB[prop]))
+        changed.push({ prop, before, after });
       continue;
     }
     // Compare by CANONICAL value so a browser/build-tool serialization change is
@@ -432,6 +433,14 @@ function dropAutoEchoMarginPairs(ctx: DiffCtx, owner: StateOwner, sub: string, p
   return props.filter((p) => !echoes.includes(p.prop));
 }
 
+/** Resting channel evidence; ordinary forced-state properties retain delta semantics. */
+function restingChannelProps(map: StyleMap, target: string): Record<string, string> {
+  const pseudo = /::[\w-]+$/.exec(target)?.[0];
+  const element = map.elements[pseudo ? target.slice(0, -pseudo.length) : target];
+  const properties = pseudo ? element?.pseudo?.[pseudo] : element?.style;
+  return Object.fromEntries(Object.entries(properties ?? {}).filter(([property]) => isChannelProperty(property)));
+}
+
 /** One forced state's deltas against every target element it touched. */
 function stateTargetFindings(
   ctx: DiffCtx,
@@ -449,7 +458,14 @@ function stateTargetFindings(
     if (!ctx.live(host)) continue;
     if (!ctx.includeStructure && !pairedSameTag(ctx, host)) continue;
     // No rect-based margin drop here (#877); only a Typed OM `auto` proof drops an echo (#917).
-    const rawProps = diffProps(da[sub] ?? {}, db[sub] ?? {}, {}, {}, STATE_ADDS, STATE_DROPS);
+    const rawProps = diffProps(
+      da[sub] ?? {},
+      db[sub] ?? {},
+      restingChannelProps(ctx.a, sub),
+      restingChannelProps(ctx.b, sub),
+      STATE_ADDS,
+      STATE_DROPS,
+    );
     const withoutAutoMargins = dropAutoEchoMarginPairs(ctx, owner, sub, rawProps);
     if (withoutAutoMargins.length < rawProps.length) autoMarginEchoDropped = true;
     const props = dropSubpixelOriginProps(withoutAutoMargins);
