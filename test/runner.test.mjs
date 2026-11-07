@@ -1443,6 +1443,13 @@ test('crawl productState hooks: Object.prototype.get set while StyleProof loads 
   );
 });
 
+test('ProductStateIdentityError keeps an enumerable name, so its serialised shape is unchanged', async () => {
+  const { ProductStateIdentityError } = await import('../dist/capture.js');
+  const error = new ProductStateIdentityError('only id and revision are allowed');
+  assert.equal(JSON.stringify(error), '{"name":"ProductStateIdentityError"}');
+  assert.deepEqual(Object.keys(error), ['name']);
+});
+
 test('crawl productState: a function that rewrites built-ins cannot get its text into the identity error', () => {
   // Each runs in its own process, so a rewritten built-in cannot leak into the next.
   const S = 'SYNTHETIC-HOOK-SENTINEL';
@@ -1456,6 +1463,8 @@ test('crawl productState: a function that rewrites built-ins cannot get its text
     genuineFromRegExp: `RegExp.prototype.exec = function () { throw new ProductStateIdentityError('${S}'); }; return { id: 'x', revision: 'y' };`,
     forgedMessageGetter: `Array.prototype.includes = function () { throw Object.create(ProductStateIdentityError.prototype, { message: { get: () => '${P}${S}' } }); }; return { id: 'x', revision: 'y' };`,
     forgedMessageToString: `Array.prototype.includes = function () { throw Object.create(ProductStateIdentityError.prototype, { message: { value: { toString: () => '${P}${S}' } } }); }; return { id: 'x', revision: 'y' };`,
+    genuineFromOwnKeys: `Reflect.ownKeys = () => { throw new ProductStateIdentityError('${S}'); }; return { id: 'x', revision: 'y' };`,
+    superSwap: `Object.setPrototypeOf(ProductStateIdentityError, function () { return { message: '${P}${S}', cause: '${S}' }; }); return { id: 'x' };`,
     forgedProxy: `Array.prototype.includes = function () { throw new Proxy({}, { getPrototypeOf: () => ProductStateIdentityError.prototype, get: (_t, k) => (k === 'message' ? '${P}${S}' : undefined) }); }; return { id: 'x', revision: 'y' };`,
   };
   const captureModule = JSON.stringify(new URL('../dist/capture.js', import.meta.url).href);
@@ -1467,8 +1476,10 @@ test('crawl productState: a function that rewrites built-ins cannot get its text
         try {
           crawlLinkProductState(() => { ${rewrite} }, { key: 'checkout', url: '/checkout' });
         } catch (error) {
-          counts.extra = Object.getOwnPropertyDescriptor(error, 'name')?.value === 'ProductStateIdentityError' &&
-            !Object.getOwnPropertyDescriptor(error, 'message').value.includes('SENTINEL');
+counts.extra =
+            Object.getOwnPropertyDescriptor(error, 'name')?.value === 'ProductStateIdentityError' &&
+            !Object.getOwnPropertyDescriptor(error, 'message').value.includes('SENTINEL') &&
+            !Object.getOwnPropertyDescriptor(error, 'cause')?.value?.includes?.('SENTINEL');
         }
       `),
       { thenCalls: 0, unhandled: 0, extra: true },

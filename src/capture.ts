@@ -100,11 +100,19 @@ export class ProductStateIdentityError extends Error {
   constructor(message: string) {
     super(`styleproof: invalid productState — ${message}`);
     // Defined, not assigned: assigning would run any `name` setter on the prototype chain.
-    const name: PropertyDescriptor = { value: 'ProductStateIdentityError', writable: true, configurable: true };
+    const name: PropertyDescriptor = {
+      value: 'ProductStateIdentityError',
+      writable: true,
+      enumerable: true,
+      configurable: true,
+    };
     setPrototypeOf(name, null);
     defineProperty(this, 'name', name);
   }
 }
+// `super()` calls the class's current prototype, so a consumer that swapped it could build every
+// identity error itself; a non-extensible class keeps its prototype.
+Object.preventExtensions(ProductStateIdentityError);
 
 const PRODUCT_STATE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
