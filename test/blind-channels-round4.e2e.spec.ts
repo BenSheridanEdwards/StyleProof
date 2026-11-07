@@ -105,26 +105,15 @@ test('animated element captures scale linearly at 500, 1000 and 2000 elements', 
   }
 });
 
-test('forced-state reads reuse boundary scans until a native tree mutation', async ({ page }) => {
+test('forced-state boundary scans ignore repeated text and inert-list churn', async ({ page }) => {
   const context = page.context();
   const native = context.newCDPSession.bind(context);
   let deep = 0;
   let reads = 0;
   let hostResolves = 0;
-  let mutations = 0;
+  let churns = 0;
   context.newCDPSession = async (...args) => {
     const client = await native(...args);
-    for (const event of [
-      'DOM.documentUpdated',
-      'DOM.shadowRootPushed',
-      'DOM.shadowRootPopped',
-      'DOM.childNodeInserted',
-      'DOM.childNodeRemoved',
-      'DOM.childNodeCountUpdated',
-    ] as const)
-      client.on(event, () => {
-        mutations++;
-      });
     const send = client.send.bind(client);
     client.send = async (method, params) => {
       if (method === 'DOM.getDocument' && (params as { depth?: number })?.depth === -1) deep++;
@@ -134,18 +123,34 @@ test('forced-state reads reuse boundary scans until a native tree mutation', asy
       )
         reads++;
       if (method === 'DOM.resolveNode') hostResolves++;
+      if (
+        method === 'Runtime.evaluate' &&
+        (params as { expression?: string })?.expression?.includes('window.__spChannelRequests()')
+      ) {
+        await page.evaluate((n) => {
+          const clock = document.querySelector('#clock')!;
+          clock.textContent = String(n);
+          const child = document.createElement('i');
+          clock.append(child);
+          child.remove();
+        }, ++churns);
+      }
       return send(method, params);
     };
     return client;
   };
   await page.setContent(
-    `<style>${css}button:hover{color:red}</style>` + '<div class=a>x</div>'.repeat(80) + '<button>b</button>'.repeat(5),
+    `<style>${css}button:hover{color:red}</style>` +
+      '<div id=clock>0</div>' +
+      '<div class=a>x</div>'.repeat(80) +
+      '<button>b</button>'.repeat(5),
   );
   try {
     await captureStyleMap(page, { captureVisualChannels: true, stabilize: false });
     expect(reads).toBeGreaterThan(1);
     expect(deep).toBeGreaterThanOrEqual(1);
-    expect(deep).toBeLessThanOrEqual(1 + mutations);
+    expect(churns).toBeGreaterThan(5);
+    expect(deep).toBeLessThanOrEqual(2);
     expect(deep).toBeLessThan(reads);
     expect(hostResolves).toBe(0);
   } finally {

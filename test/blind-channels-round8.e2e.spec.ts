@@ -80,40 +80,46 @@ for (const stabilize of [true, false])
         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
       expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
     });
-test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
-  const client = await page.context().newCDPSession(page);
-  try {
-    await assertBrowserLinearScaling(
-      {
-        diagnostic: (message: string) => {
-          info.annotations.push({ type: 'cpu', description: message });
+for (const mode of ['open', 'closed'] as const)
+  test(`complete capture remains linear at 1,000 ${mode} author hosts with bulk revalidation`, async ({
+    page,
+  }, info) => {
+    const client = await page.context().newCDPSession(page);
+    try {
+      await assertBrowserLinearScaling(
+        {
+          diagnostic: (message: string) => {
+            info.annotations.push({ type: 'cpu', description: message });
+          },
         },
-      },
-      {
-        client,
-        name: 'complete visual-channel capture with shadow hosts',
-        n: 250,
-        prepare: async (n: number) => {
-          await page.goto('about:blank');
-          await page.setContent(
-            '<style>@keyframes pulse{to{opacity:.5}}button:hover span{animation:pulse 1s infinite}</style><button><span>x</span></button><main></main>',
-          );
-          await page.evaluate((n) => {
-            for (let i = 0; i < n; i++) {
-              const host = document.createElement('x-host');
-              host.attachShadow({ mode: 'open' }).innerHTML = '<span>x</span>';
-              document.querySelector('main')!.append(host);
-            }
-          }, n);
+        {
+          client,
+          name: 'complete visual-channel capture with shadow hosts',
+          n: 250,
+          prepare: async (n: number) => {
+            await page.goto('about:blank');
+            await page.setContent(
+              '<style>@keyframes pulse{to{opacity:.5}}button:hover span{animation:pulse 1s infinite}</style><button><span>x</span></button><main></main>',
+            );
+            await page.evaluate(
+              ({ n, mode }) => {
+                for (let i = 0; i < n; i++) {
+                  const host = document.createElement('x-host');
+                  host.attachShadow({ mode }).innerHTML = '<span>x</span>';
+                  document.querySelector('main')!.append(host);
+                }
+              },
+              { n, mode },
+            );
+          },
+          run: () => captureStyleMap(page, { captureVisualChannels: true }),
+          check: (map: Awaited<ReturnType<typeof captureStyleMap>>) =>
+            expect(
+              Object.values(map.visualChannels!.keyframes).some((k) => k.name === 'pulse' && k.status === 'known'),
+            ).toBe(true),
         },
-        run: () => captureStyleMap(page, { captureVisualChannels: true }),
-        check: (map: Awaited<ReturnType<typeof captureStyleMap>>) =>
-          expect(
-            Object.values(map.visualChannels!.keyframes).some((k) => k.name === 'pulse' && k.status === 'known'),
-          ).toBe(true),
-      },
-    );
-  } finally {
-    await client.detach();
-  }
-});
+      );
+    } finally {
+      await client.detach();
+    }
+  });
