@@ -821,3 +821,39 @@ test('crawl productState: a failure names its link without echoing input, and th
     { name: 'ProductStateIdentityError' },
   );
 });
+
+test('crawl productState: an async function fails closed and its rejection never surfaces', async () => {
+  const { crawlLinkProductState } = await import('../dist/runner/crawl-capture.js');
+  const link = { key: 'checkout', url: '/checkout' };
+  const sentinel = 'SYNTHETIC-ASYNC-SENTINEL';
+  const unhandled = [];
+  const onUnhandled = (reason) => unhandled.push(reason);
+  process.on('unhandledRejection', onUnhandled);
+  try {
+    for (const fn of [
+      async () => {
+        throw new Error(sentinel);
+      },
+      async () => ({ id: 'seeded-app', revision: 'fixture-v1' }),
+    ]) {
+      assert.throws(
+        () => crawlLinkProductState(fn, link),
+        (error) => {
+          assert.equal(error.name, 'ProductStateIdentityError');
+          assert.equal(
+            error.message,
+            "styleproof: invalid productState — crawl link 'checkout': the productState function must return synchronously",
+          );
+          assert.equal(error.cause, undefined);
+          return true;
+        },
+      );
+    }
+    // Unhandled rejections are reported after the microtask queue drains.
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(unhandled, []);
+  } finally {
+    process.off('unhandledRejection', onUnhandled);
+  }
+});

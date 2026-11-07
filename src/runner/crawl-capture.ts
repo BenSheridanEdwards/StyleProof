@@ -138,6 +138,15 @@ function navObserver(
   };
 }
 
+/** A promise-like value; a `then` that cannot be read is left to the validator, which rejects it. */
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  try {
+    return typeof (value as { then?: unknown } | null | undefined)?.then === 'function';
+  } catch {
+    return false;
+  }
+}
+
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
 
 /**
@@ -157,6 +166,14 @@ export function crawlLinkProductState(
   } catch {
     // The function's own error is consumer data: never echo it, as the validator never echoes input.
     throw new ProductStateIdentityError(`crawl link '${link.key}': the productState function threw`);
+  }
+
+  if (isThenable(declared)) {
+    // An async function's rejection would otherwise surface as the consumer's own unhandled error.
+    Promise.resolve(declared).catch(() => undefined);
+    throw new ProductStateIdentityError(
+      `crawl link '${link.key}': the productState function must return synchronously`,
+    );
   }
 
   try {
