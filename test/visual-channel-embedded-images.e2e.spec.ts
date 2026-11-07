@@ -249,3 +249,21 @@ import { pairFixture, rmTmp } from './helpers.mjs';
     expect(await page.locator('img.lazy').evaluate((element) => element.complete)).toBe(false);
   });
 }
+
+test('unstabilized element-level SVG content holds keyframe models', async ({ page }) => {
+  await page.route('http://content.test/**', (route) =>
+    route.fulfill({
+      contentType: route.request().url().endsWith('.svg') ? 'image/svg+xml' : 'text/html',
+      body: route.request().url().endsWith('.svg')
+        ? '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="10"><animate attributeName="width" values="100;500" dur="2s" repeatCount="indefinite"/></svg>'
+        : '<html></html>',
+    }),
+  );
+  await page.goto('http://content.test/');
+  await page.setContent(
+    '<style>@keyframes k{to{opacity:.5}}.k{animation:k 1s linear 100s paused both}.replaced{content:url(/input.svg)}</style><div class=k>x</div><span class=replaced></span>',
+  );
+  await page.waitForLoadState('networkidle');
+  const map = await captureStyleMap(page, { captureVisualChannels: true, captureStates: false, stabilize: false });
+  expect(Object.values(map.visualChannels!.keyframes).find((model) => model.name === 'k')?.status).toBe('unknown');
+});

@@ -1565,15 +1565,15 @@ its source channel is still named unloaded/not compared. Typed computed sizes di
 (including width/height attributes and CSS sizing) from intrinsic `auto`; ordinary
 explicitly sized SVG icons stay comparable. Readable embedded documents are walked
 recursively. With `stabilize:false`, the same MIME/size check includes image inputs
-and video posters. Generated `::before`, `::after` and `::marker` content URLs also
+and video posters. Element-level, `::before`, `::after` and `::marker` content URLs also
 participate; SVG/unknown generated images are conservatively held even when styled
-to a size, because authored pseudo sizing is not proven. Unresolved CSS image
+to a size, because authored content-replacement sizing is not proved. Unresolved CSS image
 syntax stays unknown; quoted text resembling a URL is not an image. These added
 replaced-source checks do not run in default mode. Iframe contents are not followed for this liveness check: their content
 cannot resize the iframe element, and their styles remain outside ordinary capture.
 
-Three replaced-image paths remain limits with `stabilize:false`: `list-style-image`
-(including inside markers), element-level `content:url(...)`, and an earlier SVG
+Two replaced-image paths remain limits with `stabilize:false`: `list-style-image`
+(including inside markers), and an earlier SVG
 response for a URL whose latest CDP resource entry reports raster MIME. The resource
 tree contains only the latest entry per URL in each frame; aggregation covers the
 current snapshot, not response history. Animated SVG layout through these paths

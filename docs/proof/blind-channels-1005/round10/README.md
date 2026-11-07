@@ -37,9 +37,10 @@ success is inferred from a later proof-only commit.
 The closed-host CPU scaling test uses the existing warmed minimum-CPU helper and
 unchanged ratio/wall guards with smaller inputs. The MIME fixture represents one
 resource per URL per frame; cross-frame observations can conflict. Generic MIME
-holds decoded raster images as explicitly documented. The same-URL response-history,
-list-style-image and element-content SVG paths remain precise stabilize:false
-limits in REFERENCE; this change does not claim to close them.
+holds decoded raster images as explicitly documented. A stateless extension of the
+existing content-URL scan covers element-level replacement too, with a native red
+then green regression case. Same-URL response-history and list-style-image remain
+precise stabilize:false limits in REFERENCE; this change does not claim to close them.
 
 The pictured report is a deliberate model fixture, not captured product-state or
 pixel proof. It keeps the real hover colour change while naming the unknown

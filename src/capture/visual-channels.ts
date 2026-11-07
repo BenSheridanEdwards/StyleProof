@@ -343,7 +343,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   };
   const generatedImageInput = (element: Element): boolean => {
     if (!retainInputs) return false;
-    for (const pseudo of ['::before', '::after', '::marker']) {
+    for (const pseudo of ['', '::before', '::after', '::marker']) {
       const sources = values.contentImageSources(getComputedStyle(element, pseudo).content);
       if (sources === undefined || sources.some((source) => sourceMayResize(source, element))) return true;
     }
