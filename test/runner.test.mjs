@@ -913,6 +913,8 @@ test('crawl productState: an async function fails closed and its rejection never
         globalThis.Promise = class Replaced {};
         return rejected;
       },
+      // A non-extensible rejected promise that inherits the built-in `constructor` is still handled.
+      () => Object.preventExtensions(Promise.reject(new Error(sentinel))),
       // Custom thenables that reject, or whose `then` throws.
       () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
       () => ({
@@ -964,12 +966,54 @@ test('crawl productState: an async function fails closed and its rejection never
     }
     assert.ok(Promise.prototype.then.call(ready, () => {}) instanceof Tracked);
 
+    // A promise whose `constructor` cannot be pinned is never awaited, so none of its code runs.
+    let unpinnedCalls = 0;
+    const lockedValue = Promise.resolve('locked');
+    Object.defineProperty(lockedValue, 'constructor', { value: Object, writable: false, configurable: false });
+    lockedValue.then = (resolve) => {
+      if (++unpinnedCalls < 1_000) resolve(lockedValue);
+    };
+    const lockedGetter = Promise.resolve('locked');
+    Object.defineProperty(lockedGetter, 'constructor', {
+      configurable: false,
+      get() {
+        unpinnedCalls++;
+        return Object;
+      },
+    });
+    for (const promise of [lockedValue, lockedGetter]) {
+      assert.throws(() => crawlLinkProductState(() => promise, link), { name: 'ProductStateIdentityError' });
+    }
+
     // Unhandled rejections are reported after the microtask queue drains.
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
     assert.equal(thenCalls, 0);
+    assert.equal(unpinnedCalls, 0);
     assert.deepEqual(unhandled, []);
   } finally {
     process.off('unhandledRejection', onUnhandled);
   }
+});
+
+test('crawl productState: a Promise polyfill installed before StyleProof loads cannot stand in for the built-in', () => {
+  const script = `
+    const Builtin = Promise;
+    globalThis.Promise = class Polyfill extends Builtin {};
+    const unhandled = [];
+    process.on('unhandledRejection', (reason) => unhandled.push(String(reason)));
+    const { crawlLinkProductState } = await import(${JSON.stringify(new URL('../dist/runner/crawl-capture.js', import.meta.url).href)});
+    const rejected = Builtin.reject(new Error('SYNTHETIC-POLYFILL-SENTINEL'));
+    let thenCalls = 0;
+    rejected.then = () => { thenCalls++; };
+    let name;
+    try { crawlLinkProductState(() => rejected, { key: 'checkout', url: '/checkout' }); } catch (error) { name = error.name; }
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+    process.stdout.write(JSON.stringify({ name, thenCalls, unhandled: unhandled.length }));
+  `;
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
+  assert.doesNotMatch(result.stdout + result.stderr, /SYNTHETIC-POLYFILL-SENTINEL/);
+  assert.deepEqual(JSON.parse(result.stdout), { name: 'ProductStateIdentityError', thenCalls: 0, unhandled: 0 });
 });

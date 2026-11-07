@@ -153,27 +153,53 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   }
 }
 
-// Captured at load, so a later polyfill or patch of the global cannot change what is pinned.
-const NativePromise = Promise;
+// The built-in Promise, read from an async function's result rather than the global, so a
+// polyfill or patch installed before or after load cannot stand in for it. Undefined when it
+// cannot be confirmed without running consumer code; then no rejection is handled.
+const INTRINSIC_PROMISE_PROTOTYPE = Reflect.getPrototypeOf((async () => {})());
+const INTRINSIC_PROMISE = intrinsicPromise();
+
+function intrinsicPromise(): PromiseConstructor | undefined {
+  if (INTRINSIC_PROMISE_PROTOTYPE === null) return undefined;
+  const constructor = Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor')?.value;
+  if (typeof constructor !== 'function' || types.isProxy(constructor)) return undefined;
+  const prototype = Reflect.getOwnPropertyDescriptor(constructor, 'prototype')?.value;
+
+  return prototype === INTRINSIC_PROMISE_PROTOTYPE ? (constructor as PromiseConstructor) : undefined;
+}
+
+/** A non-extensible promise with no own `constructor` that inherits the built-in one directly. */
+function inheritsIntrinsicConstructor(value: object): boolean {
+  if (INTRINSIC_PROMISE_PROTOTYPE === null || Reflect.getPrototypeOf(value) !== INTRINSIC_PROMISE_PROTOTYPE)
+    return false;
+  const inherited = Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor');
+
+  return inherited !== undefined && 'value' in inherited && inherited.value === INTRINSIC_PROMISE;
+}
 
 /**
  * Handle a returned native promise's rejection, which would otherwise surface as the consumer's
  * own unhandled error. `await` attaches to it directly, without calling its own `then`, only when
- * its `constructor` is `Promise`, so that is pinned with `Reflect.defineProperty` (no getter,
- * setter, trap or species lookup runs) and put back once the handler is attached. A custom
- * thenable holds no rejection of its own, so its `then` is never run. Nothing here can throw
- * outward. Two rejections cannot be handled: a promise whose `constructor` cannot be set (an own
- * non-writable, non-configurable one, or an inherited one on a non-extensible promise) and is not
- * `Promise`, and one the function never returns directly (inside a Proxy or a custom thenable).
+ * its `constructor` is the built-in `Promise`, so that is pinned with `Reflect.defineProperty` (no
+ * getter, setter, trap or species lookup runs) and put back once the handler is attached. When it
+ * cannot be pinned the promise is not awaited at all, so none of its code runs; only a promise
+ * that already inherits the built-in `constructor` is still handled. A custom thenable holds no
+ * rejection of its own, so its `then` is never run. Nothing here can throw outward. Two rejections
+ * cannot be handled: a promise whose `constructor` is not the built-in one and cannot be set (an
+ * own non-configurable getter or non-writable value, or an inherited one on a non-extensible
+ * promise), and one the function never returns directly (inside a Proxy or a custom thenable).
  */
 function swallowRejection(value: unknown): void {
-  if (!types.isPromise(value)) return;
+  if (!types.isPromise(value) || INTRINSIC_PROMISE === undefined) return;
 
   const original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
   const pinned =
     original === undefined || original.configurable
-      ? Reflect.defineProperty(value, 'constructor', { value: NativePromise, writable: true, configurable: true })
-      : Reflect.defineProperty(value, 'constructor', { value: NativePromise });
+      ? Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
+      : Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
+
+  // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
+  if (!pinned && !(original === undefined && inheritsIntrinsicConstructor(value))) return;
 
   // `await` attaches its handler synchronously, before the wrapper first suspends.
   void (async () => {
