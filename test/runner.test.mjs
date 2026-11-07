@@ -900,6 +900,19 @@ test('crawl productState: an async function fails closed and its rejection never
         rejected.then = 1;
         return rejected;
       },
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        Object.defineProperty(rejected, 'constructor', { value: Object, writable: true, configurable: false });
+        rejected.then = () => {};
+        return rejected;
+      },
+      () => {
+        // A replaced global Promise must not change what is pinned.
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.then = () => {};
+        globalThis.Promise = class Replaced {};
+        return rejected;
+      },
       // Custom thenables that reject, or whose `then` throws.
       () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
       () => ({
@@ -908,8 +921,15 @@ test('crawl productState: an async function fails closed and its rejection never
         },
       }),
     ]) {
+      const NativePromise = Promise;
       assert.throws(
-        () => crawlLinkProductState(fn, link),
+        () => {
+          try {
+            crawlLinkProductState(fn, link);
+          } finally {
+            globalThis.Promise = NativePromise;
+          }
+        },
         (error) => {
           assert.equal(error.name, 'ProductStateIdentityError');
           assert.equal(
@@ -921,9 +941,33 @@ test('crawl productState: an async function fails closed and its rejection never
         },
       );
     }
+    // A custom thenable's `then` never runs, so one that resolves to itself cannot spin the worker.
+    let thenCalls = 0;
+    const selfResolving = {
+      then(resolve) {
+        // Capped so a regression fails on `thenCalls` instead of spinning the microtask queue forever.
+        if (++thenCalls < 1_000) resolve(selfResolving);
+      },
+    };
+    assert.throws(() => crawlLinkProductState(() => selfResolving, link), { name: 'ProductStateIdentityError' });
+
+    // The consumer's promise is left as it was: subclass behaviour and constructor descriptor intact.
+    class Tracked extends Promise {}
+    const ready = Tracked.resolve({ id: 'seeded-app', revision: 'fixture-v1' });
+    const frozenCtor = Promise.reject(new Error(sentinel));
+    Object.defineProperty(frozenCtor, 'constructor', { value: Object, writable: true, configurable: false });
+    frozenCtor.then = () => {};
+    for (const promise of [ready, frozenCtor]) {
+      const before = Object.getOwnPropertyDescriptor(promise, 'constructor');
+      assert.throws(() => crawlLinkProductState(() => promise, link), { name: 'ProductStateIdentityError' });
+      assert.deepEqual(Object.getOwnPropertyDescriptor(promise, 'constructor'), before);
+    }
+    assert.ok(Promise.prototype.then.call(ready, () => {}) instanceof Tracked);
+
     // Unhandled rejections are reported after the microtask queue drains.
     await new Promise((resolve) => setImmediate(resolve));
     await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(thenCalls, 0);
     assert.deepEqual(unhandled, []);
   } finally {
     process.off('unhandledRejection', onUnhandled);

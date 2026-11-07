@@ -153,17 +153,29 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   }
 }
 
+// Captured at load, so a later polyfill or patch of the global cannot change what is pinned.
+const NativePromise = Promise;
+
 /**
- * Handle a returned promise's rejection, which would otherwise surface as the consumer's own
- * unhandled error. `await` attaches to a native promise directly, without calling its own `then`,
- * only when its `constructor` is `Promise`, so that is pinned first with a plain property write
- * (no getter, trap or species lookup runs). Nothing here can throw outward. Two rejections cannot
- * be handled: a promise whose own `constructor` cannot be redefined (non-configurable, or the
- * promise is non-extensible) and is not `Promise`, and one the function never returns directly
- * (a promise behind a Proxy).
+ * Handle a returned native promise's rejection, which would otherwise surface as the consumer's
+ * own unhandled error. `await` attaches to it directly, without calling its own `then`, only when
+ * its `constructor` is `Promise`, so that is pinned with `Reflect.defineProperty` (no getter,
+ * setter, trap or species lookup runs) and put back once the handler is attached. A custom
+ * thenable holds no rejection of its own, so its `then` is never run. Nothing here can throw
+ * outward. Two rejections cannot be handled: a promise whose `constructor` cannot be set (an own
+ * non-writable, non-configurable one, or an inherited one on a non-extensible promise) and is not
+ * `Promise`, and one the function never returns directly (inside a Proxy or a custom thenable).
  */
-function swallowRejection(value: PromiseLike<unknown>): void {
-  if (types.isPromise(value)) Reflect.defineProperty(value, 'constructor', { value: Promise, configurable: true });
+function swallowRejection(value: unknown): void {
+  if (!types.isPromise(value)) return;
+
+  const original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
+  const pinned =
+    original === undefined || original.configurable
+      ? Reflect.defineProperty(value, 'constructor', { value: NativePromise, writable: true, configurable: true })
+      : Reflect.defineProperty(value, 'constructor', { value: NativePromise });
+
+  // `await` attaches its handler synchronously, before the wrapper first suspends.
   void (async () => {
     try {
       await value;
@@ -171,6 +183,9 @@ function swallowRejection(value: PromiseLike<unknown>): void {
       // The rejection is consumer data: dropped, never surfaced.
     }
   })();
+  if (!pinned) return;
+  if (original === undefined) Reflect.deleteProperty(value, 'constructor');
+  else Reflect.defineProperty(value, 'constructor', original);
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
