@@ -157,14 +157,21 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 // reading its `then`, only when its `constructor` is the built-in. Candidates are the constructor
 // on an async function's result prototype and the global, so replacing one before load is not
 // enough to stand in for it. Undefined when neither confirms; then no rejection is handled.
-const INTRINSIC_PROMISE_PROTOTYPE = Reflect.getPrototypeOf((async () => {})());
 const INTRINSIC_PROMISE = intrinsicPromise();
+// Taken from the confirmed constructor, whose own `prototype` is non-writable and non-configurable,
+// never from a promise: a promise hook sees every new promise and can change its prototype first.
+const INTRINSIC_PROMISE_PROTOTYPE: object | null =
+  INTRINSIC_PROMISE === undefined
+    ? null
+    : (Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE, 'prototype')?.value ?? null);
 
 function intrinsicPromise(): PromiseConstructor | undefined {
+  // Only a source of candidates: whatever it reports is confirmed by behaviour below.
+  const candidatePrototype = Reflect.getPrototypeOf((async () => {})());
   const fromPrototype =
-    INTRINSIC_PROMISE_PROTOTYPE === null
+    candidatePrototype === null
       ? undefined
-      : Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor')?.value;
+      : Reflect.getOwnPropertyDescriptor(candidatePrototype, 'constructor')?.value;
 
   for (const candidate of [fromPrototype, Reflect.getOwnPropertyDescriptor(globalThis, 'Promise')?.value]) {
     if (typeof candidate === 'function' && awaitsDirectly(candidate)) return candidate as PromiseConstructor;
@@ -228,7 +235,8 @@ function swallowRejection(value: unknown): void {
 
   // The wrapper's own promise is created before its body runs. Pinning, checking and awaiting inside
   // the body leaves no promise creation, so no promise hook, between the pin and the `await` that
-  // reads it; `await` on a promise whose constructor is the built-in attaches without creating one.
+  // reads it. `await` reads the constructor before anything else: a throwaway promise it may create
+  // for hooks comes after that read and after the handler is attached, so a write-back is too late.
   void (async () => {
     original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
     pinned =
