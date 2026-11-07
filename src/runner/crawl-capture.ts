@@ -184,11 +184,13 @@ function intrinsicPromise(): PromiseConstructor | undefined {
 function awaitsDirectly(candidate: unknown): boolean {
   const probe = (async () => {})();
   let thenRead = false;
-  // Non-configurable, so a promise hook that runs inside the await cannot remove them first; a probe
-  // that cannot be set up confirms nothing.
+  // Full descriptors, so the properties end up non-configurable even if a promise hook created them
+  // first (a partial descriptor keeps an existing property's attributes); a hook running inside the
+  // await then cannot change them. A probe that cannot be set up confirms nothing.
   const prepared =
-    Reflect.defineProperty(probe, 'constructor', { value: candidate }) &&
+    Reflect.defineProperty(probe, 'constructor', { value: candidate, writable: false, configurable: false }) &&
     Reflect.defineProperty(probe, 'then', {
+      configurable: false,
       get() {
         thenRead = true;
         return undefined;
@@ -235,8 +237,8 @@ function swallowRejection(value: unknown): void {
 
   // The wrapper's own promise is created before its body runs. Pinning, checking and awaiting inside
   // the body leaves no promise creation, so no promise hook, between the pin and the `await` that
-  // reads it. `await` reads the constructor before anything else: a throwaway promise it may create
-  // for hooks comes after that read and after the handler is attached, so a write-back is too late.
+  // reads it. `await` reads the constructor before anything else; a throwaway promise it may create
+  // for hooks comes after that read, so a write-back is too late.
   void (async () => {
     original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
     pinned =

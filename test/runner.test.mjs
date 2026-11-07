@@ -1177,6 +1177,39 @@ test('crawl productState hooks: a proxied prototype on the load-time promise can
   );
 });
 
+test('crawl productState hooks: pre-created configurable probe properties cannot get a forged constructor confirmed', () => {
+  // The hook points the load-time promise at a fake constructor, pre-creates the probe's properties as
+  // configurable, then puts the built-in back on the probe once the wrapper exists.
+  assert.deepEqual(
+    runHookScenario(`
+      function Fake() {}
+      let step = 0;
+      let probe;
+      const hook = createHook({
+        init(_id, type, _trigger, resource) {
+          if (type !== 'PROMISE' || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          if (step === 0) {
+            Object.setPrototypeOf(resource, Object.create(Builtin.prototype, { constructor: { value: Fake } }));
+          } else if (step === 1) {
+            probe = resource;
+            Object.defineProperty(resource, 'constructor', { value: undefined, writable: true, configurable: true });
+            Object.defineProperty(resource, 'then', { value: undefined, writable: true, configurable: true });
+          } else if (step === 2 && Reflect.defineProperty(probe, 'constructor', { value: Builtin })) {
+            counts.hookEdits++;
+          }
+          step++;
+        },
+      }).enable();
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      hook.disable();
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.then = () => { counts.thenCalls++; };
+      callWith(crawlLinkProductState, rejected);
+    `).thenCalls,
+    0,
+  );
+});
+
 test('crawl productState hooks: a hook that freezes new promises stops handling but never awaits (documented)', () => {
   assert.deepEqual(
     runHookScenario(`
