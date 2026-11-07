@@ -2,7 +2,7 @@ import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { types } from 'node:util';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
-import { ProductStateIdentityError, validateProductStateIdentity } from '../capture.js';
+import { PRODUCT_STATE_IDENTITY_REASONS, ProductStateIdentityError, validateProductStateIdentity } from '../capture.js';
 import type { ProductStateIdentity } from '../capture/types.js';
 import { captureTestBudgetMs } from '../surface-progress.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from './browser.js';
@@ -145,16 +145,8 @@ function navObserver(
 // the very operations the pin and the probe rely on. Every descriptor StyleProof builds has a null
 // prototype: one inheriting from a consumer-polluted `Object.prototype` (an inherited `get` or
 // `value`) would mean something else, or be invalid and throw.
-const {
-  apply,
-  defineProperty,
-  deleteProperty,
-  getOwnPropertyDescriptor,
-  getPrototypeOf,
-  isExtensible,
-  setPrototypeOf,
-} = Reflect;
-const { slice } = String.prototype;
+const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf, isExtensible, setPrototypeOf } =
+  Reflect;
 const { isPromise } = types;
 
 /**
@@ -284,8 +276,27 @@ function swallowRejection(value: unknown): void {
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
-// Compared through the captured `getPrototypeOf`: `instanceof` would run a replaceable `Symbol.hasInstance`.
-const PRODUCT_STATE_ERROR_PROTOTYPE: object = ProductStateIdentityError.prototype;
+
+/**
+ * The validator's own reason for `error`, chosen from its fixed list by exact comparison, so nothing
+ * from the error is ever echoed. The function can forge or reach that error (a replaced built-in can
+ * throw one, a getter can stand in for `message`), so its message is only read and compared.
+ */
+function validatorReason(error: unknown): string {
+  let message: unknown;
+  try {
+    message = typeof error === 'object' && error !== null ? (error as { message?: unknown }).message : undefined;
+  } catch {
+    message = undefined;
+  }
+  for (let index = 0; index < PRODUCT_STATE_IDENTITY_REASONS.length; index++) {
+    if (message === PRODUCT_STATE_ERROR_PREFIX + PRODUCT_STATE_IDENTITY_REASONS[index]) {
+      return PRODUCT_STATE_IDENTITY_REASONS[index];
+    }
+  }
+
+  return PRODUCT_STATE_IDENTITY_REASONS[1];
+}
 
 /**
  * The declared identity for one crawled link. The function form gets a copy of the link, and a
@@ -316,11 +327,7 @@ export function crawlLinkProductState(
   try {
     return validateProductStateIdentity(declared);
   } catch (error) {
-    // The validator's own errors carry only fixed reasons; anything else is reported as unreadable.
-    const own = typeof error === 'object' && error !== null && getPrototypeOf(error) === PRODUCT_STATE_ERROR_PROTOTYPE;
-    const reason = own
-      ? (apply(slice, (error as ProductStateIdentityError).message, [PRODUCT_STATE_ERROR_PREFIX.length]) as string)
-      : 'identity could not be read safely';
+    const reason = validatorReason(error);
     throw new ProductStateIdentityError(`crawl link '${link.key}': ${reason}`);
   }
 }

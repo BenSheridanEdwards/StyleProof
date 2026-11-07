@@ -1443,29 +1443,36 @@ test('crawl productState hooks: Object.prototype.get set while StyleProof loads 
   );
 });
 
-test('crawl productState: a function that rewrites Symbol.hasInstance or String slice cannot get its text into the error', () => {
-  for (const rewrite of [
-    "Object.defineProperty(Error, Symbol.hasInstance, { value() { throw new Error('SYNTHETIC-HOOK-SENTINEL'); }, configurable: true })",
-    "String.prototype.slice = () => 'SYNTHETIC-HOOK-SENTINEL'",
-  ]) {
+test('crawl productState: a function that rewrites built-ins cannot get its text into the identity error', () => {
+  // Each runs in its own process, so a rewritten built-in cannot leak into the next.
+  const S = 'SYNTHETIC-HOOK-SENTINEL';
+  const P = 'styleproof: invalid productState — ';
+  const rewrites = {
+    hasInstance: `Object.defineProperty(Error, Symbol.hasInstance, { value() { throw new Error('${S}'); }, configurable: true }); return { id: 'x' };`,
+    stringSlice: `String.prototype.slice = () => '${S}'; return { id: 'x' };`,
+    nameSetterOnClass: `Object.defineProperty(ProductStateIdentityError.prototype, 'name', { configurable: true, set(v) { Object.defineProperty(this, 'message', { value: '${P}${S}', configurable: true, writable: true }); } }); return { id: 'x' };`,
+    nameSetterOnError: `Object.defineProperty(Error.prototype, 'name', { configurable: true, get() { return 'Error'; }, set(v) { Object.defineProperty(this, 'message', { value: '${P}${S}', configurable: true, writable: true }); } }); return { id: 'x' };`,
+    genuineFromIncludes: `Array.prototype.includes = function () { throw new ProductStateIdentityError('${S}'); }; return { id: 'x', revision: 'y' };`,
+    genuineFromRegExp: `RegExp.prototype.exec = function () { throw new ProductStateIdentityError('${S}'); }; return { id: 'x', revision: 'y' };`,
+    forgedMessageGetter: `Array.prototype.includes = function () { throw Object.create(ProductStateIdentityError.prototype, { message: { get: () => '${P}${S}' } }); }; return { id: 'x', revision: 'y' };`,
+    forgedMessageToString: `Array.prototype.includes = function () { throw Object.create(ProductStateIdentityError.prototype, { message: { value: { toString: () => '${P}${S}' } } }); }; return { id: 'x', revision: 'y' };`,
+    forgedProxy: `Array.prototype.includes = function () { throw new Proxy({}, { getPrototypeOf: () => ProductStateIdentityError.prototype, get: (_t, k) => (k === 'message' ? '${P}${S}' : undefined) }); }; return { id: 'x', revision: 'y' };`,
+  };
+  const captureModule = JSON.stringify(new URL('../dist/capture.js', import.meta.url).href);
+  for (const [name, rewrite] of Object.entries(rewrites)) {
     assert.deepEqual(
       runHookScenario(`
         const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
-        const slice = String.prototype.slice;
+        const { ProductStateIdentityError } = await import(${captureModule});
         try {
-          crawlLinkProductState(() => {
-            ${rewrite};
-            return { id: 'x' };
-          }, { key: 'checkout', url: '/checkout' });
+          crawlLinkProductState(() => { ${rewrite} }, { key: 'checkout', url: '/checkout' });
         } catch (error) {
-          counts.extra = error.name === 'ProductStateIdentityError' && !String(error.message).includes('SENTINEL');
-        } finally {
-          delete Error[Symbol.hasInstance];
-          String.prototype.slice = slice;
+          counts.extra = Object.getOwnPropertyDescriptor(error, 'name')?.value === 'ProductStateIdentityError' &&
+            !Object.getOwnPropertyDescriptor(error, 'message').value.includes('SENTINEL');
         }
       `),
       { thenCalls: 0, unhandled: 0, extra: true },
-      rewrite,
+      name,
     );
   }
 });

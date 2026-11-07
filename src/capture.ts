@@ -84,10 +84,25 @@ export {
   surfaceKeyByCaptureKey,
 } from './capture/map-io.js';
 
+// Captured at load: a consumer can replace them before an identity error is built.
+const { defineProperty, setPrototypeOf } = Reflect;
+
+/** Every reason `validateProductStateIdentity` can give: fixed text, never derived from the identity. */
+export const PRODUCT_STATE_IDENTITY_REASONS = Object.freeze([
+  'expected an object with id and revision identifiers',
+  'identity could not be read safely',
+  'only id and revision are allowed',
+  'id and revision must be plain values',
+  'id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
+] as const);
+
 export class ProductStateIdentityError extends Error {
   constructor(message: string) {
     super(`styleproof: invalid productState — ${message}`);
-    this.name = 'ProductStateIdentityError';
+    // Defined, not assigned: assigning would run any `name` setter on the prototype chain.
+    const name: PropertyDescriptor = { value: 'ProductStateIdentityError', writable: true, configurable: true };
+    setPrototypeOf(name, null);
+    defineProperty(this, 'name', name);
   }
 }
 
@@ -97,21 +112,21 @@ const PRODUCT_STATE_IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 export function validateProductStateIdentity(value: unknown): ProductStateIdentity | undefined {
   if (value === undefined) return undefined;
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    throw new ProductStateIdentityError('expected an object with id and revision identifiers');
+    throw new ProductStateIdentityError(PRODUCT_STATE_IDENTITY_REASONS[0]);
   }
   let descriptors: PropertyDescriptorMap;
   try {
     descriptors = Object.getOwnPropertyDescriptors(value);
   } catch {
-    throw new ProductStateIdentityError('identity could not be read safely');
+    throw new ProductStateIdentityError(PRODUCT_STATE_IDENTITY_REASONS[1]);
   }
   const fields = Reflect.ownKeys(descriptors);
   if (fields.length !== 2 || !fields.includes('id') || !fields.includes('revision')) {
-    throw new ProductStateIdentityError('only id and revision are allowed');
+    throw new ProductStateIdentityError(PRODUCT_STATE_IDENTITY_REASONS[2]);
   }
   const { id, revision } = descriptors;
   if (!('value' in id) || !('value' in revision)) {
-    throw new ProductStateIdentityError('id and revision must be plain values');
+    throw new ProductStateIdentityError(PRODUCT_STATE_IDENTITY_REASONS[3]);
   }
   if (
     typeof id.value !== 'string' ||
@@ -119,9 +134,7 @@ export function validateProductStateIdentity(value: unknown): ProductStateIdenti
     !PRODUCT_STATE_IDENTIFIER.test(id.value) ||
     !PRODUCT_STATE_IDENTIFIER.test(revision.value)
   ) {
-    throw new ProductStateIdentityError(
-      'id and revision must be 1–128 character opaque identifiers using letters, numbers, dot, underscore, colon, or hyphen',
-    );
+    throw new ProductStateIdentityError(PRODUCT_STATE_IDENTITY_REASONS[4]);
   }
   return { id: id.value, revision: revision.value };
 }
