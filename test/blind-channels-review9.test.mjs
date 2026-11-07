@@ -30,6 +30,7 @@ test('serialized channel values run without their module scope', async () => {
     ownerSVGElement: { getCurrentTime: () => 2 },
   };
   assert.equal(v.smilActiveDuration(1, 0, svg), 1);
+  assert.equal(v.smilActiveDuration(1, 0, { ...svg, getAttribute: (name) => (name === 'repeatDur' ? '2s' : null) }), 2);
   assert.equal(v.smilInProgress(svg), false);
   const frames = [
     { offset: 0, easing: 'linear', composite: 'auto', opacity: '0' },
@@ -38,6 +39,14 @@ test('serialized channel values run without their module scope', async () => {
   assert.ok(v.canonicalEngineKeyframes(frames).includes('cubic-bezier'));
   assert.equal(v.orderIndependentFrames(frames).length, 2);
   assert.equal(v.orderFrameGroup(frames).length, 2);
+  assert.equal(
+    v.orderFrameGroup([
+      { offset: 0, color: 'red' },
+      { offset: 0, opacity: '1' },
+      { offset: 0, transform: 'none' },
+    ]).length,
+    3,
+  );
   assert.equal(v.frameDependencies(frames).edges[0].has(1), true);
   assert.equal(
     v.normalizeImageSource('https://site.test/a.png?token=secret', 'https://site.test', 'https://site.test/', true),
