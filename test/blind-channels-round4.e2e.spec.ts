@@ -105,15 +105,23 @@ test('animated element captures scale linearly at 500, 1000 and 2000 elements', 
   }
 });
 
-test('forced-state reads traverse the full author-root tree only once per capture', async ({ page }) => {
+test('forced-state channel reads revalidate author boundaries in bulk', async ({ page }) => {
   const context = page.context();
   const native = context.newCDPSession.bind(context);
   let deep = 0;
+  let reads = 0;
+  let hostResolves = 0;
   context.newCDPSession = async (...args) => {
     const client = await native(...args);
     const send = client.send.bind(client);
     client.send = async (method, params) => {
       if (method === 'DOM.getDocument' && (params as { depth?: number })?.depth === -1) deep++;
+      if (
+        method === 'Runtime.evaluate' &&
+        (params as { expression?: string })?.expression?.includes('window.__spChannelRequests()')
+      )
+        reads++;
+      if (method === 'DOM.resolveNode') hostResolves++;
       return send(method, params);
     };
     return client;
@@ -123,7 +131,9 @@ test('forced-state reads traverse the full author-root tree only once per captur
   );
   try {
     await captureStyleMap(page, { captureVisualChannels: true, stabilize: false });
-    expect(deep).toBeLessThanOrEqual(1);
+    expect(reads).toBeGreaterThan(1);
+    expect(deep).toBe(reads);
+    expect(hostResolves).toBe(0);
   } finally {
     context.newCDPSession = native;
   }
