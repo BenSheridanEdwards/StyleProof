@@ -1210,6 +1210,137 @@ test('crawl productState hooks: pre-created configurable probe properties cannot
   );
 });
 
+test('crawl productState: Reflect replaced by the productState function cannot fake the pin', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const saved = Object.getOwnPropertyDescriptors(Reflect);
+      try {
+        crawlLinkProductState(() => {
+          const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+          rejected.constructor = Object;
+          rejected.then = () => { counts.thenCalls++; };
+          Reflect.getOwnPropertyDescriptor = () => undefined;
+          Reflect.defineProperty = () => true;
+          return rejected;
+        }, { key: 'checkout', url: '/checkout' });
+      } catch (error) {
+        if (error.name !== 'ProductStateIdentityError') throw error;
+      } finally {
+        Object.defineProperties(Reflect, saved);
+      }
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState: util.types replaced by the productState function cannot get a thenable awaited', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      const { types } = await import('node:util');
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const isPromise = types.isPromise;
+      try {
+        crawlLinkProductState(() => {
+          types.isPromise = () => true;
+          return { then() { counts.thenCalls++; } };
+        }, { key: 'checkout', url: '/checkout' });
+      } catch (error) {
+        if (error.name !== 'ProductStateIdentityError') throw error;
+      } finally {
+        types.isPromise = isPromise;
+      }
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState hooks: Reflect replaced at the wrapper promise cannot fake the pin', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const saved = Object.getOwnPropertyDescriptors(Reflect);
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.constructor = Object;
+      rejected.then = () => { counts.thenCalls++; };
+      const hook = createHook({
+        init(_id, type) {
+          if (type !== 'PROMISE' || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          Reflect.getOwnPropertyDescriptor = () => undefined;
+          Reflect.defineProperty = () => true;
+        },
+      }).enable();
+      try {
+        callWith(crawlLinkProductState, rejected);
+      } finally {
+        hook.disable();
+        Object.defineProperties(Reflect, saved);
+      }
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState hooks: deleting a pre-created probe then cannot get a forged constructor confirmed', () => {
+  // As the pre-created test above, but the hook deletes the probe's \`then\` instead of rewriting its constructor.
+  assert.deepEqual(
+    runHookScenario(`
+      function Fake() {}
+      let step = 0;
+      let probe;
+      const hook = createHook({
+        init(_id, type, _trigger, resource) {
+          if (type !== 'PROMISE' || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          if (step === 0) {
+            Object.setPrototypeOf(resource, Object.create(Builtin.prototype, { constructor: { value: Fake } }));
+          } else if (step === 1) {
+            probe = resource;
+            Object.defineProperty(resource, 'constructor', { value: undefined, writable: true, configurable: true });
+            Object.defineProperty(resource, 'then', { value: undefined, writable: true, configurable: true });
+          } else if (step === 2 && Reflect.deleteProperty(probe, 'then')) {
+            counts.hookEdits++;
+          }
+          step++;
+        },
+      }).enable();
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      hook.disable();
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.then = () => { counts.thenCalls++; };
+      callWith(crawlLinkProductState, rejected);
+    `).thenCalls,
+    0,
+  );
+});
+
+test('crawl productState hooks: a throwing trap on the load-time promise cannot break the import', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      let first = true;
+      const proxy = new Proxy(Object.create(Builtin.prototype), {
+        getOwnPropertyDescriptor() { throw new Error('SYNTHETIC-HOOK-SENTINEL'); },
+      });
+      const hook = createHook({
+        init(_id, type, _trigger, resource) {
+          if (type !== 'PROMISE' || !first || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          first = false;
+          Object.setPrototypeOf(resource, proxy);
+        },
+      }).enable();
+      let crawlLinkProductState;
+      try {
+        ({ crawlLinkProductState } = await import(${CRAWL_CAPTURE}));
+      } finally {
+        hook.disable();
+      }
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.then = () => { counts.thenCalls++; };
+      callWith(crawlLinkProductState, rejected);
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
 test('crawl productState hooks: a hook that freezes new promises stops handling but never awaits (documented)', () => {
   assert.deepEqual(
     runHookScenario(`

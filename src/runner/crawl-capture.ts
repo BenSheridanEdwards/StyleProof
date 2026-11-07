@@ -139,12 +139,19 @@ function navObserver(
   };
 }
 
+// Captured once, before this module creates any promise. Consumer code runs before every later use
+// (the productState function itself, and a promise hook at each promise StyleProof creates), so
+// reading these from the shared `Reflect` and `util.types` at the point of use would let it replace
+// the very operations the pin and the probe rely on.
+const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf } = Reflect;
+const { isPromise } = types;
+
 /**
  * A native promise (by its internal slot, so a hidden or throwing `then` cannot disguise it) or a
  * thenable; a non-promise whose `then` cannot be read is treated as not a thenable.
  */
 function isThenable(value: unknown): value is PromiseLike<unknown> {
-  if (types.isPromise(value)) return true;
+  if (isPromise(value)) return true;
 
   try {
     return typeof (value as { then?: unknown } | null | undefined)?.then === 'function';
@@ -161,19 +168,21 @@ const INTRINSIC_PROMISE = intrinsicPromise();
 // Taken from the confirmed constructor, whose own `prototype` is non-writable and non-configurable,
 // never from a promise: a promise hook sees every new promise and can change its prototype first.
 const INTRINSIC_PROMISE_PROTOTYPE: object | null =
-  INTRINSIC_PROMISE === undefined
-    ? null
-    : (Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE, 'prototype')?.value ?? null);
+  INTRINSIC_PROMISE === undefined ? null : (getOwnPropertyDescriptor(INTRINSIC_PROMISE, 'prototype')?.value ?? null);
 
 function intrinsicPromise(): PromiseConstructor | undefined {
-  // Only a source of candidates: whatever it reports is confirmed by behaviour below.
-  const candidatePrototype = Reflect.getPrototypeOf((async () => {})());
-  const fromPrototype =
-    candidatePrototype === null
-      ? undefined
-      : Reflect.getOwnPropertyDescriptor(candidatePrototype, 'constructor')?.value;
+  // Only a source of candidates: whatever it reports is confirmed by behaviour below. A hook can give
+  // this promise a prototype whose traps throw, so a failed read just drops the candidate.
+  let fromPrototype: unknown;
+  try {
+    const candidatePrototype = getPrototypeOf((async () => {})());
+    fromPrototype =
+      candidatePrototype === null ? undefined : getOwnPropertyDescriptor(candidatePrototype, 'constructor')?.value;
+  } catch {
+    fromPrototype = undefined;
+  }
 
-  for (const candidate of [fromPrototype, Reflect.getOwnPropertyDescriptor(globalThis, 'Promise')?.value]) {
+  for (const candidate of [fromPrototype, getOwnPropertyDescriptor(globalThis, 'Promise')?.value]) {
     if (typeof candidate === 'function' && awaitsDirectly(candidate)) return candidate as PromiseConstructor;
   }
 
@@ -188,8 +197,8 @@ function awaitsDirectly(candidate: unknown): boolean {
   // first (a partial descriptor keeps an existing property's attributes); a hook running inside the
   // await then cannot change them. A probe that cannot be set up confirms nothing.
   const prepared =
-    Reflect.defineProperty(probe, 'constructor', { value: candidate, writable: false, configurable: false }) &&
-    Reflect.defineProperty(probe, 'then', {
+    defineProperty(probe, 'constructor', { value: candidate, writable: false, configurable: false }) &&
+    defineProperty(probe, 'then', {
       configurable: false,
       get() {
         thenRead = true;
@@ -208,9 +217,8 @@ function awaitsDirectly(candidate: unknown): boolean {
 
 /** A non-extensible promise with no own `constructor` that inherits the built-in one directly. */
 function inheritsIntrinsicConstructor(value: object): boolean {
-  if (INTRINSIC_PROMISE_PROTOTYPE === null || Reflect.getPrototypeOf(value) !== INTRINSIC_PROMISE_PROTOTYPE)
-    return false;
-  const inherited = Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor');
+  if (INTRINSIC_PROMISE_PROTOTYPE === null || getPrototypeOf(value) !== INTRINSIC_PROMISE_PROTOTYPE) return false;
+  const inherited = getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor');
 
   return inherited !== undefined && 'value' in inherited && inherited.value === INTRINSIC_PROMISE;
 }
@@ -230,7 +238,7 @@ function inheritsIntrinsicConstructor(value: object): boolean {
  * custom thenable), and every rejection when no built-in Promise could be confirmed at load.
  */
 function swallowRejection(value: unknown): void {
-  if (!types.isPromise(value) || INTRINSIC_PROMISE === undefined) return;
+  if (!isPromise(value) || INTRINSIC_PROMISE === undefined) return;
 
   let original: PropertyDescriptor | undefined;
   let pinned = false;
@@ -240,11 +248,11 @@ function swallowRejection(value: unknown): void {
   // reads it. `await` reads the constructor before anything else; a throwaway promise it may create
   // for hooks comes after that read, so a write-back is too late.
   void (async () => {
-    original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
+    original = getOwnPropertyDescriptor(value, 'constructor');
     pinned =
       original === undefined || original.configurable
-        ? Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
-        : Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
+        ? defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
+        : defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
     // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
     if (!pinned && !(original === undefined && inheritsIntrinsicConstructor(value))) return;
     try {
@@ -255,8 +263,8 @@ function swallowRejection(value: unknown): void {
   })();
   // The body ran synchronously up to its `await`, so the handler is attached and the pin can go.
   if (!pinned) return;
-  if (original === undefined) Reflect.deleteProperty(value, 'constructor');
-  else Reflect.defineProperty(value, 'constructor', original);
+  if (original === undefined) deleteProperty(value, 'constructor');
+  else defineProperty(value, 'constructor', original);
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
