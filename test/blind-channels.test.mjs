@@ -129,3 +129,42 @@ test('self-check includes skipped unknown and missing visual-channel evidence', 
   assert.deepEqual(diffStyleMaps(first, unknown), []);
   assert.throws(() => assertDeterministicVisualChannels(first, unknown, 'home'), /self-check failed/);
 });
+
+test('channel self-check ignores ordinary empty layers while preserving target identity', () => {
+  const first = map({ 'animation keyframes (pulse)': 'pulse' }, evidence('a'));
+  const again = structuredClone(first);
+  again.elements.extra = { tag: 'div', cls: '', style: { color: 'blue' }, pseudo: { '::before': { content: 'x' } } };
+  again.states.extra = { checked: { extra: { color: 'blue' } } };
+  assert.doesNotThrow(() => assertDeterministicVisualChannels(first, again, 'ordinary layers'));
+});
+test('channel self-check still rejects a missing unknown reference', () => {
+  const first = map(
+    { 'animation keyframes (pulse)': 'pulse' },
+    { version: 1, keyframes: { pulse: { name: 'pulse', status: 'unknown' } } },
+  );
+  const again = structuredClone(first);
+  delete again.elements.body.style['animation keyframes (pulse)'];
+  assert.throws(() => assertDeterministicVisualChannels(first, again, 'missing'), /self-check failed/);
+});
+test('channel self-check rejects a reference moved to a different target', () => {
+  const first = map({ 'animation keyframes (pulse)': 'pulse' }, evidence('a'));
+  const again = structuredClone(first);
+  again.elements.extra = again.elements.body;
+  delete again.elements.body;
+  assert.throws(() => assertDeterministicVisualChannels(first, again, 'moved target'), /self-check failed/);
+});
+test('channel self-check rejects a reference moved to a different forced state', () => {
+  const first = map({}, evidence('a'));
+  first.states.body = { hover: { body: { 'animation keyframes (pulse)': 'pulse' } } };
+  const again = structuredClone(first);
+  again.states.body.focus = again.states.body.hover;
+  delete again.states.body.hover;
+  assert.throws(() => assertDeterministicVisualChannels(first, again, 'moved state'), /self-check failed/);
+});
+test('channel-named target paths do not turn ordinary properties into channel evidence', () => {
+  const first = map({ 'animation keyframes (pulse)': 'pulse' }, evidence('a'));
+  first.elements['img currentSrc'] = { tag: 'div', cls: '', style: { color: 'red' } };
+  const again = structuredClone(first);
+  again.elements['img currentSrc'].style.color = 'blue';
+  assert.doesNotThrow(() => assertDeterministicVisualChannels(first, again, 'channel-named path'));
+});

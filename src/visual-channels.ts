@@ -120,13 +120,29 @@ export function comparableVisualChannels(map: StyleMap, compared: boolean): Styl
   return copy;
 }
 
-/** The self-check must also catch missing/unknown evidence that the compatibility diff deliberately skips. */
+/** Keep only channel-bearing leaves, retaining element/pseudo/state owner paths. */
+function channelReferences(value: unknown): unknown {
+  if (!value || typeof value !== 'object') return undefined;
+  const entries = Object.entries(value);
+  const properties = entries.filter(([key, child]) => isChannelProperty(key) && typeof child === 'string');
+  if (properties.length) return Object.fromEntries(properties);
+  const children = entries.flatMap(([key, child]) => {
+    const evidence = channelReferences(child);
+    return evidence === undefined ? [] : [[key, evidence]];
+  });
+  return children.length ? Object.fromEntries(children) : undefined;
+}
+
+/** Missing/unknown channel evidence is checked; unrelated ordinary layers are not channel evidence. */
 export function assertDeterministicVisualChannels(first: StyleMap, again: StyleMap, surface: string): void {
   const evidence = (map: StyleMap): unknown => [
     map.visualChannels,
-    propertyLayers(map).map((properties) =>
-      Object.fromEntries(Object.entries(properties).filter(([property]) => isChannelProperty(property))),
-    ),
+    channelReferences({
+      elements: Object.fromEntries(
+        Object.entries(map.elements).map(([path, element]) => [path, { style: element.style, pseudo: element.pseudo }]),
+      ),
+      states: map.states,
+    }),
   ];
   if (!isDeepStrictEqual(evidence(first), evidence(again)))
     throw new Error(
