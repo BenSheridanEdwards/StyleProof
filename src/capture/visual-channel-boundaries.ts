@@ -211,7 +211,8 @@ export async function openCatalog(page: Page): Promise<Catalog> {
     if (unexpandedAncestor(state, nodeId)) barrier();
   });
   client.on('DOM.childNodeRemoved', ({ nodeId }) => {
-    if (unexpandedAncestor(state, nodeId) || unreadClosedDescendant(state, nodeId)) state.epoch++;
+    const frontier = state.nodes.get(nodeId)?.relevant !== false && unexpandedAncestor(state, nodeId);
+    if (frontier || unreadClosedDescendant(state, nodeId)) state.epoch++;
     if (state.nodes.get(nodeId)?.relevant !== false) changed();
     state.nodes.delete(nodeId);
   });

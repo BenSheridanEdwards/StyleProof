@@ -9,7 +9,14 @@ import {
 import { installVisualChannels } from '../dist/capture/visual-channels.js';
 import { prepareInitialVisualChannelInputs } from '../dist/capture/visual-channel-proof.js';
 
-for (const kind of ['open read', 'closed read', 'closed unread', 'unreadable closed', 'unsubscribed'])
+for (const kind of [
+  'open read',
+  'closed read',
+  'closed unread',
+  'unreadable closed',
+  'unsubscribed',
+  'inert unsubscribed',
+])
   test(`boundary removal handles ${kind} evidence`, async () => {
     const listeners = new Map();
     const shadow = {
@@ -41,7 +48,7 @@ for (const kind of ['open read', 'closed read', 'closed unread', 'unreadable clo
           };
         if (method === 'DOM.resolveNode') return { object: { objectId: 'root' } };
         if (method === 'Runtime.callFunctionOn') return { result: { value: true } };
-        if (method === 'DOM.requestChildNodes' && kind === 'unsubscribed')
+        if (method === 'DOM.requestChildNodes' && kind.endsWith('unsubscribed'))
           return new Promise((resolve) => {
             finish = resolve;
           });
@@ -55,14 +62,19 @@ for (const kind of ['open read', 'closed read', 'closed unread', 'unreadable clo
       if (!kind.endsWith(' read')) {
         listeners.get('DOM.childNodeInserted')({
           parentNodeId: 2,
-          node: kind === 'unsubscribed' ? { nodeId: 3, nodeType: 1, nodeName: 'I' } : host,
+          node: kind.endsWith('unsubscribed')
+            ? { nodeId: 3, nodeType: 1, nodeName: kind === 'unsubscribed' ? 'DIV' : 'I', childNodeCount: 0 }
+            : host,
         });
-        if (kind !== 'unsubscribed') await new Promise((resolve) => setImmediate(resolve));
+        if (!kind.endsWith('unsubscribed')) await new Promise((resolve) => setImmediate(resolve));
       }
       removed = true;
       listeners.get('DOM.childNodeRemoved')({ parentNodeId: 2, nodeId: 3 });
       finish?.({});
-      assert.equal(await verifyVisualChannelBoundaries(page, before), kind.endsWith(' read'));
+      assert.equal(
+        await verifyVisualChannelBoundaries(page, before),
+        kind.endsWith(' read') || kind === 'inert unsubscribed',
+      );
     } finally {
       await releaseVisualChannelSources(page);
     }

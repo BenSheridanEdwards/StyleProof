@@ -19,6 +19,11 @@ roots removed without invalidating known models. Unread closed roots, unresolved
 subscriptions and document replacement remain barriers. A completed failed proof
 stays unknown throughout the capture. Initial liveness verification round-trips the
 catalogue session too. Native units pin unread/unsubscribed removal and queued events.
+An additional preservation run caught an over-hold for empty inert nodes removed
+before their subscription completed. They cannot own a root and have complete
+empty child metadata, so their removal is safe unless a frontier count or child
+event has invalidated that evidence. Potential hosts retain the unsubscribed-removal
+barrier. The old inert-churn e2e and a new unit control pin the distinction.
 
 The component-churn e2e initially failed for both open and closed rows. The first
 fix removed false findings but lost closed-root hover detection; registration-time

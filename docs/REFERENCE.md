@@ -1498,9 +1498,11 @@ A capture-scoped CDP session watches shadow boundaries: root push/pop, document
 replacement, and element subtrees that can contain author roots or embedded
 documents. Known text, subscribed count-only updates and inert subtrees do not invalidate it.
 New element subtrees are subscribed before proof. Unresolved frontier changes and
-subtrees removed before subscription completes remain barriers, even if final root
+potential root-bearing subtrees removed before subscription completes remain barriers, even if final root
 ids match. Removing an open root, or a closed root already observed, is safe; removing
 a shadow-bearing subtree with an unread closed root makes the capture unknown.
+Known inert subtrees with complete child metadata are exempt; a count or child
+change at their unresolved frontier still creates a barrier.
 The pierced catalogue refreshes after relevant changes, including closed roots
 attached after the resting read. Closed-root registration synchronously walks that
 root's liveness before acknowledging it, retaining any active input capture-wide.
