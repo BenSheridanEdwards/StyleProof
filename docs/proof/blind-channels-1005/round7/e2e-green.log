@@ -1,0 +1,32 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 13 tests using 1 worker
+
+(node:1646) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   1 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open width: shadow liveness is conservative without tainting readable static roots (199ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   2 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open font: shadow liveness is conservative without tainting readable static roots (166ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   3 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › nested open: shadow liveness is conservative without tainting readable static roots (166ms)
+  ✓   4 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed width: shadow liveness is conservative without tainting readable static roots (157ms)
+  ✓   5 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed static: shadow liveness is conservative without tainting readable static roots (162ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   6 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › static open control: shadow liveness is conservative without tainting readable static roots (156ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   7 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › unreadable open: shadow liveness is conservative without tainting readable static roots (148ms)
+  ✓   8 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG width: SMIL is conservatively held, plain SVG stays known (154ms)
+  ✓   9 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG font: SMIL is conservatively held, plain SVG stays known (163ms)
+  ✓  10 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG static: SMIL is conservatively held, plain SVG stays known (156ms)
+  ✓  11 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG set: SMIL is conservatively held, plain SVG stays known (161ms)
+  ✓  12 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP session failure preserves all existing motion findings (2.6s)
+  ✓  13 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP protocol failure preserves all existing motion findings (2.7s)
+
+  13 passed (7.6s)

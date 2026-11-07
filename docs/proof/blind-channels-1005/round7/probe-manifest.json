@@ -1,0 +1,413 @@
+[
+  {
+    "name": "r7-api7",
+    "cmd": ["node", "<round7-proof>/review-r7/api7.mjs"],
+    "exit": 0,
+    "load": 15.79541015625,
+    "seconds": 1.0
+  },
+  {
+    "name": "qa7-shadow",
+    "cmd": ["node", "<round7-proof>/qa-probes/r7-shadow-liveness.mjs"],
+    "exit": 0,
+    "load": 15.79541015625,
+    "seconds": 9.07
+  },
+  {
+    "name": "r4-scale",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/scale.mjs"],
+    "exit": 0,
+    "load": 15.79541015625,
+    "seconds": 10.09
+  },
+  {
+    "name": "qa5-reproduce-blockers",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r5/reproduce-blockers.mjs"],
+    "exit": 0,
+    "load": 14.59619140625,
+    "seconds": 1.85
+  },
+  {
+    "name": "qa5-exact-controls",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r5/exact-controls.mjs"],
+    "exit": 0,
+    "load": 14.59619140625,
+    "seconds": 7.1
+  },
+  {
+    "name": "qa5-adversarial",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r5/adversarial.mjs"],
+    "exit": 0,
+    "load": 13.36083984375,
+    "seconds": 2.17
+  },
+  {
+    "name": "qa5-monotonic",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r5/monotonic.mjs"],
+    "exit": 0,
+    "load": 13.36083984375,
+    "seconds": 2.99
+  },
+  {
+    "name": "qa6-reproduce-blockers",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/reproduce-blockers.mjs"],
+    "exit": 0,
+    "load": 12.93115234375,
+    "seconds": 1.77
+  },
+  {
+    "name": "qa6-reproduce-r6-blockers",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/reproduce-r6-blockers.mjs"],
+    "exit": 0,
+    "load": 12.93115234375,
+    "seconds": 1.2
+  },
+  {
+    "name": "qa6-reproduce-r6-no-prewarm",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/reproduce-r6-no-prewarm.mjs"],
+    "exit": 0,
+    "load": 12.93115234375,
+    "seconds": 1.26
+  },
+  {
+    "name": "r1-probe",
+    "cmd": [
+      "node",
+      "<round7-proof>/review-r7/ported/r1/probe.mjs",
+      "<round7-proof>/compiled-artifact",
+      "<round7-proof>/main-fixture"
+    ],
+    "exit": 0,
+    "load": 15.79541015625,
+    "seconds": 31.69
+  },
+  {
+    "name": "r1-cost-5000",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r1/cost.mjs", "<round7-proof>/compiled-artifact", "5000", "4"],
+    "exit": 0,
+    "load": 12.5361328125,
+    "seconds": 3.41
+  },
+  {
+    "name": "r1-cost-20000",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r1/cost.mjs", "<round7-proof>/compiled-artifact", "20000", "4"],
+    "exit": 0,
+    "load": 11.8525390625,
+    "seconds": 3.93
+  },
+  {
+    "name": "r7-shadow7",
+    "cmd": ["node", "<round7-proof>/review-r7/shadow7.mjs"],
+    "exit": 0,
+    "load": 15.79541015625,
+    "seconds": 43.13
+  },
+  {
+    "name": "qa6-new-attacks",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/new-attacks.mjs"],
+    "exit": 0,
+    "load": 12.5361328125,
+    "seconds": 18.97
+  },
+  {
+    "name": "qa6-native-preflight",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/native-preflight.mjs"],
+    "exit": 0,
+    "load": 10.56494140625,
+    "seconds": 0.37
+  },
+  {
+    "name": "qa6-exact-controls",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/exact-controls.mjs"],
+    "exit": 0,
+    "load": 10.56494140625,
+    "seconds": 7.06
+  },
+  {
+    "name": "qa6-adversarial",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/adversarial.mjs"],
+    "exit": 0,
+    "load": 9.40771484375,
+    "seconds": 1.95
+  },
+  {
+    "name": "qa6-monotonic",
+    "cmd": ["node", "<round7-proof>/review-r7/qa-r6/monotonic.mjs"],
+    "exit": 0,
+    "load": 9.40771484375,
+    "seconds": 2.99
+  },
+  {
+    "name": "r4-states-cost",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/states-cost.mjs"],
+    "exit": 0,
+    "load": 14.59619140625,
+    "seconds": 50.1
+  },
+  {
+    "name": "r4-redact4",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/redact4.mjs"],
+    "exit": 0,
+    "load": 8.814453125,
+    "seconds": 9.38
+  },
+  {
+    "name": "r7-smil7",
+    "cmd": ["node", "<round7-proof>/review-r7/smil7.mjs"],
+    "exit": 0,
+    "load": 10.56494140625,
+    "seconds": 30.29
+  },
+  {
+    "name": "r4-realistic",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/realistic.mjs"],
+    "exit": 0,
+    "load": 8.00634765625,
+    "seconds": 7.43
+  },
+  {
+    "name": "r7-cdpfail7",
+    "cmd": ["node", "<round7-proof>/review-r7/cdpfail7.mjs"],
+    "exit": 0,
+    "load": 7.84521484375,
+    "seconds": 5.47
+  },
+  {
+    "name": "r2-probe2",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r2/probe2.mjs", "<round7-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 11.2236328125,
+    "seconds": 41.58
+  },
+  {
+    "name": "r2-reslot",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r2/reslot.mjs", "<round7-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 7.77734375,
+    "seconds": 0.32
+  },
+  {
+    "name": "r2-timing",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r2/timing.mjs", "<round7-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 7.77734375,
+    "seconds": 0.37
+  },
+  {
+    "name": "r4-side-effects",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/side-effects.mjs"],
+    "exit": 0,
+    "load": 7.84521484375,
+    "seconds": 11.33
+  },
+  {
+    "name": "r7-liveness7",
+    "cmd": ["node", "<round7-proof>/review-r7/liveness7.mjs"],
+    "exit": 0,
+    "load": 7.77734375,
+    "seconds": 24.78
+  },
+  {
+    "name": "r7-disjoint5-default",
+    "cmd": ["node", "<round7-proof>/review-r7/disjoint5-default.mjs"],
+    "exit": 0,
+    "load": 6.662109375,
+    "seconds": 4.24
+  },
+  {
+    "name": "r3-probe3",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/probe3.mjs"],
+    "exit": 0,
+    "load": 7.77734375,
+    "seconds": 29.95
+  },
+  {
+    "name": "r3-a-hover",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/a-hover.mjs"],
+    "exit": 0,
+    "load": 6.36865234375,
+    "seconds": 2.42
+  },
+  {
+    "name": "r3-cssom",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/cssom.mjs"],
+    "exit": 0,
+    "load": 6.1787109375,
+    "seconds": 0.38
+  },
+  {
+    "name": "r3-getkeyframes",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/getkeyframes.mjs"],
+    "exit": 0,
+    "load": 6.1787109375,
+    "seconds": 0.43
+  },
+  {
+    "name": "r7-dbg7",
+    "cmd": ["node", "<round7-proof>/review-r7/dbg7.mjs"],
+    "exit": 0,
+    "load": 6.36865234375,
+    "seconds": 13.25
+  },
+  {
+    "name": "r3-redact",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/redact.mjs"],
+    "exit": 0,
+    "load": 6.1787109375,
+    "seconds": 14.6
+  },
+  {
+    "name": "r3-render-truth",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/render-truth.mjs"],
+    "exit": 0,
+    "load": 6.4267578125,
+    "seconds": 0.83
+  },
+  {
+    "name": "r3-parity",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r3/parity.mjs"],
+    "exit": 0,
+    "load": 6.4267578125,
+    "seconds": 3.18
+  },
+  {
+    "name": "r5-disjoint5",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/disjoint5.mjs"],
+    "exit": 0,
+    "load": 6.15234375,
+    "seconds": 0.71
+  },
+  {
+    "name": "r5-xorigin5",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/xorigin5.mjs"],
+    "exit": 0,
+    "load": 6.15234375,
+    "seconds": 5.64
+  },
+  {
+    "name": "r5-leak5",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5.mjs"],
+    "exit": 0,
+    "load": 6.30029296875,
+    "seconds": 1.1
+  },
+  {
+    "name": "r5-leak5-css",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-css.mjs"],
+    "exit": 0,
+    "load": 6.30029296875,
+    "seconds": 0.89
+  },
+  {
+    "name": "r5-leak5-e8",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-e8.mjs"],
+    "exit": 0,
+    "load": 6.30029296875,
+    "seconds": 2.04
+  },
+  {
+    "name": "r5-leak5-implicit",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-implicit.mjs"],
+    "exit": 0,
+    "load": 7.55712890625,
+    "seconds": 4.68
+  },
+  {
+    "name": "r5-leak5-transition",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-transition.mjs"],
+    "exit": 0,
+    "load": 7.19189453125,
+    "seconds": 8.36
+  },
+  {
+    "name": "r5-leak5-css-stab",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-css-stab.mjs"],
+    "exit": 0,
+    "load": 6.93603515625,
+    "seconds": 6.94
+  },
+  {
+    "name": "r5-stab-false",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r5/leak5-css-stab.mjs"],
+    "exit": 0,
+    "load": 7.31396484375,
+    "seconds": 0.85
+  },
+  {
+    "name": "r6-gap6",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/gap6.mjs"],
+    "exit": 0,
+    "load": 7.31396484375,
+    "seconds": 40.73
+  },
+  {
+    "name": "r4-probe4",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/probe4.mjs"],
+    "exit": 0,
+    "load": 7.3564453125,
+    "seconds": 117.54
+  },
+  {
+    "name": "r6-gap6-running",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/gap6-running.mjs"],
+    "exit": 0,
+    "load": 6.32275390625,
+    "seconds": 6.97
+  },
+  {
+    "name": "r6-transition6",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/transition6.mjs"],
+    "exit": 0,
+    "load": 6.296875,
+    "seconds": 5.05
+  },
+  {
+    "name": "r6-conservative6",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/conservative6.mjs"],
+    "exit": 0,
+    "load": 6.43310546875,
+    "seconds": 15.82
+  },
+  {
+    "name": "r6-wrapper6",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/wrapper6.mjs"],
+    "exit": 0,
+    "load": 6.22900390625,
+    "seconds": 9.13
+  },
+  {
+    "name": "r6-conservative-false",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/conservative6.mjs"],
+    "exit": 0,
+    "load": 6.61083984375,
+    "seconds": 2.65
+  },
+  {
+    "name": "r4-getanimations-cost",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r4/getanimations-cost.mjs"],
+    "exit": 0,
+    "load": 6.32275390625,
+    "seconds": 56.58
+  },
+  {
+    "name": "r4-race",
+    "cmd": ["node", "<round7-proof>/r4-race/race.mjs"],
+    "exit": 0,
+    "load": 8.814453125,
+    "seconds": 264.98
+  },
+  {
+    "name": "r6-ancestor-cost",
+    "cmd": ["node", "<round7-proof>/review-r7/ported/r6/ancestor-cost.mjs"],
+    "exit": 0,
+    "load": 9.6689453125,
+    "seconds": 130.62
+  },
+  {
+    "name": "r4-reset",
+    "cmd": ["node", "<round7-proof>/r4-reset/race-reset.mjs"],
+    "exit": 0,
+    "load": 9.6552734375,
+    "seconds": 80.5
+  }
+]

@@ -1,0 +1,8 @@
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## option off: events {"animationstart":3,"animationcancel":1,"animationend":0,"animationiteration":5}
+   after capture: pulse@div:running pulse@div#inl:running
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## option on : events {"animationstart":2,"animationcancel":0,"animationend":0,"animationiteration":5}
+   after capture: pulse@div:running pulse@div#inl:running

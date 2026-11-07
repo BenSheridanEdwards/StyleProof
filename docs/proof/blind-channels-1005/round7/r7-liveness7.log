@@ -1,0 +1,10 @@
+## ok   L1 stabilize:false WAAPI on parent color started by a 30ms timer (after install), paused at a random time: kf findings 0; other 34; evidence equal; pulse:unknown | pulse:unknown
+## ok   L2 stabilize:false pointer-hover transition ended by the capture (mouse to 0,0), parent color 2s transition: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown
+## ok   L3 stabilize:false reduced-motion media starts a parent colour loop after the initial snapshot: kf findings 0; other 0; evidence equal; hue:unknown,pulse:unknown | hue:unknown,pulse:unknown
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+## ok   L4 stabilize:true default mode: unrelated infinite WAAPI spinner + 4 static consumers (global hold?): kf findings 0; other 0; evidence equal; k1:unknown,k2:unknown | k1:unknown,k2:unknown
+## ok   L5 stabilize:true default mode: WAAPI on --w finished with fill forwards, var() consumer: kf findings 0; other 0; evidence equal; v:known | v:known
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   L6 stabilize:false stabilize:false: running animation only inside a same-origin iframe; main consumer static: kf findings 0; other 0; evidence equal; pulse:known | pulse:known

@@ -1,0 +1,275 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+
+Running 13 tests using 1 worker
+
+(node:97058) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘   1 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open width: shadow liveness is conservative without tainting readable static roots (225ms)
+(node:97063) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘   2 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open font: shadow liveness is conservative without tainting readable static roots (208ms)
+(node:97068) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘   3 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › nested open: shadow liveness is conservative without tainting readable static roots (208ms)
+(node:97073) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed width: shadow liveness is conservative without tainting readable static roots (207ms)
+(node:97078) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed static: shadow liveness is conservative without tainting readable static roots (209ms)
+(node:97087) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   6 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › static open control: shadow liveness is conservative without tainting readable static roots (200ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘   7 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › unreadable open: shadow liveness is conservative without tainting readable static roots (174ms)
+(node:97096) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG width: SMIL is conservatively held, plain SVG stays known (213ms)
+(node:97139) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG font: SMIL is conservatively held, plain SVG stays known (208ms)
+(node:97144) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  10 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG static: SMIL is conservatively held, plain SVG stays known (199ms)
+  ✘  11 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG set: SMIL is conservatively held, plain SVG stays known (177ms)
+(node:97150) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP session failure preserves all existing motion findings (2.7s)
+(node:97164) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP protocol failure preserves all existing motion findings (2.7s)
+
+
+  1) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open width: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-44329-nting-readable-static-roots-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open font: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-6fe47-nting-readable-static-roots-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › nested open: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-47adc-nting-readable-static-roots-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed width: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-8e7c3-nting-readable-static-roots-chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed static: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-3eab6-nting-readable-static-roots-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › unreadable open: shadow liveness is conservative without tainting readable static roots
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      46 |     }
+      47 |     for (const map of maps)
+    > 48 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      49 |     expect(kf(maps[0], maps[1])).toEqual([]);
+      50 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      51 |   });
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:48:100
+
+    Error Context: test-results/test-blind-channels-round7-d2041-nting-readable-static-roots-chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG width: SMIL is conservatively held, plain SVG stays known
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      69 |     }
+      70 |     for (const map of maps)
+    > 71 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(
+         |                                                                                                    ^
+      72 |         kind === 'static' ? 'known' : 'unknown',
+      73 |       );
+      74 |     expect(kf(maps[0], maps[1])).toEqual([]);
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:71:100
+
+    Error Context: test-results/test-blind-channels-round7-d8948--held-plain-SVG-stays-known-chromium/error-context.md
+
+  8) [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG font: SMIL is conservatively held, plain SVG stays known
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      69 |     }
+      70 |     for (const map of maps)
+    > 71 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(
+         |                                                                                                    ^
+      72 |         kind === 'static' ? 'known' : 'unknown',
+      73 |       );
+      74 |     expect(kf(maps[0], maps[1])).toEqual([]);
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:71:100
+
+    Error Context: test-results/test-blind-channels-round7-b42f6--held-plain-SVG-stays-known-chromium/error-context.md
+
+  9) [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG set: SMIL is conservatively held, plain SVG stays known
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      69 |     }
+      70 |     for (const map of maps)
+    > 71 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(
+         |                                                                                                    ^
+      72 |         kind === 'static' ? 'known' : 'unknown',
+      73 |       );
+      74 |     expect(kf(maps[0], maps[1])).toEqual([]);
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:71:100
+
+    Error Context: test-results/test-blind-channels-round7-70cc9--held-plain-SVG-stays-known-chromium/error-context.md
+
+  10) [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP session failure preserves all existing motion findings
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "animation-name",
+    -   "transition-duration",
+    - ]
+    + Array []
+
+      110 |           .sort();
+      111 |       expect(props(off)).toEqual(['animation-name', 'transition-duration']);
+    > 112 |       expect(props(on)).toEqual(props(off));
+          |                         ^
+      113 |       for (const map of on)
+      114 |         expect(Object.values(map.visualChannels!.keyframes).every((k) => k.status === 'unknown')).toBe(true);
+      115 |     } finally {
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:112:25
+
+    Error Context: test-results/test-blind-channels-round7-07a95-ll-existing-motion-findings-chromium/error-context.md
+
+  11) [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP protocol failure preserves all existing motion findings
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 1
+
+    - Array [
+    -   "animation-name",
+    -   "transition-duration",
+    - ]
+    + Array []
+
+      110 |           .sort();
+      111 |       expect(props(off)).toEqual(['animation-name', 'transition-duration']);
+    > 112 |       expect(props(on)).toEqual(props(off));
+          |                         ^
+      113 |       for (const map of on)
+      114 |         expect(Object.values(map.visualChannels!.keyframes).every((k) => k.status === 'unknown')).toBe(true);
+      115 |     } finally {
+        at <checkout>/test/blind-channels-round7.e2e.spec.ts:112:25
+
+    Error Context: test-results/test-blind-channels-round7-d7e36-ll-existing-motion-findings-chromium/error-context.md
+
+  11 failed
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open width: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open font: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › nested open: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed width: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed static: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › unreadable open: shadow liveness is conservative without tainting readable static roots
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG width: SMIL is conservatively held, plain SVG stays known
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG font: SMIL is conservatively held, plain SVG stays known
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG set: SMIL is conservatively held, plain SVG stays known
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP session failure preserves all existing motion findings
+    [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP protocol failure preserves all existing motion findings
+  2 passed (12.4s)

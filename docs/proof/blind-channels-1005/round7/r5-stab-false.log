@@ -1,0 +1,5 @@
+## C-var control (QA r4 #2 shape): keyframes findings 0 []; other findings 0; bodies  vs ; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## C-em parent font-size animation: keyframes findings 0 []; other findings 0; bodies  vs ; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## C-em self font-size animation: keyframes findings 0 []; other findings 0; bodies  vs ; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## C-currentColor parent color animation: keyframes findings 0 []; other findings 0; bodies  vs ; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## T-em paused transition on parent font-size: keyframes findings 0 []; other findings 0; bodies  vs ; statuses pulse:unknown | pulse:unknown

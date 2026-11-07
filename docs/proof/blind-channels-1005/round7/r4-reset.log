@@ -1,0 +1,4 @@
+## reset + spin, 30 nodes: known known known known known known | self-check failures 0/5
+## reset + spin, 900 nodes: known known known known known known | self-check failures 0/5
+## reset + spin, 3000 nodes: known known known known known known | self-check failures 0/5
+## reset + spin, 9000 nodes: known known known known known known | self-check failures 0/5

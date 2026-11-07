@@ -1,0 +1,4 @@
+rules=20000 targets=4 channels=false 726ms states=4
+rules=20000 targets=4 channels=true 1061ms states=4
+rules=20000 targets=4 channels=false 688ms states=4
+rules=20000 targets=4 channels=true 1043ms states=4

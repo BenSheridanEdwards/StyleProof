@@ -1,0 +1,14 @@
+{
+  "qa7-shadow": "12/12 unknown, self-check true, no keyframes findings",
+  "r7-shadow7": "8 pairs clean; static control known; unstabilized attacks unknown (default live-region exclusions also remain named)",
+  "r7-smil7": "6 pairs clean; static control known; unstabilized attacks unknown (default live-region exclusions also remain named)",
+  "cdp-failure": "channels off/on retain the same two ordinary motion findings; on evidence unknown",
+  "qa5-reproduce-blockers": "15 pairs stable and unknown; ordinary sampled properties retained",
+  "qa6-reproduce-r6-blockers": "9 pairs stable and unknown; ordinary sampled properties retained",
+  "qa6-reproduce-r6-no-prewarm": "9 pairs stable and unknown; ordinary sampled properties retained",
+  "wrapper6": "4/4 with and without finished wrapper, matches r5 build",
+  "O7": "known and detected",
+  "r6-gap6": "58 pairs, no progress leaks",
+  "r6-gap6-running": "4 pairs, no progress leaks",
+  "default-parity": "byte-identical to main normally and with captureReach"
+}

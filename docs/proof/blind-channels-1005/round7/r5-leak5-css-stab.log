@@ -1,0 +1,5 @@
+## C-var control (QA r4 #2 shape): keyframes findings 0 []; other findings 0; bodies "marginLeft":"10px" vs "marginLeft":"10px"; statuses drive:unknown,pulse:known | drive:unknown,pulse:known
+## C-em parent font-size animation: keyframes findings 0 []; other findings 0; bodies "marginLeft":"20px" vs "marginLeft":"20px"; statuses drive:known,pulse:known | drive:known,pulse:known
+## C-em self font-size animation: keyframes findings 0 []; other findings 0; bodies "marginLeft":"20px" vs "marginLeft":"20px"; statuses drive:known,pulse:known | drive:known,pulse:known
+## C-currentColor parent color animation: keyframes findings 0 []; other findings 0; bodies "outlineColor":"rgb(255, 0, 0)" vs "outlineColor":"rgb(255, 0, 0)"; statuses drive:known,pulse:known | drive:known,pulse:known
+## T-em paused transition on parent font-size: keyframes findings 0 []; other findings 0; bodies "marginLeft":"60px" vs "marginLeft":"60px"; statuses pulse:known | pulse:known

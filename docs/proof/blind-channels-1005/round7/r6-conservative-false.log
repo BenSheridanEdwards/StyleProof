@@ -1,0 +1,11 @@
+## O1 lone em consumer, static page: pulse unknown -> unknown; detected false; expectation known+detect
+## O2 lone currentColor consumer, static color: pulse unknown -> unknown; detected false; expectation known+detect
+## O3 lone var() consumer, static var: pulse unknown -> unknown; detected false; expectation known+detect
+## O4 lone implicit-from opacity (tailwind pulse shape): pulse unknown -> unknown; detected false; expectation known+detect
+## O5 lone bounce translateY(-25%): pulse unknown -> unknown; detected false; expectation known+detect
+## O6 em consumer, parent has static transition decl only: pulse unknown -> unknown; detected false; expectation known+detect
+## O7 em consumer, finished fill-forwards parent fade: pulse unknown -> unknown; detected false; expectation known+detect
+## N1 page wrapper opacity fade-in, skeleton pulse (implicit): pulse unknown -> unknown; detected false; expectation unknown acceptable
+## N2 spinning ancestor transform, bounce % child: pulse unknown -> unknown; detected false; expectation unknown acceptable
+## N3 same element fade + slide %: pulse unknown -> unknown; detected false; expectation unknown acceptable
+## N4 independent sibling animation only: pulse unknown -> unknown; detected false; expectation known+detect
