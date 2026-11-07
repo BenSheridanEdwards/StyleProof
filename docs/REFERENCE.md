@@ -1493,10 +1493,11 @@ mutations. Current time, progress and sampled rendered values are not stored.
 A read-only CDP matched-rule check verifies the engine's source against the CSSOM
 winner. The CSSOM name/layer index respects applying media/supports, normal cascade
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.
-Provenance is refreshed for resting and forced reads on a separate session. The
-full author-root traversal is cached per capture rather than repeated for each
-forced-state scope. `__spChannelHostsChecked` scans shadow hosts once per capture, so
-a closed-root host created after the resting read is not marked. Identical duplicate definitions stay comparable. A loaded
+Provenance and author boundaries are revalidated for every resting and forced read
+on a separate session. Each read uses one bulk pierced CDP tree traversal, with
+no per-host resolve calls. This also discovers closed roots attached after the
+resting read, before forced-state bodies can be called known. If revalidation is
+unavailable, channel evidence stays unknown. Identical duplicate definitions stay comparable. A loaded
 opaque stylesheet does not taint a readable winner when the live model and
 matched-rule provenance agree; missing/unloaded sheets remain unknown. Missing,
 unreadable, mismatched or unavailable evidence stays `unknown`, named **keyframes
@@ -1525,11 +1526,13 @@ paused active intervals count, including the consumer itself, pseudo-elements an
 siblings. Liveness reads the document and every recursively reachable open shadow
 root in both capture modes. Shadow content is not frozen. Unreadable root animation
 lists and CDP-discovered closed roots conservatively hold every body unknown in
-both modes. SMIL is absent from getAnimations(): the presence of any SVG `animate`,
-`animateTransform`, `animateMotion` or `set` element in those trees also holds every
-body unknown, even if the SVG timeline is paused or the element is inactive. Plain
-static SVG and readable static open roots do not taint evidence. The cached CDP
-host-scan limitation described above still applies to closed hosts created later.
+both modes. SMIL is absent from getAnimations(): SVG `animate`, `animateTransform`,
+`animateMotion` and `set` elements are checked using their native current interval,
+simple duration, repeat/end limits and the owner SVG clock. Finished intervals
+(including fill=freeze) and never-started animations do not taint evidence. Active
+intervals and indefinite repeats hold every body unknown, including on paused SVG
+timelines. Unavailable or unresolved timing is held conservatively. Plain static
+SVG and readable static open roots do not taint evidence.
 No value-token classification or DOM dependency walk proves safety:
 the engine can supply dependencies absent from the source. Pre-freeze inputs are
 retained for the capture even if freezing cancels or finishes them. When nothing

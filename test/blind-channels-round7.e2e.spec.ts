@@ -50,7 +50,7 @@ for (const [name, mode, kind, nested, status] of [
     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
   });
 for (const kind of ['width', 'font', 'static', 'set'] as const)
-  test(`SVG ${kind}: SMIL is conservatively held, plain SVG stays known`, async ({ page }) => {
+  test(`SVG ${kind}: active SMIL is held, inactive or plain SVG stays known`, async ({ page }) => {
     const maps = [];
     for (const time of [0, 0.9]) {
       await page.goto('about:blank');
@@ -69,7 +69,7 @@ for (const kind of ['width', 'font', 'static', 'set'] as const)
     }
     for (const map of maps)
       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(
-        kind === 'static' ? 'known' : 'unknown',
+        kind === 'static' || kind === 'set' ? 'known' : 'unknown',
       );
     expect(kf(maps[0], maps[1])).toEqual([]);
     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], kind)).not.toThrow();

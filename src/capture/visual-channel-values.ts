@@ -189,3 +189,74 @@ export function holdKeyframes(
 ): boolean {
   return surviving !== false || (unstabilized && initial !== false);
 }
+
+/** Parse only definite SMIL clocks; unsupported event/syncbase syntax stays unresolved. */
+export function smilClockSeconds(text: string): number {
+  if (text === 'indefinite') return Infinity;
+  const parts = /^(?:(\d+):)?(\d{1,2}):(\d{2}(?:\.\d+)?)$/.exec(text);
+  if (parts) {
+    if (Number(parts[2]) >= 60 || Number(parts[3]) >= 60) return NaN;
+    return Number(parts[1] ?? 0) * 3600 + Number(parts[2]) * 60 + Number(parts[3]);
+  }
+  const value = /^([+-]?(?:\d+(?:\.\d*)?|\.\d+))(h|min|s|ms)?$/.exec(text);
+  if (!value) return NaN;
+  return Number(value[1]) * ({ h: 3600, min: 60, s: 1, ms: 0.001 }[value[2] ?? 's'] ?? 1);
+}
+
+/** A definite repeat/end bound, or NaN when the duration cannot be proven. */
+export function smilActiveDuration(
+  duration: number,
+  start: number,
+  element: { getAttribute(name: string): string | null },
+  clock: typeof smilClockSeconds = smilClockSeconds,
+): number {
+  if (element.getAttribute('min') || element.getAttribute('max')) return NaN;
+  const countText = element.getAttribute('repeatCount');
+  const count = countText === 'indefinite' ? Infinity : countText === null ? 1 : Number(countText);
+  if (!(count > 0)) return NaN;
+  let active = duration * count;
+  const repeatText = element.getAttribute('repeatDur');
+  if (repeatText !== null) {
+    const repeat = clock(repeatText.trim());
+    if (!(repeat >= 0)) return NaN;
+    active = countText === null ? repeat : Math.min(active, repeat);
+  }
+  const endText = element.getAttribute('end');
+  if (endText !== null) {
+    const ends = endText.split(';').map((part) => clock(part.trim()));
+    if (ends.some(Number.isNaN)) return NaN;
+    const eligible = ends.filter((end) => end >= start);
+    active = Math.min(active, eligible.reduce((minimum, end) => Math.min(minimum, end), Infinity) - start);
+  }
+  return active;
+}
+
+/** SMIL's native current/next interval is authoritative; unresolved timing is held. */
+export function smilInProgress(
+  element: {
+    getStartTime(): number;
+    getSimpleDuration(): number;
+    getAttribute(name: string): string | null;
+    ownerSVGElement: { getCurrentTime(): number } | null;
+  },
+  activeDuration: typeof smilActiveDuration = smilActiveDuration,
+): boolean {
+  let start: number;
+  try {
+    start = element.getStartTime();
+  } catch (error) {
+    // No current interval includes finished filled intervals and never-started animations.
+    return !(error && typeof error === 'object' && 'name' in error && error.name === 'InvalidStateError');
+  }
+  try {
+    const now = element.ownerSVGElement?.getCurrentTime();
+    if (!Number.isFinite(start) || now === undefined || !Number.isFinite(now)) return true;
+    if (now < start) return false;
+    const duration = element.getSimpleDuration();
+    if (!Number.isFinite(duration) || duration < 0) return true;
+    const active = activeDuration(duration, start, element);
+    return Number.isNaN(active) || now < start + active;
+  } catch {
+    return true;
+  }
+}

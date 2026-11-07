@@ -5,7 +5,6 @@ export type ChannelBody = { name: string; body?: string; status?: 'none' };
 export type VisualChannelWindow = {
   __spChannelValues?: typeof ChannelValues;
   __spChannelNodes?: Map<number, Element>;
-  __spChannelHosts?: WeakSet<Element>;
   __spChannelScopesVerified?: boolean;
   __spBeginChannelProof?: (unfreeze?: boolean) => void;
   __spChannelHostsChecked?: boolean;
@@ -13,7 +12,7 @@ export type VisualChannelWindow = {
   __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
-  __spFinishChannelProof?: (verified: boolean, sheets?: string[]) => void;
+  __spFinishChannelProof?: (verified: boolean, sheets?: string[], opaque?: boolean) => void;
   __spChannelBodies?: ChannelBody[];
   __spReadChannels?: (elements: Element[], pseudos: string[]) => Map<Element, Record<string, Props>>;
 };
@@ -30,7 +29,6 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spRecordChannelSource;
   delete target.__spFinishChannelProof;
   delete target.__spChannelNodes;
-  delete target.__spChannelHosts;
   delete target.__spChannelScopesVerified;
   delete target.__spChannelHostsChecked;
   delete target.__spChannelOpaqueRoots;
@@ -281,8 +279,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       const node = pending.pop()!;
       if (seen.has(node)) continue;
       seen.add(node);
-      if (node.getRootNode() instanceof ShadowRoot || node.shadowRoot || target.__spChannelHosts?.has(node))
-        return true;
+      if (node.getRootNode() instanceof ShadowRoot || node.shadowRoot) return true;
       if (node.assignedSlot) pending.push(node.assignedSlot);
       if (node.parentElement) pending.push(node.parentElement);
     }
@@ -338,11 +335,11 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
         const root = pending.pop()!;
         if (scopeInputs(root)) return true;
         for (const element of root.querySelectorAll('*')) {
-          // SMIL is absent from getAnimations(). Presence is a conservative hold,
-          // including paused, finished and not-yet-started SVG animation elements.
+          // SMIL is absent from getAnimations(); read its native interval and SVG clock.
           if (
             element.namespaceURI === 'http://www.w3.org/2000/svg' &&
-            /^(?:animate|animateTransform|animateMotion|set)$/.test(element.localName)
+            /^(?:animate|animateTransform|animateMotion|set)$/.test(element.localName) &&
+            values.smilInProgress(element as SVGAnimationElement)
           )
             return true;
           if (element.shadowRoot) pending.push(element.shadowRoot);
@@ -356,7 +353,6 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   const initial = retainInputs ? readInputs() : false;
   let held = false;
   let prepared: AnimationIndex | undefined;
-  target.__spChannelHosts = new WeakSet();
   target.__spChannelOpaqueRoots = false;
   target.__spBeginChannelProof = (unfreeze = false) => {
     sources.clear();
@@ -406,7 +402,8 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       sources.delete(name);
     }
   };
-  target.__spFinishChannelProof = (verified, sheets) => {
+  target.__spFinishChannelProof = (verified, sheets, opaque) => {
+    target.__spChannelOpaqueRoots ||= opaque === true;
     target.__spChannelSheets = new Set(sheets ?? []);
     target.__spChannelScopesVerified = verified;
     if (target.__spChannelOpaqueRoots) held = true;
