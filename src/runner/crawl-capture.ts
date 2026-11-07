@@ -1,5 +1,6 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { types } from 'node:util';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
 import { ProductStateIdentityError, validateProductStateIdentity } from '../capture.js';
 import type { ProductStateIdentity } from '../capture/types.js';
@@ -138,8 +139,13 @@ function navObserver(
   };
 }
 
-/** A promise-like value; a `then` that cannot be read is treated as not a thenable. */
+/**
+ * A native promise (by its internal slot, so a hidden or throwing `then` cannot disguise it) or a
+ * thenable; a non-promise whose `then` cannot be read is treated as not a thenable.
+ */
 function isThenable(value: unknown): value is PromiseLike<unknown> {
+  if (types.isPromise(value)) return true;
+
   try {
     return typeof (value as { then?: unknown } | null | undefined)?.then === 'function';
   } catch {
@@ -151,7 +157,8 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
  * Handle a returned promise's rejection, which would otherwise surface as the consumer's own
  * unhandled error. `await` never calls a native promise's own `then`, and nothing here can throw
  * outward. A promise whose `constructor` getter throws still cannot be handled: every way to
- * attach a handler reads it.
+ * attach a handler reads it. Nor can a rejection the function never returns directly (a promise
+ * behind a Proxy).
  */
 function swallowRejection(value: PromiseLike<unknown>): void {
   void (async () => {

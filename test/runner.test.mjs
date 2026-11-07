@@ -848,6 +848,21 @@ test('crawl productState: an async function fails closed and its rejection never
         rejected.then = () => {};
         return rejected;
       },
+      // A rejected native promise whose `then` getter throws, or whose `then` is hidden.
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        Object.defineProperty(rejected, 'then', {
+          get() {
+            throw new Error(sentinel);
+          },
+        });
+        return rejected;
+      },
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.then = null;
+        return rejected;
+      },
       // Custom thenables that reject, or whose `then` throws.
       () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
       () => ({
