@@ -835,6 +835,26 @@ test('crawl productState: an async function fails closed and its rejection never
         throw new Error(sentinel);
       },
       async () => ({ id: 'seeded-app', revision: 'fixture-v1' }),
+      // A rejected native promise whose own `then` throws, or never attaches a handler.
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.then = () => {
+          throw new Error(sentinel);
+        };
+        return rejected;
+      },
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.then = () => {};
+        return rejected;
+      },
+      // Custom thenables that reject, or whose `then` throws.
+      () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
+      () => ({
+        then: () => {
+          throw new Error(sentinel);
+        },
+      }),
     ]) {
       assert.throws(
         () => crawlLinkProductState(fn, link),

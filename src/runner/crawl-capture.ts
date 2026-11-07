@@ -138,13 +138,29 @@ function navObserver(
   };
 }
 
-/** A promise-like value; a `then` that cannot be read is left to the validator, which rejects it. */
+/** A promise-like value; a `then` that cannot be read is treated as not a thenable. */
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   try {
     return typeof (value as { then?: unknown } | null | undefined)?.then === 'function';
   } catch {
     return false;
   }
+}
+
+/**
+ * Handle a returned promise's rejection, which would otherwise surface as the consumer's own
+ * unhandled error. `await` never calls a native promise's own `then`, and nothing here can throw
+ * outward. A promise whose `constructor` getter throws still cannot be handled: every way to
+ * attach a handler reads it.
+ */
+function swallowRejection(value: PromiseLike<unknown>): void {
+  void (async () => {
+    try {
+      await value;
+    } catch {
+      // The rejection is consumer data: dropped, never surfaced.
+    }
+  })();
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
@@ -169,8 +185,7 @@ export function crawlLinkProductState(
   }
 
   if (isThenable(declared)) {
-    // An async function's rejection would otherwise surface as the consumer's own unhandled error.
-    Promise.resolve(declared).catch(() => undefined);
+    swallowRejection(declared);
     throw new ProductStateIdentityError(
       `crawl link '${link.key}': the productState function must return synchronously`,
     );
