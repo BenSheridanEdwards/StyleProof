@@ -666,6 +666,11 @@ See [visual channels](docs/REFERENCE.md#optional-keyframes-and-image-sources).
 Matched changed font faces get a surface-specific `--pixels` recommendation;
 it needs `captureReach` on both sides and does not change the verdict.
 
+Unknown or missing channel evidence is counted as not compared, including in
+forced states. `diffStyleMapsWithEvidence` exposes those limits; reports name
+uncertified layers. The strict determinism self-check still rejects confidence
+changes.
+
 StyleProof certifies only what it captured: a surface that was never captured
 has no base and no head map, so its change can never appear in a diff and the
 gate stays green having never looked at it. The coverage guard

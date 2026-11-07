@@ -203,6 +203,8 @@ export type ReportResult = {
   headOnlyVolatile: HeadOnlyVolatile[];
   /** Subtrees volatile on the base but settled on the head: excluded, so the report holds them for review. */
   baseOnlyVolatile: BaseOnlyVolatile[];
+  visualChannels?: ReturnType<typeof diffStyleMapDirs>['visualChannels'];
+  statesUncertified?: number;
   reportMdPath: string;
   reportJsonPath: string;
   /** Present only when `migration: true`. */
@@ -550,6 +552,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
     whatChanged: digestLines(digest),
     volatileCount: diff.volatile,
+    channelsNotCompared: diff.visualChannels?.notCompared,
+    channelStatesUncertified: diff.visualChannels ? diff.statesUncertified : 0,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
@@ -612,7 +616,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { ledger: confidenceLedger, summary: confidence },
     elevation.chrome.count,
   );
-  for (const line of visualChannelEvidenceLines(ctx)) certIssues.push(line);
+  for (const line of visualChannelEvidenceLines(ctx, diff.visualChannels)) certIssues.push(line);
   // "Nothing else" when restyles exist but no advisory content / inventory issues.
   const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
   if (
@@ -656,6 +660,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveTextFreeze: liveTextFreezeReceipt(liveText),
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
+    visualChannels: diff.visualChannels,
+    statesUncertified: diff.visualChannels ? diff.statesUncertified : undefined,
     legacyPairs: gates.legacyPairs,
     criticalStates: gates.criticalStates,
     digest,
@@ -718,6 +724,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     confidence,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
+    ...(diff.visualChannels ? { visualChannels: diff.visualChannels, statesUncertified: diff.statesUncertified } : {}),
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
     ...(reach ? { reach } : {}),

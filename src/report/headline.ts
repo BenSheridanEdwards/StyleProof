@@ -22,6 +22,8 @@ export type HeadlineInput = {
   /** The "What changed" block, placed right after the count sentence so the PR comment carries it. */
   whatChanged: string[];
   volatileCount: number;
+  channelsNotCompared?: number;
+  channelStatesUncertified?: number;
   /** Subtrees volatile on the head only: excluded, never certified. */
   headOnlyVolatile?: HeadOnlyVolatile[];
   /** Subtrees volatile on the base only: excluded, held for review (approvable). */
@@ -230,6 +232,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
       `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails (\`CERTIFICATION_FAILED\`); review-gate mode needs approval.`,
     ];
   }
+  if (channelCoverageLines(input).length) return [];
   const elevated = elevatedStructureSummary(input);
   if (elevated) return elevated;
   return cleanScopeSummary(input);
@@ -288,6 +291,18 @@ function summaryLines(input: HeadlineInput): string[] {
   return md;
 }
 
+function channelCoverageLines(input: HeadlineInput): string[] {
+  const md: string[] = [];
+  if (input.channelStatesUncertified)
+    md.push('', '⚠ **Forced-state sweep incomplete** — skipped or unavailable interaction layers are not certified.');
+  if (input.channelsNotCompared)
+    md.push(
+      '',
+      `⚠ **Visual channel limits** — ${input.channelsNotCompared} value(s) not compared; the affected resting/state layers are not certified (see Evidence and report.json).`,
+    );
+  return md;
+}
+
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
@@ -295,6 +310,7 @@ export function reportHeadline(input: HeadlineInput): string[] {
     (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
     input.whatChanged.forEach((appended) => md.push(appended));
   }
+  channelCoverageLines(input).forEach((line) => md.push(line));
   if (input.volatileCount > 0) {
     const candidates = input.liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`

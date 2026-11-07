@@ -13,7 +13,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   models and observed live inputs stay unknown; REFERENCE names residual unstable
   replaced-image limits. Shared bodies and
   hashed data URIs keep storage bounded. Signed-source credentials are removed;
-  unloaded/blob images and legacy maps have named comparison limits. Matched
+  unloaded/blob images and legacy maps have counted comparison limits. Effective
+  state values require known evidence on both sides; skipped/unknown layers are
+  explicitly uncertified. Matched
   changed font faces get surface-specific `--pixels` advice. Defaults, J1 reach
   classification and dependencies stay unchanged.
 

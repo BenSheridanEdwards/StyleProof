@@ -17,6 +17,7 @@ export type CertificationEvidenceReceipt = {
   comparison?: { blocksCertification?: unknown } | null;
   reportConsistency?: { ok?: unknown; reason?: unknown } | null;
   statesUncertified?: unknown;
+  visualChannels?: { notCompared?: unknown } | null;
   partialBaseline?: unknown;
   explainedMissingBaselineSurfaces?: unknown;
   liveTextFreeze?: { violated?: unknown } | null;
@@ -59,6 +60,7 @@ const CERTIFICATION_BLOCKERS: ((r: CertificationEvidenceReceipt) => boolean)[] =
   (r) => entryCount(r.volatility?.headOnly) > 0,
   (r) => entryCount(r.volatility?.documentRoot) > 0,
   (r) => r.statesUncertified !== 0,
+  (r) => finiteCount(r.visualChannels?.notCompared) !== 0,
   (r) => armedLedgerBlocks(r.legacyPairs, [r.legacyPairs?.undeclared, r.legacyPairs?.staleAcknowledgements]),
   (r) =>
     armedLedgerBlocks(r.criticalStates, [

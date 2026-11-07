@@ -6,27 +6,56 @@ import type { ChannelBody } from './capture/visual-channels.js';
 export const isChannelProperty = (property: string): boolean =>
   property === 'img currentSrc' || property.startsWith('animation keyframes (');
 
-/** Unknown/capture absence is a limit, never a change. */
-export function channelValuesDiffer(
+export type ChannelComparison =
+  | { status: 'compared'; before: string; after: string; different: boolean }
+  | { status: 'not-compared'; reason: string };
+
+export type ChannelLimit = {
+  path: string;
+  prop: string;
+  pseudo?: string;
+  state?: string;
+  owner?: string;
+  reason: string;
+};
+export type ChannelEvidence = { compared: number; notCompared: number; limits: ChannelLimit[] };
+
+/** The same confidence rule for resting values and effective forced-state values. */
+export function compareChannelValues(
   property: string,
-  before: string,
-  after: string,
-  unsetA: string,
-  unsetB: string,
+  valueA?: string,
+  valueB?: string,
   restingA?: string,
   restingB?: string,
-): boolean {
-  if ([before, after, restingA, restingB].includes('(keyframes unknown; not compared)')) return false;
-  if (
-    property === 'img currentSrc' &&
-    ([before, after, restingA, restingB].some(
-      (value) => value !== undefined && (!value || value === '(blob URL; not compared)'),
-    ) ||
-      before === unsetA ||
-      after === unsetB)
-  )
-    return false;
-  return before !== after;
+  proven = true,
+  unavailableReason = 'channel capture not proven on both sides',
+): ChannelComparison {
+  const known = (value: string | undefined): value is string =>
+    value !== undefined &&
+    value !== '' &&
+    !(property === 'img currentSrc' && /^blob:/i.test(value)) &&
+    ![
+      '(keyframes unknown; not compared)',
+      '(blob URL; not compared)',
+      '(gone)',
+      '(unset)',
+      '(state does not change it)',
+      '(state no longer changes it)',
+    ].includes(value);
+  if (!proven) return { status: 'not-compared', reason: unavailableReason };
+  if ([restingA, restingB].some((value) => value !== undefined && !known(value)))
+    return { status: 'not-compared', reason: 'resting channel evidence unknown or unavailable' };
+  const before = valueA ?? restingA,
+    after = valueB ?? restingB;
+  if (!known(before) || !known(after))
+    return {
+      status: 'not-compared',
+      reason:
+        property === 'img currentSrc'
+          ? 'image source missing, unloaded or blob URL'
+          : 'keyframes evidence missing or unknown',
+    };
+  return { status: 'compared', before, after, different: before !== after };
 }
 
 /** All compared property layers, including pseudo-elements and forced states. */
@@ -87,14 +116,18 @@ export function comparableVisualChannels(map: StyleMap, compared: boolean): Styl
     Object.fromEntries(
       Object.entries(properties).flatMap(([property, value]) => {
         if (!isChannelProperty(property)) return [[property, value]];
-        if (!compared) return [];
+        if (!compared) return [[property, '(keyframes unknown; not compared)']];
         if (property === 'img currentSrc') return [[property, value]];
         if (value === '(gone)') return [[property, value]];
         const frame = map.visualChannels?.keyframes?.[value];
         return [
           [
             property,
-            frame?.status === 'none' ? '(no @keyframes)' : (frame?.body ?? '(keyframes unknown; not compared)'),
+            frame?.status === 'none'
+              ? '(no @keyframes)'
+              : frame?.status === 'known'
+                ? (frame.body ?? '(keyframes unknown; not compared)')
+                : '(keyframes unknown; not compared)',
           ],
         ];
       }),

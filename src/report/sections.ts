@@ -401,6 +401,8 @@ export type ReportArtifacts = Pick<
   | 'confidence'
   | 'legacyPairs'
   | 'criticalStates'
+  | 'visualChannels'
+  | 'statesUncertified'
 > & {
   outDir: string;
   htmlMaxBytes?: number;
@@ -430,6 +432,10 @@ export type ReportArtifacts = Pick<
   reach?: ReportReach;
 };
 
+function channelEvidenceReceipt(a: Pick<ReportArtifacts, 'visualChannels' | 'statesUncertified'>) {
+  return a.visualChannels ? { visualChannels: a.visualChannels, statesUncertified: a.statesUncertified } : {};
+}
+
 /** Build the JSON before finishing Markdown, so its omissions can be disclosed inside the cap. */
 export function buildReportJson(a: ReportArtifacts) {
   const json = {
@@ -449,6 +455,7 @@ export function buildReportJson(a: ReportArtifacts) {
     // Additive (#399 confidence badge, #367 baseline provenance): a consumer must
     // never read one green as full certification.
     confidence: a.confidence,
+    ...channelEvidenceReceipt(a),
     ...(a.baselineProvenance ? { baselineProvenance: a.baselineProvenance } : {}),
     ...(a.liveTextFreeze ? { liveTextFreeze: a.liveTextFreeze } : {}),
     // Additive, only when present, so a clean report's bytes are unchanged.

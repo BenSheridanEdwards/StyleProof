@@ -10,6 +10,8 @@
 
 - `home @ 800` — **`body`** interaction states changed: `:hover`
 
+⚠ **Visual channel limits** — 2 value(s) not compared; the affected resting/state layers are not certified (see Evidence and report.json).
+
 ## Changes
 
 ### `body` · 1 element restyled `:hover`
@@ -44,6 +46,9 @@ _Nothing else — no other element or inventory changes in this compare._
 
 **Visual channel evidence limits and recommendations**
 
+- **2 visual channel value(s) not compared**; affected layers are not certified. Full counted locations and reasons are in report.json.
+- `rest animation keyframes (pulse): keyframes evidence missing or unknown` — 1 value(s) not compared.
+- `:hover animation keyframes (pulse): resting channel evidence unknown or unavailable` — 1 value(s) not compared.
 - `home@800`: animation keyframes `pulse` unknown; not compared (keyframes resolution ambiguous: unreadable, untraversed or unavailable engine/source evidence).
 
 ⚠️ **Product-state comparison** — unproven on 1 paired capture(s) with no product-state declared.

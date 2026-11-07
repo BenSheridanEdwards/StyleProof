@@ -1490,6 +1490,18 @@ round trips. One flat document animation index serves elements and pseudo-elemen
 for each read; there are no per-element animation-list queries or pause/play
 mutations. Current time, progress and sampled rendered values are not stored.
 
+Channel comparison uses confidence-aware effective values at every element, pseudo
+and forced-state target. A missing state delta falls back to that target's resting
+value. Both effective values must be known, and neither resting value may be
+unknown. Missing evidence, unknown models, unloaded/blob image sources, unproven
+capture, volatile targets and incomplete state sweeps are never changes or clean
+channel evidence. `diffStyleMapsWithEvidence` returns findings plus the counted
+`visualChannels.notCompared` limits; directory results and report.json retain the
+locations and reasons. The report names the affected layers as not certified,
+including when both maps skipped the forced-state sweep. Known equal values count
+as compared, with no finding. Confidence differences still fail the strict
+self-check; skipping a diff is not a determinism proof.
+
 A read-only CDP matched-rule check verifies the engine's source against the CSSOM
 winner. The CSSOM name/layer index respects applying media/supports, normal cascade
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.

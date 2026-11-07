@@ -50,3 +50,25 @@ repeated captures prove the timing cases; a video would not prove their evidence
 invariants. Dependencies and demo output remain unchanged.
 
 ![Model report preserves the real colour finding and names unknown keyframes](rendered-report.png)
+
+## Confidence-aware comparison
+
+The CPO premise check found no differing known bodies across its 176 identical
+pairs; confidence asymmetry was being interpreted as a state delta. The central
+comparison now resolves effective state values against the target's resting layer
+and compares only known, comparable values with no resting unknown. Missing,
+unknown, unloaded/blob, unproven and excluded values become counted limits in the
+result and report, never changes or clean channel evidence. The findings-array API
+is retained; `diffStyleMapsWithEvidence` also exposes the limits. The self-check is
+unchanged and still throws when confidence differs.
+
+`confidence-red.log` reproduces the one-sided state false finding before the fix.
+A generated matrix covers 7,776 pairs across elements, pseudos and state entries.
+`incomplete-report-red.log` records a second finding: both-side skipped sweeps were
+not explicitly named by the report. They now render an uncertified forced-state
+warning and receipt. A real Chromium disabled-sweep control pins it; churn cases
+retain strict 20/20 detection and additionally require an explicit map/report reason
+for any miss. The original two parallel hover misses have no retained maps, so
+this does not assign their cause. Final dumps and replay outcomes are external.
+No capture-side state was added; barrier, stickiness and content-image handling
+remain as committed at `43b1d5ccd`.

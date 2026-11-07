@@ -163,7 +163,7 @@ export type {
   SourcePosition,
 } from './capture.js';
 
-export { diffStyleMaps, diffStyleMapDirs } from './diff.js';
+export { diffStyleMaps, diffStyleMapsWithEvidence, diffStyleMapDirs } from './diff.js';
 export type {
   Finding,
   PropChange,

@@ -21,7 +21,14 @@ import {
 } from './map-store.js';
 export type { BaselineFailureReceipt } from './map-store.js';
 import { styleValuesEqual } from './canonicalize.js';
-import { channelValuesDiffer, comparableVisualChannels, isChannelProperty } from './visual-channels.js';
+import {
+  compareChannelValues,
+  comparableVisualChannels,
+  isChannelProperty,
+  type ChannelEvidence,
+  type ChannelComparison,
+  type ChannelLimit,
+} from './visual-channels.js';
 import { GENERATED_PSEUDOS, INHERITED_PROPERTIES, CURRENTCOLOR_PROPERTIES } from './pseudo-references.js';
 import { addCounts, countFindings } from './findings-clean.js';
 import { correspondBeforeMap, correspondContentShiftedPaths, presentationBeforeMap } from './path-correspondence.js';
@@ -125,6 +132,14 @@ export type ContentChange =
       detail?: string;
     };
 
+type ChannelRecorder = (
+  prop: string,
+  valueA?: string,
+  valueB?: string,
+  restingA?: string,
+  restingB?: string,
+) => ChannelComparison;
+
 function diffProps(
   propsA: Record<string, string>,
   propsB: Record<string, string>,
@@ -132,15 +147,22 @@ function diffProps(
   fallbackB: Record<string, string>,
   unsetA: string,
   unsetB: string,
+  channel: ChannelRecorder = compareChannelValues,
 ): PropChange[] {
   const changed: PropChange[] = [];
-  for (const prop of new Set([...Object.keys(propsA), ...Object.keys(propsB)])) {
+  for (const prop of new Set([
+    ...Object.keys(propsA),
+    ...Object.keys(propsB),
+    ...Object.keys(fallbackA).filter(isChannelProperty),
+    ...Object.keys(fallbackB).filter(isChannelProperty),
+  ])) {
     if (prop.startsWith('--')) continue;
     const before = propsA[prop] ?? fallbackA[prop] ?? unsetA;
     const after = propsB[prop] ?? fallbackB[prop] ?? unsetB;
     if (isChannelProperty(prop)) {
-      if (channelValuesDiffer(prop, before, after, unsetA, unsetB, fallbackA[prop], fallbackB[prop]))
-        changed.push({ prop, before, after });
+      const result = channel(prop, propsA[prop], propsB[prop], fallbackA[prop], fallbackB[prop]);
+      if (result.status === 'compared' && result.different)
+        changed.push({ prop, before: result.before, after: result.after });
       continue;
     }
     // Compare by CANONICAL value so a browser/build-tool serialization change is
@@ -359,13 +381,21 @@ function recordDroppedHostSizeDeltas(
 }
 
 /** Style findings for an element present (same tag) on both sides, one per changed layer. */
-function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: Element): Finding[] {
+function pairedFindings(p: string, a: StyleMap, b: StyleMap, ea: Element, eb: Element, ctx: DiffCtx): Finding[] {
   const findings: Finding[] = [];
   const hostSizeDeltas = new Map<string, number>();
   for (const pseudo of [null, ...unionKeys(ea.pseudo ?? {}, eb.pseudo ?? {})]) {
     const [propsA, pdefsA] = layer(a, b, ea, pseudo);
     const [propsB, pdefsB] = layer(b, a, eb, pseudo);
-    const rawProps = diffProps(propsA, propsB, pdefsA, pdefsB, '(unset)', '(unset)');
+    const rawProps = diffProps(
+      propsA,
+      propsB,
+      pdefsA,
+      pdefsB,
+      '(unset)',
+      '(unset)',
+      restingChannelRecorder(ctx, p, pseudo),
+    );
     const restingProps = pseudo ? rawProps : dropUsedValueOnlyProps(rawProps, ea, eb);
 
     if (pseudo === null) recordDroppedHostSizeDeltas(rawProps, restingProps, hostSizeDeltas);
@@ -393,7 +423,121 @@ type DiffCtx = {
   includeStructure: boolean;
   live: (p: string) => boolean;
   uncomparedLayers: readonly string[];
+  channelEvidence?: ChannelEvidence;
+  channelsProven: boolean;
 };
+
+/** Bind one layer's counted evidence to the shared value decision. */
+function recordChannel(ctx: DiffCtx, location: Omit<ChannelLimit, 'prop' | 'reason'>): ChannelRecorder {
+  return (prop, a, b, restA, restB) => {
+    const unavailable = channelLayerUnavailable(ctx, location);
+    const result = compareChannelValues(prop, a, b, restA, restB, !unavailable, unavailable);
+    if (ctx.channelEvidence) {
+      if (result.status === 'compared') ctx.channelEvidence.compared++;
+      else {
+        ctx.channelEvidence.notCompared++;
+        ctx.channelEvidence.limits.push({ ...location, prop, reason: result.reason });
+      }
+    }
+    return result;
+  };
+}
+
+/** Whole-layer exclusions also remain counted evidence, never clean channel values. */
+function channelLayerUnavailable(ctx: DiffCtx, location: Omit<ChannelLimit, 'prop' | 'reason'>): string | undefined {
+  const host = location.path.replace(/::[\w-]+$/, '');
+  if (!ctx.channelsProven) return 'channel capture not proven on both sides';
+  if (!pairedSameTag(ctx, host)) return 'target missing or retagged on one side';
+  if (!ctx.live(host) || (location.owner && !ctx.live(location.owner))) return 'volatile region excluded';
+  if (location.state) {
+    if (
+      ctx.uncomparedLayers.includes(location.state) ||
+      forcedStateEvidenceIncomplete(ctx.a, ctx.b) ||
+      forcedStateEvidenceIncomplete(ctx.b, ctx.a)
+    )
+      return 'forced-state sweep incomplete or unavailable';
+    const a = ctx.a.stateTargets?.[location.state],
+      b = ctx.b.stateTargets?.[location.state];
+    if (a && b && (!a.includes(location.owner!) || !b.includes(location.owner!)))
+      return 'forced-state owner not captured on both sides';
+  }
+  return undefined;
+}
+
+/** Record the channel keys of one unavailable target layer. */
+function recordExcludedChannelLayer(
+  ctx: DiffCtx,
+  location: Omit<ChannelLimit, 'prop' | 'reason'>,
+  propsA: Record<string, string>,
+  propsB: Record<string, string>,
+  restA: Record<string, string> = {},
+  restB: Record<string, string> = {},
+): void {
+  const compare = recordChannel(ctx, location);
+  for (const prop of new Set([
+    ...Object.keys(propsA),
+    ...Object.keys(propsB),
+    ...Object.keys(restA),
+    ...Object.keys(restB),
+  ]))
+    if (isChannelProperty(prop)) compare(prop, propsA[prop], propsB[prop], restA[prop], restB[prop]);
+}
+
+function recordExcludedRestChannels(ctx: DiffCtx): void {
+  const { a, b } = ctx;
+  for (const path of unionKeys(a.elements, b.elements)) {
+    if (ctx.live(path) && pairedSameTag(ctx, path)) continue;
+    const ea = a.elements[path],
+      eb = b.elements[path];
+    recordExcludedChannelLayer(ctx, { path }, ea?.style ?? {}, eb?.style ?? {});
+    for (const pseudo of unionKeys(ea?.pseudo ?? {}, eb?.pseudo ?? {}))
+      recordExcludedChannelLayer(ctx, { path, pseudo }, ea?.pseudo?.[pseudo] ?? {}, eb?.pseudo?.[pseudo] ?? {});
+  }
+}
+
+/** Whether stateTargetFindings will visit this layer; incomplete sweeps still visit present targets. */
+function visitsStateTarget(ctx: DiffCtx, owner: string, state: string, path: string): boolean {
+  const host = path.replace(/::[\w-]+$/, '');
+  if (!ctx.live(owner) || !ctx.live(host) || ctx.uncomparedLayers.includes(state)) return false;
+  if (!ctx.includeStructure && !pairedSameTag(ctx, host)) return false;
+  const a = ctx.a.stateTargets?.[state],
+    b = ctx.b.stateTargets?.[state];
+  return !(a && b && (!a.includes(owner) || !b.includes(owner)));
+}
+
+function recordExcludedStateTargets(
+  ctx: DiffCtx,
+  owner: string,
+  state: string,
+  a: Record<string, Record<string, string>>,
+  b: Record<string, Record<string, string>>,
+): void {
+  for (const path of unionKeys(a, b)) {
+    if (visitsStateTarget(ctx, owner, state, path)) continue;
+    recordExcludedChannelLayer(
+      ctx,
+      { path, owner, state },
+      a[path] ?? {},
+      b[path] ?? {},
+      restingChannelProps(ctx.a, path),
+      restingChannelProps(ctx.b, path),
+    );
+  }
+}
+
+/** Count channel keys excluded before ordinary property comparison. */
+function recordExcludedChannels(ctx: DiffCtx): void {
+  recordExcludedRestChannels(ctx);
+  for (const owner of unionKeys(ctx.a.states ?? {}, ctx.b.states ?? {})) {
+    const a = ctx.a.states?.[owner] ?? {},
+      b = ctx.b.states?.[owner] ?? {};
+    for (const state of unionKeys(a, b)) recordExcludedStateTargets(ctx, owner, state, a[state] ?? {}, b[state] ?? {});
+  }
+}
+
+function restingChannelRecorder(ctx: DiffCtx, path: string, pseudo: string | null): ChannelRecorder {
+  return recordChannel(ctx, { path, pseudo: pseudo ?? undefined });
+}
 
 const pairedSameTag = ({ a, b }: DiffCtx, p: string): boolean =>
   !!a.elements[p] && !!b.elements[p] && a.elements[p].tag === b.elements[p].tag;
@@ -465,6 +609,7 @@ function stateTargetFindings(
       restingChannelProps(ctx.b, sub),
       STATE_ADDS,
       STATE_DROPS,
+      recordChannel(ctx, { path: sub, owner: owner.path, state: owner.state }),
     );
     const withoutAutoMargins = dropAutoEchoMarginPairs(ctx, owner, sub, rawProps);
     if (withoutAutoMargins.length < rawProps.length) autoMarginEchoDropped = true;
@@ -509,11 +654,12 @@ function stateFindings(p: string, ctx: DiffCtx): Finding[] {
     .flatMap((state) => stateTargetFindings(ctx, { path: p, cls, state }, sa[state] ?? {}, sb[state] ?? {}));
 }
 
-function elementFindings(p: string, { a, b, includeStructure }: DiffCtx): Finding[] {
+function elementFindings(p: string, ctx: DiffCtx): Finding[] {
+  const { a, b, includeStructure } = ctx;
   const ea = a.elements[p];
   const eb = b.elements[p];
   if (!ea || !eb) return includeStructure ? oneSidedFindings(p, ea, eb, b) : [];
-  if (ea.tag === eb.tag) return pairedFindings(p, a, b, ea, eb);
+  if (ea.tag === eb.tag) return pairedFindings(p, a, b, ea, eb, ctx);
   if (!includeStructure) return [];
   const component = eb.component ? { component: eb.component } : {};
   return [{ kind: 'dom', path: p, cls: ea.cls, change: 'retagged', detail: `<${ea.tag}> → <${eb.tag}>`, ...component }];
@@ -552,7 +698,23 @@ function skippedLayerFindings(a: StyleMap, b: StyleMap, uncomparedLayers: readon
 
 /** Diff two style maps of the same surface. */
 export function diffStyleMaps(a: StyleMap, b: StyleMap, options: DiffStyleOptions = {}): Finding[] {
-  return diffStyleMapsWithStateLayers(a, b, options, uncomparedStateLayers(a, b));
+  return diffStyleMapsWithEvidence(a, b, options).findings;
+}
+
+/** Findings plus counted channel limits; the findings-only API remains compatible. */
+export function diffStyleMapsWithEvidence(
+  a: StyleMap,
+  b: StyleMap,
+  options: DiffStyleOptions = {},
+): { findings: Finding[]; visualChannels?: ChannelEvidence } {
+  const visualChannels: ChannelEvidence = { compared: 0, notCompared: 0, limits: [] };
+  const findings = diffStyleMapsWithStateLayers(a, b, options, uncomparedStateLayers(a, b), visualChannels);
+  return {
+    findings,
+    ...(a.visualChannels || b.visualChannels || visualChannels.notCompared || visualChannels.compared
+      ? { visualChannels }
+      : {}),
+  };
 }
 
 function diffStyleMapsWithStateLayers(
@@ -560,6 +722,7 @@ function diffStyleMapsWithStateLayers(
   after: StyleMap,
   options: DiffStyleOptions,
   uncomparedLayers: readonly string[],
+  channelEvidence?: ChannelEvidence,
 ): Finding[] {
   const channelsCompared = before.visualChannels?.version === 1 && after.visualChannels?.version === 1;
   if (before.visualChannels || after.visualChannels) {
@@ -575,7 +738,10 @@ function diffStyleMapsWithStateLayers(
     includeStructure: options.includeStructure ?? true,
     live,
     uncomparedLayers,
+    channelEvidence,
+    channelsProven: channelsCompared,
   };
+  recordExcludedChannels(context);
   return [
     ...sortedUnionKeys(before.elements, after.elements)
       .filter(live)
@@ -658,6 +824,7 @@ export function diffStyleMapDirs(
   /** `html`/`body` volatile on the head: the page was excluded, so it blocks certification. */
   documentRootVolatile: DocumentRootVolatile[];
   statesUncertified: number;
+  visualChannels?: ChannelEvidence & { limits: (ChannelLimit & { surface: string })[] };
   compared: number;
   /** Bounded baseline capture failures read from the base manifest. */
   baselineFailures: BaselineFailureReceipt[];
@@ -701,8 +868,7 @@ export function diffStyleMapDirs(
     if (pair.hostUaDrift.length) hostUaDrift.push({ surface, props: pair.hostUaDrift });
     comparability.push(pair.comparability);
     counts = addCounts(counts, countFindings(pair.findings));
-    if (pair.findings.length)
-      surfaces.push({ surface, findings: pair.findings, classification: 'changed', isNew: false });
+    recordChangedSurface(surfaces, surface, pair.findings);
     if (options.pixels) {
       const [mapA, mapB] = [loadSharedStyleMap(indexA[surface]), loadSharedStyleMap(indexB[surface])];
       pixels.push(pixelDiffSurface(dirA, dirB, surface, mapA, mapB, pixelOptions));
@@ -719,6 +885,10 @@ export function diffStyleMapDirs(
     undeclaredOnBase: ledger.undeclaredOnBase,
     ...(options.pixels ? { pixels } : {}),
   };
+}
+
+function recordChangedSurface(surfaces: SurfaceDiff[], surface: string, findings: Finding[]): void {
+  if (findings.length) surfaces.push({ surface, findings, classification: 'changed', isNew: false });
 }
 
 /** A surface captured on one side only has no baseline to diff against: NEW/REMOVED, never a change tally. */
@@ -775,6 +945,7 @@ function forcedStateEvidenceIncomplete(map: StyleMap, counterpart: StyleMap): bo
 type UncomparedTally = {
   volatile: number;
   statesUncertified: number;
+  visualChannels?: ChannelEvidence & { limits: (ChannelLimit & { surface: string })[] };
   headOnlyVolatile: HeadOnlyVolatile[];
   baseOnlyVolatile: BaseOnlyVolatile[];
   documentRootVolatile: DocumentRootVolatile[];
@@ -823,8 +994,16 @@ function diffSurfacePair(
   for (const p of baseOnlyVolatilePaths(comparableBase, mapB)) uncompared.baseOnlyVolatile.push({ surface, path: p });
   for (const p of (mapB.volatile ?? []).filter((v) => v === 'html' || v === 'body').sort())
     uncompared.documentRootVolatile.push({ surface, path: p });
+  const channelEvidence: ChannelEvidence = { compared: 0, notCompared: 0, limits: [] };
+  const findings = diffStyleMapsWithStateLayers(comparableBase, mapB, options, uncomparedLayers, channelEvidence);
+  if (mapA.visualChannels || mapB.visualChannels || channelEvidence.compared || channelEvidence.notCompared) {
+    const total = (uncompared.visualChannels ??= { compared: 0, notCompared: 0, limits: [] });
+    total.compared += channelEvidence.compared;
+    total.notCompared += channelEvidence.notCompared;
+    for (const limit of channelEvidence.limits) total.limits.push({ ...limit, surface });
+  }
   return {
-    findings: diffStyleMapsWithStateLayers(comparableBase, mapB, options, uncomparedLayers),
+    findings,
     comparability: compareProductState(surface, mapA, mapB),
     hostUaDrift: diffUaDefaults(mapA, mapB),
   };

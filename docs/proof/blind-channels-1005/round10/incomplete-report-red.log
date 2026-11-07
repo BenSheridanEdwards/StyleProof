@@ -1,0 +1,35 @@
+✔ a one-sided state channel without comparable resting evidence is not a change (0.970541ms)
+✔ generated channel confidence pairs obey the same rule at every property layer (46.941625ms)
+✔ the central decision treats absent, unproven and non-comparable values as limits (0.175084ms)
+✖ a missing hover edit has a counted, non-certifying report explanation (13.389208ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 139.783666
+
+✖ failing tests:
+
+test at test/visual-channel-confidence.test.mjs:68:1
+✖ a missing hover edit has a counted, non-certifying report explanation (13.389208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(kind === 'unknown' ? json.visualChannels.notCompared > 0 : kind === 'incomplete' ? json.statesUncertified > 0 : before.volatile.length)
+
+      at TestContext.<anonymous> (file://<checkout>/test/visual-channel-confidence.test.mjs:78:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

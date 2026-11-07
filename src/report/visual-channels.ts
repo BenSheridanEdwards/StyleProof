@@ -2,6 +2,7 @@ import { captureKeysIn } from '../capture.js';
 import { classifyRuleReach } from '../rule-reach.js';
 import { codeValue } from '../code-span.js';
 import type { StyleMap } from '../capture/types.js';
+import type { ChannelEvidence } from '../visual-channels.js';
 import type { RenderCtx } from './shared.js';
 
 function imageSources(map: StyleMap): [string, string][] {
@@ -35,10 +36,26 @@ function imageEvidenceLines(before: StyleMap, after: StyleMap, surface: string):
   return lines;
 }
 
-/** Evidence limits and raster advice are report-only: neither can change the verdict. */
-export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
-  const base = new Set(captureKeysIn(ctx.beforeDir));
+function countedChannelEvidenceLines(evidence?: ChannelEvidence): string[] {
   const lines: string[] = [];
+  if (evidence?.notCompared) {
+    lines.push(
+      `- **${evidence.notCompared} visual channel value(s) not compared**; affected layers are not certified. Full counted locations and reasons are in report.json.`,
+    );
+    const counts = new Map<string, number>();
+    for (const limit of evidence.limits) {
+      const key = `${limit.state ? `:${limit.state}` : 'rest'} ${limit.prop}: ${limit.reason}`;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    for (const [reason, count] of counts) lines.push(`- ${codeValue(reason)} — ${count} value(s) not compared.`);
+  }
+  return lines;
+}
+
+/** Render counted comparison limits and report-only raster advice. */
+export function visualChannelEvidenceLines(ctx: RenderCtx, evidence?: ChannelEvidence): string[] {
+  const base = new Set(captureKeysIn(ctx.beforeDir));
+  const lines = countedChannelEvidenceLines(evidence);
   let legacy = 0;
   for (const surface of captureKeysIn(ctx.afterDir)
     .filter((key) => base.has(key))
@@ -74,7 +91,7 @@ export function visualChannelEvidenceLines(ctx: RenderCtx): string[] {
       );
   }
   if (legacy)
-    lines.unshift(
+    lines.push(
       `- Keyframes/currentSrc not compared (map predates keyframes/currentSrc capture) on ${legacy} paired capture(s); recapture both sides with \`captureVisualChannels: true\`.`,
     );
   return lines.length ? ['', '**Visual channel evidence limits and recommendations**', '', ...lines, ''] : [];
