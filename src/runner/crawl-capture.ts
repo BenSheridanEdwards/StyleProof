@@ -177,15 +177,18 @@ function intrinsicPromise(): PromiseConstructor | undefined {
 function awaitsDirectly(candidate: unknown): boolean {
   const probe = (async () => {})();
   let thenRead = false;
+  // Non-configurable, so a promise hook that runs inside the await cannot remove them first; a probe
+  // that cannot be set up confirms nothing.
+  const prepared =
+    Reflect.defineProperty(probe, 'constructor', { value: candidate }) &&
+    Reflect.defineProperty(probe, 'then', {
+      get() {
+        thenRead = true;
+        return undefined;
+      },
+    });
 
-  Reflect.defineProperty(probe, 'constructor', { value: candidate, configurable: true });
-  Reflect.defineProperty(probe, 'then', {
-    configurable: true,
-    get() {
-      thenRead = true;
-      return undefined;
-    },
-  });
+  if (!prepared) return false;
   // Resolving with a value that is not the built-in reads its `then` synchronously, inside the await.
   void (async () => {
     await probe;
@@ -213,29 +216,34 @@ function inheritsIntrinsicConstructor(value: object): boolean {
  * rejection of its own, so its `then` is never called. Nothing here can throw outward. Rejections
  * that cannot be handled: a promise whose own `constructor` is not the built-in and cannot be set
  * (a non-configurable getter or non-writable value), a non-extensible promise that does not inherit
- * directly from `Promise.prototype`, one the function never returns directly (inside a Proxy or a
+ * directly from `Promise.prototype` (or any while `Promise.prototype.constructor` is
+ * not the built-in), one the function never returns directly (inside a Proxy or a
  * custom thenable), and every rejection when no built-in Promise could be confirmed at load.
  */
 function swallowRejection(value: unknown): void {
   if (!types.isPromise(value) || INTRINSIC_PROMISE === undefined) return;
 
-  const original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
-  const pinned =
-    original === undefined || original.configurable
-      ? Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
-      : Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
+  let original: PropertyDescriptor | undefined;
+  let pinned = false;
 
-  // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
-  if (!pinned && !(original === undefined && inheritsIntrinsicConstructor(value))) return;
-
-  // `await` attaches its handler synchronously, before the wrapper first suspends.
+  // The wrapper's own promise is created before its body runs. Pinning, checking and awaiting inside
+  // the body leaves no promise creation, so no promise hook, between the pin and the `await` that
+  // reads it; `await` on a promise whose constructor is the built-in attaches without creating one.
   void (async () => {
+    original = Reflect.getOwnPropertyDescriptor(value, 'constructor');
+    pinned =
+      original === undefined || original.configurable
+        ? Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
+        : Reflect.defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
+    // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
+    if (!pinned && !(original === undefined && inheritsIntrinsicConstructor(value))) return;
     try {
       await value;
     } catch {
       // The rejection is consumer data: dropped, never surfaced.
     }
   })();
+  // The body ran synchronously up to its `await`, so the handler is attached and the pin can go.
   if (!pinned) return;
   if (original === undefined) Reflect.deleteProperty(value, 'constructor');
   else Reflect.defineProperty(value, 'constructor', original);
