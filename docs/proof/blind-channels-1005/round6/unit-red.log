@@ -1,0 +1,25 @@
+file://<round6-proof>/base-reviewed/test/blind-channels-round6.test.mjs:3
+import { motionInProgress, holdKeyframes } from '../dist/capture/visual-channel-values.js';
+                           ^^^^^^^^^^^^^
+SyntaxError: The requested module '../dist/capture/visual-channel-values.js' does not provide an export named 'holdKeyframes'
+    at #asyncInstantiate (node:internal/modules/esm/module_job:463:21)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:561:5)
+    at async node:internal/modules/esm/loader:650:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:105:5)
+
+Node.js v26.12.1
+✖ <round6-proof>/base-reviewed/test/blind-channels-round6.test.mjs (46.189542ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 49.619458
+
+✖ failing tests:
+
+test at ../../../../Codex/blind-channels-1005-round6/base-reviewed/test/blind-channels-round6.test.mjs:1:1
+✖ <round6-proof>/base-reviewed/test/blind-channels-round6.test.mjs (46.189542ms)
+  'test failed'

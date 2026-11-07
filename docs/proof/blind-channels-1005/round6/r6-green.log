@@ -1,0 +1,16 @@
+Already up to date
+Done in 60ms using pnpm v11.7.0
+
+Running 7 tests using 1 worker
+
+(node:92680) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-em has no progress-dependent known body (181ms)
+  ✓  2 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-currentcolor has no progress-dependent known body (147ms)
+  ✓  3 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › sibling-cqw has no progress-dependent known body (165ms)
+  ✓  4 [chromium] › test/blind-channels-round6.e2e.spec.ts:45:3 › nothing in progress: em, currentColor and var stay known with stabilize=true (4.1s)
+  ✓  5 [chromium] › test/blind-channels-round6.e2e.spec.ts:45:3 › nothing in progress: em, currentColor and var stay known with stabilize=false (324ms)
+  ✓  6 [chromium] › test/blind-channels-round6.e2e.spec.ts:76:1 › unstabilized live motion holds even absolute and implicit-colour bodies unknown (81ms)
+  ✓  7 [chromium] › test/blind-channels-round6.e2e.spec.ts:83:1 › finished entrance wrapper preserves all four Tailwind body changes in default mode (2.2s)
+
+  7 passed (7.6s)

@@ -1,0 +1,483 @@
+[
+  {
+    "name": "qa-r6",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-r6-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 4.01171875,
+    "seconds": 2.96
+  },
+  {
+    "name": "qa-r6-no-prewarm",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-r6-no-prewarm.mjs"
+    ],
+    "exit": 0,
+    "load": 5.8525390625,
+    "seconds": 2.37
+  },
+  {
+    "name": "qa-new-attacks",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/new-attacks.mjs"
+    ],
+    "exit": 0,
+    "load": 5.8525390625,
+    "seconds": 23.99
+  },
+  {
+    "name": "qa-r5-pseudo",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 11.5048828125,
+    "seconds": 1.64
+  },
+  {
+    "name": "qa-r5-pseudo-important",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 11.5048828125,
+    "seconds": 1.66
+  },
+  {
+    "name": "qa-r5-color-explicit",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 12.34521484375,
+    "seconds": 1.41
+  },
+  {
+    "name": "qa-r5-color",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 12.34521484375,
+    "seconds": 1.33
+  },
+  {
+    "name": "r1-probe",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r1/probe.mjs",
+      "<round6-proof>/compiled-artifact",
+      "<round6-proof>/main-fixture"
+    ],
+    "exit": 0,
+    "load": 4.01171875,
+    "seconds": 35.54
+  },
+  {
+    "name": "qa-r5-color-web",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/reproduce-blockers.mjs"
+    ],
+    "exit": 0,
+    "load": 12.34521484375,
+    "seconds": 1.5
+  },
+  {
+    "name": "r1-cost-5000",
+    "cmd": [
+      "node",
+      "<round4-proof>/review-r1/cost.mjs",
+      "<round6-proof>/compiled-artifact",
+      "5000",
+      "4"
+    ],
+    "exit": 0,
+    "load": 12.34521484375,
+    "seconds": 4.67
+  },
+  {
+    "name": "qa-adversarial",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/adversarial.mjs"
+    ],
+    "exit": 0,
+    "load": 12.34521484375,
+    "seconds": 5.1
+  },
+  {
+    "name": "qa-monotonic",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/monotonic.mjs"
+    ],
+    "exit": 0,
+    "load": 13.9990234375,
+    "seconds": 3.57
+  },
+  {
+    "name": "r1-cost-20000",
+    "cmd": [
+      "node",
+      "<round4-proof>/review-r1/cost.mjs",
+      "<round6-proof>/compiled-artifact",
+      "20000",
+      "4"
+    ],
+    "exit": 0,
+    "load": 13.9990234375,
+    "seconds": 5.55
+  },
+  {
+    "name": "r6-gap6",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/gap6.mjs"
+    ],
+    "exit": 0,
+    "load": 4.01171875,
+    "seconds": 46.69
+  },
+  {
+    "name": "qa-exact-controls",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/exact-controls.mjs"
+    ],
+    "exit": 0,
+    "load": 14.8798828125,
+    "seconds": 7.95
+  },
+  {
+    "name": "r6-gap6-running",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/gap6-running.mjs"
+    ],
+    "exit": 0,
+    "load": 14.8798828125,
+    "seconds": 7.31
+  },
+  {
+    "name": "r5-leak5-css",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5-css.mjs"
+    ],
+    "exit": 0,
+    "load": 17.7421875,
+    "seconds": 1.88
+  },
+  {
+    "name": "r6-wrapper6",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/wrapper6.mjs"
+    ],
+    "exit": 0,
+    "load": 17.7421875,
+    "seconds": 9.84
+  },
+  {
+    "name": "r5-leak5-transition",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5-transition.mjs"
+    ],
+    "exit": 0,
+    "load": 17.7421875,
+    "seconds": 9.1
+  },
+  {
+    "name": "r5-leak5",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5.mjs"
+    ],
+    "exit": 0,
+    "load": 18.74560546875,
+    "seconds": 2.06
+  },
+  {
+    "name": "r5-disjoint5",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/disjoint5.mjs"
+    ],
+    "exit": 0,
+    "load": 18.74560546875,
+    "seconds": 1.08
+  },
+  {
+    "name": "r5-xorigin5",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/xorigin5.mjs"
+    ],
+    "exit": 0,
+    "load": 18.845703125,
+    "seconds": 6.46
+  },
+  {
+    "name": "r6-conservative6",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/conservative6.mjs"
+    ],
+    "exit": 0,
+    "load": 18.74560546875,
+    "seconds": 18.35
+  },
+  {
+    "name": "r5-leak5-css-stab",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5-css-stab.mjs"
+    ],
+    "exit": 0,
+    "load": 19.57861328125,
+    "seconds": 9.48
+  },
+  {
+    "name": "r5-leak5-e8",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5-e8.mjs"
+    ],
+    "exit": 0,
+    "load": 22.57373046875,
+    "seconds": 2.1
+  },
+  {
+    "name": "r6-transition6",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/transition6.mjs"
+    ],
+    "exit": 0,
+    "load": 20.0126953125,
+    "seconds": 6.27
+  },
+  {
+    "name": "r5-leak5-implicit",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/review-r5/leak5-implicit.mjs"
+    ],
+    "exit": 0,
+    "load": 22.57373046875,
+    "seconds": 4.84
+  },
+  {
+    "name": "r2-probe2",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r2/probe2.mjs",
+      "<round6-proof>/compiled-artifact"
+    ],
+    "exit": 0,
+    "load": 14.8798828125,
+    "seconds": 47.53
+  },
+  {
+    "name": "r2-reslot",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r2/reslot.mjs",
+      "<round6-proof>/compiled-artifact"
+    ],
+    "exit": 0,
+    "load": 22.64501953125,
+    "seconds": 0.8
+  },
+  {
+    "name": "r2-timing",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r2/timing.mjs",
+      "<round6-proof>/compiled-artifact"
+    ],
+    "exit": 0,
+    "load": 22.64501953125,
+    "seconds": 0.65
+  },
+  {
+    "name": "r3-probe3",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/probe3.mjs"
+    ],
+    "exit": 0,
+    "load": 22.64501953125,
+    "seconds": 33.25
+  },
+  {
+    "name": "r3-redact",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/redact.mjs"
+    ],
+    "exit": 0,
+    "load": 23.482421875,
+    "seconds": 15.96
+  },
+  {
+    "name": "r3-cssom",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/cssom.mjs"
+    ],
+    "exit": 0,
+    "load": 23.54248046875,
+    "seconds": 1.32
+  },
+  {
+    "name": "r3-getkeyframes",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/getkeyframes.mjs"
+    ],
+    "exit": 0,
+    "load": 23.54248046875,
+    "seconds": 1.04
+  },
+  {
+    "name": "r3-render-truth",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/render-truth.mjs"
+    ],
+    "exit": 0,
+    "load": 23.54248046875,
+    "seconds": 1.33
+  },
+  {
+    "name": "r3-a-hover",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/a-hover.mjs"
+    ],
+    "exit": 0,
+    "load": 22.6181640625,
+    "seconds": 3.29
+  },
+  {
+    "name": "r3-parity",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r3/parity.mjs"
+    ],
+    "exit": 0,
+    "load": 22.6181640625,
+    "seconds": 3.95
+  },
+  {
+    "name": "r4-scale",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/scale.mjs"
+    ],
+    "exit": 0,
+    "load": 21.927734375,
+    "seconds": 12.13
+  },
+  {
+    "name": "r4-states-cost",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/states-cost.mjs"
+    ],
+    "exit": 0,
+    "load": 22.75830078125,
+    "seconds": 57.63
+  },
+  {
+    "name": "r6-ancestor-cost",
+    "cmd": [
+      "node",
+      "<round6-proof>/review-r6/ancestor-cost.mjs"
+    ],
+    "exit": 0,
+    "load": 22.52734375,
+    "seconds": 138.63
+  },
+  {
+    "name": "r4-redact4",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/redact4.mjs"
+    ],
+    "exit": 0,
+    "load": 17.3095703125,
+    "seconds": 9.45
+  },
+  {
+    "name": "r4-realistic",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/realistic.mjs"
+    ],
+    "exit": 0,
+    "load": 15.6376953125,
+    "seconds": 7.44
+  },
+  {
+    "name": "r4-side-effects",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/side-effects.mjs"
+    ],
+    "exit": 0,
+    "load": 14.70556640625,
+    "seconds": 11.29
+  },
+  {
+    "name": "r4-race",
+    "cmd": [
+      "node",
+      "<round6-proof>/r4-race/race.mjs"
+    ],
+    "exit": 0,
+    "load": 4.01171875,
+    "seconds": 278.88
+  },
+  {
+    "name": "r4-reset",
+    "cmd": [
+      "node",
+      "<round6-proof>/r4-reset/race-reset.mjs"
+    ],
+    "exit": 0,
+    "load": 9.453125,
+    "seconds": 133.71
+  },
+  {
+    "name": "r4-probe4",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/probe4.mjs"
+    ],
+    "exit": 0,
+    "load": 12.25390625,
+    "seconds": 241.69
+  },
+  {
+    "name": "r4-getanimations-cost",
+    "cmd": [
+      "node",
+      "<round6-proof>/qa-probes/r4/getanimations-cost.mjs"
+    ],
+    "exit": 0,
+    "load": 8.0458984375,
+    "seconds": 52.08
+  }
+]

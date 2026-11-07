@@ -1,0 +1,5 @@
+## 100 skeleton + 20 buttons | off 4491ms | on 6896ms
+## 300 skeleton + 20 buttons | off 10054ms | on 13332ms
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+## 600 skeleton + 20 buttons | off 9649ms | on 12624ms

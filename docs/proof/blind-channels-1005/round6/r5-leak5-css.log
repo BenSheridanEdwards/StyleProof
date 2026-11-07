@@ -1,0 +1,10 @@
+R6 selfCheck true
+## C-var control (QA r4 #2 shape): keyframes findings 0 []; other findings 0; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+R6 selfCheck true
+## C-em parent font-size animation: keyframes findings 0 []; other findings 0; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+R6 selfCheck true
+## C-em self font-size animation: keyframes findings 0 []; other findings 0; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+R6 selfCheck true
+## C-currentColor parent color animation: keyframes findings 0 []; other findings 0; statuses drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+R6 selfCheck true
+## T-em paused transition on parent font-size: keyframes findings 0 []; other findings 0; statuses pulse:unknown | pulse:unknown

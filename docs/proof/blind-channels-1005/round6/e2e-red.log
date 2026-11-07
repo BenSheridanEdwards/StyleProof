@@ -1,0 +1,78 @@
+Already up to date
+Done in 59ms using pnpm v11.7.0
+
+Running 4 tests using 1 worker
+
+(node:72552) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-em has no progress-dependent known body (187ms)
+(node:72610) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-currentcolor has no progress-dependent known body (180ms)
+(node:72668) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › sibling-cqw has no progress-dependent known body (195ms)
+(node:72715) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [chromium] › test/blind-channels-round6.e2e.spec.ts:44:1 › nothing running: em, currentColor and var bodies remain known and detect edits (4.0s)
+
+
+  1) [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-em has no progress-dependent known body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      34 |     }
+      35 |     for (const map of maps)
+    > 36 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      37 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      38 |     expect(
+      39 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round6.e2e.spec.ts:36:100
+
+    Error Context: test-results/test-blind-channels-round6-e6d6e-ogress-dependent-known-body-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-currentcolor has no progress-dependent known body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      34 |     }
+      35 |     for (const map of maps)
+    > 36 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      37 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      38 |     expect(
+      39 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round6.e2e.spec.ts:36:100
+
+    Error Context: test-results/test-blind-channels-round6-db211-ogress-dependent-known-body-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › sibling-cqw has no progress-dependent known body
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      34 |     }
+      35 |     for (const map of maps)
+    > 36 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe('unknown');
+         |                                                                                                    ^
+      37 |     expect(() => assertDeterministicVisualChannels(maps[0], maps[1], name)).not.toThrow();
+      38 |     expect(
+      39 |       diffStyleMaps(maps[0], maps[1])
+        at <checkout>/test/blind-channels-round6.e2e.spec.ts:36:100
+
+    Error Context: test-results/test-blind-channels-round6-be277-ogress-dependent-known-body-chromium/error-context.md
+
+  3 failed
+    [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-em has no progress-dependent known body
+    [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › self-currentcolor has no progress-dependent known body
+    [chromium] › test/blind-channels-round6.e2e.spec.ts:22:3 › sibling-cqw has no progress-dependent known body
+  1 passed (7.1s)

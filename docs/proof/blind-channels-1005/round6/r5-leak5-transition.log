@@ -1,0 +1,16 @@
+R6 selfCheck true
+## currentColor stabilize:false: keyframes findings 0; other findings 0; channel evidence equal
+    [["unknown",null]]
+    [["unknown",null]]
+R6 selfCheck true
+## currentColor stabilize:true: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"outlineColor\":\"rgb(0, 0, 255)\""]]]
+    [["known",["\"outlineColor\":\"rgb(0, 0, 255)\""]]]
+R6 selfCheck true
+## em stabilize:false: keyframes findings 0; other findings 0; channel evidence equal
+    [["unknown",null]]
+    [["unknown",null]]
+R6 selfCheck true
+## em stabilize:true: keyframes findings 0; other findings 0; channel evidence equal
+    [["known",["\"marginLeft\":\"60px\""]]]
+    [["known",["\"marginLeft\":\"60px\""]]]

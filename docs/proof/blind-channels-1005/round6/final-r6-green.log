@@ -1,0 +1,17 @@
+Already up to date
+Done in 60ms using pnpm v11.7.0
+
+Running 8 tests using 1 worker
+
+(node:76150) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:22:3 › self-em has no progress-dependent known body (213ms)
+  ✓  2 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:22:3 › self-currentcolor has no progress-dependent known body (153ms)
+  ✓  3 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:22:3 › sibling-cqw has no progress-dependent known body (170ms)
+  ✓  4 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:45:3 › nothing in progress: em, currentColor and var stay known with stabilize=true (3.9s)
+  ✓  5 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:45:3 › nothing in progress: em, currentColor and var stay known with stabilize=false (348ms)
+  ✓  6 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:76:1 › unstabilized live motion holds even absolute and implicit-colour bodies unknown (102ms)
+  ✓  7 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:83:1 › finished entrance wrapper preserves all four Tailwind body changes in default mode (2.2s)
+  ✓  8 ../../../../Codex/blind-channels-1005-round6/probe-final/test/round6.e2e.spec.ts:102:1 › a genuinely surviving inline-important CSS effect stays unknown in default mode (1.4s)
+
+  8 passed (9.5s)

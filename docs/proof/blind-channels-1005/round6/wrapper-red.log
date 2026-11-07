@@ -1,0 +1,2 @@
+head | wrapper fade absent   | bounce:known,ping:known,pulse:known,spin:known | detected consumer changes 4/4
+head | wrapper fade finished | bounce:unknown,fade-in:known,ping:unknown,pulse:unknown,spin:unknown | detected consumer changes 0/4

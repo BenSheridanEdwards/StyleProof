@@ -1,0 +1,4 @@
+## ok   R1 lone breathe: font-size + padding em: kf findings 0; other 0; evidence equal; breathe:unknown | breathe:unknown
+## ok   R2 lone glow: color + currentColor border: kf findings 0; other 0; evidence equal; glow:unknown | glow:unknown
+## ok   R3 parent color loop, colorless box-shadow consumer: kf findings 0; other 0; evidence equal; hue:unknown,lift:unknown | hue:unknown,lift:unknown
+## ok   R4 sibling width loop, cqw consumer: kf findings 0; other 0; evidence equal; grow:unknown,slide:unknown | grow:unknown,slide:unknown

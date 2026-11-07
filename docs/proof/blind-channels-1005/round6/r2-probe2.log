@@ -1,0 +1,214 @@
+
+## A hover-injected <style> keyframes body .5 -> .8 (expect finding or unknown, never none): 0 finding(s)
+    base kf: {"[\"hv\",\"none\"]":{"name":"hv","status":"none"}}
+    head kf: {"[\"hv\",\"none\"]":{"name":"hv","status":"none"}}
+    base ch: {} {"body > button:nth-child(1)":["\"animation keyframes (hv)\":\"[\\\""]}
+    head ch: {} {"body > button:nth-child(1)":["\"animation keyframes (hv)\":\"[\\\""]}
+
+## A2 hover insertRule keyframes .5 -> .8: 0 finding(s)
+    base kf: {"[\"hv\",\"none\"]":{"name":"hv","status":"none"}}
+    head kf: {"[\"hv\",\"none\"]":{"name":"hv","status":"none"}}
+    base ch: {} {"body > button:nth-child(1)":["\"animation keyframes (hv)\":\"[\\\""]}
+    head ch: {} {"body > button:nth-child(1)":["\"animation keyframes (hv)\":\"[\\\""]}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## B re-slotted ::slotted keyframes .5 -> .8 (expect finding or unknown, never none): 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-outer:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-outer:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## B0 direct ::slotted keyframes .5 -> .8: 0 finding(s)
+    base kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    head kf: {"[\"deep\",\"unknown\"]":{"name":"deep","status":"unknown"}}
+    base ch: {"body > x-one:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+    head ch: {"body > x-one:nth-child(1) > span:nth-child(1)":{"animation keyframes (deep)":"[\"deep\",\"unknown\"]"}} {}
+
+## C keyframe shorthand var(--a) -> var(--b) (different values): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","backgroundPos -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","backgroundPos
+    base kf: {"[\"pulse\",\"24c0c9a967854b1894c4f2769449237099f059d2497f8cc41009b328eec527b4\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"backgroundPositionX\":\"0%\",\"backgroundPositionY\":\"0%\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"backgroundPositionX\":\"0px\",\"backgroun
+    head kf: {"[\"pulse\",\"f92e985ca65af760113b56aae5b444c82f83f1a35a670d10be2738e263200ff4\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"backgroundPositionX\":\"0%\",\"backgroundPositionY\":\"0%\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"backgroundPositionX\":\"40px\",\"backgrou
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"24c0c9a967854b1894c4f2769449237099f059d2497f8cc41009b328eec527b4\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"f92e985ca65af760113b56aae5b444c82f83f1a35a670d10be2738e263200ff4\"]"}} {}
+
+## C2 keyframe shorthand-with-var declaration deleted: 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","marginBottom" -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"910f60bbfaa1d15e2a51b7e088dffaf8c546a5800866f5fddb46b3fa1a071e83\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"marginBottom\":\"0px\",\"marginLeft\":\"0px\",\"marginRight\":\"0px\",\"marginTop\":\"0px\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"marginBot
+    head kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"910f60bbfaa1d15e2a51b7e088dffaf8c546a5800866f5fddb46b3fa1a071e83\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+
+## D 50% split by timing function vs merged (renders differently): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0","tr -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0","tr
+    base kf: {"[\"pulse\",\"ee6161dc3570ed88c0f32cd1d1a552045a0494f1992ee9a0caeab3a3d7957691\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"transform\":\"translateX(30px)\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"compo
+    head kf: {"[\"pulse\",\"7f3e0540a6f9c2271297c8f5d913117951f3d97fc2a4f6a5ecb01a2ad7a226de\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0\",\"transform\":\"none\"},{\"offset\":0.5,\"easing\":\"steps(1)\",\"composite\":\"auto\",\"opacity\":\"1\",\"transform\":\"translateX(30px)\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"ee6161dc3570ed88c0f32cd1d1a552045a0494f1992ee9a0caeab3a3d7957691\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"7f3e0540a6f9c2271297c8f5d913117951f3d97fc2a4f6a5ecb01a2ad7a226de\"]"}} {}
+
+## E blob: image, same bytes both sides (expect 0): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:sp-key(1o57gys)":{"img currentSrc":"(blob URL; not compared)"}} {}
+    head ch: {"body > img:sp-key(1o57gys)":{"img currentSrc":"(blob URL; not compared)"}} {}
+
+## F GCS V4 signed URL rotate (expect 0, no X-Goog-Signature): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+
+## G Azure SAS st/se/sig rotate (expect 0): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+
+## G2 S3 SigV4 rotate (control, expect 0): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+
+## G3 S3 SigV2 rotate (AWSAccessKeyId retained?): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+
+## H ?sp=1 -> ?sp=2 on an unsigned sprite URL (real swap): 1 finding(s)
+    body > img:nth-child(1)  img currentSrc : /sprite.png?sp=1 -> /sprite.png?sp=2
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/sprite.png?sp=1"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"/sprite.png?sp=2"}} {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+
+## I shadow-internal animated element .5 -> .8 (not traversed; check not none): 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {} {}
+    head ch: {} {}
+
+## J nested @import keyframes .5 -> .8: 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## K adopted sheet after load .5 -> .8: 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## K2 adopted overrides doc; doc body changes (expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+
+## L style added 200ms after load .5 -> .8: 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## M1 opaque import layer(a), known in later layer b: change b (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## M2 known in layer a, opaque import layer(b) declared later by statement: unknown expected: 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## M3 unlayered known BEFORE opaque unlayered link: unknown expected (no finding): 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+
+## M4 known unlayered AFTER opaque link: change (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## M5 opaque unlayered link then layered known: unknown expected: 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+
+## M6 @layer b, a; known in b, opaque import layer(a) after: opaque a wins -> unknown expected: 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+
+## N range blocks reordered + duplicate merge (expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+
+## N2 duplicate offset later-wins: real change in the later dup (expect 1): 1 finding(s)
+    body > div:nth-child(1)  animation keyframes (pulse) : [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"} -> [{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.8\"}]","hash":"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"5ca459dfb05a5918be55cf66788dd4a384e4ccaaf7f11d7e81242983886c2bbf\"]"}} {}
+
+## N3 duplicate offset later-wins: change only in the shadowed earlier dup (expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+
+## O !important keyframe decl changed (ignored by engine, expect 0): 0 finding(s)
+    base kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    head kf: {"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]":{"name":"pulse","body":"[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.5\"}]","hash":"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618","status"
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"1b2d12b1f866bf73485e359b791349f1d58aeb249ec7d981f95ec4491eae4618\"]"}} {}
+
+## P loaded a.png -> src attribute removed (real visual change): 1 finding(s)
+    body > img:nth-child(1)  aspect-ratio : auto 10 / 10 -> auto
+    body > img:nth-child(1)  block-size : 10px -> 18px
+    body > img:nth-child(1)  height : 10px -> 18px
+    body > img:nth-child(1)  inline-size : 10px -> 24px
+    body > img:nth-child(1)  width : 10px -> 24px
+    body > img:nth-child(1)  img currentSrc : /a.png -> (no source)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(1)":{"img currentSrc":"(no source)"}} {}
+
+## P2 loaded a.png -> b.png made lazy below fold: 0 finding(s)
+    base kf: {}
+    head kf: {}
+    base ch: {"body > img:nth-child(2)":{"img currentSrc":"/a.png"}} {}
+    head ch: {"body > img:nth-child(2)":{"img currentSrc":""}} {}
+
+## Q @media(prefers-reduced-motion:no-preference){@keyframes} body change: 0 finding(s)
+    base kf: {"[\"pulse\",\"none\"]":{"name":"pulse","status":"none"}}
+    head kf: {"[\"pulse\",\"none\"]":{"name":"pulse","status":"none"}}
+    base ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"none\"]"}} {}
+    head ch: {"body > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"none\"]"}} {}
+
+## R keyframes inside @container, change (expect unknown, not none): 0 finding(s)
+    base kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    head kf: {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+    base ch: {"body > div:nth-child(1) > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}
+    head ch: {"body > div:nth-child(1) > div:nth-child(1)":{"animation keyframes (pulse)":"[\"pulse\",\"unknown\"]"}} {}

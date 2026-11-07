@@ -1,0 +1,375 @@
+{
+  "r6-gap6": {
+    "cases": 58,
+    "unstabilizedUnknown": 29,
+    "findings": 0,
+    "evidenceEqual": true
+  },
+  "r6-gap6-running": {
+    "cases": 4,
+    "unstabilizedUnknown": 4,
+    "findings": 0,
+    "evidenceEqual": true
+  },
+  "qa-r6": {
+    "pairs": 9,
+    "selfChecks": 9,
+    "keyframes": 0,
+    "allUnknown": true
+  },
+  "qa-r6-no-prewarm": {
+    "pairs": 9,
+    "selfChecks": 9,
+    "keyframes": 0,
+    "allUnknown": true
+  },
+  "qa-new-attacks": {
+    "cases": 16,
+    "semanticAssertionsPassed": true
+  },
+  "qa-r5-pseudo": {
+    "pairs": 3,
+    "selfChecks": 3,
+    "keyframes": 0,
+    "ordinaryProperties": [
+      [],
+      [],
+      []
+    ]
+  },
+  "qa-r5-pseudo-important": {
+    "pairs": 3,
+    "selfChecks": 3,
+    "keyframes": 0,
+    "ordinaryProperties": [
+      [
+        {
+          "prop": "margin-inline-start",
+          "before": "0px",
+          "after": "17.1px"
+        },
+        {
+          "prop": "margin-left",
+          "before": "0px",
+          "after": "17.1px"
+        }
+      ],
+      [
+        {
+          "prop": "margin-inline-start",
+          "before": "0px",
+          "after": "17.1px"
+        },
+        {
+          "prop": "margin-left",
+          "before": "0px",
+          "after": "17.1px"
+        }
+      ],
+      [
+        {
+          "prop": "margin-inline-start",
+          "before": "0px",
+          "after": "17.1px"
+        },
+        {
+          "prop": "margin-left",
+          "before": "0px",
+          "after": "17.1px"
+        }
+      ]
+    ]
+  },
+  "qa-r5-color": {
+    "pairs": 3,
+    "selfChecks": 3,
+    "keyframes": 0,
+    "ordinaryProperties": [
+      [],
+      [],
+      []
+    ]
+  },
+  "qa-r5-color-explicit": {
+    "pairs": 3,
+    "selfChecks": 3,
+    "keyframes": 0,
+    "ordinaryProperties": [
+      [],
+      [],
+      []
+    ]
+  },
+  "qa-r5-color-web": {
+    "pairs": 3,
+    "selfChecks": 3,
+    "keyframes": 0,
+    "ordinaryProperties": [
+      [
+        {
+          "prop": "border-block-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-block-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-bottom-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-left-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-right-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-top-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "caret-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "column-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "outline-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "row-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-decoration-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-emphasis-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-fill-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-stroke-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        }
+      ],
+      [
+        {
+          "prop": "border-block-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-block-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-bottom-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-left-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-right-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-top-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "caret-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "column-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "outline-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "row-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-decoration-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-emphasis-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-fill-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-stroke-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        }
+      ],
+      [
+        {
+          "prop": "border-block-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-block-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-bottom-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-end-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-inline-start-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-left-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-right-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "border-top-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "caret-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "column-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "outline-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "row-rule-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-decoration-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "text-emphasis-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-fill-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        },
+        {
+          "prop": "-webkit-text-stroke-color",
+          "before": "rgb(255, 0, 0)",
+          "after": "rgb(26, 0, 230)"
+        }
+      ]
+    ]
+  },
+  "default": {
+    "wrapper": "4/4 with or without wrapper",
+    "O7": "known and detected"
+  }
+}
