@@ -93,3 +93,48 @@ for (const kind of ['content', 'input', 'poster'])
     const map = await captureStyleMap(page, { captureVisualChannels: true, captureStates: false, stabilize: false });
     expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'k')?.status).toBe('unknown');
   });
+
+for (const stabilize of [false, true])
+  test(`a new inert subtree subscribes before it gains a closed-root child; stabilize=${stabilize}`, async ({
+    page,
+  }) => {
+    const context = page.context(),
+      native = context.newCDPSession.bind(context);
+    let inserted = false;
+    context.newCDPSession = async (...args) => {
+      const client = await native(...args),
+        send = client.send.bind(client);
+      client.send = async (method, params) => {
+        if (
+          !inserted &&
+          method === 'Runtime.evaluate' &&
+          (params as { expression?: string })?.expression?.includes('window.__spChannelRequests()')
+        ) {
+          inserted = true;
+          await page.evaluate(() => document.querySelector('#target')!.append(document.createElement('i')));
+          await send('Runtime.evaluate', { expression: '0' });
+          await page.evaluate(() => {
+            const host = document.createElement('x-late');
+            const root = host.attachShadow({ mode: 'closed' });
+            root.innerHTML =
+              '<style>@keyframes drive{to{width:500px}}div{animation:drive 1s linear infinite paused}</style><div>x</div>';
+            document.querySelector('i')!.append(host);
+            root.getAnimations()[0].currentTime = 500;
+          });
+          await send('Runtime.evaluate', { expression: '0' });
+        }
+        return send(method, params);
+      };
+      return client;
+    };
+    try {
+      await page.setContent(
+        '<style>@keyframes k{to{opacity:.5}}.k{animation:k 1s linear 100s paused both}</style><div class=k>x</div><main id=target></main>',
+      );
+      const map = await captureStyleMap(page, { captureVisualChannels: true, captureStates: false, stabilize });
+      expect(inserted).toBe(true);
+      expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'k')?.status).toBe('unknown');
+    } finally {
+      context.newCDPSession = native;
+    }
+  });

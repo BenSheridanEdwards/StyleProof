@@ -56,10 +56,11 @@ test('serialized channel values run without their module scope', async () => {
   );
 });
 
-for (const change of ['text', 'inert element', 'host', 'new closed root', 'popped root'])
+for (const change of ['text', 'inert element', 'host', 'new closed root', 'popped root', 'unexpanded inert'])
   test(`proof revalidates boundary membership after ${change}`, async () => {
     let scans = 0,
-      changed = false;
+      changed = false,
+      rootAppeared = false;
     const listeners = new Map(),
       finishes = [];
     const window = {
@@ -85,11 +86,26 @@ for (const change of ['text', 'inert element', 'host', 'new closed root', 'poppe
               nodeType: 9,
               children: [{ nodeId: 2, nodeType: 1, nodeName: 'BODY', children: [] }],
               shadowRoots:
-                changed && change === 'new closed root'
+                changed && (change === 'new closed root' || rootAppeared)
                   ? [{ nodeType: 11, shadowRootType: 'closed', backendNodeId: 42 }]
                   : [],
             },
           };
+        }
+        if (method === 'DOM.requestChildNodes' && change === 'unexpanded inert') {
+          rootAppeared = true;
+          listeners.get('DOM.setChildNodes')({
+            parentId: 3,
+            nodes: [
+              {
+                nodeId: 4,
+                nodeType: 1,
+                nodeName: 'X-LATE',
+                shadowRoots: [{ nodeType: 11, shadowRootType: 'closed', backendNodeId: 42 }],
+              },
+            ],
+          });
+          return {};
         }
         if (method === 'Page.getResourceTree') return { frameTree: { resources: [] } };
         if (method === 'DOM.resolveNode') return { object: { objectId: 'root' } };
@@ -125,7 +141,7 @@ for (const change of ['text', 'inert element', 'host', 'new closed root', 'poppe
     };
     try {
       await prepareVisualChannelSources(page);
-      assert.equal(finishes.at(-1), !['new closed root', 'popped root'].includes(change));
+      assert.equal(finishes.at(-1), !['new closed root', 'popped root', 'unexpanded inert'].includes(change));
       assert.equal(scans, ['text', 'inert element', 'popped root'].includes(change) ? 1 : 2);
     } finally {
       await releaseVisualChannelSources(page);
