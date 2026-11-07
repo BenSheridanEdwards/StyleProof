@@ -1,0 +1,41 @@
+✔ serialized channel values run without their module scope (1.805584ms)
+✔ proof revalidates boundary membership after text (1.275541ms)
+✔ proof revalidates boundary membership after inert element (1.146833ms)
+✔ proof revalidates boundary membership after host (0.811417ms)
+✔ proof revalidates boundary membership after new closed root (0.974959ms)
+✔ proof revalidates boundary membership after popped root (0.714416ms)
+✔ proof revalidates boundary membership after unexpanded inert (0.881459ms)
+✔ proof revalidates boundary membership after unexpanded count (0.678875ms)
+✔ SMIL active (0.467375ms)
+✔ SMIL finished freeze (0.050417ms)
+✔ SMIL future interval (0.033459ms)
+✔ SMIL finite repeats active (0.033583ms)
+✔ SMIL finite repeats finished (0.044167ms)
+✔ SMIL indefinite repeats (0.035208ms)
+✔ SMIL repeatDur extends simple duration (0.135ms)
+✔ SMIL repeatDur finished (0.083084ms)
+✔ SMIL repeat limits intersect (0.042417ms)
+✔ SMIL explicit end clips repeats (0.376375ms)
+✔ SMIL invalid clock is unresolved (0.050292ms)
+✔ SMIL indefinite simple duration (0.043708ms)
+✔ SMIL event end unresolved (0.032875ms)
+✔ SMIL min can extend duration (0.029084ms)
+✔ SMIL unreadable clock (0.025583ms)
+✔ SMIL no current interval: finished or never started (0.032125ms)
+✔ SMIL unavailable timing API (0.024125ms)
+✔ late root invalidates the watched catalogue; registered roots are reused (3.050375ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"unit":"px","value":16}] (0.049291ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":0},{"unit":"px","value":0}] (0.017833ms)
+✔ opaque media requires two definite dimensions: [{"value":"auto"},{"unit":"px","value":16}] (0.014292ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"value":"auto"}] (0.014709ms)
+✔ opaque media requires two definite dimensions: [{"unit":"percent","value":100},{"unit":"px","value":16}] (0.012084ms)
+✔ opaque media requires two definite dimensions: [null,null] (0.010958ms)
+✔ closed-root entry motion is retained after it finishes before proof (1.720542ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 33
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.465417

@@ -1,0 +1,88 @@
+[
+  {
+    "name": "embed9",
+    "exit": 0,
+    "load": 1.61328125,
+    "seconds": 98.39,
+    "HP": 28471,
+    "options": {}
+  },
+  {
+    "name": "qa9-phase",
+    "exit": 0,
+    "load": 12.84765625,
+    "seconds": 9.64,
+    "HP": 28471,
+    "options": {}
+  },
+  {
+    "name": "qa9-timer",
+    "exit": 0,
+    "load": 13.2451171875,
+    "seconds": 18.0,
+    "HP": 28471,
+    "options": {}
+  },
+  {
+    "name": "ft9",
+    "exit": 0,
+    "load": 14.25830078125,
+    "seconds": 51.42,
+    "HP": 28471,
+    "options": {}
+  },
+  {
+    "name": "ticker9-debug",
+    "exit": 0,
+    "load": 16.681640625,
+    "seconds": 25.75,
+    "HP": 28471,
+    "options": {}
+  },
+  {
+    "name": "ticker9",
+    "exit": 0,
+    "load": 1.61328125,
+    "seconds": 349.86,
+    "HP": 28481,
+    "options": {}
+  },
+  {
+    "name": "ticker9-rest",
+    "exit": 0,
+    "load": 5.751953125,
+    "seconds": 65.67,
+    "HP": 28481,
+    "options": {
+      "ONLY": "text-16ms",
+      "STATES": "0"
+    }
+  },
+  {
+    "name": "ticker9-off",
+    "exit": 0,
+    "load": 7.07568359375,
+    "seconds": 73.77,
+    "HP": 28481,
+    "options": {
+      "ONLY": "text-16ms",
+      "CH": "0"
+    }
+  },
+  {
+    "name": "ticker9-rest-status",
+    "exit": 0,
+    "load": 12.04541015625,
+    "seconds": 12.92,
+    "HP": 28481,
+    "options": {}
+  },
+  {
+    "name": "smil9",
+    "exit": 0,
+    "load": 12.42919921875,
+    "seconds": 379.31,
+    "HP": 28481,
+    "options": {}
+  }
+]

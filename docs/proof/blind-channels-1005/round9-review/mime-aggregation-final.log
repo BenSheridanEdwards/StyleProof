@@ -1,0 +1,43 @@
+✔ serialized channel values run without their module scope (1.723542ms)
+✔ proof revalidates boundary membership after text (1.212042ms)
+✔ proof revalidates boundary membership after inert element (1.149291ms)
+✔ proof revalidates boundary membership after host (0.768833ms)
+✔ proof revalidates boundary membership after new closed root (0.952584ms)
+✔ proof revalidates boundary membership after popped root (0.714791ms)
+✔ proof revalidates boundary membership after unexpanded inert (0.888583ms)
+✔ proof revalidates boundary membership after unexpanded count (0.665084ms)
+✔ proof revalidates boundary membership after mime conflict (0.714208ms)
+✔ proof revalidates boundary membership after raster formats (0.726458ms)
+✔ SMIL active (0.439292ms)
+✔ SMIL finished freeze (0.044083ms)
+✔ SMIL future interval (0.034458ms)
+✔ SMIL finite repeats active (0.036166ms)
+✔ SMIL finite repeats finished (0.045875ms)
+✔ SMIL indefinite repeats (0.036792ms)
+✔ SMIL repeatDur extends simple duration (0.141208ms)
+✔ SMIL repeatDur finished (0.087ms)
+✔ SMIL repeat limits intersect (0.043958ms)
+✔ SMIL explicit end clips repeats (0.085875ms)
+✔ SMIL invalid clock is unresolved (0.064958ms)
+✔ SMIL indefinite simple duration (0.05525ms)
+✔ SMIL event end unresolved (0.041541ms)
+✔ SMIL min can extend duration (0.020625ms)
+✔ SMIL unreadable clock (0.024291ms)
+✔ SMIL no current interval: finished or never started (0.034708ms)
+✔ SMIL unavailable timing API (0.029084ms)
+✔ late root invalidates the watched catalogue; registered roots are reused (2.954125ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"unit":"px","value":16}] (0.043625ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":0},{"unit":"px","value":0}] (0.022709ms)
+✔ opaque media requires two definite dimensions: [{"value":"auto"},{"unit":"px","value":16}] (0.0115ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"value":"auto"}] (0.019417ms)
+✔ opaque media requires two definite dimensions: [{"unit":"percent","value":100},{"unit":"px","value":16}] (0.011625ms)
+✔ opaque media requires two definite dimensions: [null,null] (0.011375ms)
+✔ closed-root entry motion is retained after it finishes before proof (1.704792ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 68.799292

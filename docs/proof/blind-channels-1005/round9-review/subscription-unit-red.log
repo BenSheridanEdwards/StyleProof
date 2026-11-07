@@ -1,0 +1,34 @@
+✔ serialized channel values run without their module scope (1.805625ms)
+✔ proof revalidates boundary membership after text (1.225459ms)
+✔ proof revalidates boundary membership after inert element (1.140334ms)
+✔ proof revalidates boundary membership after host (0.778542ms)
+✔ proof revalidates boundary membership after new closed root (0.935ms)
+✔ proof revalidates boundary membership after popped root (0.690666ms)
+✖ proof revalidates boundary membership after unexpanded inert (1.073042ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 65.348458
+
+✖ failing tests:
+
+test at test/blind-channels-review9.test.mjs:60:3
+✖ proof revalidates boundary membership after unexpanded inert (1.073042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  true !== false
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:144:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

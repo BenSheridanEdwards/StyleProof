@@ -1,0 +1,94 @@
+✖ serialized channel values run without their module scope (1.331ms)
+✖ proof revalidates boundary membership after text (1.050541ms)
+✖ proof revalidates boundary membership after inert element (0.54275ms)
+✖ proof revalidates boundary membership after host (0.824375ms)
+✖ proof revalidates boundary membership after new closed root (0.513625ms)
+✔ proof revalidates boundary membership after popped root (0.472958ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 1
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 57.825166
+
+✖ failing tests:
+
+test at test/blind-channels-review9.test.mjs:8:1
+✖ serialized channel values run without their module scope (1.331ms)
+  ReferenceError [Error]: URLSearchParams is not defined
+      at styleproof://capture/forced-states:206:99
+      at Array.map (<anonymous>)
+      at Object.normalizeImageSource (styleproof://capture/forced-states:206:25)
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:34:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at test/blind-channels-review9.test.mjs:51:3
+✖ proof revalidates boundary membership after text (1.050541ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:119:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-review9.test.mjs:51:3
+✖ proof revalidates boundary membership after inert element (0.54275ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:119:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-review9.test.mjs:51:3
+✖ proof revalidates boundary membership after host (0.824375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:119:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/blind-channels-review9.test.mjs:51:3
+✖ proof revalidates boundary membership after new closed root (0.513625ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 2
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:120:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

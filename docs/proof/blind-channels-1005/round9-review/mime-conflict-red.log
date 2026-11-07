@@ -1,0 +1,36 @@
+✔ serialized channel values run without their module scope (1.6375ms)
+✔ proof revalidates boundary membership after text (1.115584ms)
+✔ proof revalidates boundary membership after inert element (1.051625ms)
+✔ proof revalidates boundary membership after host (0.701542ms)
+✔ proof revalidates boundary membership after new closed root (0.887708ms)
+✔ proof revalidates boundary membership after popped root (0.673333ms)
+✔ proof revalidates boundary membership after unexpanded inert (0.800792ms)
+✔ proof revalidates boundary membership after unexpanded count (0.622375ms)
+✖ proof revalidates boundary membership after mime conflict (0.966416ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 8
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 61.650917
+
+✖ failing tests:
+
+test at test/blind-channels-review9.test.mjs:78:3
+✖ proof revalidates boundary membership after mime conflict (0.966416ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  'image/png' !== ''
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-review9.test.mjs:177:46)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'image/png',
+    expected: '',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

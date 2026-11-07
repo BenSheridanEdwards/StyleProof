@@ -1,0 +1,2 @@
+empty I [{"event":"DOM.childNodeInserted","id":6,"type":1,"name":"I","count":0}]
+append closed host [{"event":"DOM.childNodeCountUpdated","id":6}]

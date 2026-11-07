@@ -1,0 +1,52 @@
+Already up to date
+Done in 56ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:28503) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=false (140ms)
+(node:28542) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=true (737ms)
+
+
+  1) [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      134 |       const map = await captureStyleMap(page, { captureVisualChannels: true, captureStates: false, stabilize });
+      135 |       expect(inserted).toBe(true);
+    > 136 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'k')?.status).toBe('unknown');
+          |                                                                                                ^
+      137 |     } finally {
+      138 |       context.newCDPSession = native;
+      139 |     }
+        at <checkout>/test/blind-channels-review9.e2e.spec.ts:136:96
+
+    Error Context: ../../../../Codex/blind-channels-1005-round9-review/subscription-red-results/test-blind-channels-review-b29a9--root-child-stabilize-false-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      134 |       const map = await captureStyleMap(page, { captureVisualChannels: true, captureStates: false, stabilize });
+      135 |       expect(inserted).toBe(true);
+    > 136 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'k')?.status).toBe('unknown');
+          |                                                                                                ^
+      137 |     } finally {
+      138 |       context.newCDPSession = native;
+      139 |     }
+        at <checkout>/test/blind-channels-review9.e2e.spec.ts:136:96
+
+    Error Context: ../../../../Codex/blind-channels-1005-round9-review/subscription-red-results/test-blind-channels-review-00aa1-d-root-child-stabilize-true-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=false
+    [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=true

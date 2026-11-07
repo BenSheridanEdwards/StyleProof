@@ -1,0 +1,42 @@
+{
+  "r7-attacks": {
+    "stablePairs": [
+      "r7-shell-repeat",
+      "r7-shell-reused-page",
+      "r7-paused-default",
+      "r7-waapi-during-true",
+      "r7-waapi-during-false",
+      "r7-finish-in-freeze-true",
+      "r7-finish-in-freeze-false",
+      "r7-finish-in-lift",
+      "r7-waapi-finished",
+      "r7-waapi-paused-at-end",
+      "r7-infinite-unstabilized",
+      "r7-freeze-transition"
+    ],
+    "realEditPairs": ["r7-shell-edit"]
+  },
+  "r8-attacks": {
+    "stablePairs": [
+      "r8-declarative-static",
+      "r8-declarative-running",
+      "r8-triple-closed-running",
+      "r8-triple-open-static",
+      "r8-design-system",
+      "r8-determinism",
+      "r8-late-open",
+      "r8-late-closed",
+      "r8-after-resting-open",
+      "r8-after-resting-closed"
+    ],
+    "realEditPairs": [
+      "r8-static-svg",
+      "r8-smil-indefinite",
+      "r8-smil-finished",
+      "r8-dashboard",
+      "r8-static-components-edit"
+    ]
+  },
+  "idleContextControls": ["em", "currentColor", "var"],
+  "freezeTransition": "stable; raw logs retain region exclusions"
+}

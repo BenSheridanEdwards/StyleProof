@@ -1,0 +1,50 @@
+Already up to date
+Done in 60ms using pnpm v11.7.0
+
+Running 31 tests using 3 workers
+
+(node:37634) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:37632) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:37633) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   1 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › open root finishing during freeze retains entry motion only without stabilization=false (228ms)
+  ✓   3 [chromium] › test/blind-channels-round4.e2e.spec.ts:6:1 › one flat animation index per channel read, without per-element native lookups (745ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   2 [chromium] › test/blind-channels-review9.e2e.spec.ts:16:3 › default raster image retains known models and detects edits: unsized (1.4s)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   4 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › open root finishing during freeze retains entry motion only without stabilization=true (1.4s)
+  ✓   7 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=false (163ms)
+  ✓   6 [chromium] › test/blind-channels-review9.e2e.spec.ts:16:3 › default raster image retains known models and detects edits: style="width:100%" (1.4s)
+  ✓   8 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=true (1.4s)
+  ✓  10 [chromium] › test/blind-channels-round9.e2e.spec.ts:58:3 › closed root static at entry keeps unstabilized models known and detects edits (150ms)
+  ✓  11 [chromium] › test/blind-channels-round9.e2e.spec.ts:58:3 › closed root finished at entry keeps unstabilized models known and detects edits (161ms)
+  ✓   9 [chromium] › test/blind-channels-review9.e2e.spec.ts:16:3 › default raster image retains known models and detects edits: width=120 (1.4s)
+  ✓  12 [chromium] › test/blind-channels-review9.e2e.spec.ts:16:3 › default raster image retains known models and detects edits: loading=lazy style="margin-top:3000px" (1.4s)
+  ✓  13 [chromium] › test/blind-channels-review9.e2e.spec.ts:16:3 › default raster image retains known models and detects edits: width=120 height=80 (1.4s)
+  ✓   5 [chromium] › test/blind-channels-round4.e2e.spec.ts:21:1 › reset and finishing animations have identical evidence across ten captures (7.3s)
+  ✓  15 [chromium] › test/blind-channels-round4.e2e.spec.ts:35:3 › unstabilized global motion holds custom-property models (self) (213ms)
+  ✓  16 [chromium] › test/blind-channels-round4.e2e.spec.ts:35:3 › unstabilized global motion holds custom-property models (ancestor) (215ms)
+  ✓  17 [chromium] › test/blind-channels-round4.e2e.spec.ts:54:1 › T2 disjoint-property timing groups remain clean when reordered (1.3s)
+  ✓  18 [chromium] › test/blind-channels-round4.e2e.spec.ts:68:1 › identical duplicated definitions remain known (708ms)
+  ✓  14 [chromium] › test/blind-channels-review9.e2e.spec.ts:36:1 › text and inert list churn during every forced proof stays deterministic and detects 20/20 hover edits (4.9s)
+  ✓  20 [chromium] › test/blind-channels-review9.e2e.spec.ts:79:3 › unstabilized SVG content source holds models (631ms)
+  ✓  21 [chromium] › test/blind-channels-review9.e2e.spec.ts:79:3 › unstabilized SVG input source holds models (624ms)
+  ✓  22 [chromium] › test/blind-channels-review9.e2e.spec.ts:79:3 › unstabilized SVG poster source holds models (626ms)
+  ✓  23 [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=false (116ms)
+  ✓  24 [chromium] › test/blind-channels-review9.e2e.spec.ts:98:3 › a new inert subtree subscribes before it gains a closed-root child; stabilize=true (703ms)
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+  ✓  19 [chromium] › test/blind-channels-round4.e2e.spec.ts:73:1 › capture does not pause an inline important animation (5.2s)
+{"name":"Chromium animated capture","clock":"Chromium thread CPU ms","n":500,"largeN":2000,"warmupsPerSize":1,"samples":[[659.502,657.0830000000005,653.8310000000001,661.8160000000007,655.5890000000018],[1978.194,1961.9890000000005,1959.7060000000001,1954.1599999999999,1959.2050000000017]],"minN":653.8310000000001,"min4N":1954.1599999999999,"ratio":2.988784563595179}
+  ✓  25 [chromium] › test/blind-channels-round4.e2e.spec.ts:78:1 › animated element captures scale linearly at 500, 1000 and 2000 elements (18.7s)
+  ✓  26 [chromium] › test/blind-channels-round4.e2e.spec.ts:108:1 › forced-state boundary scans ignore repeated text and inert-list churn (787ms)
+  ✓  27 [chromium] › test/blind-channels-round4.e2e.spec.ts:160:1 › engine and matched source agreement overrides an unreadable later sheet (734ms)
+  ✓  28 [chromium] › test/blind-channels-round4.e2e.spec.ts:176:3 › unavailable or ambiguous live model stays unknown: display:none;animation:g 1s infinite (693ms)
+  ✓  29 [chromium] › test/blind-channels-round4.e2e.spec.ts:176:3 › unavailable or ambiguous live model stays unknown: animation:g 1s,g 2s (721ms)
+  ✓  30 [chromium] › test/blind-channels-round4.e2e.spec.ts:182:1 › unstabilized global motion holds a variable consumer with an opaque ancestor (125ms)
+  ✓  31 [chromium] › test/blind-channels-round4.e2e.spec.ts:197:1 › a surviving paused Web Animation holds keyframe bodies unknown (1.4s)
+
+  31 passed (40.4s)

@@ -1,0 +1,37 @@
+[
+  {
+    "name": "verify",
+    "cmd": ["pnpm", "run", "verify"],
+    "exit": 0,
+    "seconds": 314.31,
+    "load": 1.48291015625
+  },
+  {
+    "name": "e2e",
+    "cmd": ["pnpm", "run", "test:e2e"],
+    "exit": 0,
+    "seconds": 496.2,
+    "load": 6.642578125
+  },
+  {
+    "name": "reach-after",
+    "cmd": ["pnpm", "run", "bench:reach:check"],
+    "exit": 0,
+    "seconds": 16.02,
+    "load": 2.67431640625
+  },
+  {
+    "name": "detection-after",
+    "cmd": ["node", "bench/detection-rate.mjs", "--check"],
+    "exit": 0,
+    "seconds": 62.21,
+    "load": 2.99267578125
+  },
+  {
+    "name": "demo-check",
+    "cmd": ["pnpm", "run", "demo:check"],
+    "exit": 0,
+    "seconds": 5.57,
+    "load": 2.2099609375
+  }
+]

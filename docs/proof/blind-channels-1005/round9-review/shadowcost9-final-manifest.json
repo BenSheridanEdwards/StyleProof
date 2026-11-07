@@ -1,0 +1,94 @@
+{
+  "exit": 0,
+  "load": 2.0234375,
+  "seconds": 443.64,
+  "BASE": "/Users/chief/Mini/Operations/Inbox/styleproof-1005-round7-proof/compiled-artifact",
+  "baselineCode": "4805139bfabd786ebb1e91c4f96dfde4abf5c3ec (capture sources identical to reviewed 19427ced8)",
+  "rows": [
+    {
+      "case": "C1 1000 static closed hosts x5 nodes",
+      "samples": {
+        "head/off": {
+          "medianMs": 5759,
+          "samplesMs": [5741, 5759, 5808]
+        },
+        "head/on": {
+          "medianMs": 7295,
+          "samplesMs": [7268, 7295, 7337]
+        },
+        "r8/off": {
+          "medianMs": 5855,
+          "samplesMs": [5835, 5855, 5902]
+        },
+        "r8/on": {
+          "medianMs": 7430,
+          "samplesMs": [7397, 7430, 7555]
+        }
+      }
+    },
+    {
+      "case": "C2 1000 closed hosts x50 nodes (51k)",
+      "samples": {
+        "head/off": {
+          "medianMs": 6188,
+          "samplesMs": [6179, 6188, 6193]
+        },
+        "head/on": {
+          "medianMs": 8462,
+          "samplesMs": [8448, 8462, 8566]
+        },
+        "r8/off": {
+          "medianMs": 6162,
+          "samplesMs": [6159, 6162, 6176]
+        },
+        "r8/on": {
+          "medianMs": 8235,
+          "samplesMs": [8210, 8235, 8236]
+        }
+      }
+    },
+    {
+      "case": "C3 C1 + 100ms text ticker",
+      "samples": {
+        "head/off": {
+          "medianMs": 10640,
+          "samplesMs": [10631, 10640, 10677]
+        },
+        "head/on": {
+          "medianMs": 12142,
+          "samplesMs": [12127, 12142, 12145]
+        },
+        "r8/off": {
+          "medianMs": 10651,
+          "samplesMs": [10641, 10651, 10659]
+        },
+        "r8/on": {
+          "medianMs": 12131,
+          "samplesMs": [12131, 12131, 12325]
+        }
+      }
+    },
+    {
+      "case": "C4 1000 OPEN hosts x5 + 100ms text ticker",
+      "samples": {
+        "head/off": {
+          "medianMs": 10674,
+          "samplesMs": [10629, 10674, 10702]
+        },
+        "head/on": {
+          "medianMs": 11701,
+          "samplesMs": [11672, 11701, 11802]
+        },
+        "r8/off": {
+          "medianMs": 10653,
+          "samplesMs": [10615, 10653, 10678]
+        },
+        "r8/on": {
+          "medianMs": 12386,
+          "samplesMs": [12365, 12386, 12402]
+        }
+      }
+    }
+  ],
+  "qualification": "Sequential after own suites and replays; medians of three. Both builds use the existing forced-state 32k work budget; no claim that all 50 controls were covered."
+}

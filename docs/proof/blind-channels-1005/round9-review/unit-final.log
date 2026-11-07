@@ -1,0 +1,39 @@
+✔ serialized channel values run without their module scope (1.817042ms)
+✔ proof revalidates boundary membership after text (1.175375ms)
+✔ proof revalidates boundary membership after inert element (1.08125ms)
+✔ proof revalidates boundary membership after host (0.822958ms)
+✔ proof revalidates boundary membership after new closed root (0.960459ms)
+✔ proof revalidates boundary membership after popped root (0.681916ms)
+✔ SMIL active (0.480834ms)
+✔ SMIL finished freeze (0.048625ms)
+✔ SMIL future interval (0.034375ms)
+✔ SMIL finite repeats active (0.034708ms)
+✔ SMIL finite repeats finished (0.049625ms)
+✔ SMIL indefinite repeats (0.040334ms)
+✔ SMIL repeatDur extends simple duration (0.142084ms)
+✔ SMIL repeatDur finished (0.084083ms)
+✔ SMIL repeat limits intersect (0.044208ms)
+✔ SMIL explicit end clips repeats (0.087541ms)
+✔ SMIL invalid clock is unresolved (0.325084ms)
+✔ SMIL indefinite simple duration (0.065291ms)
+✔ SMIL event end unresolved (0.049042ms)
+✔ SMIL min can extend duration (0.020458ms)
+✔ SMIL unreadable clock (0.022417ms)
+✔ SMIL no current interval: finished or never started (0.033667ms)
+✔ SMIL unavailable timing API (0.02775ms)
+✔ late root invalidates the watched catalogue; registered roots are reused (2.753959ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"unit":"px","value":16}] (0.040041ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":0},{"unit":"px","value":0}] (0.014ms)
+✔ opaque media requires two definite dimensions: [{"value":"auto"},{"unit":"px","value":16}] (0.01375ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"value":"auto"}] (0.014917ms)
+✔ opaque media requires two definite dimensions: [{"unit":"percent","value":100},{"unit":"px","value":16}] (0.01075ms)
+✔ opaque media requires two definite dimensions: [null,null] (0.009917ms)
+✔ closed-root entry motion is retained after it finishes before proof (1.91125ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.237291
