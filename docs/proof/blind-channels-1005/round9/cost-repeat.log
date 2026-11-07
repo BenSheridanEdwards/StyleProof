@@ -1,0 +1,17 @@
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+C2 1000 closed hosts x50 nodes (51k)
+   head off med 6279ms [6217,6279,6318]
+   head on med 8674ms [8627,8674,8681] non-known 0/5 0/5 0/5
+   r8 off med 6289ms [6229,6289,6298]
+   r8 on med 8654ms [8637,8654,8672] non-known 0/5 0/5 0/5

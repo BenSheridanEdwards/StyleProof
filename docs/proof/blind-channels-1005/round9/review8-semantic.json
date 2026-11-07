@@ -1,0 +1,28 @@
+{
+  "smil8": {
+    "pairs": 20,
+    "rawFlaggedRows": [],
+    "summary": "no keyframes findings; confidence/scope changes remain flagged where raw evidence differs"
+  },
+  "shadow8": {
+    "pairs": 28,
+    "rawFlaggedRows": [
+      "LEAK  stab:false late-open-run          pulse known|unknown k unknown | sound-pair kf 0 other 0 evidence DIFFER | detect k 0/1 | moving=true | open root attached 400ms after load (mid/after capture)"
+    ],
+    "summary": "no keyframes findings; confidence/scope changes remain flagged where raw evidence differs"
+  },
+  "embed8": {
+    "pairs": 12,
+    "rawFlaggedRows": [],
+    "summary": "no keyframes findings; confidence/scope changes remain flagged where raw evidence differs"
+  },
+  "late8": {
+    "pairs": 8,
+    "rawFlaggedRows": [
+      "LEAK stab:true open attach-on-cancel#2 | kf 0 other 27 evidence DIFFER | pulse:known,pulse:unknown,trig:known,trig:unknown | pulse:known,trig:known | states 1,1 | log cancel1,cancel2,attach@2 / cancel1"
+    ],
+    "summary": "no keyframes findings; confidence/scope changes remain flagged where raw evidence differs"
+  },
+  "firefox8": "real Firefox both modes preserve all three ordinary motion findings; channels name unknown keyframes and detect image source",
+  "late8Qualification": "1 default late8 pair(s) change scopes/confidence; self-check still rejects confidence gaps. 1 delayed shadow8 pair(s) also change known to unknown. Not claimed certified."
+}

@@ -1,0 +1,26 @@
+{
+  "exit": 0,
+  "load": 2.2451171875,
+  "seconds": 91.15,
+  "port": 60118,
+  "filter": "C2 only; fixture and capture options unchanged",
+  "samples": {
+    "head/off": {
+      "medianMs": 6279,
+      "samplesMs": [6217, 6279, 6318]
+    },
+    "head/on": {
+      "medianMs": 8674,
+      "samplesMs": [8627, 8674, 8681]
+    },
+    "r8/off": {
+      "medianMs": 6289,
+      "samplesMs": [6229, 6289, 6298]
+    },
+    "r8/on": {
+      "medianMs": 8654,
+      "samplesMs": [8637, 8654, 8672]
+    }
+  },
+  "qualification": "Serial row repeat after all own gate/replay jobs completed; three samples per build/mode, bounded by existing forced-state budget. Full parallel matrix retained separately."
+}

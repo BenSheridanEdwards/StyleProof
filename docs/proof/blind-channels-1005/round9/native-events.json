@@ -1,0 +1,14 @@
+[
+  {
+    "before": "paused",
+    "time": 100,
+    "frozen": true,
+    "after": "finished"
+  },
+  {
+    "before": "paused",
+    "time": 900,
+    "frozen": true,
+    "after": "finished"
+  }
+]

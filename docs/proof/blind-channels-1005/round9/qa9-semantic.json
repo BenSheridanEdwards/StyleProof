@@ -1,0 +1,12 @@
+{
+  "phase": {
+    "open/stabilize:True": 6,
+    "open/stabilize:False": 6,
+    "closed/stabilize:True": 6,
+    "closed/stabilize:False": 6
+  },
+  "timer": {
+    "open/stabilize:False": 6,
+    "closed/stabilize:False": 6
+  }
+}

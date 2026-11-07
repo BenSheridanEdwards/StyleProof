@@ -1,0 +1,42 @@
+Already up to date
+Done in 59ms using pnpm v11.7.0
+
+Running 6 tests using 1 worker
+
+(node:7353) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  1 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › open root finishing during freeze retains entry motion only without stabilization=false (212ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  2 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › open root finishing during freeze retains entry motion only without stabilization=true (1.4s)
+  ✘  3 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=false (180ms)
+(node:7420) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  4 [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=true (1.4s)
+  ✓  5 [chromium] › test/blind-channels-round9.e2e.spec.ts:58:3 › closed root static at entry keeps unstabilized models known and detects edits (164ms)
+  ✓  6 [chromium] › test/blind-channels-round9.e2e.spec.ts:58:3 › closed root finished at entry keeps unstabilized models known and detects edits (155ms)
+
+
+  1) [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "unknown"
+    Received: "known"
+
+      44 |       }
+      45 |       for (const map of maps)
+    > 46 |         expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(
+         |                                                                                                      ^
+      47 |           stabilize ? 'known' : 'unknown',
+      48 |         );
+      49 |       expect(
+        at <checkout>/test/blind-channels-round9.e2e.spec.ts:46:102
+
+    Error Context: test-results/test-blind-channels-round9-a087a-without-stabilization-false-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/blind-channels-round9.e2e.spec.ts:7:5 › closed root finishing during freeze retains entry motion only without stabilization=false
+  5 passed (5.4s)

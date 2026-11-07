@@ -1,0 +1,14 @@
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.091417ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (0.814334ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.236ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.465583ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.587167ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (3.890708ms)
+ℹ tests 6728
+ℹ suites 32
+ℹ pass 6728
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 362236.978167

@@ -1,0 +1,104 @@
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+C1 1000 static closed hosts x5 nodes
+   head off med 6959ms [6937,6959,7146]
+   head on med 11574ms [11504,11574,11808] non-known 0/5 0/5 0/5
+   r8 off med 6812ms [6750,6812,6924]
+   r8 on med 13263ms [12493,13263,14538] non-known 0/5 0/5 0/5
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+C2 1000 closed hosts x50 nodes (51k)
+   head off med 7123ms [7033,7123,7155]
+   head on med 13753ms [12692,13753,20973] non-known 0/5 0/5 0/5
+   r8 off med 7232ms [7103,7232,7275]
+   r8 on med 9838ms [9782,9838,11307] non-known 0/5 0/5 0/5
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+C3 C1 + 100ms text ticker
+   head off med 10959ms [10852,10959,11030]
+   head on med 19709ms [19556,19709,19798] non-known 5/10 5/10 5/10
+   r8 off med 10785ms [10777,10785,10872]
+   r8 on med 19829ms [12637,19829,19956] non-known 5/5 5/10 5/10
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+C4 1000 OPEN hosts x5 + 100ms text ticker
+   head off med 11129ms [10958,11129,11455]
+   head on med 13723ms [12996,13723,20663] non-known 0/5 5/10 5/10
+   r8 off med 11676ms [11359,11676,11788]
+   r8 on med 12478ms [12406,12478,19576] non-known 5/10 5/10 5/5
