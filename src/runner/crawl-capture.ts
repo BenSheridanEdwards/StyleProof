@@ -142,9 +142,21 @@ function navObserver(
 // Captured once, before this module creates any promise. Consumer code runs before every later use
 // (the productState function itself, and a promise hook at each promise StyleProof creates), so
 // reading these from the shared `Reflect` and `util.types` at the point of use would let it replace
-// the very operations the pin and the probe rely on.
-const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf } = Reflect;
+// the very operations the pin and the probe rely on. Every descriptor StyleProof builds has a null
+// prototype: one inheriting from a consumer-polluted `Object.prototype` (an inherited `get` or
+// `value`) would mean something else, or be invalid and throw.
+const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf, isExtensible, setPrototypeOf } =
+  Reflect;
 const { isPromise } = types;
+
+/**
+ * A descriptor with no prototype. Object-literal fields are defined directly, so a polluted
+ * `Object.prototype` setter never runs while it is built.
+ */
+function ownDescriptor(fields: PropertyDescriptor): PropertyDescriptor {
+  setPrototypeOf(fields, null);
+  return fields;
+}
 
 /**
  * A native promise (by its internal slot, so a hidden or throwing `then` cannot disguise it) or a
@@ -165,11 +177,6 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 // on an async function's result prototype and the global, so replacing one before load is not
 // enough to stand in for it. Undefined when neither confirms; then no rejection is handled.
 const INTRINSIC_PROMISE = intrinsicPromise();
-// Taken from the confirmed constructor, whose own `prototype` is non-writable and non-configurable,
-// never from a promise: a promise hook sees every new promise and can change its prototype first.
-const INTRINSIC_PROMISE_PROTOTYPE: object | null =
-  INTRINSIC_PROMISE === undefined ? null : (getOwnPropertyDescriptor(INTRINSIC_PROMISE, 'prototype')?.value ?? null);
-
 function intrinsicPromise(): PromiseConstructor | undefined {
   // Only a source of candidates: whatever it reports is confirmed by behaviour below. A hook can give
   // this promise a prototype whose traps throw, so a failed read just drops the candidate.
@@ -197,14 +204,18 @@ function awaitsDirectly(candidate: unknown): boolean {
   // first (a partial descriptor keeps an existing property's attributes); a hook running inside the
   // await then cannot change them. A probe that cannot be set up confirms nothing.
   const prepared =
-    defineProperty(probe, 'constructor', { value: candidate, writable: false, configurable: false }) &&
-    defineProperty(probe, 'then', {
-      configurable: false,
-      get() {
-        thenRead = true;
-        return undefined;
-      },
-    });
+    defineProperty(probe, 'constructor', ownDescriptor({ value: candidate, writable: false, configurable: false })) &&
+    defineProperty(
+      probe,
+      'then',
+      ownDescriptor({
+        configurable: false,
+        get() {
+          thenRead = true;
+          return undefined;
+        },
+      }),
+    );
 
   if (!prepared) return false;
   // Resolving with a value that is not the built-in reads its `then` synchronously, inside the await.
@@ -215,27 +226,19 @@ function awaitsDirectly(candidate: unknown): boolean {
   return !thenRead;
 }
 
-/** A non-extensible promise with no own `constructor` that inherits the built-in one directly. */
-function inheritsIntrinsicConstructor(value: object): boolean {
-  if (INTRINSIC_PROMISE_PROTOTYPE === null || getPrototypeOf(value) !== INTRINSIC_PROMISE_PROTOTYPE) return false;
-  const inherited = getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor');
-
-  return inherited !== undefined && 'value' in inherited && inherited.value === INTRINSIC_PROMISE;
-}
-
 /**
  * Handle a returned native promise's rejection, which would otherwise surface as the consumer's
  * own unhandled error. `await` attaches to it directly, without calling its own `then`, only when
  * its `constructor` is the built-in `Promise`, so that is pinned with `Reflect.defineProperty` (no
- * getter, setter, trap or species lookup runs) and put back once the handler is attached. When it
- * cannot be pinned the promise is not awaited at all, so none of its code runs; only a promise
- * that already inherits the built-in `constructor` is still handled. A custom thenable holds no
- * rejection of its own, so its `then` is never called. Nothing here can throw outward. Rejections
- * that cannot be handled: a promise whose own `constructor` is not the built-in and cannot be set
- * (a non-configurable getter or non-writable value), a non-extensible promise that does not inherit
- * directly from `Promise.prototype` (or any while `Promise.prototype.constructor` is
- * not the built-in), one the function never returns directly (inside a Proxy or a
- * custom thenable), and every rejection when no built-in Promise could be confirmed at load.
+ * getter, setter, trap or species lookup runs) and put back once the handler is attached. A promise
+ * that cannot be pinned, or is non-extensible, is not awaited at all, so none of its code runs:
+ * awaiting a non-extensible promise while any promise hook is active makes Node's own hook
+ * bookkeeping add a property to it and throw. A custom thenable holds no rejection of its own, so
+ * its `then` is never called. Nothing here can throw outward. Rejections that cannot be handled: a
+ * non-extensible promise, one whose own `constructor` is not the built-in and cannot be set (a
+ * non-configurable getter or non-writable value), one the function never returns directly (inside
+ * a Proxy or a custom thenable), and every rejection when no built-in Promise could be confirmed at
+ * load.
  */
 function swallowRejection(value: unknown): void {
   if (!isPromise(value) || INTRINSIC_PROMISE === undefined) return;
@@ -248,13 +251,18 @@ function swallowRejection(value: unknown): void {
   // reads it. `await` reads the constructor before anything else; a throwaway promise it may create
   // for hooks comes after that read, so a write-back is too late.
   void (async () => {
+    if (!isExtensible(value)) return;
     original = getOwnPropertyDescriptor(value, 'constructor');
     pinned =
       original === undefined || original.configurable
-        ? defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE, writable: true, configurable: true })
-        : defineProperty(value, 'constructor', { value: INTRINSIC_PROMISE });
+        ? defineProperty(
+            value,
+            'constructor',
+            ownDescriptor({ value: INTRINSIC_PROMISE, writable: true, configurable: true }),
+          )
+        : defineProperty(value, 'constructor', ownDescriptor({ value: INTRINSIC_PROMISE }));
     // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
-    if (!pinned && !(original === undefined && inheritsIntrinsicConstructor(value))) return;
+    if (!pinned) return;
     try {
       await value;
     } catch {
@@ -264,7 +272,7 @@ function swallowRejection(value: unknown): void {
   // The body ran synchronously up to its `await`, so the handler is attached and the pin can go.
   if (!pinned) return;
   if (original === undefined) deleteProperty(value, 'constructor');
-  else defineProperty(value, 'constructor', original);
+  else defineProperty(value, 'constructor', ownDescriptor({ ...original }));
 }
 
 const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;

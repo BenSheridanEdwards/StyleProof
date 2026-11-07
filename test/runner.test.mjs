@@ -913,8 +913,6 @@ test('crawl productState: an async function fails closed and its rejection never
         globalThis.Promise = class Replaced {};
         return rejected;
       },
-      // A non-extensible rejected promise that inherits the built-in `constructor` is still handled.
-      () => Object.preventExtensions(Promise.reject(new Error(sentinel))),
       // Custom thenables that reject, or whose `then` throws.
       () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
       () => ({
@@ -1086,8 +1084,8 @@ function runHookScenario(body) {
   });
   assert.equal(result.status, 0, result.stderr);
   assert.doesNotMatch(result.stdout + result.stderr, /SYNTHETIC-HOOK-SENTINEL/);
-  const { thenCalls, unhandled } = JSON.parse(result.stdout);
-  return { thenCalls, unhandled };
+  const { thenCalls, unhandled, extra } = JSON.parse(result.stdout);
+  return { thenCalls, unhandled, ...(extra === undefined ? {} : { extra }) };
 }
 
 test('crawl productState hooks: deleting the load-time probe getter cannot get a forged constructor accepted', () => {
@@ -1338,6 +1336,155 @@ test('crawl productState hooks: a throwing trap on the load-time promise cannot 
       callWith(crawlLinkProductState, rejected);
     `),
     { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState: a non-extensible returned promise is never awaited, so its rejection stays unhandled (documented)', () => {
+  // Awaiting it would make Node's own promise-hook bookkeeping add a property to a frozen object.
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const frozen = Object.preventExtensions(Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL')));
+      callWith(crawlLinkProductState, frozen);
+    `),
+    { thenCalls: 0, unhandled: 1 },
+  );
+});
+
+test('crawl productState hooks: an observing hook enabled after a promise was frozen does not crash the await', () => {
+  // runHookScenario fails on a non-zero exit, which Node's hook bookkeeping on a frozen promise would cause.
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const frozen = Object.preventExtensions(Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL')));
+      let observed = 0;
+      const hook = createHook({ init(_id, type) { if (type === 'PROMISE') observed++; } }).enable();
+      const storage = new AsyncLocalStorage();
+      try {
+        storage.run({ request: 'synthetic' }, () => callWith(crawlLinkProductState, frozen));
+      } finally {
+        hook.disable();
+      }
+    `),
+    { thenCalls: 0, unhandled: 1 },
+  );
+});
+
+test('crawl productState hooks: a non-extensible promise with its own configurable constructor is not awaited either', () => {
+  // Its pin would succeed, so only the extensibility check keeps the await, and Node's hook crash, away.
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const frozen = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      frozen.constructor = Object;
+      frozen.then = () => { counts.thenCalls++; };
+      Object.preventExtensions(frozen);
+      const hook = createHook({ init() {} }).enable();
+      try {
+        callWith(crawlLinkProductState, frozen);
+      } finally {
+        hook.disable();
+      }
+    `),
+    { thenCalls: 0, unhandled: 1 },
+  );
+});
+
+test('crawl productState hooks: Object.prototype.value set while StyleProof loads cannot break the import', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      let first = true;
+      const hook = createHook({
+        init(_id, type) {
+          if (type !== 'PROMISE' || !first || !/crawl-capture\\.js:/.test(new Error().stack)) return;
+          first = false;
+          Object.defineProperty(Object.prototype, 'value', { value: 1, configurable: true, writable: true });
+        },
+      }).enable();
+      let crawlLinkProductState;
+      try {
+        ({ crawlLinkProductState } = await import(${CRAWL_CAPTURE}));
+      } finally {
+        hook.disable();
+        delete Object.prototype.value;
+      }
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.then = () => { counts.thenCalls++; };
+      callWith(crawlLinkProductState, rejected);
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState: Object.prototype.value cannot make an unpinned promise look like the built-in', () => {
+  assert.equal(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const builtinConstructor = Object.getOwnPropertyDescriptor(Builtin.prototype, 'constructor');
+      try {
+        crawlLinkProductState(() => {
+          const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+          rejected.then = () => { counts.thenCalls++; };
+          Object.preventExtensions(rejected);
+          Object.defineProperty(Builtin.prototype, 'constructor', { configurable: true, get: () => Object, set() {} });
+          Object.defineProperty(Object.prototype, 'value', { value: Builtin, configurable: true, writable: true });
+          return rejected;
+        }, { key: 'checkout', url: '/checkout' });
+      } catch (error) {
+        if (error.name !== 'ProductStateIdentityError') throw error;
+      } finally {
+        delete Object.prototype.value;
+        Object.defineProperty(Builtin.prototype, 'constructor', builtinConstructor);
+      }
+    `).thenCalls,
+    0,
+  );
+});
+
+test('crawl productState: Object.prototype.get cannot corrupt the pin', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      try {
+        crawlLinkProductState(() => {
+          const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+          rejected.constructor = Object;
+          rejected.then = () => { counts.thenCalls++; };
+          Object.defineProperty(Object.prototype, 'get', { value() {}, configurable: true, writable: true });
+          return rejected;
+        }, { key: 'checkout', url: '/checkout' });
+      } catch (error) {
+        if (error.name !== 'ProductStateIdentityError') throw error;
+      } finally {
+        delete Object.prototype.get;
+      }
+    `),
+    { thenCalls: 0, unhandled: 0 },
+  );
+});
+
+test('crawl productState hooks: Object.prototype.get set after the pin cannot stop the restore', () => {
+  assert.deepEqual(
+    runHookScenario(`
+      const { crawlLinkProductState } = await import(${CRAWL_CAPTURE});
+      const rejected = Builtin.reject(new Error('SYNTHETIC-HOOK-SENTINEL'));
+      rejected.constructor = Object;
+      rejected.then = () => { counts.thenCalls++; };
+      const hook = createHook({
+        init(_id, type) {
+          if (type !== 'PROMISE' || rejected.constructor === Object) return;
+          Object.defineProperty(Object.prototype, 'get', { value() {}, configurable: true, writable: true });
+        },
+      }).enable();
+      try {
+        callWith(crawlLinkProductState, rejected);
+      } finally {
+        hook.disable();
+        delete Object.prototype.get;
+      }
+      counts.extra = rejected.constructor === Object ? 'restored' : 'pin left in place';
+    `),
+    { thenCalls: 0, unhandled: 0, extra: 'restored' },
   );
 });
 
