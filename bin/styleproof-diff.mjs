@@ -139,6 +139,7 @@ const {
   baseOnlyVolatile,
   documentRootVolatile,
   statesUncertified,
+  visualChannels,
   baselineFailures,
   undeclaredOnBase,
 } = result;
@@ -267,6 +268,7 @@ const evidence = {
   comparison,
   reportConsistency,
   statesUncertified,
+  ...(visualChannels ? { visualChannels } : {}),
   partialBaseline,
   explainedMissingBaselineSurfaces: explainedMissingBaselineSurfaceKeys,
   liveTextFreeze: { violated: liveTextFreezeViolated },
@@ -418,6 +420,7 @@ if (jsonOut) {
           volatility: { headOnly: headOnlyVolatile, baseOnly: baseOnlyVolatile, documentRoot: documentRootVolatile },
           // Surfaces whose forced-state layer was skipped or unsupported on either side.
           statesUncertified,
+          ...(visualChannels ? { visualChannels } : {}),
           coverage: coverageVerdict,
           determinism: determinismVerdict,
           confidence: confidenceSummary,
@@ -453,6 +456,11 @@ if (jsonOut) {
     fail(NAME, `could not write --json ${jsonOut}: ${errorMessage(error)}`);
   }
 }
+
+if (visualChannels?.notCompared)
+  printSection(
+    `⚠ visual channel evidence: ${visualChannels.notCompared} value(s) not compared; affected layers are not certified. See --json for counted locations and reasons.`,
+  );
 
 printUncomparedWarnings({
   hostUaDrift: result.hostUaDrift,

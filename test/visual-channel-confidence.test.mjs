@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import * as diff from '../dist/diff.js';
 import * as channels from '../dist/visual-channels.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { assessCertificationEvidence } from '../dist/verdict.js';
-import { pairFixture, rmTmp } from './helpers.mjs';
+import { pairFixture, rmTmp, writeCapture } from './helpers.mjs';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
 const keyframe = 'animation keyframes (pulse)';
 const unknown = '(keyframes unknown; not compared)';
@@ -172,4 +176,48 @@ test('raw legacy blob URLs are not comparable image sources', () => {
     channels.compareChannelValues('img currentSrc', 'blob:http://example.test/a', '/b.png').status,
     'not-compared',
   );
+});
+
+test('the CLI retains counted channel limits and cannot exit clean for unknown evidence', () => {
+  const before = map(keyframe, 'A', 'A'),
+    after = map(keyframe, unknown, 'A');
+  const fixture = pairFixture({ surface: 'home@800', before, after });
+  try {
+    stampCertifyingFixture(fixture.beforeDir, 'a'.repeat(40));
+    stampCertifyingFixture(fixture.afterDir, 'b'.repeat(40));
+    const jsonPath = path.join(fixture.root, 'diff.json');
+    const env = { ...process.env };
+    delete env.GH_TOKEN;
+    const args = [
+      fileURLToPath(new URL('../bin/styleproof-diff.mjs', import.meta.url)),
+      fixture.beforeDir,
+      fixture.afterDir,
+      '--expected-before-sha',
+      'a'.repeat(40),
+      '--expected-after-sha',
+      'b'.repeat(40),
+      '--json',
+      jsonPath,
+    ];
+    const options = { cwd: fixture.root, encoding: 'utf8', env };
+    const result = spawnSync(process.execPath, args, options);
+    assert.ok(fs.existsSync(jsonPath), result.stdout + result.stderr);
+    const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    assert.equal(
+      result.status,
+      1,
+      result.stdout + result.stderr + JSON.stringify({ certifiesFully: receipt.certifiesFully }),
+    );
+    assert.equal(receipt.visualChannels.notCompared, 2);
+    assert.match(result.stdout + result.stderr, /visual channel.*not compared/i);
+    assert.equal(receipt.certifiesFully, false);
+    writeCapture(fixture.afterDir, 'home@800', before);
+    const clean = spawnSync(process.execPath, args, options);
+    const cleanReceipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+    assert.equal(cleanReceipt.visualChannels.notCompared, 0);
+    assert.equal(cleanReceipt.certifiesFully, true);
+  } finally {
+    rmTmp(fixture.root);
+  }
 });

@@ -72,3 +72,12 @@ for any miss. The original two parallel hover misses have no retained maps, so
 this does not assign their cause. Final dumps and replay outcomes are external.
 No capture-side state was added; barrier, stickiness and content-image handling
 remain as committed at `43b1d5ccd`.
+
+The CLI receipt also forwards the counted limits to the shared certification
+policy, structured JSON and durable verdict. `cli-confidence-red.log` records a
+bound, coverage-complete, self-checked pair that incorrectly exited 0 and claimed
+`certifiesFully:true` before that forwarding. It now exits 1, names the two limits
+and cannot certify. The same fixture with known equal channels still exits 0 and
+certifies; no gate or default-mode rule was relaxed. Capture/diff/report runtime
+replays from `efed260b9` are retained with SHA-256 equivalence to this transport-only
+follow-up; final gates and r10 stress receipts are bound to the pushed tree.

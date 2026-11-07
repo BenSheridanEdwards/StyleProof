@@ -1,0 +1,38 @@
+✖ the CLI retains counted channel limits and cannot exit clean for unknown evidence (87.940458ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.532542
+
+✖ failing tests:
+
+test at test/visual-channel-confidence.test.mjs:182:1
+✖ the CLI retains counted channel limits and cannot exit clean for unknown evidence (87.940458ms)
+  AssertionError [ERR_ASSERTION]:
+  ⚠ product-state identity unproven on 1 paired capture(s) — no product-state is declared — the existing verdict is preserved, but this is not proof of same product state. Pass --require-state-identity to make it non-certifying, or declare known pairs in styleproof.product-state.json.
+
+  ✓ coverage complete — all 1 registered surface(s) captured or explicitly excluded
+
+  ✓ determinism proven — base self-checked, head self-checked
+
+  ✓ 0 reviewable computed-style changes across 1 paired capture(s); content/structure not evaluated
+  {"certifiesFully":true}
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file://<checkout>/test/visual-channel-confidence.test.mjs:193:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
