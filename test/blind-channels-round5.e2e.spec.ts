@@ -30,7 +30,7 @@ const cases = [
   ],
 ] as const;
 for (const [label, css, transition] of cases)
-  test(`${label} holds sampled context unknown`, async ({ page }) => {
+  test(`unstabilized global motion holds bodies unknown: ${label}`, async ({ page }) => {
     const maps = [];
     for (const time of [100, 900]) {
       await page.goto('about:blank');
@@ -65,7 +65,7 @@ for (const [label, css, transition] of cases)
   });
 for (const pseudo of ['before', 'after', 'marker'])
   for (const important of [false, true])
-    test(`${pseudo} custom-property input is unknown (important=${important})`, async ({ page }) => {
+    test(`unstabilized pseudo motion holds bodies unknown: ${pseudo} (important=${important})`, async ({ page }) => {
       const maps = [];
       for (const time of [0, 900]) {
         const rule = `.a::${pseudo}{content:'x';animation:custom 1s linear infinite paused,pulse 1s linear infinite paused${important ? '!important' : ''}}`;

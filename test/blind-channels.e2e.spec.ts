@@ -144,13 +144,14 @@ test('unreadable cross-origin stylesheet records unknown, never an invented winn
   expect(diffStyleMaps(map, map)).toEqual([]);
 });
 
-test('shadow-root keyframes cannot override document names; untraversed internals remain outside capture', async ({
+test('finished shadow-root keyframes cannot override document names; internals remain outside capture', async ({
   page,
 }) => {
   const markup = (opacity: string) =>
     animation('to { opacity: 1; }') +
     `<section id="host"></section><script>
-    document.querySelector('#host').attachShadow({mode:'open'}).innerHTML = '<style>@keyframes pulse { to { opacity: ${opacity}; } } i { animation: pulse 10s infinite; }</style><i>inside</i>';
+    document.querySelector('#host').attachShadow({mode:'open'}).innerHTML = '<style>@keyframes pulse { to { opacity: ${opacity}; } } i { animation: pulse 1ms forwards; }</style><i>inside</i>';
+    document.querySelector('#host').shadowRoot.getAnimations()[0].finish();
   </script>`;
   const before = await capture(page, markup('.1'));
   const after = await capture(page, markup('.2'));

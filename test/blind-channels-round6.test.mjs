@@ -19,8 +19,7 @@ for (const [name, state, changes, expected] of [
   ['missing duration evidence', 'paused', { endTime: undefined }, true],
 ])
   test(name, () => assert.equal(motionInProgress(state, { ...timing, ...changes }), expected));
-for (const name of ['self-em', 'self-currentcolor', 'sibling-cqw', 'absolute px', 'explicit colour', 'implicit colour'])
-  test(`${name}: live unstabilized motion holds every body unknown`, () => {
-    for (const localTime of [0, 900])
-      assert.equal(holdKeyframes(true, motionInProgress('paused', { ...timing, localTime }), false), true);
-  });
+test('live unstabilized motion holds every body, independent of its CSS values', () => {
+  for (const localTime of [0, 900])
+    assert.equal(holdKeyframes(true, motionInProgress('paused', { ...timing, localTime }), false), true);
+});

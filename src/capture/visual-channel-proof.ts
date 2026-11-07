@@ -95,7 +95,9 @@ async function markAuthorHosts(client: CDPSession, root: BoundaryNode): Promise<
     try {
       const result = await client.send('Runtime.callFunctionOn', {
         objectId: object.objectId,
-        functionDeclaration: captureExpression('function(){ window.__spChannelHosts.add(this); }'),
+        functionDeclaration: captureExpression(
+          'function(){ window.__spChannelHosts.add(this); if (!this.shadowRoot) window.__spChannelOpaqueRoots = true; }',
+        ),
       });
       if (result.exceptionDetails) throw new Error('unavailable shadow boundary');
     } finally {
@@ -126,47 +128,40 @@ async function recordMatchedSources(client: CDPSession): Promise<void> {
   }
 }
 
-/** Refresh read-only engine provenance while the motion freeze is temporarily lifted. */
-async function refreshVisualChannelSources(client: CDPSession, unfreeze: boolean, sheets: Set<string>): Promise<void> {
-  let verified = false;
-  try {
-    const { result } = await client.send('Runtime.evaluate', {
-      expression: captureExpression(`window.__spBeginChannelProof(${unfreeze}); !!window.__spChannelHostsChecked`),
-      returnByValue: true,
-    });
-    const checked = result.value === true;
-    const { root } = await client.send('DOM.getDocument', { depth: checked ? 0 : -1, pierce: true });
-    if (root.nodeType !== 9) throw new Error('missing document boundary');
-    if (!checked) await markAuthorHosts(client, root as BoundaryNode);
-    await recordMatchedSources(client);
-    verified = true;
-  } catch {
-    // Missing provenance is an evidence limit, never permission to choose an outer rule.
-  } finally {
-    await client
-      .send('Runtime.evaluate', {
-        expression: captureExpression(
-          `window.__spFinishChannelProof(${verified}, ${JSON.stringify([...sheets])}); void 0;`,
-        ),
-      })
-      .catch(() => {});
-  }
+/** Refresh provenance after the synchronous snapshot; session availability never controls the motion read. */
+async function refreshVisualChannelSources(client: CDPSession, checked: boolean): Promise<void> {
+  const { root } = await client.send('DOM.getDocument', { depth: checked ? 0 : -1, pierce: true });
+  if (root.nodeType !== 9) throw new Error('missing document boundary');
+  if (!checked) await markAuthorHosts(client, root as BoundaryNode);
+  await recordMatchedSources(client);
 }
 
 export async function prepareVisualChannelSources(page: Page, unfreeze = false): Promise<void> {
+  // Always lift/read through Playwright before any CDP setup that may fail.
+  const checked = await page.evaluate<boolean>(
+    captureExpression(`window.__spBeginChannelProof(${unfreeze}); !!window.__spChannelHostsChecked`),
+  );
   let client: CDPSession | undefined;
+  const sheets = new Set<string>();
+  let verified = false;
   try {
     client = registerStyleProofSession(await page.context().newCDPSession(page));
-    const sheets = new Set<string>();
     client.on('CSS.styleSheetAdded', ({ header }) => {
       if (header.sourceURL) sheets.add(header.sourceURL);
     });
     await client.send('DOM.enable');
     await client.send('CSS.enable');
-    await refreshVisualChannelSources(client, unfreeze, sheets);
+    await refreshVisualChannelSources(client, checked);
+    verified = true;
   } catch {
-    // The installer starts unverified; unsupported readers stay unknown.
+    // No CDP means unknown channel evidence, never a frozen ordinary motion read.
   } finally {
-    await client?.detach().catch(() => {});
+    try {
+      await page.evaluate(
+        captureExpression(`window.__spFinishChannelProof(${verified}, ${JSON.stringify([...sheets])}); void 0;`),
+      );
+    } finally {
+      await client?.detach().catch(() => {});
+    }
   }
 }

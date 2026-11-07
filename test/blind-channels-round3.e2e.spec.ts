@@ -116,7 +116,9 @@ for (const [label, modes, host, docChange] of [
       expect(map.visualChannels!.keyframes[target.style['animation keyframes (deep)']].status).toBe('unknown');
       const control = Object.values(map.elements).find((e) => e.cls === 'control')!;
       if (label !== 'S5')
-        expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe('known');
+        expect(map.visualChannels!.keyframes[control.style['animation keyframes (deep)']].status).toBe(
+          modes.includes('closed') ? 'unknown' : 'known',
+        );
     }
     const fixture = pairFixture({ surface: 'home@800', before: a, after: b });
     try {

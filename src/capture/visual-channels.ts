@@ -9,6 +9,7 @@ export type VisualChannelWindow = {
   __spChannelScopesVerified?: boolean;
   __spBeginChannelProof?: (unfreeze?: boolean) => void;
   __spChannelHostsChecked?: boolean;
+  __spChannelOpaqueRoots?: boolean;
   __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
@@ -32,6 +33,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spChannelHosts;
   delete target.__spChannelScopesVerified;
   delete target.__spChannelHostsChecked;
+  delete target.__spChannelOpaqueRoots;
   delete target.__spChannelSheets;
   if (!enabled) {
     delete target.__spChannelValues;
@@ -318,18 +320,35 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       return undefined;
     }
   };
+  const scopeInputs = (root: Document | ShadowRoot): boolean =>
+    root.getAnimations().some((animation) => {
+      const timing = animation.effect?.getComputedTiming();
+      if (!timing) return animation.playState === 'running' || animation.playState === 'paused';
+      return values.motionInProgress(animation.playState, {
+        ...timing,
+        activeDuration: Number(timing.activeDuration),
+        localTime: typeof timing.localTime === 'number' || timing.localTime === null ? timing.localTime : undefined,
+        endTime: typeof timing.endTime === 'number' ? timing.endTime : undefined,
+      });
+    });
   const readInputs = (): boolean | undefined => {
     try {
-      return document.getAnimations().some((animation) => {
-        const timing = animation.effect?.getComputedTiming();
-        if (!timing) return animation.playState === 'running' || animation.playState === 'paused';
-        return values.motionInProgress(animation.playState, {
-          ...timing,
-          activeDuration: Number(timing.activeDuration),
-          localTime: typeof timing.localTime === 'number' || timing.localTime === null ? timing.localTime : undefined,
-          endTime: typeof timing.endTime === 'number' ? timing.endTime : undefined,
-        });
-      });
+      const pending: (Document | ShadowRoot)[] = [document];
+      while (pending.length) {
+        const root = pending.pop()!;
+        if (scopeInputs(root)) return true;
+        for (const element of root.querySelectorAll('*')) {
+          // SMIL is absent from getAnimations(). Presence is a conservative hold,
+          // including paused, finished and not-yet-started SVG animation elements.
+          if (
+            element.namespaceURI === 'http://www.w3.org/2000/svg' &&
+            /^(?:animate|animateTransform|animateMotion|set)$/.test(element.localName)
+          )
+            return true;
+          if (element.shadowRoot) pending.push(element.shadowRoot);
+        }
+      }
+      return false;
     } catch {
       return undefined;
     }
@@ -338,6 +357,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   let held = false;
   let prepared: AnimationIndex | undefined;
   target.__spChannelHosts = new WeakSet();
+  target.__spChannelOpaqueRoots = false;
   target.__spBeginChannelProof = (unfreeze = false) => {
     sources.clear();
     target.__spChannelNodes = new Map();
@@ -389,6 +409,7 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   target.__spFinishChannelProof = (verified, sheets) => {
     target.__spChannelSheets = new Set(sheets ?? []);
     target.__spChannelScopesVerified = verified;
+    if (target.__spChannelOpaqueRoots) held = true;
     if (verified) target.__spChannelHostsChecked = true;
     target.__spChannelNodes?.clear();
     restoreFreeze?.();

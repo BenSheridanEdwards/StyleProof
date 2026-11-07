@@ -1510,23 +1510,32 @@ unambiguous scope records definite `none` (displayed as `(no @keyframes)`). This
 compares referenced rule deletion and non-applying media. A known CSSOM definition
 without a usable live model stays unknown. Empty or unusable engine frames,
 unrepresentable timeline ranges, and keyframes that animate custom properties
-whose complete model is unavailable also stay unknown. Default stabilization restarts CSS animations and transitions at t=0. Those
-recreated effects never taint keyframe evidence, including a formerly finished
+whose complete model is unavailable also stay unknown. Default stabilization restarts ordinary CSS animations at t=0. The freeze cancels
+transitions, which land on their end value. Those recreated animation effects never taint keyframe evidence, including a formerly finished
 entrance animation with forwards/both fill. Only effects still in progress in the
 frozen document, such as surviving Web Animations, hold bodies unknown. Liveness
-is read before lifting the freeze, not from recreated CSS animations. Finished,
+is read before lifting the freeze, not from recreated CSS animations. An unrelated
+surviving Web Animation (such as a spinner) can hold every body unknown; there is
+no per-target or property relaxation. Finished,
 idle and paused-at-end effects do not count.
 
 With `stabilize:false`, if any animation or transition is in progress anywhere in
 the resting document, **every keyframe body is unknown**. Running effects and
 paused active intervals count, including the consumer itself, pseudo-elements and
-siblings. No value-token classification or DOM dependency walk proves safety:
+siblings. Liveness reads the document and every recursively reachable open shadow
+root in both capture modes. Shadow content is not frozen. Unreadable root animation
+lists and CDP-discovered closed roots conservatively hold every body unknown in
+both modes. SMIL is absent from getAnimations(): the presence of any SVG `animate`,
+`animateTransform`, `animateMotion` or `set` element in those trees also holds every
+body unknown, even if the SVG timeline is paused or the element is inactive. Plain
+static SVG and readable static open roots do not taint evidence. The cached CDP
+host-scan limitation described above still applies to closed hosts created later.
+No value-token classification or DOM dependency walk proves safety:
 the engine can supply dependencies absent from the source. Pre-freeze inputs are
 retained for the capture even if freezing cancels or finishes them. When nothing
 is in progress, bodies stay comparable, including static em/currentColor/var()
 models. This is an explicit `stabilize:false` limitation, not proof of equality.
-In particular, Chromium
-can omit animated custom-property declarations and expose progress-dependent
+In particular, Chromium can omit animated custom-property declarations and expose progress-dependent
 substitutions; we do not guess those bodies. Unknown and none have distinct
 references even for the same name. Implicit from/to frames contain the element's
 own underlying computed values. An element-only opacity or animation-timing

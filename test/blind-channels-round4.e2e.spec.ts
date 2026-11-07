@@ -32,7 +32,9 @@ test('reset and finishing animations have identical evidence across ten captures
   }
 });
 for (const inherited of [false, true])
-  test(`animated custom-property input stays unknown (${inherited ? 'ancestor' : 'self'})`, async ({ page }) => {
+  test(`unstabilized global motion holds custom-property models (${inherited ? 'ancestor' : 'self'})`, async ({
+    page,
+  }) => {
     const maps = [];
     for (const time of [0, 300, 900]) {
       await page.setContent(
@@ -148,7 +150,7 @@ for (const style of ['display:none;animation:g 1s infinite', 'animation:g 1s,g 2
     expect(Object.values(map.visualChannels!.keyframes)).toEqual([{ name: 'g', status: 'unknown' }]);
   });
 
-test('a variable consumer stays unknown when an opaque ancestor animation drives its input', async ({ page }) => {
+test('unstabilized global motion holds a variable consumer with an opaque ancestor', async ({ page }) => {
   await page.route('http://fixture.test/', (route) =>
     route.fulfill({
       contentType: 'text/html',
@@ -163,9 +165,7 @@ test('a variable consumer stays unknown when an opaque ancestor animation drives
   expect(Object.values(map.visualChannels!.keyframes).find((body) => body.name === 'pulse')?.status).toBe('unknown');
 });
 
-test('a paused Web Animation driving a variable input cannot produce known time-dependent endpoints', async ({
-  page,
-}) => {
+test('a surviving paused Web Animation holds keyframe bodies unknown', async ({ page }) => {
   const evidence = [];
   for (const time of [0, 900]) {
     await page.setContent(
