@@ -155,12 +155,15 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
 
 /**
  * Handle a returned promise's rejection, which would otherwise surface as the consumer's own
- * unhandled error. `await` never calls a native promise's own `then`, and nothing here can throw
- * outward. A promise whose `constructor` getter throws still cannot be handled: every way to
- * attach a handler reads it. Nor can a rejection the function never returns directly (a promise
- * behind a Proxy).
+ * unhandled error. `await` attaches to a native promise directly, without calling its own `then`,
+ * only when its `constructor` is `Promise`, so that is pinned first with a plain property write
+ * (no getter, trap or species lookup runs). Nothing here can throw outward. Two rejections cannot
+ * be handled: a promise whose own `constructor` cannot be redefined (non-configurable, or the
+ * promise is non-extensible) and is not `Promise`, and one the function never returns directly
+ * (a promise behind a Proxy).
  */
 function swallowRejection(value: PromiseLike<unknown>): void {
+  if (types.isPromise(value)) Reflect.defineProperty(value, 'constructor', { value: Promise, configurable: true });
   void (async () => {
     try {
       await value;

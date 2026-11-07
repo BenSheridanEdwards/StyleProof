@@ -863,6 +863,43 @@ test('crawl productState: an async function fails closed and its rejection never
         rejected.then = null;
         return rejected;
       },
+      // A rejected native promise whose `constructor` is not `Promise`, throws, or is a subclass.
+      // (One whose own `constructor` cannot be redefined is the documented limit.)
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.constructor = Object;
+        rejected.then = () => {};
+        return rejected;
+      },
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        Object.defineProperty(rejected, 'constructor', {
+          configurable: true,
+          get() {
+            throw new Error(sentinel);
+          },
+        });
+        return rejected;
+      },
+      () => {
+        class Hostile extends Promise {
+          then() {}
+        }
+        return Hostile.reject(new Error(sentinel));
+      },
+      () => {
+        class Throwing extends Promise {
+          then() {
+            throw new Error(sentinel);
+          }
+        }
+        return Throwing.reject(new Error(sentinel));
+      },
+      () => {
+        const rejected = Promise.reject(new Error(sentinel));
+        rejected.then = 1;
+        return rejected;
+      },
       // Custom thenables that reject, or whose `then` throws.
       () => ({ then: (_resolve, reject) => reject(new Error(sentinel)) }),
       () => ({
