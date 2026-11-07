@@ -178,45 +178,60 @@ test('raw legacy blob URLs are not comparable image sources', () => {
   );
 });
 
-test('the CLI retains counted channel limits and cannot exit clean for unknown evidence', () => {
+test('both CLIs retain channel limits and cannot exit clean for unknown evidence', () => {
   const before = map(keyframe, 'A', 'A'),
     after = map(keyframe, unknown, 'A');
+  before.visualChannels.keyframes = { A: before.visualChannels.keyframes.A };
+  after.visualChannels.keyframes = {
+    A: after.visualChannels.keyframes.A,
+    [unknown]: after.visualChannels.keyframes[unknown],
+  };
   const fixture = pairFixture({ surface: 'home@800', before, after });
   try {
     stampCertifyingFixture(fixture.beforeDir, 'a'.repeat(40));
     stampCertifyingFixture(fixture.afterDir, 'b'.repeat(40));
-    const jsonPath = path.join(fixture.root, 'diff.json');
     const env = { ...process.env };
     delete env.GH_TOKEN;
-    const args = [
-      fileURLToPath(new URL('../bin/styleproof-diff.mjs', import.meta.url)),
-      fixture.beforeDir,
-      fixture.afterDir,
-      '--expected-before-sha',
-      'a'.repeat(40),
-      '--expected-after-sha',
-      'b'.repeat(40),
-      '--json',
-      jsonPath,
-    ];
     const options = { cwd: fixture.root, encoding: 'utf8', env };
-    const result = spawnSync(process.execPath, args, options);
-    assert.ok(fs.existsSync(jsonPath), result.stdout + result.stderr);
-    const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    assert.equal(
-      result.status,
-      1,
-      result.stdout + result.stderr + JSON.stringify({ certifiesFully: receipt.certifiesFully }),
-    );
-    assert.equal(receipt.visualChannels.notCompared, 2);
-    assert.match(result.stdout + result.stderr, /visual channel.*not compared/i);
-    assert.equal(receipt.certifiesFully, false);
-    writeCapture(fixture.afterDir, 'home@800', before);
-    const clean = spawnSync(process.execPath, args, options);
-    const cleanReceipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
-    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
-    assert.equal(cleanReceipt.visualChannels.notCompared, 0);
-    assert.equal(cleanReceipt.certifiesFully, true);
+    for (const mode of ['diff', 'report'])
+      for (const skipped of [false, true]) {
+        const a = structuredClone(before),
+          b = structuredClone(skipped ? before : after);
+        if (skipped)
+          for (const side of [a, b]) {
+            side.statesSkipped = true;
+            side.states = {};
+          }
+        writeCapture(fixture.beforeDir, 'home@800', a);
+        writeCapture(fixture.afterDir, 'home@800', b);
+        const out = path.join(fixture.root, mode);
+        const jsonPath = mode === 'diff' ? out + '.json' : path.join(out, 'report.json');
+        const args = [
+          fileURLToPath(new URL(`../bin/styleproof-${mode}.mjs`, import.meta.url)),
+          fixture.beforeDir,
+          fixture.afterDir,
+          '--expected-before-sha',
+          'a'.repeat(40),
+          '--expected-after-sha',
+          'b'.repeat(40),
+          ...(mode === 'diff' ? ['--json', jsonPath] : ['--out', out]),
+        ];
+        const result = spawnSync(process.execPath, args, options);
+        assert.ok(fs.existsSync(jsonPath), result.stdout + result.stderr);
+        const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+        assert.equal(result.status, 1, mode + result.stdout + result.stderr);
+        assert.equal(receipt.visualChannels.notCompared, skipped ? 0 : 2);
+        assert.equal(receipt.statesUncertified, skipped ? 1 : 0);
+        assert.match(result.stdout + result.stderr, /not compared|uncertified|not certified/i);
+        if (mode === 'diff') assert.equal(receipt.certifiesFully, false);
+        writeCapture(fixture.beforeDir, 'home@800', before);
+        writeCapture(fixture.afterDir, 'home@800', before);
+        const clean = spawnSync(process.execPath, args, options);
+        const cleanReceipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+        assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+        assert.equal(cleanReceipt.visualChannels.notCompared, 0);
+        if (mode === 'diff') assert.equal(cleanReceipt.certifiesFully, true);
+      }
   } finally {
     rmTmp(fixture.root);
   }

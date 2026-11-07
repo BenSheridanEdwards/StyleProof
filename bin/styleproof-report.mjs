@@ -150,8 +150,21 @@ try {
 
 const consistencyFailed = result.reportConsistency?.ok === false;
 const { changedSurfaces, oneSidedSurfaces, newSurfaces, totalFindings, contentChanges } = result;
+const channelNotCompared = result.visualChannels?.notCompared ?? 0;
+const channelStatesIncomplete = result.visualChannels ? (result.statesUncertified ?? 0) : 0;
+const channelIncomplete = channelNotCompared > 0 || channelStatesIncomplete > 0;
 const headOnlyVolatile = result.headOnlyVolatile ?? [];
 const baseOnlyVolatile = result.baseOnlyVolatile ?? [];
+
+function unchangedSummaryLine() {
+  if (channelIncomplete) return '✗ visual channel evidence incomplete — affected layers are not certified';
+  const prefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
+  if (!includeContent) return `${prefix} no reviewable computed-style changes — content/structure not evaluated`;
+  if (contentChanges > 0) {
+    return `${prefix} no reviewable computed-style changes — ${contentChanges} advisory content/structure change(s) written`;
+  }
+  return `${prefix} no reviewable computed-style or advisory content/structure changes`;
+}
 
 function summaryLine() {
   if (changedSurfaces > 0) {
@@ -176,17 +189,16 @@ function summaryLine() {
   if ((result.reach?.blocking ?? 0) > 0) {
     return `✗ reach gate — ${result.reach.blocking} changed CSS rule(s) or reach evidence gap(s) never matched (changeReach: 'gate') — report written for review`;
   }
-  const prefix = sourceBindingFailed ? '⚠ UNVERIFIED DIAGNOSTIC:' : '✓';
-  if (!includeContent) return `${prefix} no reviewable computed-style changes — content/structure not evaluated`;
-  if (contentChanges > 0) {
-    return `${prefix} no reviewable computed-style changes — ${contentChanges} advisory content/structure change(s) written`;
-  }
-  return `${prefix} no reviewable computed-style or advisory content/structure changes`;
+  return unchangedSummaryLine();
 }
 
 if (consistencyFailed) {
   console.log(`⚠ report consistency: ${result.reportConsistency.reason} — not a clean no-change (fail closed)`);
 }
+if (channelIncomplete)
+  console.log(
+    `⚠ visual channel evidence: ${channelNotCompared} value(s) not compared; ${channelStatesIncomplete} forced-state surface(s) incomplete; affected layers are not certified.`,
+  );
 console.log(summaryLine());
 console.log(`report: ${result.reportMdPath}`);
 if (includeContent && contentChanges > 0) {
@@ -200,6 +212,7 @@ if (includeContent && contentChanges > 0) {
 // Exit 1 when there is anything to review or any evidence that cannot certify.
 const armedFailure = (audit, keys) => Boolean(audit?.armed) && keys.some((key) => (audit[key]?.length ?? 0) > 0);
 const clean =
+  !channelIncomplete &&
   (result.reach?.blocking ?? 0) === 0 &&
   changedSurfaces === 0 &&
   oneSidedSurfaces === 0 &&

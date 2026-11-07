@@ -81,3 +81,8 @@ and cannot certify. The same fixture with known equal channels still exits 0 and
 certifies; no gate or default-mode rule was relaxed. Capture/diff/report runtime
 replays from `efed260b9` are retained with SHA-256 equivalence to this transport-only
 follow-up; final gates and r10 stress receipts are bound to the pushed tree.
+
+The same regression is pinned for the report CLI's separate clean-exit path in
+`report-cli-confidence-red.log`. Both CLI entry points now retain the counted
+limits, reject unknown evidence and keep the known-equal control clean. This does
+not change default captures or the capture/diff/report library runtime.
