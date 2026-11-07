@@ -321,7 +321,6 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   const readInputs = (): boolean | undefined => {
     try {
       return document.getAnimations().some((animation) => {
-        if (!retainInputs && (animation instanceof CSSAnimation || animation instanceof CSSTransition)) return false;
         const timing = animation.effect?.getComputedTiming();
         if (!timing) return animation.playState === 'running' || animation.playState === 'paused';
         return values.motionInProgress(animation.playState, {

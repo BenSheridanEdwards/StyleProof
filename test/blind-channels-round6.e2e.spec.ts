@@ -98,3 +98,20 @@ test('finished entrance wrapper preserves all four Tailwind body changes in defa
     .filter((p) => p.prop.includes('keyframes') && !p.prop.includes('enter'));
   expect(changes).toHaveLength(4);
 });
+
+test('a genuinely surviving inline-important CSS effect stays unknown in default mode', async ({ page }) => {
+  const maps = [];
+  for (const time of [0, 900]) {
+    await page.goto('about:blank');
+    await page.setContent(
+      '<style>@keyframes pulse{from{font-size:10px;margin-left:2em}to{font-size:30px;margin-left:2em}}</style><div style="animation:pulse 1s linear infinite paused!important">x</div>',
+    );
+    await page.evaluate((time) => {
+      for (const a of document.getAnimations()) a.currentTime = time;
+    }, time);
+    maps.push(await captureStyleMap(page, { captureVisualChannels: true, captureStates: false }));
+  }
+  for (const map of maps)
+    expect(Object.values(map.visualChannels!.keyframes).every((k) => k.status === 'unknown')).toBe(true);
+  expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'surviving CSS')).not.toThrow();
+});

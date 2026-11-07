@@ -9,8 +9,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 - Opt-in `captureVisualChannels` adds referenced animation models and resolved image
   sources to ordinary findings and self-checks (#1005). Engine-derived keyframes
-  preserve effective timing and declaration precedence; untraversed, ambiguous or
-  animated context-dependent inputs stay explicitly unknown. Shared bodies and
+  preserve effective timing and declaration precedence. Untraversed or ambiguous
+  models, surviving live inputs, and motion without stabilization stay unknown. Shared bodies and
   hashed data URIs keep storage bounded. Signed-source credentials are removed;
   unloaded/blob images and legacy maps have named comparison limits. Matched
   changed font faces get surface-specific `--pixels` advice. Defaults, J1 reach
