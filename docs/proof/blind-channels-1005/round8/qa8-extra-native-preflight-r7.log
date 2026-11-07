@@ -1,0 +1,6 @@
+shadow animation index { document: [ 'pulse' ], shadow: [ 's' ] }
+pre freeze {
+  color: 'rgb(255, 0, 0)',
+  animations: [ { name: 'hue', state: 'paused' } ]
+}
+post freeze { color: 'rgb(0, 0, 255)', animations: [] }

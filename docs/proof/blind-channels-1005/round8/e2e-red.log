@@ -1,0 +1,177 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 11 tests using 1 worker
+
+(node:53595) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=true (1.6s)
+(node:53600) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=false (346ms)
+(node:53609) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   3 [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late open shadow root is revalidated for forced states; stabilize=true (1.6s)
+  ✓   4 [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late open shadow root is revalidated for forced states; stabilize=false (302ms)
+  ✘   5 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished freeze: known evidence retains real CSS body edits (1.4s)
+(node:53645) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL never started: known evidence retains real CSS body edits (1.4s)
+(node:53713) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   7 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL active paused timeline: unknown evidence retains real CSS body edits (1.4s)
+  ✓   8 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL indefinite repeats: unknown evidence retains real CSS body edits (1.4s)
+  ✘   9 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat count: known evidence retains real CSS body edits (1.4s)
+(node:53750) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat duration: known evidence retains real CSS body edits (1.4s)
+(node:53758) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished explicit end: known evidence retains real CSS body edits (1.4s)
+
+
+  1) [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+    -   "unknown",
+    +   "known",
+      ]
+
+      45 |             .filter((k) => k.name === 'pulse')
+      46 |             .map((k) => k.status),
+    > 47 |         ).toEqual(['unknown']);
+         |           ^
+      48 |       expect(kf(maps)).toEqual([]);
+      49 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'late root')).not.toThrow();
+      50 |     });
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:47:11
+
+    Error Context: test-results/test-blind-channels-round8-26007-orced-states-stabilize-true-chromium/error-context.md
+
+  2) [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 1
+
+      Array [
+    -   "unknown",
+    +   "known",
+      ]
+
+      45 |             .filter((k) => k.name === 'pulse')
+      46 |             .map((k) => k.status),
+    > 47 |         ).toEqual(['unknown']);
+         |           ^
+      48 |       expect(kf(maps)).toEqual([]);
+      49 |       expect(() => assertDeterministicVisualChannels(maps[0], maps[1], 'late root')).not.toThrow();
+      50 |     });
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:47:11
+
+    Error Context: test-results/test-blind-channels-round8-f46ec-rced-states-stabilize-false-chromium/error-context.md
+
+  3) [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished freeze: known evidence retains real CSS body edits
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      73 |     }
+      74 |     for (const map of maps)
+    > 75 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      76 |     expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
+      77 |   });
+      78 | test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:75:100
+
+    Error Context: test-results/test-blind-channels-round8-0d337-retains-real-CSS-body-edits-chromium/error-context.md
+
+  4) [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL never started: known evidence retains real CSS body edits
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      73 |     }
+      74 |     for (const map of maps)
+    > 75 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      76 |     expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
+      77 |   });
+      78 | test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:75:100
+
+    Error Context: test-results/test-blind-channels-round8-12340-retains-real-CSS-body-edits-chromium/error-context.md
+
+  5) [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat count: known evidence retains real CSS body edits
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      73 |     }
+      74 |     for (const map of maps)
+    > 75 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      76 |     expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
+      77 |   });
+      78 | test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:75:100
+
+    Error Context: test-results/test-blind-channels-round8-929c4-retains-real-CSS-body-edits-chromium/error-context.md
+
+  6) [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat duration: known evidence retains real CSS body edits
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      73 |     }
+      74 |     for (const map of maps)
+    > 75 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      76 |     expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
+      77 |   });
+      78 | test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:75:100
+
+    Error Context: test-results/test-blind-channels-round8-a32a0-retains-real-CSS-body-edits-chromium/error-context.md
+
+  7) [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished explicit end: known evidence retains real CSS body edits
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "known"
+    Received: "unknown"
+
+      73 |     }
+      74 |     for (const map of maps)
+    > 75 |       expect(Object.values(map.visualChannels!.keyframes).find((k) => k.name === 'pulse')?.status).toBe(status);
+         |                                                                                                    ^
+      76 |     expect(kf(maps)).toHaveLength(status === 'known' ? 1 : 0);
+      77 |   });
+      78 | test('complete capture remains linear at 1,000 author hosts with bulk revalidation', async ({ page }, info) => {
+        at <checkout>/test/blind-channels-round8.e2e.spec.ts:75:100
+
+    Error Context: test-results/test-blind-channels-round8-a4968-retains-real-CSS-body-edits-chromium/error-context.md
+
+  7 failed
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=true
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:11:5 › late closed shadow root is revalidated for forced states; stabilize=false
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished freeze: known evidence retains real CSS body edits
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL never started: known evidence retains real CSS body edits
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat count: known evidence retains real CSS body edits
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished repeat duration: known evidence retains real CSS body edits
+    [chromium] › test/blind-channels-round8.e2e.spec.ts:60:3 › SMIL finished explicit end: known evidence retains real CSS body edits
+  4 passed (17.1s)

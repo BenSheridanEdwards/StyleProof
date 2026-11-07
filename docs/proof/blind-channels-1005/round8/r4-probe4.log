@@ -1,0 +1,69 @@
+
+## E1a em units, font-size 12px: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","width":"auto"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","width":"120px"}]
+
+## E1b vw units: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","width":"auto"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","width":"400px"}]
+
+## E1c currentColor: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","backgroundColor":"rgba(0, 0, 0, 0)"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","backgroundColor":"rgb(255, 0, 0)"
+
+## E1d percent width: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","width":"auto"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","width":"50%"}]
+
+## E1e css paused: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0.5"}]
+
+## E1f display:none animated (e.g. hidden spinner): statuses [g:unknown | g:unknown | g:unknown] selfcheck-equal=true
+      g=
+
+## E1g same name twice in list: statuses [g:unknown | g:unknown | g:unknown] selfcheck-equal=true
+      g=
+
+## E1h long delay: statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0.5"}]
+
+## E1i web font ch units (font loads late): statuses [g:known | g:known | g:known] selfcheck-equal=true
+      g=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","width":"auto"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","width":"96.0156px"}]
+
+## E1j implicit from: base transform scale(1.1): statuses [spin:known | spin:known | spin:known] selfcheck-equal=true
+      spin=[{"offset":0,"easing":"cubic-bezier(0,0,1,1)","composite":"replace","transform":"scale(1.1)"},{"offset":1,"easing":"cubic-bezier(0,0,1,1)","composite":"auto","transform":"rotate(360deg)"}]
+
+## E2a reduced-motion reset (Andy Bell style) + infinite spin: statuses [spin:known | spin:known | spin:known | spin:known] selfcheck-equal=true
+      spin=[{"offset":0,"easing":"cubic-bezier(0,0,1,1)","composite":"replace","transform":"none"},{"offset":1,"easing":"cubic-bezier(0,0,1,1)","composite":"auto","transform":"rotate(360deg)"}]
+
+## E2b entrance 150ms once, fill none (tailwindcss-animate animate-in): statuses [enter:known | enter:known | enter:known | enter:known] selfcheck-equal=true
+      enter=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}]
+
+## E2c entrance 150ms fill forwards: statuses [enter:known | enter:known | enter:known | enter:known] selfcheck-equal=true
+      enter=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}]
+
+## E2d entrance 60ms once on a 18k-node page: statuses [enter:known | enter:known | enter:known | enter:known] selfcheck-equal=true
+      enter=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0"},{"offset":1,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"}]
+
+## E2e reduced-motion reset; spin body changes: 1 finding(s) [spin:known] -> [spin:known]
+      body > div:nth-child(1)  animation keyframes (spin)
+
+## D1 identical @keyframes duplicated in two sheets: statuses [pulse:known | pulse:known | pulse:known] selfcheck-equal=true
+      pulse=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"},{"offset":0.5,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0.5"},{"offset":1,"easing":"cubic-bezier(0.2
+
+## D2 identical duplicate, both copies change: 1 finding(s) [pulse:known] -> [pulse:known]
+      body > div:nth-child(1)  animation keyframes (pulse)
+
+## D3 cross-origin font css link (Google Fonts style) AFTER app css: statuses [pulse:known | pulse:known | pulse:known] selfcheck-equal=true
+      pulse=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"},{"offset":0.5,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0.5"},{"offset":1,"easing":"cubic-bezier(0.2
+
+## D4 cross-origin font css link BEFORE app css: statuses [pulse:known | pulse:known | pulse:known] selfcheck-equal=true
+      pulse=[{"offset":0,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"replace","opacity":"1"},{"offset":0.5,"easing":"cubic-bezier(0.25,0.1,0.25,1)","composite":"auto","opacity":"0.5"},{"offset":1,"easing":"cubic-bezier(0.2
+
+## B1 implicit from; only element opacity .9 -> .8 changes: 1 finding(s) [f:known] -> [f:known]
+      body > div:nth-child(1)  opacity
+      body > div:nth-child(1)  animation keyframes (f)
+
+## B2 steps(4,end) vs steps(4) spelling: 0 finding(s) [f:known] -> [f:known]
+
+## B3 element animation-timing-function only changes: 1 finding(s) [f:known] -> [f:known]
+      body > div:nth-child(1)  animation-timing-function
+      body > div:nth-child(1)  animation keyframes (f)
+
+## B4 vw body unchanged, 50vw -> calc(25vw*2): 0 finding(s) [g:known] -> [g:known]

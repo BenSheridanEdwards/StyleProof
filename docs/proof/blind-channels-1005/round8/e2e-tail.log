@@ -1,0 +1,12 @@
+  ✓  1386 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (608ms)
+  ✓  1387 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (610ms)
+  ✓  1388 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (660ms)
+  ✓  1389 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (769ms)
+  ✓  1390 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (726ms)
+  ✓  1391 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (660ms)
+  ✓  1392 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (602ms)
+  ✓  1393 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (605ms)
+  ✓  1394 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (603ms)
+
+  1 skipped
+  1393 passed (7.7m)

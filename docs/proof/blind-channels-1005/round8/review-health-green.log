@@ -1,0 +1,55 @@
+Already up to date
+Done in 66ms using pnpm v11.7.0
+
+Running 26 tests using 2 workers
+
+(node:15387) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:15386) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   1 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open width: shadow liveness is conservative without tainting readable static roots (220ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   3 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › open font: shadow liveness is conservative without tainting readable static roots (165ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   4 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › nested open: shadow liveness is conservative without tainting readable static roots (163ms)
+  ✓   5 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed width: shadow liveness is conservative without tainting readable static roots (165ms)
+  ✓   6 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › closed static: shadow liveness is conservative without tainting readable static roots (161ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   7 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › static open control: shadow liveness is conservative without tainting readable static roots (153ms)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓   8 [chromium] › test/blind-channels-round7.e2e.spec.ts:20:3 › unreadable open: shadow liveness is conservative without tainting readable static roots (148ms)
+  ✓   9 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG width: active SMIL is held, inactive or plain SVG stays known (163ms)
+  ✓   2 [chromium] › test/blind-channels-review8.e2e.spec.ts:9:3 › static closed sibling keeps a real document body change detectable (1.4s)
+  ✓  10 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG font: active SMIL is held, inactive or plain SVG stays known (168ms)
+  ✓  12 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG static: active SMIL is held, inactive or plain SVG stays known (155ms)
+  ✓  13 [chromium] › test/blind-channels-round7.e2e.spec.ts:53:3 › SVG set: active SMIL is held, inactive or plain SVG stays known (164ms)
+  ✓  11 [chromium] › test/blind-channels-review8.e2e.spec.ts:9:3 › static declarative closed sibling keeps a real document body change detectable (1.4s)
+  ✓  15 [chromium] › test/blind-channels-review8.e2e.spec.ts:9:3 › static finished closed sibling keeps a real document body change detectable (1.4s)
+  ✓  14 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP session failure preserves all existing motion findings (2.7s)
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  16 [chromium] › test/blind-channels-review8.e2e.spec.ts:36:3 › readable embedded SVG motion is unknown with stabilize=true (1.4s)
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  18 [chromium] › test/blind-channels-review8.e2e.spec.ts:36:3 › readable embedded SVG motion is unknown with stabilize=false (168ms)
+  ✓  17 [chromium] › test/blind-channels-round7.e2e.spec.ts:92:3 › CDP protocol failure preserves all existing motion findings (2.6s)
+  ✓  19 [chromium] › test/blind-channels-review8.e2e.spec.ts:67:3 › opaque object SVG cannot supply a sampled keyframes body (1.4s)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  20 [chromium] › test/blind-channels-round7.e2e.spec.ts:122:5 › QA finished light consumer: open shadow motion holds bodies with stabilize=true (1.4s)
+  ✓  21 [chromium] › test/blind-channels-review8.e2e.spec.ts:67:3 › opaque embed SVG cannot supply a sampled keyframes body (1.4s)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✓  22 [chromium] › test/blind-channels-round7.e2e.spec.ts:122:5 › QA finished light consumer: open shadow motion holds bodies with stabilize=false (155ms)
+  ✓  23 [chromium] › test/blind-channels-review8.e2e.spec.ts:67:3 › opaque img SVG cannot supply a sampled keyframes body (1.4s)
+  ✓  24 [chromium] › test/blind-channels-round7.e2e.spec.ts:122:5 › QA finished light consumer: closed shadow motion holds bodies with stabilize=true (1.4s)
+  ✓  26 [chromium] › test/blind-channels-round7.e2e.spec.ts:122:5 › QA finished light consumer: closed shadow motion holds bodies with stabilize=false (166ms)
+  ✓  25 [chromium] › test/blind-channels-review8.e2e.spec.ts:84:1 › 1,000 explicitly sized SVG icons keep document models comparable (2.1s)
+
+  26 passed (12.5s)

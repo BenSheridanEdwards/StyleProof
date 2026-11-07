@@ -1,0 +1,32 @@
+[
+  {
+    "name": "r7-attacks",
+    "exit": 0,
+    "load": 6.123046875,
+    "seconds": 22.74
+  },
+  {
+    "name": "r7-idle",
+    "exit": 0,
+    "load": 10.89453125,
+    "seconds": 1.71
+  },
+  {
+    "name": "r7-freeze-transition",
+    "exit": 0,
+    "load": 10.89453125,
+    "seconds": 16.68
+  },
+  {
+    "name": "native-preflight-r7",
+    "exit": 0,
+    "load": 13.6787109375,
+    "seconds": 0.76
+  },
+  {
+    "name": "r8-attacks",
+    "exit": 0,
+    "load": 13.6787109375,
+    "seconds": 33.04
+  }
+]

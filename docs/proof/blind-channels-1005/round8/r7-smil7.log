@@ -1,0 +1,16 @@
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+## ok   stabilize:true M1 SMIL width loop on a flex-sibling <svg> resizes a cqw container; consumer delay-paused: kf findings 0; other 0 []; evidence equal;  |
+      ||
+styleproof: 3 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 3 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+## ok   stabilize:true M2 SMIL font-size loop on <g>; <text> child keyframes use em; consumer delay-paused: kf findings 0; other 0 []; evidence equal;  |
+      ||
+## ok   stabilize:true M0 control: static <svg> sibling: kf findings 0; other 0 []; evidence equal; pulse:known | pulse:known
+     "marginLeft":"5px" "marginLeft":"100px" || "marginLeft":"5px" "marginLeft":"100px"
+## ok   stabilize:false M1 SMIL width loop on a flex-sibling <svg> resizes a cqw container; consumer delay-paused: kf findings 0; other 2 [inline-size,width]; evidence equal; pulse:unknown | pulse:unknown
+      ||
+## ok   stabilize:false M2 SMIL font-size loop on <g>; <text> child keyframes use em; consumer delay-paused: kf findings 0; other 3 [font-size,font-size,font-size]; evidence equal; w:unknown | w:unknown
+      ||
+## ok   stabilize:false M0 control: static <svg> sibling: kf findings 0; other 0 []; evidence equal; pulse:known | pulse:known
+     "marginLeft":"5px" "marginLeft":"100px" || "marginLeft":"5px" "marginLeft":"100px"

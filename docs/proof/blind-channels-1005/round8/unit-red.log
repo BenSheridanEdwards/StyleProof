@@ -1,0 +1,212 @@
+✖ SMIL active (0.363917ms)
+✖ SMIL finished freeze (0.044458ms)
+✖ SMIL future interval (0.032875ms)
+✖ SMIL finite repeats active (0.04275ms)
+✖ SMIL finite repeats finished (0.031959ms)
+✖ SMIL indefinite repeats (0.029125ms)
+✖ SMIL repeatDur extends simple duration (0.028958ms)
+✖ SMIL repeatDur finished (0.025625ms)
+✖ SMIL repeat limits intersect (0.033ms)
+✖ SMIL explicit end clips repeats (0.060542ms)
+✖ SMIL event end unresolved (0.03975ms)
+✖ SMIL min can extend duration (0.028166ms)
+✖ SMIL unreadable clock (0.023792ms)
+✖ SMIL no current interval: finished or never started (0.026708ms)
+✖ SMIL unavailable timing API (0.020458ms)
+✖ late author root is revalidated on the second channel read without per-host round trips (2.151667ms)
+ℹ tests 16
+ℹ suites 0
+ℹ pass 0
+ℹ fail 16
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 62.724167
+
+✖ failing tests:
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL active (0.363917ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL finished freeze (0.044458ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL future interval (0.032875ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL finite repeats active (0.04275ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL finite repeats finished (0.031959ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL indefinite repeats (0.029125ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL repeatDur extends simple duration (0.028958ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL repeatDur finished (0.025625ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL repeat limits intersect (0.033ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL explicit end clips repeats (0.060542ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL event end unresolved (0.03975ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL min can extend duration (0.028166ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL unreadable clock (0.023792ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL no current interval: finished or never started (0.026708ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:47:3
+✖ SMIL unavailable timing API (0.020458ms)
+  TypeError [Error]: values.smilInProgress is not a function
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:47:50)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/blind-channels-round8.test.mjs:48:1
+✖ late author root is revalidated on the second channel read without per-host round trips (2.151667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   0,
+  +   0
+  -   -1,
+  -   -1
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels-round8.test.mjs:80:10)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 0, 0 ],
+    expected: [ -1, -1 ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

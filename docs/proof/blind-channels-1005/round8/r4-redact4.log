@@ -1,0 +1,7 @@
+C1 Cloudflare Images exp+sig rotate (expect 0)                     findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+C2 Meta CDN oh/oe rotate (expect 0 ideally)                        findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?_nc_sid=1&oh=00_AAA&oe=6790ABCD"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?_nc_sid=1&oh=00_BBB&oe=6790FFFF"}}
+C3 unsigned ?token= real swap (content id; expect 1?)              findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png"}}
+C4 Firebase alt=media&token=<uuid> new upload same path (expect 1?) findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?alt=media"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?alt=media"}}
+C5 Google Cloud CDN Expires/KeyName/Signature rotate (expect 0)    findings 0 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?KeyName=k"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?KeyName=k"}}
+C6 Imgix s= deterministic signature, w change (expect 1)           findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?w=100&s=abc"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?w=200&s=def"}}
+C7 X-Amz-Security-Token alone rotate                               findings 1 | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?X-Amz-Security-Token=aaa"}} | {"body > img:nth-child(1)":{"img currentSrc":"/a.png?X-Amz-Security-Token=bbb"}}

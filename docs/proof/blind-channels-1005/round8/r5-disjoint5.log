@@ -1,0 +1,6 @@
+## LPT logical/physical, distinct timing: renders DIFFERENT [1.5px,2.994px,25px,25.03px,32.5px | 12.5px,24.95px,3px,3px,3px]; keyframes findings 0; status unknown
+   body undefined
+## SLT shorthand/longhand, distinct timing: renders DIFFERENT [1.5px,2.994px,25px,25.03px,32.5px | 12.5px,24.95px,3px,3px,3px]; keyframes findings 0; status unknown
+   body undefined
+## IT inset/left, distinct timing: renders DIFFERENT [1.5px,2.994px,25px,25.03px,32.5px | 12.5px,24.95px,3px,3px,3px]; keyframes findings 0; status unknown
+   body undefined

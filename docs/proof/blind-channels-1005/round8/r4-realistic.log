@@ -1,0 +1,8 @@
+## fonts link before app css: unknown 0/27 element refs; pulse body change findings 20
+      {"spin:known":1,"ping:known":1,"bounce:known":1,"pulse:known":20,"enter:known":1,"accordion-down:known":1,"spinner-border:known":1,"animation-61bdi0:known":1}
+## fonts link after app css: unknown 0/27 element refs; pulse body change findings 20
+      {"spin:known":1,"ping:known":1,"bounce:known":1,"pulse:known":20,"enter:known":1,"accordion-down:known":1,"spinner-border:known":1,"animation-61bdi0:known":1}
+## no cross-origin css: unknown 0/27 element refs; pulse body change findings 20
+      {"spin:known":1,"ping:known":1,"bounce:known":1,"pulse:known":20,"enter:known":1,"accordion-down:known":1,"spinner-border:known":1,"animation-61bdi0:known":1}
+## tailwind css twice (two bundles): unknown 0/27 element refs; pulse body change findings 20
+      {"spin:known":1,"ping:known":1,"bounce:known":1,"pulse:known":20,"enter:known":1,"accordion-down:known":1,"spinner-border:known":1,"animation-61bdi0:known":1}

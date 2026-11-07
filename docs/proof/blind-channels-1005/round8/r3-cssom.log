@@ -1,0 +1,11 @@
+phys_then_logical        {"texts":["margin-left: 3px; margin-inline-start: 25px;"],"merged":"margin-left: 3px; margin-inline-start: 25px;","ml":"25px","mt":"0px"}
+logical_then_phys        {"texts":["margin-inline-start: 25px; margin-left: 3px;"],"merged":"margin-inline-start: 25px; margin-left: 3px;","ml":"3px","mt":"0px"}
+dup_phys_then_logical    {"texts":["margin-left: 3px;","margin-inline-start: 25px;"],"merged":"margin-left: 3px; margin-inline-start: 25px;","ml":"25px","mt":"0px"}
+dup_logical_then_phys    {"texts":["margin-inline-start: 25px;","margin-left: 3px;"],"merged":"margin-inline-start: 25px; margin-left: 3px;","ml":"3px","mt":"0px"}
+var_short_then_long      {"texts":["margin-top: ; margin-right: ; margin-bottom: ; margin-left: 3px;"],"merged":"margin-left: 3px;","ml":"3px","mt":"7px"}
+long_then_var_short      {"texts":["margin: var(--m);"],"merged":"margin: var(--m);","ml":"7px","mt":"7px"}
+var_short_then_long_n    {"texts":["margin-top: ; margin-right: ; margin-bottom: ; margin-left: 3px;"],"merged":"margin-left: 3px;","ml":"3px","mt":"15px"}
+dup_var_then_long        {"texts":["margin: var(--m);","margin-left: 3px;"],"merged":"margin-top: ; margin-right: ; margin-bottom: ; margin-left: 3px;","ml":"3px","mt":"7px"}
+dup_var_then_long_n      {"texts":["margin: var(--n);","margin-left: 3px;"],"merged":"margin-top: ; margin-right: ; margin-bottom: ; margin-left: 3px;","ml":"3px","mt":"15px"}
+custom_prop              {"texts":["--x: 10px; margin-left: var(--x);"],"merged":"--x: 10px; margin-left: var(--x);","ml":"10px","mt":"0px"}
+custom_prop2             {"texts":["--x: 20px; margin-left: var(--x);"],"merged":"--x: 20px; margin-left: var(--x);","ml":"20px","mt":"0px"}

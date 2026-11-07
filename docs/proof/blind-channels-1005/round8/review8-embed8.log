@@ -1,0 +1,26 @@
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+ok   stab:true object-smil-run      kf 0 other 0 evidence equal | pulse absent || absent
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+ok   stab:true embed-smil-run       kf 0 other 0 evidence equal | pulse absent || absent
+ok   stab:true object-css-run       kf 0 other 0 evidence equal | pulse unknown || unknown
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+ok   stab:true img-smil-run         kf 0 other 0 evidence equal | pulse absent || absent
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+ok   stab:true object-smil-paused   kf 0 other 0 evidence equal | pulse unknown || unknown
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+ok   stab:true iframe-css-run       kf 0 other 0 evidence equal | pulse known: || known:
+ok   stab:false object-smil-run      kf 0 other 0 evidence equal | pulse unknown || unknown
+ok   stab:false embed-smil-run       kf 0 other 0 evidence equal | pulse unknown || unknown
+ok   stab:false object-css-run       kf 0 other 0 evidence equal | pulse unknown || unknown
+ok   stab:false img-smil-run         kf 0 other 0 evidence equal | pulse unknown || unknown
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+ok   stab:false object-smil-paused   kf 0 other 0 evidence equal | pulse unknown || unknown
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+ok   stab:false iframe-css-run       kf 0 other 0 evidence equal | pulse known: || known:

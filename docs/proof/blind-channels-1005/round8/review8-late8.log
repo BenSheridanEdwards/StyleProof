@@ -1,0 +1,29 @@
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+ok   stab:true closed attach-on-cancel#1 | kf 0 other 0 evidence equal | trig:unknown | trig:unknown | states 0,0 | log cancel1,attach@1 / cancel1,attach@1,cancel2
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+LEAK stab:true closed attach-on-cancel#2 | kf 0 other 19 evidence DIFFER | pulse:known,trig:known | pulse:known,pulse:unknown,trig:known,trig:unknown | states 1,1 | log cancel1 / cancel1,cancel2,attach@2
+      other: forced-state capture:forced :checked layer, forced-state capture:forced :disabled layer, forced-state capture:forced :placeholder-shown layer, focus:inline-size, focus:perspective-origin, focus:transform-origin
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+ok   stab:true open attach-on-cancel#1 | kf 0 other 0 evidence equal | trig:unknown | trig:unknown | states 0,0 | log cancel1,attach@1,cancel2 / cancel1,attach@1,cancel2
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+LEAK stab:true open attach-on-cancel#2 | kf 0 other 24 evidence DIFFER | pulse:known,trig:known | pulse:known,pulse:unknown,trig:known,trig:unknown | states 1,1 | log cancel1,cancel2,attach@2 / cancel1,cancel2,attach@2
+      other: hover:inline-size, hover:perspective-origin, hover:transform-origin, hover:width, hover:inline-size, hover:perspective-origin
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+ok   stab:false closed attach-on-cancel#1 | kf 0 other 24 evidence equal | pulse:unknown,trig:unknown | pulse:unknown,trig:unknown | states 1,1 | log cancel1,attach@1 / cancel1,attach@1,cancel2
+      other: hover:inline-size, hover:perspective-origin, hover:transform-origin, hover:width, hover:inline-size, hover:perspective-origin
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+ok   stab:false closed attach-on-cancel#2 | kf 0 other 19 evidence equal | pulse:unknown,trig:unknown | pulse:unknown,trig:unknown | states 1,1 | log cancel1,cancel2,attach@2 / cancel1
+      other: forced-state capture:forced :checked layer, forced-state capture:forced :disabled layer, forced-state capture:forced :placeholder-shown layer, focus:inline-size, focus:perspective-origin, focus:transform-origin
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: resting styles changed after form-state capture; all form layers are not compared.
+ok   stab:false open attach-on-cancel#1 | kf 0 other 24 evidence equal | pulse:unknown,trig:unknown | pulse:unknown,trig:unknown | states 1,1 | log cancel1,attach@1 / cancel1,attach@1
+      other: hover:inline-size, hover:perspective-origin, hover:transform-origin, hover:width, hover:inline-size, hover:perspective-origin
+ok   stab:false open attach-on-cancel#2 | kf 0 other 0 evidence equal | pulse:unknown,trig:unknown | pulse:unknown,trig:unknown | states 1,1 | log cancel1 / cancel1

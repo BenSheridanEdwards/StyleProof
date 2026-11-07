@@ -1,0 +1,51 @@
+✔ runner defaults visual channels off and forwards the explicit opt-in (0.613833ms)
+✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.764584ms)
+✔ keyframe references compare canonical bodies, even if reference IDs agree (0.087167ms)
+✔ unknown keyframes do not fabricate a body difference (0.064625ms)
+✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (16.110792ms)
+✔ new channel findings reach report reviewable counts without being advisory (6.492583ms)
+✔ self-check includes skipped unknown and missing visual-channel evidence (0.310667ms)
+✔ channel self-check ignores ordinary empty layers while preserving target identity (0.111292ms)
+✔ channel self-check still rejects a missing unknown reference (0.085417ms)
+✔ channel self-check rejects a reference moved to a different target (0.107958ms)
+✔ channel self-check rejects a reference moved to a different forced state (0.076375ms)
+✖ channel-named target paths do not turn ordinary properties into channel evidence (0.293708ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 11
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 105.728917
+
+✖ failing tests:
+
+test at test/blind-channels.test.mjs:164:1
+✖ channel-named target paths do not turn ordinary properties into channel evidence (0.293708ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception.
+  Actual message: "styleproof self-check failed: channel-named path is non-deterministic — keyframes/currentSrc evidence changed or is missing."
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:168:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: Error: styleproof self-check failed: channel-named path is non-deterministic — keyframes/currentSrc evidence changed or is missing.
+        at assertDeterministicVisualChannels (file://<checkout>/dist/visual-channels.js:135:15)
+        at file://<checkout>/test/blind-channels.test.mjs:168:29
+        at getActual (node:assert:580:5)
+        at strict.doesNotThrow (node:assert:748:32)
+        at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:168:10)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12),
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }

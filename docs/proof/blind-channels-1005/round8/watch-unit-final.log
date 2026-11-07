@@ -1,0 +1,32 @@
+✔ SMIL active (0.458333ms)
+✔ SMIL finished freeze (0.043375ms)
+✔ SMIL future interval (0.031042ms)
+✔ SMIL finite repeats active (0.034042ms)
+✔ SMIL finite repeats finished (0.044584ms)
+✔ SMIL indefinite repeats (0.0375ms)
+✔ SMIL repeatDur extends simple duration (0.136333ms)
+✔ SMIL repeatDur finished (0.081125ms)
+✔ SMIL repeat limits intersect (0.04725ms)
+✔ SMIL explicit end clips repeats (0.373625ms)
+✔ SMIL invalid clock is unresolved (0.054459ms)
+✔ SMIL indefinite simple duration (0.046042ms)
+✔ SMIL event end unresolved (0.03475ms)
+✔ SMIL min can extend duration (0.025083ms)
+✔ SMIL unreadable clock (0.0235ms)
+✔ SMIL no current interval: finished or never started (0.0335ms)
+✔ SMIL unavailable timing API (0.024583ms)
+✔ late root invalidates the watched catalogue; registered roots are reused (2.157125ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"unit":"px","value":16}] (0.039292ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":0},{"unit":"px","value":0}] (0.014459ms)
+✔ opaque media requires two definite dimensions: [{"value":"auto"},{"unit":"px","value":16}] (0.014375ms)
+✔ opaque media requires two definite dimensions: [{"unit":"px","value":16},{"value":"auto"}] (0.014292ms)
+✔ opaque media requires two definite dimensions: [{"unit":"percent","value":100},{"unit":"px","value":16}] (0.014083ms)
+✔ opaque media requires two definite dimensions: [null,null] (0.012917ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60.796542

@@ -1,0 +1,4 @@
+## X1 later x-origin sheet redefines pulse; only its body changes: pulse:unknown -> pulse:unknown; keyframes findings 0; bodies - | -
+## X2 earlier x-origin sheet redefines pulse (app wins); x-origin body changes: pulse:known -> pulse:known; keyframes findings 0; bodies "opacity":"1" "opacity":"0.5" | "opacity":"1" "opacity":"0.5"
+## X3 later x-origin sheet in @layer-less import of unrelated css; app body changes: pulse:known -> pulse:known; keyframes findings 1; bodies "opacity":"1" "opacity":"0.2" | "opacity":"1" "opacity":"0.8"
+## X4 x-origin sheet 404 after app css: pulse:known -> pulse:known; keyframes findings 0; bodies "opacity":"1" "opacity":"0.5" | "opacity":"1" "opacity":"0.5"

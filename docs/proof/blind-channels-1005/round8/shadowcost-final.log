@@ -1,0 +1,75 @@
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+H1 1000 static open hosts x5 nodes + 200 animated | head off med 6120ms | head on med 7724ms (non-known 0/5) | r7 off med 6400ms | r7 on med 8981ms (non-known 0/5) | walk {"roots":1001,"nodes":7255,"medianMs":6.3}
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+H2 1000 open hosts, each with a finished fill-forwards animation | head off med 6560ms | head on med 8496ms (non-known 0/5) | r7 off med 6464ms | r7 on med 8820ms (non-known 0/5) | walk {"roots":1001,"nodes":3255,"medianMs":9.3}
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+styleproof: 1000 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: forced-state aggregate scan exhausted its 32000-element work budget; capture stopped and the forced-state layer is not certified.
+H3 1000 open hosts x50 nodes (51k shadow nodes) | head off med 6512ms | head on med 8518ms (non-known 0/5) | r7 off med 6385ms | r7 on med 9191ms (non-known 0/5) | walk {"roots":1001,"nodes":52255,"medianMs":8.2}

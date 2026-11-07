@@ -1,0 +1,86 @@
+✔ runner defaults visual channels off and forwards the explicit opt-in (0.628833ms)
+✔ legacy maps skip keyframes and currentSrc on either side without hiding CSS changes (0.793583ms)
+✔ keyframe references compare canonical bodies, even if reference IDs agree (0.095583ms)
+✔ unknown keyframes do not fabricate a body difference (0.07275ms)
+✔ report recommends pixels for matched fonts without legacy notices when both channel captures are off (16.444625ms)
+✔ new channel findings reach report reviewable counts without being advisory (9.386375ms)
+✔ self-check includes skipped unknown and missing visual-channel evidence (0.305791ms)
+✖ channel self-check ignores ordinary empty layers while preserving target identity (0.342625ms)
+✔ channel self-check still rejects a missing unknown reference (0.097458ms)
+✖ channel self-check rejects a reference moved to a different target (0.111583ms)
+✖ channel self-check rejects a reference moved to a different forced state (0.085708ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 8
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 110.475042
+
+✖ failing tests:
+
+test at test/blind-channels.test.mjs:133:1
+✖ channel self-check ignores ordinary empty layers while preserving target identity (0.342625ms)
+  AssertionError [ERR_ASSERTION]: Got unwanted exception.
+  Actual message: "styleproof self-check failed: ordinary layers is non-deterministic — keyframes/currentSrc evidence changed or is missing."
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:138:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: Error: styleproof self-check failed: ordinary layers is non-deterministic — keyframes/currentSrc evidence changed or is missing.
+        at assertDeterministicVisualChannels (file://<checkout>/dist/visual-channels.js:118:15)
+        at file://<checkout>/test/blind-channels.test.mjs:138:29
+        at getActual (node:assert:580:5)
+        at strict.doesNotThrow (node:assert:748:32)
+        at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:138:10)
+        at Test.runInAsyncScope (node:async_hooks:226:14)
+        at Test.run (node:internal/test_runner/test:1402:25)
+        at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12),
+    expected: undefined,
+    operator: 'doesNotThrow',
+    diff: 'simple'
+  }
+
+test at test/blind-channels.test.mjs:149:1
+✖ channel self-check rejects a reference moved to a different target (0.111583ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:154:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /self-check failed/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+
+test at test/blind-channels.test.mjs:156:1
+✖ channel self-check rejects a reference moved to a different forced state (0.085708ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file://<checkout>/test/blind-channels.test.mjs:162:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /self-check failed/,
+    operator: 'throws',
+    diff: 'simple'
+  }

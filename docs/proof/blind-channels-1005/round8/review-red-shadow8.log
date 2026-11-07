@@ -1,0 +1,2 @@
+ok    stab:true static-closed          pulse unknown|unknown k unknown | sound-pair kf 0 other 0 evidence equal | detect k 0/1 | moving=false | one static CLOSED web component (no motion)
+ok    stab:true static-dsd-closed      pulse unknown|unknown k unknown | sound-pair kf 0 other 0 evidence equal | detect k 0/1 | moving=false | one static declarative CLOSED root (no motion)

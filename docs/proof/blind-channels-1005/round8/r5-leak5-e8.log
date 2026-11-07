@@ -1,0 +1,8 @@
+## stabilize:false
+    [["unknown",null]] font-size 30px
+    [["unknown",null]] font-size 30px
+   findings []
+## stabilize:true
+    [["known","[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"60px\"}]"]] font-size 30px
+    [["known","[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"replace\",\"marginLeft\":\"0px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"60px\"}]"]] font-size 30px
+   findings []

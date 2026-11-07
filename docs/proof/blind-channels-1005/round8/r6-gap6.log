@@ -1,0 +1,58 @@
+## ok   S1 lone self font-size + em stabilize:false: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown
+## ok   S1 lone self font-size + em stabilize:true: kf findings 0; other 0; evidence equal; pulse:known | pulse:known
+## ok   S2 lone self color + currentColor stabilize:false: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown
+## ok   S2 lone self color + currentColor stabilize:true: kf findings 0; other 0; evidence equal; pulse:known | pulse:known
+## ok   S3 lone self font-size + line-height % stabilize:false: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown
+## ok   S3 lone self font-size + line-height % stabilize:true: kf findings 0; other 0; evidence equal; pulse:known | pulse:known
+## ok   I1 parent color, text-shadow without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I1 parent color, text-shadow without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I2 parent color, box-shadow without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I2 parent color, box-shadow without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I3 parent color, border shorthand without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I3 parent color, border shorthand without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I4 parent color, drop-shadow without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I4 parent color, drop-shadow without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I5 parent color, text-decoration without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I5 parent color, text-decoration without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I6 parent color, -webkit-text-stroke without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I6 parent color, -webkit-text-stroke without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   I7 parent color, column-rule without color stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   I7 parent color, column-rule without color stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K1 parent font-family discrete, font-size:medium stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K1 parent font-family discrete, font-size:medium stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K2 self border-style discrete, border-width stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K2 self border-style discrete, border-width stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K3 parent border-style discrete via inherit-free, outline-width stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K3 parent border-style discrete via inherit-free, outline-width stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K4 parent font-size, font-size:x-large keyword stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K4 parent font-size, font-size:x-large keyword stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K5 ancestor zoom animation, absolute px consumer stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K5 ancestor zoom animation, absolute px consumer stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   K6 ancestor zoom animation, absolute font-size stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   K6 ancestor zoom animation, absolute font-size stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   L1 sibling width drives container, cqw consumer stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   L1 sibling width drives container, cqw consumer stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   L2 animated anchor, anchor() consumer stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   L2 animated anchor, anchor() consumer stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   L3 sibling-driven container height, cqh stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   L3 sibling-driven container height, cqh stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W1 ancestor WAAPI font-size, lh consumer stabilize:false: kf findings 0; other 2; evidence equal; pulse:unknown | pulse:unknown
+## ok   W1 ancestor WAAPI font-size, lh consumer stabilize:true: kf findings 0; other 2; evidence equal; pulse:unknown | pulse:unknown
+## ok   W2 grandparent CSS font-size, ex/ch consumer stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W2 grandparent CSS font-size, ex/ch consumer stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W3 parent font-size, calc(10px + 1em) stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W3 parent font-size, calc(10px + 1em) stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W4 parent color, inherit stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W4 parent color, inherit stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W5 parent font-size, sibling-index() calc stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W5 parent font-size, sibling-index() calc stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W6 root font-size via WAAPI, rem consumer stabilize:false: kf findings 0; other 4; evidence equal; pulse:unknown | pulse:unknown
+## ok   W6 root font-size via WAAPI, rem consumer stabilize:true: kf findings 0; other 4; evidence equal; pulse:unknown | pulse:unknown
+## ok   W7 parent font-size WAAPI, em in ::after consumer stabilize:false: kf findings 0; other 3; evidence equal; pulse:unknown | pulse:unknown
+## ok   W7 parent font-size WAAPI, em in ::after consumer stabilize:true: kf findings 0; other 3; evidence equal; pulse:unknown | pulse:unknown
+## ok   W8 parent color-scheme discrete, light-dark-free canvastext? (color: initial) stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W8 parent color-scheme discrete, light-dark-free canvastext? (color: initial) stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W9 parent font-size, font:shorthand with % stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W9 parent font-size, font:shorthand with % stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known
+## ok   W10 parent color, accent-color auto stabilize:false: kf findings 0; other 0; evidence equal; drive:unknown,pulse:unknown | drive:unknown,pulse:unknown
+## ok   W10 parent color, accent-color auto stabilize:true: kf findings 0; other 0; evidence equal; drive:known,pulse:known | drive:known,pulse:known

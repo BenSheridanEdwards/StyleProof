@@ -1,0 +1,14 @@
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+true 150 volatile ["body > section:nth-child(1) > div:nth-child(1)","body > section:nth-child(1) > x-c:nth-child(2)"] elements html ; body ; body > section:nth-child(1)
+   kf {}
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+true 1150 volatile ["body > section:nth-child(1) > div:nth-child(1)","body > section:nth-child(1) > x-c:nth-child(2)"] elements html ; body ; body > section:nth-child(1)
+   kf {}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+false 150 volatile null elements html ; body ; body > section:nth-child(1) ; body > section:nth-child(1) > div:nth-child(1) ; body > section:nth-child(1) > div:nth-child(1) > div:nth-child(1) ; body > section:nth-child(1) > x-c:nth-child(2)
+   kf {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+false 1150 volatile null elements html ; body ; body > section:nth-child(1) ; body > section:nth-child(1) > div:nth-child(1) ; body > section:nth-child(1) > div:nth-child(1) > div:nth-child(1) ; body > section:nth-child(1) > x-c:nth-child(2)
+   kf {"[\"pulse\",\"unknown\"]":{"name":"pulse","status":"unknown"}}

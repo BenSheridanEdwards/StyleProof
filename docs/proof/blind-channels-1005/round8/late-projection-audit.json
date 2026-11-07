@@ -1,0 +1,210 @@
+[
+  {
+    "file": "false-closed-1.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "false-closed-2.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "false-open-1.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "false-open-2.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "true-closed-1.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "true-closed-2.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"8px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"160px\"}]"
+        },
+        {
+          "name": "trig",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.9\"}]"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"8px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"160px\"}]"
+        },
+        {
+          "name": "trig",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.9\"}]"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "true-open-1.json",
+    "equal": true,
+    "tables": [
+      [
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ],
+      [
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  },
+  {
+    "file": "true-open-2.json",
+    "equal": false,
+    "tables": [
+      [
+        {
+          "name": "pulse",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"8px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"160px\"}]"
+        },
+        {
+          "name": "trig",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.9\"}]"
+        }
+      ],
+      [
+        {
+          "name": "pulse",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"8px\"},{\"offset\":1,\"easing\":\"cubic-bezier(0,0,1,1)\",\"composite\":\"auto\",\"marginLeft\":\"160px\"}]"
+        },
+        {
+          "name": "pulse",
+          "status": "unknown"
+        },
+        {
+          "name": "trig",
+          "status": "known",
+          "body": "[{\"offset\":0,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"replace\",\"opacity\":\"1\"},{\"offset\":1,\"easing\":\"cubic-bezier(0.25,0.1,0.25,1)\",\"composite\":\"auto\",\"opacity\":\"0.9\"}]"
+        },
+        {
+          "name": "trig",
+          "status": "unknown"
+        }
+      ]
+    ]
+  }
+]

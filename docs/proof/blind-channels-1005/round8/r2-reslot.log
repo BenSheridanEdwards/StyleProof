@@ -1,0 +1,6 @@
+{
+  name: 'deep',
+  frames: '[{"offset":0,"easing":"ease","composite":"replace","opacity":"1","computedOffset":0},{"offset":1,"easing":"ease","composite":"auto","opacity":"0.5","computedOffset":1}]',
+  opacity: '0.5',
+  slotRoot: 'x-outer'
+}

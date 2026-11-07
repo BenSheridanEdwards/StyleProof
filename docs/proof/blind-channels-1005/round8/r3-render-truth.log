@@ -1,0 +1,6 @@
+S1 closed slotted doc .1 shadow .5 0.5
+S1 closed slotted doc .9 shadow .5 0.5
+S2 closed slotted doc .1 shadow .8 0.8
+S3 closed host doc .1 shadow .5    0.5
+S3 closed host doc .9 shadow .5    0.5
+S4 closed host doc .1 shadow .8    0.8

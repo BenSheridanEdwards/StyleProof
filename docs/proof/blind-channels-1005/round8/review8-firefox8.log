@@ -1,0 +1,9 @@
+firefox stabilize:true
+  off: {"all":["animation-duration","animation-name","transition-duration"],"motion":["animation-duration","animation-name","transition-duration"],"channel":[],"kf":"-","src":"-","det":"n/a","selfEqual":0}
+  on : {"all":["animation-duration","animation-name","img currentSrc","transition-duration"],"motion":["animation-duration","animation-name","transition-duration"],"channel":["img currentSrc"],"kf":"[\"k:unknown\",\"wobble:unknown\"]","src":"[\"/two.png\"]","det":"equal","selfEqual":0}
+  monotonic (on non-channel findings == off findings): true; motion equal: true
+firefox stabilize:false
+  off: {"all":["animation-duration","animation-name","transition-duration"],"motion":["animation-duration","animation-name","transition-duration"],"channel":[],"kf":"-","src":"-","det":"n/a","selfEqual":0}
+  on : {"all":["animation-duration","animation-name","img currentSrc","transition-duration"],"motion":["animation-duration","animation-name","transition-duration"],"channel":["img currentSrc"],"kf":"[\"k:unknown\",\"wobble:unknown\"]","src":"[\"/two.png\"]","det":"equal","selfEqual":0}
+  monotonic (on non-channel findings == off findings): true; motion equal: true
+warnings (unique):

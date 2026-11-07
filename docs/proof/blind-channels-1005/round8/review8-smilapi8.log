@@ -1,0 +1,7 @@
+running          {"now":0.3010999858379364,"start":0,"simpleDur":2,"paused":false,"width":160.22000122070312}
+finishedFreeze   {"now":0.30758801102638245,"start":"throws InvalidStateError","simpleDur":0.0010000000474974513,"paused":false,"width":300}
+finishedRemove   {"now":0.3107999861240387,"start":"throws InvalidStateError","simpleDur":0.0010000000474974513,"paused":false,"width":100}
+beginIndefinite  {"now":0.2999880015850067,"start":"throws InvalidStateError","simpleDur":2,"paused":false,"width":100}
+begin100s        {"now":0.31697800755500793,"start":100,"simpleDur":2,"paused":false,"width":100}
+beginClick       {"now":0.2999880015850067,"start":"throws InvalidStateError","simpleDur":2,"paused":false,"width":100}
+pausedMid        {"now":0.5,"start":0,"simpleDur":2,"paused":true,"width":200}

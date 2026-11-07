@@ -1,0 +1,420 @@
+[
+  {
+    "name": "r7-api7",
+    "cmd": ["node", "<round8-proof>/review-r7/api7.mjs"],
+    "exit": 0,
+    "load": 3.9580078125,
+    "seconds": 1.21
+  },
+  {
+    "name": "r4-scale",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/scale.mjs"],
+    "exit": 0,
+    "load": 3.9580078125,
+    "seconds": 11.33
+  },
+  {
+    "name": "qa8-focused",
+    "cmd": ["node", "<round8-proof>/qa-probes/r8-focused.mjs"],
+    "exit": 0,
+    "load": 3.9580078125,
+    "seconds": 17.19
+  },
+  {
+    "name": "qa7-shadow",
+    "cmd": ["node", "<round8-proof>/qa-r7/r7-shadow-liveness.mjs"],
+    "exit": 0,
+    "load": 9.59619140625,
+    "seconds": 10.59
+  },
+  {
+    "name": "qa5-reproduce-blockers",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r5/reproduce-blockers.mjs"],
+    "exit": 0,
+    "load": 10.89453125,
+    "seconds": 5.1
+  },
+  {
+    "name": "r1-probe",
+    "cmd": [
+      "node",
+      "<round8-proof>/review-r7/ported/r1/probe.mjs",
+      "<round8-proof>/compiled-artifact",
+      "<round8-proof>/main-fixture"
+    ],
+    "exit": 0,
+    "load": 3.9580078125,
+    "seconds": 34.84
+  },
+  {
+    "name": "r1-cost-5000",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r1/cost.mjs", "<round8-proof>/compiled-artifact", "5000", "4"],
+    "exit": 0,
+    "load": 11.38330078125,
+    "seconds": 4.04
+  },
+  {
+    "name": "qa5-exact-controls",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r5/exact-controls.mjs"],
+    "exit": 0,
+    "load": 11.38330078125,
+    "seconds": 8.17
+  },
+  {
+    "name": "r1-cost-20000",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r1/cost.mjs", "<round8-proof>/compiled-artifact", "20000", "4"],
+    "exit": 0,
+    "load": 12.0732421875,
+    "seconds": 4.15
+  },
+  {
+    "name": "qa5-adversarial",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r5/adversarial.mjs"],
+    "exit": 0,
+    "load": 12.0732421875,
+    "seconds": 4.63
+  },
+  {
+    "name": "r7-shadow7",
+    "cmd": ["node", "<round8-proof>/review-r7/shadow7.mjs"],
+    "exit": 0,
+    "load": 3.9580078125,
+    "seconds": 44.75
+  },
+  {
+    "name": "qa5-monotonic",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r5/monotonic.mjs"],
+    "exit": 0,
+    "load": 12.86767578125,
+    "seconds": 3.44
+  },
+  {
+    "name": "qa6-reproduce-blockers",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/reproduce-blockers.mjs"],
+    "exit": 0,
+    "load": 13.6787109375,
+    "seconds": 3.27
+  },
+  {
+    "name": "qa6-reproduce-r6-blockers",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/reproduce-r6-blockers.mjs"],
+    "exit": 0,
+    "load": 13.8642578125,
+    "seconds": 2.68
+  },
+  {
+    "name": "qa6-reproduce-r6-no-prewarm",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/reproduce-r6-no-prewarm.mjs"],
+    "exit": 0,
+    "load": 13.8642578125,
+    "seconds": 2.56
+  },
+  {
+    "name": "r4-states-cost",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/states-cost.mjs"],
+    "exit": 0,
+    "load": 8.19482421875,
+    "seconds": 56.45
+  },
+  {
+    "name": "r7-smil7",
+    "cmd": ["node", "<round8-proof>/review-r7/smil7.mjs"],
+    "exit": 0,
+    "load": 12.86767578125,
+    "seconds": 31.64
+  },
+  {
+    "name": "r4-redact4",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/redact4.mjs"],
+    "exit": 0,
+    "load": 14.76171875,
+    "seconds": 10.37
+  },
+  {
+    "name": "qa6-new-attacks",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/new-attacks.mjs"],
+    "exit": 0,
+    "load": 14.35546875,
+    "seconds": 24.06
+  },
+  {
+    "name": "qa6-native-preflight",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/native-preflight.mjs"],
+    "exit": 0,
+    "load": 15.57958984375,
+    "seconds": 0.59
+  },
+  {
+    "name": "r7-cdpfail7",
+    "cmd": ["node", "<round8-proof>/review-r7/cdpfail7.mjs"],
+    "exit": 0,
+    "load": 15.57958984375,
+    "seconds": 6.21
+  },
+  {
+    "name": "r2-probe2",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r2/probe2.mjs", "<round8-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 12.86767578125,
+    "seconds": 45.48
+  },
+  {
+    "name": "r4-realistic",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/realistic.mjs"],
+    "exit": 0,
+    "load": 15.57958984375,
+    "seconds": 10.86
+  },
+  {
+    "name": "r2-reslot",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r2/reslot.mjs", "<round8-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 17.9111328125,
+    "seconds": 0.61
+  },
+  {
+    "name": "r2-timing",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r2/timing.mjs", "<round8-proof>/compiled-artifact"],
+    "exit": 0,
+    "load": 17.9111328125,
+    "seconds": 0.59
+  },
+  {
+    "name": "qa6-exact-controls",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/exact-controls.mjs"],
+    "exit": 0,
+    "load": 17.29443359375,
+    "seconds": 7.92
+  },
+  {
+    "name": "qa6-adversarial",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/adversarial.mjs"],
+    "exit": 0,
+    "load": 17.9111328125,
+    "seconds": 3.3
+  },
+  {
+    "name": "qa6-monotonic",
+    "cmd": ["node", "<round8-proof>/review-r7/qa-r6/monotonic.mjs"],
+    "exit": 0,
+    "load": 17.837890625,
+    "seconds": 3.42
+  },
+  {
+    "name": "r4-side-effects",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/side-effects.mjs"],
+    "exit": 0,
+    "load": 17.9111328125,
+    "seconds": 11.9
+  },
+  {
+    "name": "r7-liveness7",
+    "cmd": ["node", "<round8-proof>/review-r7/liveness7.mjs"],
+    "exit": 0,
+    "load": 17.29443359375,
+    "seconds": 25.62
+  },
+  {
+    "name": "r7-disjoint5-default",
+    "cmd": ["node", "<round8-proof>/review-r7/disjoint5-default.mjs"],
+    "exit": 0,
+    "load": 17.28173828125,
+    "seconds": 4.7
+  },
+  {
+    "name": "r3-probe3",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/probe3.mjs"],
+    "exit": 0,
+    "load": 17.9111328125,
+    "seconds": 31.92
+  },
+  {
+    "name": "r3-a-hover",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/a-hover.mjs"],
+    "exit": 0,
+    "load": 17.5869140625,
+    "seconds": 2.65
+  },
+  {
+    "name": "r3-cssom",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/cssom.mjs"],
+    "exit": 0,
+    "load": 17.61962890625,
+    "seconds": 0.61
+  },
+  {
+    "name": "r3-getkeyframes",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/getkeyframes.mjs"],
+    "exit": 0,
+    "load": 17.61962890625,
+    "seconds": 0.69
+  },
+  {
+    "name": "r7-dbg7",
+    "cmd": ["node", "<round8-proof>/review-r7/dbg7.mjs"],
+    "exit": 0,
+    "load": 17.8994140625,
+    "seconds": 14.24
+  },
+  {
+    "name": "r3-redact",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/redact.mjs"],
+    "exit": 0,
+    "load": 17.61962890625,
+    "seconds": 16.89
+  },
+  {
+    "name": "r3-render-truth",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/render-truth.mjs"],
+    "exit": 0,
+    "load": 19.1865234375,
+    "seconds": 1.22
+  },
+  {
+    "name": "r3-parity",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r3/parity.mjs"],
+    "exit": 0,
+    "load": 19.1865234375,
+    "seconds": 3.86
+  },
+  {
+    "name": "r5-disjoint5",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/disjoint5.mjs"],
+    "exit": 0,
+    "load": 19.65185546875,
+    "seconds": 1.47
+  },
+  {
+    "name": "r5-xorigin5",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/xorigin5.mjs"],
+    "exit": 0,
+    "load": 19.65185546875,
+    "seconds": 6.13
+  },
+  {
+    "name": "r5-leak5",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5.mjs"],
+    "exit": 0,
+    "load": 19.359375,
+    "seconds": 2.24
+  },
+  {
+    "name": "r5-leak5-css",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-css.mjs"],
+    "exit": 0,
+    "load": 19.09033203125,
+    "seconds": 1.71
+  },
+  {
+    "name": "r5-leak5-e8",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-e8.mjs"],
+    "exit": 0,
+    "load": 19.09033203125,
+    "seconds": 2.17
+  },
+  {
+    "name": "r5-leak5-implicit",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-implicit.mjs"],
+    "exit": 0,
+    "load": 19.09033203125,
+    "seconds": 4.77
+  },
+  {
+    "name": "r5-leak5-transition",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-transition.mjs"],
+    "exit": 0,
+    "load": 19.0830078125,
+    "seconds": 8.62
+  },
+  {
+    "name": "r5-leak5-css-stab",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-css-stab.mjs"],
+    "exit": 0,
+    "load": 17.7470703125,
+    "seconds": 6.95
+  },
+  {
+    "name": "r5-stab-false",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r5/leak5-css-stab.mjs"],
+    "exit": 0,
+    "load": 17.12646484375,
+    "seconds": 1.0
+  },
+  {
+    "name": "r4-probe4",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/probe4.mjs"],
+    "exit": 0,
+    "load": 17.5302734375,
+    "seconds": 121.1
+  },
+  {
+    "name": "r6-gap6",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/gap6.mjs"],
+    "exit": 0,
+    "load": 16.6357421875,
+    "seconds": 40.47
+  },
+  {
+    "name": "r6-gap6-running",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/gap6-running.mjs"],
+    "exit": 0,
+    "load": 11.81005859375,
+    "seconds": 6.76
+  },
+  {
+    "name": "r6-transition6",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/transition6.mjs"],
+    "exit": 0,
+    "load": 11.2646484375,
+    "seconds": 4.62
+  },
+  {
+    "name": "r6-conservative6",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/conservative6.mjs"],
+    "exit": 0,
+    "load": 10.6826171875,
+    "seconds": 15.66
+  },
+  {
+    "name": "r6-wrapper6",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/wrapper6.mjs"],
+    "exit": 0,
+    "load": 9.5830078125,
+    "seconds": 9.03
+  },
+  {
+    "name": "r6-conservative-false",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/conservative6.mjs"],
+    "exit": 0,
+    "load": 9.81982421875,
+    "seconds": 2.48
+  },
+  {
+    "name": "r4-getanimations-cost",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r4/getanimations-cost.mjs"],
+    "exit": 0,
+    "load": 12.4033203125,
+    "seconds": 51.02
+  },
+  {
+    "name": "r4-race",
+    "cmd": ["node", "<round8-proof>/r4-race/race.mjs"],
+    "exit": 0,
+    "load": 17.837890625,
+    "seconds": 255.61
+  },
+  {
+    "name": "r6-ancestor-cost",
+    "cmd": ["node", "<round8-proof>/review-r7/ported/r6/ancestor-cost.mjs"],
+    "exit": 0,
+    "load": 8.8193359375,
+    "seconds": 125.01
+  },
+  {
+    "name": "r4-reset",
+    "cmd": ["node", "<round8-proof>/r4-reset/race-reset.mjs"],
+    "exit": 0,
+    "load": 6.43017578125,
+    "seconds": 83.61
+  }
+]

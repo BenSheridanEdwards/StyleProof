@@ -1,0 +1,6 @@
+{
+  "lateClosed": "6/6 unknown, no findings, self-check true",
+  "lateOpenControl": "6/6 unknown, no findings, self-check true",
+  "SMIL": "control, finished, never-started known with one real body finding each",
+  "SMILSelfCheck": "false expected between deliberately different CSS revisions"
+}

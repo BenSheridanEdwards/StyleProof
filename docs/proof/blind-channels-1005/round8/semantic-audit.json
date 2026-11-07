@@ -1,0 +1,62 @@
+{
+  "qa7-shadow": "12/12 unknown, self-check true, no keyframes findings",
+  "r7-shadow7": "8 pairs clean; static control known; unstabilized attacks unknown (default live-region exclusions also remain named)",
+  "r7-smil7": "6 pairs clean; static control known; unstabilized attacks unknown (default live-region exclusions also remain named)",
+  "cdp-failure": "channels off/on retain the same two ordinary motion findings; on evidence unknown",
+  "qa5-reproduce-blockers": "15 pairs stable and unknown; ordinary sampled properties retained",
+  "qa6-reproduce-r6-blockers": "9 pairs stable and unknown; ordinary sampled properties retained",
+  "qa6-reproduce-r6-no-prewarm": "9 pairs stable and unknown; ordinary sampled properties retained",
+  "wrapper6": "4/4 with and without finished wrapper, matches r5 build",
+  "O7": "known and detected",
+  "r6-gap6": "58 pairs, no progress leaks",
+  "r6-gap6-running": "4 pairs, no progress leaks",
+  "default-parity": "byte-identical to main normally and with captureReach",
+  "qa8": {
+    "lateClosed": "6/6 unknown, no findings, self-check true",
+    "lateOpenControl": "6/6 unknown, no findings, self-check true",
+    "SMIL": "control, finished, never-started known with one real body finding each",
+    "SMILSelfCheck": "false expected between deliberately different CSS revisions"
+  },
+  "extra": {
+    "r7-attacks": {
+      "stablePairs": [
+        "r7-shell-repeat",
+        "r7-shell-reused-page",
+        "r7-paused-default",
+        "r7-waapi-during-true",
+        "r7-waapi-during-false",
+        "r7-finish-in-freeze-true",
+        "r7-finish-in-freeze-false",
+        "r7-finish-in-lift",
+        "r7-waapi-finished",
+        "r7-waapi-paused-at-end",
+        "r7-infinite-unstabilized",
+        "r7-freeze-transition"
+      ],
+      "realEditPairs": ["r7-shell-edit"]
+    },
+    "r8-attacks": {
+      "stablePairs": [
+        "r8-declarative-static",
+        "r8-declarative-running",
+        "r8-triple-closed-running",
+        "r8-triple-open-static",
+        "r8-design-system",
+        "r8-determinism",
+        "r8-late-open",
+        "r8-late-closed",
+        "r8-after-resting-open",
+        "r8-after-resting-closed"
+      ],
+      "realEditPairs": [
+        "r8-static-svg",
+        "r8-smil-indefinite",
+        "r8-smil-finished",
+        "r8-dashboard",
+        "r8-static-components-edit"
+      ]
+    },
+    "idleContextControls": ["em", "currentColor", "var"],
+    "freezeTransition": "stable; raw logs retain region exclusions"
+  }
+}

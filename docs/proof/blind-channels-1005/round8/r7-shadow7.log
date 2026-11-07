@@ -1,0 +1,38 @@
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:true S1 running consumer; shadow-internal width loop resizes its container (cqw): kf findings 0; other 0; evidence equal;  | ; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:true S3 consumer paused in its delay (not in progress); shadow width loop resizes container: kf findings 0; other 0; evidence equal;  | ; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:true S4 consumer finished-style: no motion on the light side at all except delay-paused; no shadow motion (control): kf findings 0; other 0; evidence equal; pulse:known: | pulse:known:; raw getAnimations doc/shadow [{"doc":1,"shadow":0},{"doc":1,"shadow":0}]
+     pulse  ||
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 2 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:true S5 consumer delay-paused; shadow-internal TRANSITION-free WAAPI? no: shadow CSS animation of font-size inherited via slot? (host font-size untouched) control: kf findings 0; other 0; evidence equal;  | ; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:false S1 running consumer; shadow-internal width loop resizes its container (cqw): kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:false S3 consumer paused in its delay (not in progress); shadow width loop resizes container: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:false S4 consumer finished-style: no motion on the light side at all except delay-paused; no shadow motion (control): kf findings 0; other 0; evidence equal; pulse:known: | pulse:known:; raw getAnimations doc/shadow [{"doc":1,"shadow":0},{"doc":1,"shadow":0}]
+     pulse  ||
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+## ok   stabilize:false S5 consumer delay-paused; shadow-internal TRANSITION-free WAAPI? no: shadow CSS animation of font-size inherited via slot? (host font-size untouched) control: kf findings 0; other 0; evidence equal; pulse:unknown | pulse:unknown; raw getAnimations doc/shadow [{"doc":1,"shadow":1},{"doc":1,"shadow":1}]
+     pulse  ||
