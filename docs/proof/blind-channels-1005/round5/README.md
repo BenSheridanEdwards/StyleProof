@@ -70,4 +70,4 @@ only a regenerated detection timestamp was restored after comparing all counts
 and case data.
 
 Full command outputs and raw maps/reports/probes are archived at
-`/Users/chief/Mini/Operations/Inbox/styleproof-1005-round5-proof`.
+`styleproof-1005-round5-proof`.

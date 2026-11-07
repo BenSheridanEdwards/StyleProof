@@ -4,7 +4,7 @@ Final runtime source: `bae74ecbc6db0b82b0cc2de5f95a801009cf0424`. Capture implem
 `f7a631755aab3fb2a490e5db058a4989ba5e5ebe`. Main: `4b298c004727c9ef955a72bd487ab7a36523f09f`.
 The compiled artifact is bound by build-binding.json; later commits add proof only.
 Full raw logs, probe inputs/maps and generated HTML reports are archived at
-`/Users/chief/Mini/Operations/Inbox/styleproof-1005-round8-proof`.
+`styleproof-1005-round8-proof`.
 
 The capture-scoped CDP DOM/CSS session watches native shadow/tree mutations.
 Each channel read verifies the catalogue epoch; an invalidated catalogue is

@@ -3,7 +3,7 @@
 Runtime source: `4805139bfabd786ebb1e91c4f96dfde4abf5c3ec`. Main: `4b298c004727c9ef955a72bd487ab7a36523f09f`.
 The final compiled artifact is bound by `build-binding.json`; subsequent changes
 are proof only. Full logs, original/copied probes, native frames, maps and reports
-are archived at `/Users/chief/Mini/Operations/Inbox/styleproof-1005-round7-proof`.
+are archived at `styleproof-1005-round7-proof`.
 
 Liveness now recursively reads every reachable open shadow root in both modes.
 The freeze is not extended into shadow content: surviving shadow effects are

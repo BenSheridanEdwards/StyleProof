@@ -2,7 +2,13 @@
 
 Runtime `3b5060000953969618088f0c86f61d1f7c679f88`; main `4b298c004727c9ef955a72bd487ab7a36523f09f`. Later commits add proof only.
 Full raw output, native probe inputs and retired preliminary builds:
-`/Users/chief/Mini/Operations/Inbox/styleproof-1005-round9-review-proof`.
+`styleproof-1005-round9-review-proof`.
+
+QA r10 correction: the verify pass below belongs to runtime `3b5060000`, before
+the proof commit. The later published `2b881d0f1` failed privacy checking because
+the cost manifest contained a machine path. It was not a verified final tree.
+Machine paths in tracked proof are now replaced with portable artifact names or
+repository-relative paths; historical logs otherwise retain their outcomes.
 
 The default remains off. v1 shared engine-model storage, scoped references, normalisation,
 image query privacy and old-map compatibility are unchanged. No runtime dependency,

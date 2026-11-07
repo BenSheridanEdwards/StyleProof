@@ -1,7 +1,7 @@
 # Round 9 — retain closed-root entry liveness
 
 Runtime: `410b545988ff1895a24e69cffd45973d3c5db16b`. Main: `4b298c004727c9ef955a72bd487ab7a36523f09f`. Later commits add proof only.
-Full raw output and replay inputs: `/Users/chief/Mini/Operations/Inbox/styleproof-1005-round9-proof`.
+Full raw output and replay inputs: `styleproof-1005-round9-proof`.
 At this QA-r9 checkpoint, the fix is committed and deliberately **held from pushing**,
 pending Review r9 as requested.
 

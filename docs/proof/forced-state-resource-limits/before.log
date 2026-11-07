@@ -22,7 +22,7 @@ styleproof: forced-state aggregate scan exhausted its 32000-element work budget;
       17 |   for (const states of Object.values(map.states)) {
       18 |     expect(Object.values(states.active).some((properties) => properties.color === 'rgb(0, 0, 200)')).toBe(true);
       19 |   }
-        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-exact-budget.e2e.spec.ts:16:29
+        at baseline/test/forced-state-exact-budget.e2e.spec.ts:16:29
 
     Error Context: test-results/test-forced-state-exact-bu-2173c-ll-completes-the-last-state-chromium/error-context.md
 
@@ -47,7 +47,7 @@ styleproof: forced-state aggregate scan exhausted its 32000-element work budget;
       28 |     if (!incomplete) {
       29 |       expect(Object.keys(map.states)).toHaveLength(2);
       30 |       for (const states of Object.values(map.states))
-        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:27:40
+        at baseline/test/forced-state-limits.e2e.spec.ts:27:40
 
     Error Context: test-results/test-forced-state-limits.e-a7ab1-imits-at-the-exact-boundary-chromium/error-context.md
 
@@ -71,7 +71,7 @@ styleproof: forced-state aggregate scan exhausted its 32000-element work budget;
       28 |     if (!incomplete) {
       29 |       expect(Object.keys(map.states)).toHaveLength(2);
       30 |       for (const states of Object.values(map.states))
-        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:27:40
+        at baseline/test/forced-state-limits.e2e.spec.ts:27:40
 
     Error Context: test-results/test-forced-state-limits.e-4a181-imits-at-the-exact-boundary-chromium/error-context.md
 
@@ -97,7 +97,7 @@ styleproof: forced-state aggregate scan exhausted its 32000-element work budget;
       41 |   expect(Object.keys(map.states)).toHaveLength(53);
       42 |   for (const states of Object.values(map.states)) {
       43 |     expect(Object.values(states.hover).some((properties) => properties.color === 'rgb(200, 0, 0)')).toBe(true);
-        at /private/tmp/sp-resource-4aebgj4a/baseline/test/forced-state-limits.e2e.spec.ts:40:29
+        at baseline/test/forced-state-limits.e2e.spec.ts:40:29
 
     Error Context: test-results/test-forced-state-limits.e-f6fb1-ol-beyond-the-default-limit-chromium/error-context.md
 

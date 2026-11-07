@@ -1549,7 +1549,12 @@ its animation APIs. CDP resource MIME metadata identifies loaded raster images
 (PNG, JPEG, WebP, AVIF, GIF, BMP and icons); these never hold models. Data-image MIME
 headers are recognized without reading bytes. No filename-extension inference or
 extra fetch is used. SVG and unknown types with intrinsic sizing hold keyframes
-unknown. A deferred image with no selected `currentSrc` has no active image box yet;
+unknown. Generic (`application/octet-stream`), missing or unrecognized MIME metadata
+stays unknown even when the browser successfully decodes a raster image: capture
+does not inspect resource bytes. An intrinsically sized PNG served with generic
+MIME can therefore prevent a real keyframes body edit from being compared. Serve
+the correct raster Content-Type or give the image explicit pixel width and height.
+A deferred image with no selected `currentSrc` has no active image box yet;
 its source channel is still named unloaded/not compared. Typed computed sizes distinguish explicit pixel sizes
 (including width/height attributes and CSS sizing) from intrinsic `auto`; ordinary
 explicitly sized SVG icons stay comparable. Readable embedded documents are walked

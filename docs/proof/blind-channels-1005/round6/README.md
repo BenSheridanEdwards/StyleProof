@@ -3,7 +3,7 @@
 Runtime source: `86fd7435f641a2122675f6841b5bc851033fb8ca`. Final probes import the compiled artifact bound by
 `build-binding.json`. Later changes are proof/documentation only. Full raw logs,
 probe inputs, native frames, maps and reports are archived at
-`/Users/chief/Mini/Operations/Inbox/styleproof-1005-round6-proof`.
+`styleproof-1005-round6-proof`.
 
 The rule follows the final Review r6 revision, which replaced the earlier
 context-free-value proposal. There is no token classifier or ancestor dependency
