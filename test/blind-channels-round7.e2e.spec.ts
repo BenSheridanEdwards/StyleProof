@@ -13,7 +13,7 @@ for (const [name, mode, kind, nested, status] of [
   ['open font', 'open', 'font', false, 'unknown'],
   ['nested open', 'open', 'width', true, 'unknown'],
   ['closed width', 'closed', 'width', false, 'unknown'],
-  ['closed static', 'closed', 'static', false, 'unknown'],
+  ['closed static', 'closed', 'static', false, 'known'],
   ['static open control', 'open', 'static', false, 'known'],
   ['unreadable open', 'open', 'unreadable', false, 'unknown'],
 ] as const)

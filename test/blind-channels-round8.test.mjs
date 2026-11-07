@@ -56,41 +56,70 @@ for (const [name, element, expected] of [
   ],
 ])
   test(`SMIL ${name}`, () => assert.equal(values.smilInProgress(element), expected));
-test('late author root is revalidated on the second channel read without per-host round trips', async () => {
-  let reads = 0;
-  const depths = [],
+test('late root invalidates the watched catalogue; registered roots are reused', async () => {
+  const { releaseVisualChannelSources } = await import('../dist/capture/visual-channel-boundaries.js');
+  let scans = 0,
+    resolves = 0;
+  const listeners = new Map(),
+    begins = [],
     finishes = [];
   const window = {
-    __spChannelHostsChecked: true,
-    __spBeginChannelProof() {},
+    __spChannelRoots: new Map(),
+    __spChannelHosts: new WeakSet(),
+    __spBeginChannelProof(...args) {
+      begins.push(args);
+    },
     __spFinishChannelProof(...args) {
       finishes.push(args);
     },
   };
+  window.top = window;
+  const root = { host: {}, getAnimations: () => [] };
   const client = {
-    on() {},
+    on(name, fn) {
+      listeners.set(name, fn);
+    },
     async send(method, args) {
-      if (method === 'DOM.getDocument') {
-        depths.push(args.depth);
+      if (method === 'DOM.getDocument')
         return {
-          root: { nodeType: 9, children: ++reads === 1 ? [] : [{ shadowRoots: [{ shadowRootType: 'closed' }] }] },
+          root: { nodeType: 9, shadowRoots: ++scans === 1 ? [] : [{ shadowRootType: 'closed', backendNodeId: 42 }] },
         };
+      if (method === 'DOM.resolveNode') {
+        resolves++;
+        return { object: { objectId: 'root' } };
+      }
+      if (method === 'Runtime.callFunctionOn') {
+        vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root, 42)', { window, root });
+        return {};
       }
       if (method === 'Runtime.evaluate') return { result: { value: [] } };
-      assert.ok(!method.startsWith('DOM.resolve'), 'bulk tree evidence must not resolve each host');
       return {};
     },
     async detach() {},
   };
   const page = {
-    evaluate: (expression) => vm.runInNewContext(expression, { window }),
+    evaluate: async (expression) => vm.runInNewContext(expression, { window }),
     context: () => ({ newCDPSession: async () => client }),
   };
   await prepareVisualChannelSources(page);
+  listeners.get('DOM.shadowRootPushed')();
   await prepareVisualChannelSources(page);
-  assert.deepEqual(depths, [-1, -1]);
-  assert.equal(finishes[0][0], true);
-  assert.equal(finishes[1][0], true);
-  assert.equal(finishes[0][2], false);
-  assert.equal(finishes[1][2], true);
+  await prepareVisualChannelSources(page);
+  assert.equal(scans, 2);
+  assert.equal(resolves, 1);
+  assert.ok(finishes.every((args) => args[0]));
+  assert.deepEqual(Array.from(begins[1][1]), [42]);
+  assert.equal(window.__spChannelRoots.get(42), root);
+  await releaseVisualChannelSources(page);
 });
+for (const [width, height, expected] of [
+  [{ unit: 'px', value: 16 }, { unit: 'px', value: 16 }, true],
+  [{ unit: 'px', value: 0 }, { unit: 'px', value: 0 }, true],
+  [{ value: 'auto' }, { unit: 'px', value: 16 }, false],
+  [{ unit: 'px', value: 16 }, { value: 'auto' }, false],
+  [{ unit: 'percent', value: 100 }, { unit: 'px', value: 16 }, false],
+  [undefined, undefined, false],
+])
+  test('opaque media requires two definite dimensions: ' + JSON.stringify([width, height]), () =>
+    assert.equal(values.fixedMediaSize(width, height), expected),
+  );

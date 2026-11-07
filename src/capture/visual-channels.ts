@@ -5,14 +5,15 @@ export type ChannelBody = { name: string; body?: string; status?: 'none' };
 export type VisualChannelWindow = {
   __spChannelValues?: typeof ChannelValues;
   __spChannelNodes?: Map<number, Element>;
+  __spChannelHosts?: WeakSet<Element>;
+  __spChannelRoots?: Map<number, ShadowRoot>;
   __spChannelScopesVerified?: boolean;
-  __spBeginChannelProof?: (unfreeze?: boolean) => void;
+  __spBeginChannelProof?: (unfreeze?: boolean, roots?: number[]) => void;
   __spChannelHostsChecked?: boolean;
-  __spChannelOpaqueRoots?: boolean;
   __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
-  __spFinishChannelProof?: (verified: boolean, sheets?: string[], opaque?: boolean) => void;
+  __spFinishChannelProof?: (verified: boolean, sheets?: string[]) => void;
   __spChannelBodies?: ChannelBody[];
   __spReadChannels?: (elements: Element[], pseudos: string[]) => Map<Element, Record<string, Props>>;
 };
@@ -29,9 +30,10 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
   delete target.__spRecordChannelSource;
   delete target.__spFinishChannelProof;
   delete target.__spChannelNodes;
+  delete target.__spChannelHosts;
+  delete target.__spChannelRoots;
   delete target.__spChannelScopesVerified;
   delete target.__spChannelHostsChecked;
-  delete target.__spChannelOpaqueRoots;
   delete target.__spChannelSheets;
   if (!enabled) {
     delete target.__spChannelValues;
@@ -279,7 +281,8 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       const node = pending.pop()!;
       if (seen.has(node)) continue;
       seen.add(node);
-      if (node.getRootNode() instanceof ShadowRoot || node.shadowRoot) return true;
+      if (node.getRootNode() instanceof ShadowRoot || node.shadowRoot || target.__spChannelHosts?.has(node))
+        return true;
       if (node.assignedSlot) pending.push(node.assignedSlot);
       if (node.parentElement) pending.push(node.parentElement);
     }
@@ -328,33 +331,75 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
         endTime: typeof timing.endTime === 'number' ? timing.endTime : undefined,
       });
     });
+  const embeddedInput = (element: Element): Document | 'opaque' | undefined => {
+    if (element.namespaceURI !== 'http://www.w3.org/1999/xhtml') return;
+    const name = element.localName;
+    if (name !== 'img' && name !== 'object' && name !== 'embed') return;
+    const box = (element as Element & { computedStyleMap?: () => { get(name: string): unknown } }).computedStyleMap?.();
+    const fixed = values.fixedMediaSize(box?.get('width'), box?.get('height'));
+    if (element.localName === 'img') {
+      const image = element as HTMLImageElement;
+      const source =
+        image.currentSrc ||
+        image.getAttribute('src') ||
+        image.getAttribute('srcset') ||
+        image.closest('picture')?.querySelector('source[srcset]');
+      return source && !fixed ? 'opaque' : undefined;
+    }
+    try {
+      const media = element as HTMLObjectElement & { getSVGDocument?: () => Document | null };
+      const doc = media.contentDocument ?? media.getSVGDocument?.();
+      if (doc) return doc;
+    } catch {
+      // An inaccessible embedded document may still control its intrinsic box.
+    }
+    const source = element.getAttribute(element.localName === 'object' ? 'data' : 'src');
+    return source && !fixed ? 'opaque' : undefined;
+  };
+  const rootHasInput = (root: Document | ShadowRoot, pending: (Document | ShadowRoot)[]): boolean => {
+    if (scopeInputs(root)) return true;
+    for (const element of root.querySelectorAll('*')) {
+      const embedded = embeddedInput(element);
+      if (embedded === 'opaque') return true;
+      if (embedded) pending.push(embedded);
+      if (
+        element.namespaceURI === 'http://www.w3.org/2000/svg' &&
+        /^(?:animate|animateTransform|animateMotion|set)$/.test(element.localName) &&
+        values.smilInProgress(element as SVGAnimationElement)
+      )
+        return true;
+      if (element.shadowRoot) pending.push(element.shadowRoot);
+    }
+    return false;
+  };
   const readInputs = (): boolean | undefined => {
     try {
       const pending: (Document | ShadowRoot)[] = [document];
+      const seen = new Set<Document | ShadowRoot>();
+      for (const id of rootIds) {
+        const root = target.__spChannelRoots?.get(id);
+        if (!root) throw new Error('unavailable author root');
+        pending.push(root);
+      }
       while (pending.length) {
         const root = pending.pop()!;
-        if (scopeInputs(root)) return true;
-        for (const element of root.querySelectorAll('*')) {
-          // SMIL is absent from getAnimations(); read its native interval and SVG clock.
-          if (
-            element.namespaceURI === 'http://www.w3.org/2000/svg' &&
-            /^(?:animate|animateTransform|animateMotion|set)$/.test(element.localName) &&
-            values.smilInProgress(element as SVGAnimationElement)
-          )
-            return true;
-          if (element.shadowRoot) pending.push(element.shadowRoot);
-        }
+        if (seen.has(root)) continue;
+        seen.add(root);
+        if (rootHasInput(root, pending)) return true;
       }
       return false;
     } catch {
       return undefined;
     }
   };
+  let rootIds: number[] = [];
   const initial = retainInputs ? readInputs() : false;
   let held = false;
+  target.__spChannelHosts = new WeakSet();
+  target.__spChannelRoots = new Map();
   let prepared: AnimationIndex | undefined;
-  target.__spChannelOpaqueRoots = false;
-  target.__spBeginChannelProof = (unfreeze = false) => {
+  target.__spBeginChannelProof = (unfreeze = false, roots = []) => {
+    rootIds = roots;
     sources.clear();
     target.__spChannelNodes = new Map();
     target.__spChannelScopesVerified = false;
@@ -402,11 +447,10 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       sources.delete(name);
     }
   };
-  target.__spFinishChannelProof = (verified, sheets, opaque) => {
-    target.__spChannelOpaqueRoots ||= opaque === true;
+  target.__spFinishChannelProof = (verified, sheets) => {
     target.__spChannelSheets = new Set(sheets ?? []);
     target.__spChannelScopesVerified = verified;
-    if (target.__spChannelOpaqueRoots) held = true;
+
     if (verified) target.__spChannelHostsChecked = true;
     target.__spChannelNodes?.clear();
     restoreFreeze?.();

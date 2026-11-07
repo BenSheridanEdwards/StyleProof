@@ -1493,11 +1493,14 @@ mutations. Current time, progress and sampled rendered values are not stored.
 A read-only CDP matched-rule check verifies the engine's source against the CSSOM
 winner. The CSSOM name/layer index respects applying media/supports, normal cascade
 layers, imports, disabled sheets and stylesheet order, cached per root per capture.
-Provenance and author boundaries are revalidated for every resting and forced read
-on a separate session. Each read uses one bulk pierced CDP tree traversal, with
-no per-host resolve calls. This also discovers closed roots attached after the
-resting read, before forced-state bodies can be called known. If revalidation is
-unavailable, channel evidence stays unknown. Identical duplicate definitions stay comparable. A loaded
+Provenance and author-boundary evidence are checked on every resting/forced read.
+A capture-scoped CDP session watches native tree and shadow-root events. Its full
+pierced tree catalogue is refreshed after invalidation, including closed roots
+attached after the resting read. Closed roots are resolved once and their animation
+lists are read in the same synchronous pass as document/open-root liveness. Static
+and finished closed-root siblings do not taint unrelated document models. Roots
+that cannot be read, changing boundary evidence, or unavailable CDP keep bodies
+unknown. The session and root handles are released in capture cleanup. Identical duplicate definitions stay comparable. A loaded
 opaque stylesheet does not taint a readable winner when the live model and
 matched-rule provenance agree; missing/unloaded sheets remain unknown. Missing,
 unreadable, mismatched or unavailable evidence stays `unknown`, named **keyframes
@@ -1520,19 +1523,28 @@ surviving Web Animation (such as a spinner) can hold every body unknown; there i
 no per-target or property relaxation. Finished,
 idle and paused-at-end effects do not count.
 
-With `stabilize:false`, if any animation or transition is in progress anywhere in
-the resting document, **every keyframe body is unknown**. Running effects and
-paused active intervals count, including the consumer itself, pseudo-elements and
-siblings. Liveness reads the document and every recursively reachable open shadow
-root in both capture modes. Shadow content is not frozen. Unreadable root animation
-lists and CDP-discovered closed roots conservatively hold every body unknown in
-both modes. SMIL is absent from getAnimations(): SVG `animate`, `animateTransform`,
-`animateMotion` and `set` elements are checked using their native current interval,
-simple duration, repeat/end limits and the owner SVG clock. Finished intervals
-(including fill=freeze) and never-started animations do not taint evidence. Active
-intervals and indefinite repeats hold every body unknown, including on paused SVG
-timelines. Unavailable or unresolved timing is held conservatively. Plain static
-SVG and readable static open roots do not taint evidence.
+Liveness in both modes covers the document, recursively reachable open roots,
+CDP-resolved closed roots, and readable `object`/`embed` content documents (including
+SVG returned by getSVGDocument). Shadow and embedded content are not frozen.
+SMIL `animate`, `animateTransform`, `animateMotion` and `set` elements are checked
+using native intervals, simple durations, repeat/end limits and the owner SVG clock.
+Finished intervals (including fill=freeze), never-started and future-start animations
+do not taint evidence. Active intervals and indefinite repeats hold every body
+unknown, including on paused SVG timelines; unavailable timing stays conservative.
+An unrelated SMIL spinner can hold every model unknown, just like a surviving WAAPI
+spinner. Plain static SVG and readable static roots do not taint evidence.
+
+An opaque image or `object`/`embed` can change intrinsic layout without exposing its
+animation APIs. When it has a source and lacks two definite width/height values,
+keyframes are held unknown. Typed computed sizes distinguish explicit pixel sizes
+(including width/height attributes and CSS sizing) from intrinsic `auto`; ordinary
+explicitly sized SVG icons stay comparable. Readable embedded documents are walked
+recursively. Iframe contents are not followed for this liveness check: their content
+cannot resize the iframe element, and their styles remain outside ordinary capture.
+
+With `stabilize:false`, if any covered animation or transition is in progress in the
+resting read, **every keyframe body is unknown**. Running effects and paused active
+intervals count, including the consumer itself, pseudo-elements and siblings.
 No value-token classification or DOM dependency walk proves safety:
 the engine can supply dependencies absent from the source. Pre-freeze inputs are
 retained for the capture even if freezing cancels or finishes them. When nothing

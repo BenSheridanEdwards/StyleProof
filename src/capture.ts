@@ -3,6 +3,7 @@
 // stays comparable. Public entry; the machinery lives under src/capture/.
 import type { Page } from '@playwright/test';
 import { randomUUID } from 'node:crypto';
+import { releaseVisualChannelSources } from './capture/visual-channel-boundaries.js';
 import { installVisualChannelValues, prepareVisualChannelSources } from './capture/visual-channel-proof.js';
 import { installVisualChannels, type VisualChannelWindow } from './capture/visual-channels.js';
 import { finalizeVisualChannels, isChannelProperty } from './visual-channels.js';
@@ -452,31 +453,8 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
   };
 }
 
-async function prepareMotionRead(page: Page, channels: boolean): Promise<void> {
-  if (channels) await prepareVisualChannelSources(page, true);
-  else await page.evaluate(unfreezeMotion, true);
-}
-
-/**
- * Capture the page's complete style map. Drive the page to the state first; by default
- * the capture settles it and excludes live regions (see `stabilize`).
- */
-export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
-  const limits = resolveForcedStateLimits(options); // validates before touching the browser
-  const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
-  const skipSel = skipSelector(ignore);
-  const captureText = options.captureText ?? true;
-  // Shared by settle polls and the resting read; components require a separate capture.
-  const args = {
-    skipSel,
-    frameworkSkipSel: skipSelector(FRAMEWORK_IGNORE),
-    captureClassPresence: !!options.captureReach,
-    routeAnnouncerSel: ROUTE_ANNOUNCERS.join(', '),
-    motionOnly: false,
-    captureText,
-    pseudoReferences: PSEUDO_REFERENCES,
-  };
-
+/** Recipe captures retain the interaction already driven by their action. */
+async function resetAmbientInteraction(page: Page, options: CaptureOptions): Promise<void> {
   // Resting captures clear ambient interactions; recipe captures keep the state
   // their driver deliberately reached, including CSS-only :hover and :focus.
   const recipeAction =
@@ -491,51 +469,80 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     // SAFETY: only the optional blur method is used; null and elements without it are skipped.
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
   }
+}
 
-  await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
-  if (options.captureVisualChannels) await installVisualChannelValues(page);
-  await page.evaluate(installVisualChannels, {
-    enabled: options.captureVisualChannels === true,
-    retainInputs: options.stabilize === false,
-  });
-  // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.evaluate(freezeMotion, FREEZE_CSS);
+async function prepareMotionRead(page: Page, channels: boolean): Promise<void> {
+  if (channels) await prepareVisualChannelSources(page, true);
+  else await page.evaluate(unfreezeMotion, true);
+}
 
-  options.onPhase?.('settle');
-
-  const { volatile, settled, inFlightAtTimeout } = await detectVolatile(
-    page,
-    args,
-    options.stabilize ?? true,
-    options.pendingRequests,
-  );
-
-  options.onPhase?.('capture');
-  await assertRequiredVisibleState(page, options.requiredVisibleState);
-  // Live-region candidates are diagnostics only: stable status/alert UI is still captured.
-  const liveCandidates = await page.evaluate(detectLiveCandidates, { skipSel });
-
-  // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
-  // mounts during the settle must be seen), then the freeze is re-applied for every other read.
-  await prepareMotionRead(page, options.captureVisualChannels === true);
-  const motion = (
-    await page.evaluate(capturePage, {
-      skipSel,
-      motionOnly: true,
-      captureText: false,
-      pseudoReferences: PSEUDO_REFERENCES,
-    })
-  ).elements;
-  // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
-  await page.evaluate(freezeMotion, FREEZE_CSS);
-  // The identical freeze restores the polls' non-motion end state; mergeMotion supplies
-  // declared motion separately, so lifting the freeze for that read does not invalidate it.
-  // Rule usage starts after the settle, so a rule matched only while the page was still
-  // changing is not recorded as reached; starting it records every rule the settled page matches.
-  const reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
+/**
+ * Capture the page's complete style map. Drive the page to the state first; by default
+ * the capture settles it and excludes live regions (see `stabilize`).
+ */
+export async function captureStyleMap(page: Page, options: CaptureOptions = {}): Promise<StyleMap> {
+  const limits = resolveForcedStateLimits(options); // validates before touching the browser
+  let reach: Awaited<ReturnType<typeof trackServedRules>> | undefined;
   let captureSucceeded = false;
   try {
+    const ignore = [...FRAMEWORK_IGNORE, ...(options.ignore ?? [])];
+    const skipSel = skipSelector(ignore);
+    const captureText = options.captureText ?? true;
+    // Shared by settle polls and the resting read; components require a separate capture.
+    const args = {
+      skipSel,
+      frameworkSkipSel: skipSelector(FRAMEWORK_IGNORE),
+      captureClassPresence: !!options.captureReach,
+      routeAnnouncerSel: ROUTE_ANNOUNCERS.join(', '),
+      motionOnly: false,
+      captureText,
+      pseudoReferences: PSEUDO_REFERENCES,
+    };
+
+    await resetAmbientInteraction(page, options);
+
+    await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);
+    if (options.captureVisualChannels) await installVisualChannelValues(page);
+    await page.evaluate(installVisualChannels, {
+      enabled: options.captureVisualChannels === true,
+      retainInputs: options.stabilize === false,
+    });
+    // Freeze motion BEFORE settling. JS animation libraries honour prefers-reduced-motion.
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.evaluate(freezeMotion, FREEZE_CSS);
+
+    options.onPhase?.('settle');
+
+    const { volatile, settled, inFlightAtTimeout } = await detectVolatile(
+      page,
+      args,
+      options.stabilize ?? true,
+      options.pendingRequests,
+    );
+
+    options.onPhase?.('capture');
+    await assertRequiredVisibleState(page, options.requiredVisibleState);
+    // Live-region candidates are diagnostics only: stable status/alert UI is still captured.
+    const liveCandidates = await page.evaluate(detectLiveCandidates, { skipSel });
+
+    // Motion longhands are read on the SETTLED DOM with the freeze lifted (an element that
+    // mounts during the settle must be seen), then the freeze is re-applied for every other read.
+    await prepareMotionRead(page, options.captureVisualChannels === true);
+    const motion = (
+      await page.evaluate(capturePage, {
+        skipSel,
+        motionOnly: true,
+        captureText: false,
+        pseudoReferences: PSEUDO_REFERENCES,
+      })
+    ).elements;
+    // Removed again below so a page reused without a reload (SPA go(), self-check) starts unfrozen.
+    await page.evaluate(freezeMotion, FREEZE_CSS);
+    // The identical freeze restores the polls' non-motion end state; mergeMotion supplies
+    // declared motion separately, so lifting the freeze for that read does not invalidate it.
+    // Rule usage starts after the settle, so a rule matched only while the page was still
+    // changing is not recorded as reached; starting it records every rule the settled page matches.
+    reach = options.captureReach ? (options.servedRules ?? (await trackServedRules(page))) : undefined;
     await reach?.start();
 
     await options.scriptReach?.beginMapRead?.();
@@ -566,6 +573,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
     captureSucceeded = true;
     return result;
   } finally {
+    await releaseVisualChannelSources(page);
     // A caller-armed tracker outlives this capture (self-check, popups); one armed here does not.
     if (reach && !options.servedRules) await reach.dispose();
     // Strict after a successful read; on a throw path the original error must surface instead.

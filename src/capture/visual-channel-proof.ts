@@ -5,6 +5,7 @@ import {
   smilInProgress,
   smilActiveDuration,
   smilClockSeconds,
+  fixedMediaSize,
   holdKeyframes,
   normalizeImageSource,
   orderIndependentFrames,
@@ -13,34 +14,13 @@ import {
   resolveEngineBody,
 } from './visual-channel-values.js';
 import { captureExpression } from './script-evaluation.js';
-import { registerStyleProofSession } from './script-coverage-ownership.js';
-
-type BoundaryNode = {
-  nodeType?: number;
-  children?: BoundaryNode[];
-  shadowRoots?: BoundaryNode[];
-  shadowRootType?: string;
-};
-/** Bulk author-boundary evidence; iframe documents and browser-owned roots are outside this capture. */
-function opaqueAuthorRoots(root: BoundaryNode): boolean {
-  const pending = [root];
-  while (pending.length) {
-    const node = pending.pop()!;
-    if (node.shadowRootType === 'user-agent') continue;
-    for (const shadow of node.shadowRoots ?? []) {
-      if (shadow.shadowRootType === 'user-agent') continue;
-      if (shadow.shadowRootType !== 'open') return true;
-      pending.push(shadow);
-    }
-    for (const child of node.children ?? []) pending.push(child);
-  }
-  return false;
-}
+import { readVisualChannelBoundaries } from './visual-channel-boundaries.js';
 
 export async function installVisualChannelValues(page: Page): Promise<void> {
   await page.evaluate(
     captureExpression(`window.__spChannelValues = {
     motionInProgress: (${motionInProgress.toString()}),
+    fixedMediaSize: (${fixedMediaSize.toString()}),
     smilClockSeconds: (${smilClockSeconds.toString()}),
     smilActiveDuration: (duration, start, element) => (${smilActiveDuration.toString()})(duration, start, element, window.__spChannelValues.smilClockSeconds),
     smilInProgress: (element) => (${smilInProgress.toString()})(element, window.__spChannelValues.smilActiveDuration),
@@ -113,42 +93,27 @@ async function recordMatchedSources(client: CDPSession): Promise<void> {
   }
 }
 
-/** Refresh provenance after the synchronous snapshot; session availability never controls the motion read. */
-async function refreshVisualChannelSources(client: CDPSession): Promise<boolean> {
-  const { root } = await client.send('DOM.getDocument', { depth: -1, pierce: true });
-  if (root.nodeType !== 9) throw new Error('missing document boundary');
-  const opaque = opaqueAuthorRoots(root as BoundaryNode);
-  await recordMatchedSources(client);
-  return opaque;
-}
-
 export async function prepareVisualChannelSources(page: Page, unfreeze = false): Promise<void> {
-  // Always lift/read through Playwright before any CDP setup that may fail.
-  await page.evaluate(captureExpression(`window.__spBeginChannelProof(${unfreeze}); void 0;`));
-  let client: CDPSession | undefined;
-  const sheets = new Set<string>();
+  let begun = false;
   let verified = false;
-  let opaque = false;
+  let read: Awaited<ReturnType<typeof readVisualChannelBoundaries>> | undefined;
   try {
-    client = registerStyleProofSession(await page.context().newCDPSession(page));
-    client.on('CSS.styleSheetAdded', ({ header }) => {
-      if (header.sourceURL) sheets.add(header.sourceURL);
-    });
-    await client.send('DOM.enable');
-    await client.send('CSS.enable');
-    opaque = await refreshVisualChannelSources(client);
-    verified = true;
+    read = await readVisualChannelBoundaries(page);
+    await page.evaluate(
+      captureExpression(`window.__spBeginChannelProof(${unfreeze}, ${JSON.stringify(read.roots)}); void 0;`),
+    );
+    begun = true;
+    await recordMatchedSources(read.catalog.client);
+    verified = read.catalog.version === read.version;
   } catch {
-    // No CDP means unknown channel evidence, never a frozen ordinary motion read.
+    // Missing or changing boundary/source evidence remains unknown.
   } finally {
-    try {
-      await page.evaluate(
-        captureExpression(
-          `window.__spFinishChannelProof(${verified}, ${JSON.stringify([...sheets])}, ${opaque}); void 0;`,
-        ),
-      );
-    } finally {
-      await client?.detach().catch(() => {});
-    }
+    // No CDP must still lift the freeze before the ordinary motion read.
+    if (!begun) await page.evaluate(captureExpression(`window.__spBeginChannelProof(${unfreeze}); void 0;`));
+    await page.evaluate(
+      captureExpression(
+        `window.__spFinishChannelProof(${verified}, ${JSON.stringify([...(read?.catalog.sheets.values() ?? [])])}); void 0;`,
+      ),
+    );
   }
 }

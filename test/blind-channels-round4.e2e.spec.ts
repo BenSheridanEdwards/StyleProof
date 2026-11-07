@@ -105,14 +105,26 @@ test('animated element captures scale linearly at 500, 1000 and 2000 elements', 
   }
 });
 
-test('forced-state channel reads revalidate author boundaries in bulk', async ({ page }) => {
+test('forced-state reads reuse boundary scans until a native tree mutation', async ({ page }) => {
   const context = page.context();
   const native = context.newCDPSession.bind(context);
   let deep = 0;
   let reads = 0;
   let hostResolves = 0;
+  let mutations = 0;
   context.newCDPSession = async (...args) => {
     const client = await native(...args);
+    for (const event of [
+      'DOM.documentUpdated',
+      'DOM.shadowRootPushed',
+      'DOM.shadowRootPopped',
+      'DOM.childNodeInserted',
+      'DOM.childNodeRemoved',
+      'DOM.childNodeCountUpdated',
+    ] as const)
+      client.on(event, () => {
+        mutations++;
+      });
     const send = client.send.bind(client);
     client.send = async (method, params) => {
       if (method === 'DOM.getDocument' && (params as { depth?: number })?.depth === -1) deep++;
@@ -132,7 +144,9 @@ test('forced-state channel reads revalidate author boundaries in bulk', async ({
   try {
     await captureStyleMap(page, { captureVisualChannels: true, stabilize: false });
     expect(reads).toBeGreaterThan(1);
-    expect(deep).toBe(reads);
+    expect(deep).toBeGreaterThanOrEqual(1);
+    expect(deep).toBeLessThanOrEqual(1 + mutations);
+    expect(deep).toBeLessThan(reads);
     expect(hostResolves).toBe(0);
   } finally {
     context.newCDPSession = native;

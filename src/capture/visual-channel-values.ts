@@ -260,3 +260,11 @@ export function smilInProgress(
     return true;
   }
 }
+
+/** Typed computed sizes preserve auto versus explicit absolute sizing. */
+export function fixedMediaSize(width: unknown, height: unknown): boolean {
+  return [width, height].every((size) => {
+    if (!size || typeof size !== 'object' || !('unit' in size) || !('value' in size)) return false;
+    return size.unit === 'px' && typeof size.value === 'number' && Number.isFinite(size.value) && size.value >= 0;
+  });
+}
