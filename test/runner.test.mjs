@@ -996,24 +996,43 @@ test('crawl productState: an async function fails closed and its rejection never
   }
 });
 
-test('crawl productState: a Promise polyfill installed before StyleProof loads cannot stand in for the built-in', () => {
-  const script = `
-    const Builtin = Promise;
-    globalThis.Promise = class Polyfill extends Builtin {};
-    const unhandled = [];
-    process.on('unhandledRejection', (reason) => unhandled.push(String(reason)));
-    const { crawlLinkProductState } = await import(${JSON.stringify(new URL('../dist/runner/crawl-capture.js', import.meta.url).href)});
-    const rejected = Builtin.reject(new Error('SYNTHETIC-POLYFILL-SENTINEL'));
-    let thenCalls = 0;
-    rejected.then = () => { thenCalls++; };
-    let name;
-    try { crawlLinkProductState(() => rejected, { key: 'checkout', url: '/checkout' }); } catch (error) { name = error.name; }
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
-    process.stdout.write(JSON.stringify({ name, thenCalls, unhandled: unhandled.length }));
-  `;
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr);
-  assert.doesNotMatch(result.stdout + result.stderr, /SYNTHETIC-POLYFILL-SENTINEL/);
-  assert.deepEqual(JSON.parse(result.stdout), { name: 'ProductStateIdentityError', thenCalls: 0, unhandled: 0 });
+test('crawl productState: a Promise replaced before StyleProof loads cannot stand in for the built-in', () => {
+  const crawlCapture = JSON.stringify(new URL('../dist/runner/crawl-capture.js', import.meta.url).href);
+  const run = (setup) => {
+    const script = `
+      const Builtin = Promise;
+      ${setup}
+      const unhandled = [];
+      process.on('unhandledRejection', () => unhandled.push(1));
+      const { crawlLinkProductState } = await import(${crawlCapture});
+      const rejected = Builtin.reject(new Error('SYNTHETIC-REPLACED-PROMISE-SENTINEL'));
+      let thenCalls = 0;
+      rejected.then = () => { thenCalls++; };
+      let name;
+      try { crawlLinkProductState(() => rejected, { key: 'checkout', url: '/checkout' }); } catch (error) { name = error.name; }
+      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => setImmediate(resolve));
+      process.stdout.write(JSON.stringify({ name, thenCalls, unhandled: unhandled.length }));
+      process.exit(0);
+    `;
+    // A timeout turns a spinning child into a failure instead of a hung suite.
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', script], {
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return { output: result.stdout + result.stderr, outcome: JSON.parse(result.stdout) };
+  };
+  const forgePrototype = 'function Fake() {} Fake.prototype = Builtin.prototype; Builtin.prototype.constructor = Fake;';
+  const replaceGlobal = 'globalThis.Promise = class Polyfill extends Builtin {};';
+
+  // Either replacement alone is not enough: the other candidate still confirms the built-in.
+  for (const setup of [replaceGlobal, forgePrototype]) {
+    const { output, outcome } = run(setup);
+    assert.doesNotMatch(output, /SYNTHETIC-REPLACED-PROMISE-SENTINEL/);
+    assert.deepEqual(outcome, { name: 'ProductStateIdentityError', thenCalls: 0, unhandled: 0 });
+  }
+  // Both replaced is the documented limit: the rejection is not handled, but the promise is never awaited.
+  const { outcome } = run(`${forgePrototype} ${replaceGlobal}`);
+  assert.deepEqual(outcome, { name: 'ProductStateIdentityError', thenCalls: 0, unhandled: 1 });
 });

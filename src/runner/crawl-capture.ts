@@ -153,19 +153,45 @@ function isThenable(value: unknown): value is PromiseLike<unknown> {
   }
 }
 
-// The built-in Promise, read from an async function's result rather than the global, so a
-// polyfill or patch installed before or after load cannot stand in for it. Undefined when it
-// cannot be confirmed without running consumer code; then no rejection is handled.
+// The built-in Promise, confirmed by behaviour: `await` attaches to a promise directly, without
+// reading its `then`, only when its `constructor` is the built-in. Candidates are the constructor
+// on an async function's result prototype and the global, so replacing one before load is not
+// enough to stand in for it. Undefined when neither confirms; then no rejection is handled.
 const INTRINSIC_PROMISE_PROTOTYPE = Reflect.getPrototypeOf((async () => {})());
 const INTRINSIC_PROMISE = intrinsicPromise();
 
 function intrinsicPromise(): PromiseConstructor | undefined {
-  if (INTRINSIC_PROMISE_PROTOTYPE === null) return undefined;
-  const constructor = Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor')?.value;
-  if (typeof constructor !== 'function' || types.isProxy(constructor)) return undefined;
-  const prototype = Reflect.getOwnPropertyDescriptor(constructor, 'prototype')?.value;
+  const fromPrototype =
+    INTRINSIC_PROMISE_PROTOTYPE === null
+      ? undefined
+      : Reflect.getOwnPropertyDescriptor(INTRINSIC_PROMISE_PROTOTYPE, 'constructor')?.value;
 
-  return prototype === INTRINSIC_PROMISE_PROTOTYPE ? (constructor as PromiseConstructor) : undefined;
+  for (const candidate of [fromPrototype, Reflect.getOwnPropertyDescriptor(globalThis, 'Promise')?.value]) {
+    if (typeof candidate === 'function' && awaitsDirectly(candidate)) return candidate as PromiseConstructor;
+  }
+
+  return undefined;
+}
+
+/** Whether `await` attaches to a fresh promise whose `constructor` is `candidate` without reading its `then`. */
+function awaitsDirectly(candidate: unknown): boolean {
+  const probe = (async () => {})();
+  let thenRead = false;
+
+  Reflect.defineProperty(probe, 'constructor', { value: candidate, configurable: true });
+  Reflect.defineProperty(probe, 'then', {
+    configurable: true,
+    get() {
+      thenRead = true;
+      return undefined;
+    },
+  });
+  // Resolving with a value that is not the built-in reads its `then` synchronously, inside the await.
+  void (async () => {
+    await probe;
+  })();
+
+  return !thenRead;
 }
 
 /** A non-extensible promise with no own `constructor` that inherits the built-in one directly. */
@@ -184,10 +210,11 @@ function inheritsIntrinsicConstructor(value: object): boolean {
  * getter, setter, trap or species lookup runs) and put back once the handler is attached. When it
  * cannot be pinned the promise is not awaited at all, so none of its code runs; only a promise
  * that already inherits the built-in `constructor` is still handled. A custom thenable holds no
- * rejection of its own, so its `then` is never run. Nothing here can throw outward. Two rejections
- * cannot be handled: a promise whose `constructor` is not the built-in one and cannot be set (an
- * own non-configurable getter or non-writable value, or an inherited one on a non-extensible
- * promise), and one the function never returns directly (inside a Proxy or a custom thenable).
+ * rejection of its own, so its `then` is never called. Nothing here can throw outward. Rejections
+ * that cannot be handled: a promise whose own `constructor` is not the built-in and cannot be set
+ * (a non-configurable getter or non-writable value), a non-extensible promise that does not inherit
+ * directly from `Promise.prototype`, one the function never returns directly (inside a Proxy or a
+ * custom thenable), and every rejection when no built-in Promise could be confirmed at load.
  */
 function swallowRejection(value: unknown): void {
   if (!types.isPromise(value) || INTRINSIC_PROMISE === undefined) return;
