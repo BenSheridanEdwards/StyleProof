@@ -46,14 +46,20 @@ async function installImageTypes(page: Page, client: CDPSession): Promise<void> 
     const pending = [frameTree];
     while (pending.length) {
       const tree = pending.pop()!;
-      if (tree.frame?.url && tree.frame.mimeType) types.push([tree.frame.url, tree.frame.mimeType]);
+      if (tree.frame?.url) types.push([tree.frame.url, tree.frame.mimeType ?? '']);
       for (const resource of tree.resources) types.push([resource.url, resource.mimeType]);
       for (const child of tree.childFrames ?? []) pending.push(child);
     }
   } catch {
     // Missing MIME evidence holds only the affected opaque images, not every model.
   }
-  await page.evaluate(captureExpression(`window.__spChannelImageTypes = new Map(${JSON.stringify(types)}); void 0;`));
+  const observed = new Map<string, boolean>();
+  for (const [url, mime] of types) {
+    observed.set(url, observed.get(url) === true || mayBeSvg('', mime));
+  }
+  await page.evaluate(
+    captureExpression(`window.__spChannelImageTypes = new Map(${JSON.stringify([...observed])}); void 0;`),
+  );
 }
 
 /** Retain entry-time liveness only after closed roots are available, before freezing. */

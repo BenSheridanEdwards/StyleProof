@@ -73,6 +73,8 @@ for (const change of [
   'popped root',
   'unexpanded inert',
   'unexpanded count',
+  'mime conflict',
+  'raster formats',
 ])
   test(`proof revalidates boundary membership after ${change}`, async () => {
     let scans = 0,
@@ -128,7 +130,23 @@ for (const change of [
           });
           return {};
         }
-        if (method === 'Page.getResourceTree') return { frameTree: { resources: [] } };
+        if (method === 'Page.getResourceTree')
+          return {
+            frameTree: {
+              resources:
+                change === 'mime conflict'
+                  ? [
+                      { url: 'https://site.test/image', mimeType: 'image/svg+xml' },
+                      { url: 'https://site.test/image', mimeType: 'image/png' },
+                    ]
+                  : change === 'raster formats'
+                    ? [
+                        { url: 'https://site.test/image', mimeType: 'image/avif' },
+                        { url: 'https://site.test/image', mimeType: 'image/webp' },
+                      ]
+                    : [],
+            },
+          };
         if (method === 'DOM.resolveNode') return { object: { objectId: 'root' } };
         if (method === 'Runtime.callFunctionOn') {
           vm.runInNewContext('(' + args.functionDeclaration + '\n).call(root,42)', { window, root });
@@ -162,11 +180,18 @@ for (const change of [
     };
     try {
       await prepareVisualChannelSources(page);
+      if (change === 'mime conflict') assert.equal(window.__spChannelImageTypes.get('https://site.test/image'), true);
+      if (change === 'raster formats') assert.equal(window.__spChannelImageTypes.get('https://site.test/image'), false);
       assert.equal(
         finishes.at(-1),
         !['new closed root', 'popped root', 'unexpanded inert', 'unexpanded count'].includes(change),
       );
-      assert.equal(scans, ['text', 'inert element', 'popped root', 'unexpanded count'].includes(change) ? 1 : 2);
+      assert.equal(
+        scans,
+        ['text', 'inert element', 'popped root', 'unexpanded count', 'mime conflict', 'raster formats'].includes(change)
+          ? 1
+          : 2,
+      );
     } finally {
       await releaseVisualChannelSources(page);
     }

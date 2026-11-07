@@ -10,7 +10,7 @@ export type VisualChannelWindow = {
   __spChannelScopesVerified?: boolean;
   __spReadInitialChannelInputs?: (roots?: number[]) => void;
   __spBeginChannelProof?: (unfreeze?: boolean, roots?: number[]) => void;
-  __spChannelImageTypes?: Map<string, string>;
+  __spChannelImageTypes?: Map<string, boolean>;
   __spChannelSheets?: Set<string>;
   __spChannelRequests?: () => { id: number; name: string; pseudo: string }[];
   __spRecordChannelSource?: (name: string, text: string | undefined) => void;
@@ -334,9 +334,10 @@ export function installVisualChannels(options: boolean | { enabled: boolean; ret
       });
     });
   const sourceMayResize = (source: string, element: Element): boolean => {
+    if (/^data:/i.test(source)) return values.mayBeSvg(source);
     const url = new URL(source, element.ownerDocument.baseURI);
     url.hash = '';
-    return values.mayBeSvg(source, target.__spChannelImageTypes?.get(url.href));
+    return target.__spChannelImageTypes?.get(url.href) !== false;
   };
   const generatedImageInput = (element: Element): boolean => {
     if (!retainInputs) return false;
