@@ -155,34 +155,6 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Migration
 
-- **Capture refuses separately started servers (#1300).** Capture fails when a Playwright
-  `webServer` URL already responds, even if the config enables reuse. If your app server
-  is started separately, pass `--external-server` or set `BASE_URL` (the only route under
-  `styleproof ci` and the Action). These opt-ins override `reuseExistingServer: false`
-  for that run. Config files are not rewritten. The directory containing the Playwright
-  config must be writable so capture can create and remove its temporary wrapper.
-
-1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
-   subfolder are affected when the parent holding the config is world-writable,
-   owned by another non-root user, or a runner-owned checkout above a root
-   container job. They are also affected when that parent's config file is
-   itself world-writable or owned by another non-root user (#1275). Windows non-git projects run from a subfolder are also affected.
-   A `styleproof: warning:` on stderr names the skipped config and the reason,
-   says the file was not loaded and built-in defaults apply, and gives the next
-   step (#1274). Missing-config and missing-spec errors also name the skipped file.
-   Run StyleProof from the folder that holds the config; on POSIX, alternatively
-   fix ownership or remove world-write permission.
-   There is no config-path option or environment variable.
-2. **JSON compatibility gains `"runtime-only"` (#1273).** Update consumers of
-   `sourceBinding.compatibility` in `styleproof-diff` and `styleproof-report`
-   JSON to handle `"matched" | "runtime-only" | "not-applicable"`. Mixed
-   spec/ad-hoc pairs now report `"runtime-only"` instead of `"matched"`; they
-   remain unverified diagnostics. Two spec or two ad-hoc captures keep
-   `"matched"`, and a missing capture side keeps `"not-applicable"`. Action
-   receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
-   mixed pair with trusted SHAs is refused.
-
-3. **Require the review status check (10.0.0) (#1283).** The job no longer fails on
 1. **Upgrade the package and the Action together.** Install `styleproof@^10` and
    run `npx styleproof-init --upgrade`, then `npx styleproof-init --check`.
    `--upgrade` moves the generated workflows to `@v10` and refreshes single and
