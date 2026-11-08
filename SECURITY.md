@@ -18,3 +18,8 @@ it at; it ships no server and makes no outbound network calls. The GitHub Action
 report branch and posts PR comments using the token you provide. Reports of credential
 handling, command injection, or path traversal in the CLIs, library, or Action are in
 scope.
+
+StyleProof imports and runs the `styleproof.config.*` it discovers. The limits of that
+discovery are documented under [Configuration](README.md#configuration): group-writable
+parent folders are trusted, and on Windows no owner or write check applies, so a `.git`
+entry in a shared ancestor lets that ancestor's config load.
