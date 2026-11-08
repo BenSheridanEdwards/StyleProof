@@ -148,8 +148,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
    subfolder are affected when the parent holding the config is world-writable,
    owned by another non-root user, or a runner-owned checkout above a root
-   container job, or when that parent's config file is itself world-writable
-   or owned by another non-root user (#1275). Windows non-git projects run from a subfolder are also affected.
+   container job. They are also affected when that parent's config file is
+   itself world-writable or owned by another non-root user (#1275). Windows non-git projects run from a subfolder are also affected.
    A `styleproof: warning:` on stderr names the skipped config and the reason,
    says the file was not loaded and built-in defaults apply, and gives the next
    step (#1274). Missing-config and missing-spec errors also name the skipped file.
@@ -297,8 +297,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
-- Refuse a config file in a parent folder that is world-writable or owned by another
-  non-root user, as its folder already was; the stat-only warning names it (#1275).
+- Refuse a parent folder's config file when the file itself is world-writable or owned
+  by another non-root user, matching the folder check; the stat-only warning names it (#1275).
 - Refuse approval re-runs started by anyone other than the original ticker in both
   the reusable and example approval workflows (#1204).
 - Bind carried approvals to successful approver runs and PR/SHA artifacts; require `actions: read` (#1145).

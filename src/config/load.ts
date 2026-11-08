@@ -164,21 +164,26 @@ function isConfigFile(configPath: string): boolean {
   }
 }
 
-/** Probe existence only; never read or evaluate a skipped config. */
-function reportDiscoveryRefusal(dir: string, reason: string): string | undefined {
+/** Warn once per process that a config was skipped; never read or evaluate it. */
+function warnSkippedConfig(configPath: string, reason: string): string {
   const remedy =
     'Next: run StyleProof from the folder that holds the config' +
     (process.platform === 'win32' ? '.' : '; on POSIX, fix ownership or remove world-write permission.');
+  const notice = `styleproof: warning: ${configPath} was not loaded (${reason}); built-in defaults apply. ${remedy}\n`;
+  if (!reportedDiscoveryRefusals.has(notice)) {
+    reportedDiscoveryRefusals.add(notice);
+    process.stderr.write(notice);
+  }
+  return configPath;
+}
+
+/** Probe existence only; never read or evaluate a skipped config. */
+function reportDiscoveryRefusal(dir: string, reason: string): string | undefined {
   let candidate = dir;
   for (;;) {
     for (const filename of CONFIG_FILENAMES) {
       const configPath = path.join(candidate, filename);
-      if (!isConfigFile(configPath)) continue;
-      const notice = `styleproof: warning: ${configPath} was not loaded (${reason}); built-in defaults apply. ${remedy}\n`;
-      if (reportedDiscoveryRefusals.has(notice)) return configPath;
-      reportedDiscoveryRefusals.add(notice);
-      process.stderr.write(notice);
-      return configPath;
+      if (isConfigFile(configPath)) return warnSkippedConfig(configPath, reason);
     }
     if (fs.existsSync(path.join(candidate, '.git'))) return;
     const parent = path.dirname(candidate);
@@ -192,7 +197,7 @@ function discoveryAt(dir: string, start: string, searched: string[]): StyleProof
   const location = locationAt(dir);
   if (!location) return undefined;
   const reason = configFileRejection(location, start);
-  return reason ? { searched, skippedConfig: reportDiscoveryRefusal(dir, reason) } : { location, searched };
+  return reason ? { searched, skippedConfig: warnSkippedConfig(location.path, reason) } : { location, searched };
 }
 
 /** Accept the start folder; walk trusted ancestors up to the nearest .git marker. */
