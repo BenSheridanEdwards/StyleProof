@@ -1,0 +1,27 @@
+✖ queried-element class assignments retain unresolved-value gaps (4.06525ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 66.389709
+
+✖ failing tests:
+
+test at test/class-join-round4.test.mjs:178:1
+✖ queried-element class assignments retain unresolved-value gaps (4.06525ms)
+  AssertionError [ERR_ASSERTION]: []
+      at TestContext.<anonymous> (test/class-join-round4.test.mjs:185:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

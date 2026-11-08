@@ -1,0 +1,494 @@
+Already up to date
+Done in 61ms using pnpm v11.7.0
+
+Running 28 tests using 1 worker
+
+(node:45134) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=false (348ms)
+(node:45189) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=true (319ms)
+(node:45250) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=false (333ms)
+(node:45316) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=true (327ms)
+(node:45467) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=false (329ms)
+(node:45537) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=true (343ms)
+(node:45602) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=false (319ms)
+(node:45660) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=true (352ms)
+(node:45743) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=false (327ms)
+(node:45803) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=true (353ms)
+(node:45858) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=false (333ms)
+(node:45938) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=true (314ms)
+(node:45995) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=false (310ms)
+(node:46052) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=true (312ms)
+(node:46107) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  15 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T extends unknown> arm in Chromium with minify=false (308ms)
+  ✓  16 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T extends unknown> arm in Chromium with minify=true (306ms)
+  ✓  17 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T,> arm in Chromium with minify=false (276ms)
+  ✓  18 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T,> arm in Chromium with minify=true (274ms)
+  ✓  19 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T,> arm in Chromium with minify=false (269ms)
+  ✓  20 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T,> arm in Chromium with minify=true (263ms)
+  ✓  21 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T, U> arm in Chromium with minify=false (268ms)
+  ✓  22 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T, U> arm in Chromium with minify=true (277ms)
+  ✓  23 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T, U> arm in Chromium with minify=false (282ms)
+  ✓  24 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › idle TSX generic <T, U> arm in Chromium with minify=true (277ms)
+  ✘  25 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a class method default (297ms)
+(node:46740) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  26 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an object method default (339ms)
+(node:46838) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a parameter-property constructor default (335ms)
+(node:46907) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  28 [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a whole-line template default (335ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-e0d00--residual-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-24163-8-residual-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-2d0bc--residual-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-44477-8-residual-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-114f4--residual-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-de9a4-8-residual-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-c72c7--residual-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-1d5f7-8-residual-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-96701--residual-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-2e8c8-8-residual-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-75541--residual-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-8a7a7-8-residual-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unknown",
+    -   "unknown",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-562b6--Chromium-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unknown",
+    -   "unknown",
+    +   "never-rendered",
+    +   "never-rendered",
+      ]
+
+      274 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      275 |     expect(units).toHaveLength(scenario.count);
+    > 276 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      277 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      278 |     );
+      279 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:276:46
+
+    Error Context: test-results/test-script-join-round6.e2-f96ba-n-Chromium-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a class method default ──────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      310 |       }
+      311 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 312 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      313 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      314 |     }
+      315 |   });
+        at <repo>/test/script-join-round6.e2e.spec.ts:312:105
+
+    Error Context: test-results/test-script-join-round6.e2e-a-class-method-default-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an object method default ────────────
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      310 |       }
+      311 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 312 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      313 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      314 |     }
+      315 |   });
+        at <repo>/test/script-join-round6.e2e.spec.ts:312:105
+
+    Error Context: test-results/test-script-join-round6.e2e-an-object-method-default-chromium/error-context.md
+
+  17) [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a parameter-property constructor default
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      310 |       }
+      311 |       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
+    > 312 |       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
+          |                                                                                                         ^
+      313 |       expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      314 |     }
+      315 |   });
+        at <repo>/test/script-join-round6.e2e.spec.ts:312:105
+
+    Error Context: test-results/test-script-join-round6.e2-8631e-roperty-constructor-default-chromium/error-context.md
+
+  17 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated generator names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an iterated generator names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a never-iterated async generator names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a generator method names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an async generator method names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a multiline generator body names its V8 residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › live TSX generic <T extends unknown> arm in Chromium with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a class method default ────────────────
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › an object method default ──────────────
+    [chromium] › test/script-join-round6.e2e.spec.ts:211:3 › a parameter-property constructor default
+  11 passed (15.6s)

@@ -1,0 +1,154 @@
+✔ an eager JSX element keeps its executable starts with V8 count 0 (36.64675ms)
+✔ an eager JSX element keeps its executable starts with V8 count 1 (1.703833ms)
+✔ JSX closing-tag names are delimiter syntax while strings and following code keep tokens (0.173209ms)
+✖ a return value after an empty parameter list names its residual with minify=false (5.062083ms)
+✖ a return value after an empty parameter list names its residual with minify=true (2.136041ms)
+✖ a return value outside a function default names its residual with minify=false (2.4695ms)
+✖ a return value outside a function default names its residual with minify=true (1.101458ms)
+✖ an arrow body outside its parameter default names its residual with minify=false (1.521958ms)
+✖ an arrow body outside its parameter default names its residual with minify=true (1.19125ms)
+✔ supplied function default names its residual with minify=false (1.534167ms)
+✔ supplied function default names its residual with minify=true (0.860375ms)
+✔ supplied arrow default names its residual with minify=false (0.861542ms)
+✔ supplied arrow default names its residual with minify=true (1.486416ms)
+✔ code after a throwing call names its residual with minify=false (0.950458ms)
+✔ code after a throwing call names its residual with minify=true (1.256208ms)
+✔ a live closing brace cannot prove the eliminated development arm ran with real esbuild mappings (1.594417ms)
+✔ the eliminated development arm stays unmeasured after a line break with real esbuild mappings (1.103709ms)
+✔ a two-token ternary edit cannot borrow the surviving arm execution with real esbuild mappings (1.132667ms)
+✔ a folded template class substitution with real esbuild mappings (1.755667ms)
+✔ a folded template call substitution with real esbuild mappings (1.427417ms)
+✔ a folded template side effect with real esbuild mappings (1.193208ms)
+✔ a template on its own call line with real esbuild mappings (1.16ms)
+✔ the second template on one line with real esbuild mappings (1.276208ms)
+✔ a folded logical template substitution with real esbuild mappings (1.466708ms)
+✔ a multiline template substitution with real esbuild mappings (1.22775ms)
+✔ a substitution expression on its own line with real esbuild mappings (1.162ms)
+✔ token evidence for }, reads unmeasured (0.17675ms)
+✔ token evidence for foo(); removed; reads unmeasured (0.041625ms)
+✔ token evidence for foo(); bar; reads ran (0.057958ms)
+✔ token evidence for }; idle; reads never-ran (0.074209ms)
+✔ the capture notes retain optional-chain continuation and merged-arm attribution limits (0.190625ms)
+✔ token columns stay on the changed JavaScript line after "\r" (0.838834ms)
+✔ token columns stay on the changed JavaScript line after "
+" (2.339583ms)
+✔ token columns stay on the changed JavaScript line after "
+" (0.751ms)
+ℹ tests 34
+ℹ suites 0
+ℹ pass 28
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 182.730292
+
+✖ failing tests:
+
+test at test/script-join-round8.test.mjs:69:5
+✖ a return value after an empty parameter list names its residual with minify=false (5.062083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ a return value after an empty parameter list names its residual with minify=true (2.136041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ a return value outside a function default names its residual with minify=false (2.4695ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ a return value outside a function default names its residual with minify=true (1.101458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ an arrow body outside its parameter default names its residual with minify=false (1.521958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round8.test.mjs:69:5
+✖ an arrow body outside its parameter default names its residual with minify=true (1.19125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(units.every((unit) => !unit.why.includes(scenario.notResidual)))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round8.test.mjs:98:40)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

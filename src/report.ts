@@ -439,7 +439,6 @@ function renderReportBody(
     countChangedSurfaceScope(view.chrome.chrome, surfaceKeyOf).bases,
     countCapturedSurfaceBases(captureKeysIn(ctx.afterDir), surfaceKeyOf),
   );
-  if (reach) md.detail(reachSectionLines(reach), reachSummaryLine(reach));
   md.detail(
     content.chromeMd,
     `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
@@ -457,7 +456,8 @@ function renderReportBody(
       `- ${content.contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
-  return { oneSided, changed };
+  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
+  return { oneSided, changed, reachBlock };
 }
 
 /** Evidence lists failures and warnings only; passing checks stay out. */
@@ -567,14 +567,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
   const reachStrip = reach ? reachStripLines(reach) : [];
-  md.lines.push(
-    '## 🗺️ StyleProof report',
-    '',
-    ...productStateWarningLines(comparison, gates.legacyPairs),
-    ...headline,
-    ...reachStrip,
-    ...stateCoverageLines(ctx),
-  );
+  md.lines.push('## 🗺️ StyleProof report', '');
+  productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
+  headline.forEach((appended) => md.lines.push(appended));
+  reachStrip.forEach((appended) => md.lines.push(appended));
+  stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
   if (reach && !md.lines.includes(reachStrip[1])) {
@@ -583,7 +580,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
 
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
   const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, content.withContent) : undefined;
-  const { oneSided, changed } = renderReportBody(ctx, out, {
+  const { oneSided, changed, reachBlock } = renderReportBody(ctx, out, {
     view,
     baseline,
     content,
@@ -663,7 +660,20 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reach,
   };
 
-  const { json, findingsOmitted } = buildReportJson(artifacts);
+  const { json, findingsOmitted, scriptDetailsOmitted } = buildReportJson(artifacts);
+  if (reach && scriptDetailsOmitted && json.reach) {
+    reach.gaps = json.reach.gaps;
+    reach.complete = false;
+    if (reachBlock) {
+      reachBlock.full = reachSectionLines(reach);
+      reachBlock.summary = reachSummaryLine(reach);
+    }
+    const updatedStrip = reachStripLines(reach);
+    for (const [index, line] of reachStrip.entries()) {
+      const position = md.lines.indexOf(line);
+      if (position >= 0 && line) md.lines[position] = updatedStrip[index];
+    }
+  }
 
   const findingsNotice =
     findingsOmitted.rows > 0

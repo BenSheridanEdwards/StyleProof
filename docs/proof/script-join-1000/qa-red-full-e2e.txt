@@ -1,0 +1,31 @@
+  1) [chromium] › test/script-reach.e2e.spec.ts:131:3 › runner captures and self-checks mapped execution: drift=true
+
+    Error: expect(received).toMatchObject(expected)
+
+    - Expected  - 1
+    + Received  + 1
+
+      Object {
+    -   "reason": "script evidence not reproducible: original.js:2",
+    +   "reason": "script evidence not reproducible: original.js:3",
+        "status": "unknown",
+      }
+
+      158 |     if (drift) {
+      159 |       await capture;
+    > 160 |       expect(loadStyleMap(testInfo.outputPath('maps/branch@800.json.gz')).scriptReach).toMatchObject({
+          |                                                                                        ^
+      161 |         status: 'unknown',
+      162 |         reason: 'script evidence not reproducible: original.js:2',
+      163 |       });
+        at <checkout>/test/script-reach.e2e.spec.ts:160:88
+
+    Error Context: test-results/test-script-reach.e2e-runn-681c0-mapped-execution-drift-true-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/script-reach.e2e.spec.ts:131:3 › runner captures and self-checks mapped execution: drift=true
+  1 skipped
+  704 passed (5.3m)
+[ELIFECYCLE] Command failed with exit code 1.
+husky - pre-push script failed (code 1)
+error: failed to push some refs to 'https://github.com/BenSheridanEdwards/StyleProof.git'

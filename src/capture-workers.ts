@@ -1,7 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { capturePlaywrightConfig } from './runner/capture-server.js';
 
 /** Leave two CPUs for the app server, while retaining at least Playwright's half-CPU default. */
 export function defaultCaptureWorkers(cpus: number): number {
@@ -10,26 +9,8 @@ export function defaultCaptureWorkers(cpus: number): number {
 
 async function configChoosesWorkers(args: readonly string[], cwd: string): Promise<boolean> {
   try {
-    let configPath: string | undefined;
-
-    for (let i = 0; i < args.length; i++) {
-      const arg = args[i];
-
-      if (arg === '--config' || arg === '-c') configPath = args[++i];
-      else if (arg.startsWith('--config=')) configPath = arg.slice('--config='.length);
-      else if (arg.startsWith('-c')) configPath = arg.slice(2);
-    }
-
-    let location = path.resolve(cwd, configPath ?? '.');
-
-    if (fs.statSync(location).isDirectory()) {
-      const filename = ['ts', 'js', 'mts', 'mjs', 'cts', 'cjs']
-        .map((ext) => `playwright.config.${ext}`)
-        .find((file) => fs.existsSync(path.join(location, file)));
-
-      if (!filename) return false;
-      location = path.join(location, filename);
-    }
+    const location = capturePlaywrightConfig(args, cwd);
+    if (!location) return false;
 
     // A cold checkout can have its own Playwright install; never import it into
     // the CLI process that already loaded the head's runner. Keep config logs

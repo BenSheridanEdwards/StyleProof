@@ -152,7 +152,11 @@ function validateReceipt(run: unknown, index: number): ReceiptValidation {
 function countMatchingReceipts(receipts: readonly NormalizedReceipt[]): number {
   const counts = new Map<string, number>();
   for (const receipt of receipts) counts.set(receipt.signature, (counts.get(receipt.signature) ?? 0) + 1);
-  return Math.max(0, ...counts.values());
+  let largest = 0;
+  counts.forEach((count) => {
+    largest = Math.max(largest, count);
+  });
+  return largest;
 }
 
 /** One run's receipt from the maps a capture wrote. Keys are sorted so key order can never make two honest runs disagree. */

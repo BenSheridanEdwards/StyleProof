@@ -1,0 +1,33 @@
+TAP version 13
+# Subtest: scoped gaps and negative lookups scale linearly from 4k to 16k lines
+not ok 1 - scoped gaps and negative lookups scale linearly from 4k to 16k lines
+  ---
+  duration_ms: 5884.8525
+  type: 'test'
+  location: 'negative-quadratic/class-join-round2.test.mjs:159:1'
+  failureType: 'testCodeFailure'
+  error: 'negative evidence lookup: 4N/N median ratio must be < 8; {"name":"negative evidence lookup","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[79.11837500000001,80.62995899999987,73.47391699999935],[1195.775208,1222.3114580000001,1194.6913329999998]],"medianN":79.11837500000001,"median4N":1195.775208,"ratio":15.113748329638971}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (negative-quadratic/linearity-helper.mjs:38:10)
+    TestContext.<anonymous> (negative-quadratic/class-join-round2.test.mjs:184:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"scoped gap classification","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[33.44258400000001,27.595083000000045,22.614833999999973],[100.594041,97.034875,102.23391700000002]],"medianN":27.595083000000045,"median4N":100.594041,"ratio":3.645361059432213}
+# {"name":"negative evidence lookup","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[79.11837500000001,80.62995899999987,73.47391699999935],[1195.775208,1222.3114580000001,1194.6913329999998]],"medianN":79.11837500000001,"median4N":1195.775208,"ratio":15.113748329638971}
+1..1
+# tests 1
+# suites 0
+# pass 0
+# fail 1
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 5962.002209

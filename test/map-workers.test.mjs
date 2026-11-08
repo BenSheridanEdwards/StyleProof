@@ -52,6 +52,11 @@ function capture(t, { args = [], workers, configFile, config } = {}) {
   const argvFile = path.join(root, 'capture-argv');
   const argv = fs.existsSync(argvFile) ? fs.readFileSync(argvFile, 'utf8').trim().split('\n') : [];
 
+  const wrapperIndex = argv.lastIndexOf('--config');
+  if (wrapperIndex !== -1 && path.basename(argv[wrapperIndex + 1]).startsWith('.styleproof-capture-')) {
+    assert.equal(fs.existsSync(argv[wrapperIndex + 1]), false, 'capture wrapper is removed');
+    argv.splice(wrapperIndex, 2);
+  }
   return { ...result, argv };
 }
 

@@ -1,5 +1,6 @@
-// Prototype J2/J3 reach joins for the reach corpus (#988). J1 now lives in
-// src/rule-reach.ts (#995); J2/J3 stay here until Change Reach phase 2 (#934).
+// Src J3 adapter and historical J2 helpers for the reach noise replay.
+// J1 and corpus J2 use src/. The historical J2 helpers below remain for the
+// separately pinned reach-noise replay; the corpus does not call them.
 // Each join answers one question about a changed unit of the PR, from evidence
 // a real browser recorded during capture:
 //
@@ -7,10 +8,9 @@
 //   J3  did a changed class token land on a captured element? (class-list delta)
 import { execFileSync } from 'node:child_process';
 
-/** Class names any served ledger key can target — the J3 token vocabulary. */
-export function classVocabulary(keys) {
-  return new Set(keys.flatMap((key) => [...key.matchAll(/\.(-?[_a-zA-Z][\w-]*)/g)].map((m) => m[1])));
-}
+import { classifyClassReach } from '../dist/class-join.js';
+import { changedScriptRanges } from '../dist/script-join-git.js';
+export { classVocabulary } from '../dist/class-join.js';
 
 // ---- J2: V8 block coverage resolved through a source map ------------------------
 
@@ -126,31 +126,28 @@ export function jsReach(line, executions) {
 
 // ---- J3: class-list delta -------------------------------------------------------
 
-/** Whitespace-split tokens of the quoted string literals on one source line. */
-function literalTokens(line) {
-  return new Set([...line.matchAll(/(['"`])((?:(?!\1).)*)\1/g)].flatMap((m) => m[2].split(/\s+/)).filter(Boolean));
-}
-
-/**
- * J3 for one changed line pair. Only tokens a served selector can target count.
- * Reached when some paired element's class list gained an added token or lost a
- * removed one between base and head, in any captured state.
- */
-export function classReach(baseLine, headLine, vocabulary, pairs) {
-  const b = literalTokens(baseLine);
-  const h = literalTokens(headLine);
-  const added = [...h].filter((t) => !b.has(t) && vocabulary.has(t));
-  const removed = [...b].filter((t) => !h.has(t) && vocabulary.has(t));
-  if (!added.length && !removed.length) return { status: 'n/a', added, removed };
-  const classes = (map, path) => new Set((map.elements[path]?.cls ?? '').split(/\s+/).filter(Boolean));
-  const moved = pairs.some(({ base, head }) =>
-    Object.keys({ ...base.elements, ...head.elements }).some((path) => {
-      const was = classes(base, path);
-      const now = classes(head, path);
-      return added.some((t) => now.has(t) && !was.has(t)) || removed.some((t) => was.has(t) && !now.has(t));
-    }),
+/** Compatibility adapter for the historical noise replay. All J3 judgments use src/. */
+export function classReach(baseLine, headLine, _vocabulary, pairs) {
+  const changes = changedScriptRanges(
+    `@@ -1 +1 @@\n-${baseLine}\n+${headLine}\n`,
+    { base: baseLine, head: headLine },
+    'app.jsx',
   );
-  return { status: moved ? 'reached' : 'never-rendered', added, removed };
+  const result = classifyClassReach(
+    pairs.map((p) => p.base),
+    pairs.map((p) => p.head),
+    changes,
+    pairs,
+  );
+  return {
+    status: result.units.length
+      ? (['never-rendered', 'unmeasured', 'unknown'].find((status) =>
+          result.units.some((unit) => unit.status === status),
+        ) ?? 'unknown')
+      : 'n/a',
+    added: [...new Set(result.units.filter((u) => u.side === 'head').map((u) => u.token))],
+    removed: [...new Set(result.units.filter((u) => u.side === 'base').map((u) => u.token))],
+  };
 }
 
 // ---- the PR diff ----------------------------------------------------------------

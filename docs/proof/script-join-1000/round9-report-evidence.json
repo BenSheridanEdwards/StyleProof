@@ -1,0 +1,197 @@
+{
+  "base": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.tsx",
+            "sourceKey": "app.tsx",
+            "contentHash": "4be4f38915981ab37f579c16dccde8a9098fa87a8717c050a98c678facca2bf0",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                6,
+                6
+              ],
+              [
+                1,
+                12,
+                12
+              ],
+              [
+                1,
+                79,
+                79
+              ],
+              [
+                1,
+                86,
+                86
+              ],
+              [
+                1,
+                95,
+                95
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "head": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.tsx",
+            "sourceKey": "app.tsx",
+            "contentHash": "a9c6deca7d3f76343095ec7363a1c7a31b94e3b2aefff358711f1e81d5840cfe",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                6,
+                6
+              ],
+              [
+                1,
+                12,
+                12
+              ],
+              [
+                1,
+                82,
+                82
+              ],
+              [
+                1,
+                89,
+                89
+              ],
+              [
+                1,
+                98,
+                98
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "reach": {
+    "level": "warn",
+    "blocking": 0,
+    "complete": false,
+    "ledger": "complete",
+    "counts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "blind-channel": 0
+    },
+    "rules": [],
+    "unreadableSheets": 0,
+    "scripts": [
+      {
+        "sourceKey": "app.tsx",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 59
+          },
+          "end": {
+            "line": 1,
+            "column": 70
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "changed script token has no mapped anchor at its start; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler); preceding-anchor evidence (nearest mapped start at or before the changed range)",
+        "level": "warn",
+        "executionScope": "preceding-anchor"
+      },
+      {
+        "sourceKey": "app.tsx",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 59
+          },
+          "end": {
+            "line": 1,
+            "column": 73
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "changed script token has no mapped anchor at its start; the preceding anchor ran but cannot prove this code ran (it may have been removed by the bundler); preceding-anchor evidence (nearest mapped start at or before the changed range)",
+        "level": "warn",
+        "executionScope": "preceding-anchor"
+      }
+    ],
+    "scriptCounts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 2,
+      "unknown": 0
+    },
+    "scriptGapCount": 0,
+    "gaps": [
+      {
+        "join": "J1",
+        "status": "unknown",
+        "kind": "not-built",
+        "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+      },
+      {
+        "join": "J3",
+        "status": "unmeasured",
+        "kind": "not-built",
+        "reason": "class-list deltas are not recorded yet",
+        "remedy": "none yet: a later Change Reach phase (#934) adds it"
+      }
+    ]
+  }
+}

@@ -1443,6 +1443,7 @@ test('styleproof-map exits without process.exit() after a capture and upload, a 
     git(app, ['remote', 'add', 'origin', remote]);
     const init = run(app, process.execPath, [INIT, '--storage', 'branch', '--base-url', `http://127.0.0.1:${port}`]);
     expect(init.status, init.stderr).toBe(0);
+    fs.writeFileSync(path.join(app, 'invalid.config.ts'), 'export default () => ({});');
     git(app, ['add', '-A']);
     git(app, ['commit', '-qm', 'app + styleproof setup']);
     const sha = git(app, ['rev-parse', 'HEAD']).stdout.trim();
@@ -1461,8 +1462,13 @@ test('styleproof-map exits without process.exit() after a capture and upload, a 
         status: 4,
         says: 'cache miss',
       },
-      // Last: Playwright fails before any map is written, the capture's own non-zero exit.
-      { name: 'failed capture', args: ['--dir', 'failed', '--', '--config', 'missing.config.ts'], status: 1, says: '' },
+      // Last: Playwright rejects an existing invalid config before writing a map.
+      {
+        name: 'failed capture',
+        args: ['--dir', 'failed', '--', '--config', 'invalid.config.ts'],
+        status: 1,
+        says: 'must export a single object',
+      },
     ];
     for (const { name, args, status, says } of cases) {
       const result = run(app, 'node', ['--import', spy, MAP, ...args]);

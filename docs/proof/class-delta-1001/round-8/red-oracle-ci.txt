@@ -1,0 +1,41 @@
+✖ reviewer AST sample bounds type positives and runtime misses in all four languages (897.593709ms)
+ℹ {"kind":"ts","typeLiterals":13504,"falsePositives":0,"runtimeLiterals":4243,"falseNegatives":246,"maximumMissRate":0}
+ℹ {"kind":"tsx","typeLiterals":14020,"falsePositives":0,"runtimeLiterals":4173,"falseNegatives":921,"maximumMissRate":0.06}
+ℹ {"kind":"vue","typeLiterals":13835,"falsePositives":0,"runtimeLiterals":4142,"falseNegatives":251,"maximumMissRate":0.01}
+ℹ {"kind":"svelte","typeLiterals":13532,"falsePositives":0,"runtimeLiterals":4016,"falseNegatives":286,"maximumMissRate":0.01}
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 961.708
+
+✖ failing tests:
+
+test at <baseline>/test/class-join-round8.test.mjs:113:1
+✖ reviewer AST sample bounds type positives and runtime misses in all four languages (897.593709ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   'ts',
+  +   'tsx',
+  +   'vue',
+  +   'svelte'
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:151:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'ts', 'tsx', 'vue', 'svelte' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

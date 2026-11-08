@@ -2,6 +2,7 @@
 
 - **Status:** accepted (2026-10-23)
 - **Amendment (2026-11-02, #1240):** The changed-stylesheet join below is target design, not built. Until it is built (#934), StyleProof cannot list a changed stylesheet no capture served. The report names this as a run-level J1 gap that is not checked, under both levels. It prevents reach-complete but does not hold `gate`, because the report has neither the PR's changed files nor source maps.
+- **Implementation note (2026-11-05, #1001):** J3 now judges source occurrences against paired class-list deltas. Captures record no per-occurrence render provenance: only absence from every captured element on the occurrence's own side, with no known capture omissions on any map on that side, is `never-rendered`; any presence (including unpaired elements and unchanged class lists) is `unknown`, and no J3 unit reaches or corroborates J2. Missing vocabulary, ledgers, source ranges or pairing remain named warn-only `unmeasured` gaps.
 - **Date:** 2026-10-21
 - **Epic:** #934
 - **Depends on:** #988 reach corpus, #989 reach cost receipt, #991 served-rule ledger (merged in #1045)
@@ -30,13 +31,17 @@ evidence a real browser records during capture:
   source range; a delta for the same token from another occurrence proves
   nothing.
 
-The reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
+The original reach corpus (#988, `bench/reach-corpus.review.md`) measured the miss and
 the joins on a fixture whose spec opens only the healthy state:
 
-| Scenario                    | Today's diff shows | Prototype reach joins                           |
-| --------------------------- | ------------------ | ----------------------------------------------- |
-| declared (healthy state)    | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
-| complete (all five states)  | 12 of 13 changes   | mark every rendered change reached              |
+| Scenario                   | Today's diff shows | Prototype reach joins                                                                                                                                                                                                                                                                                                |
+| -------------------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| declared (healthy state)   | 1 of 13 changes    | name 11 of the 12 misses; 1 pinned residual (runtime CSS-in-JS), re-expected as `unknown` under this ADR (value, rendering not proved); render-scope value, eagerly built JSX element, same-line class-plus-style and same-token collision scenarios not yet measured, expected as `unknown` once PR #1031 adds them |
+| complete (all five states) | 12 of 13 changes   | mark every rendered change reached                                                                                                                                                                                                                                                                                   |
+
+The #1001 receipt now covers 18 cases (17 visual): declared shows 3/17, complete
+shows 16/17, and all 14 declared misses are named. After round-two omission and explicit-context corrections, unknown case counts are 7/8;
+no J3 occurrence reaches without provenance. See the review for the 16-case baseline.
 
 The same corpus pins one noise case: a changed error-handler string that never
 runs during capture and has no visual effect, which J2 flags.
@@ -44,11 +49,11 @@ runs during capture and has no visual effect, which J2 flags.
 The cost receipt (#989, `bench/reach-cost.results.json`) measured what recording
 the evidence adds to a capture on a GitHub runner:
 
-| Target | off (median) | J1 overhead | J1+J2 overhead |
-| --- | --- | --- | --- |
-| detection-fixture (static, CSS-rich) | 1443.6 ms | 1.2% | 6.5% |
-| example-demo (static dogfood surface) | 1149 ms | 2.6% | 3.8% |
-| react-table (React, 300 rows) | 10081.7 ms | 0.1% | 5.3% |
+| Target                                | off (median) | J1 overhead | J1+J2 overhead |
+| ------------------------------------- | ------------ | ----------- | -------------- |
+| detection-fixture (static, CSS-rich)  | 1443.6 ms    | 1.2%        | 6.5%           |
+| example-demo (static dogfood surface) | 1149 ms      | 2.6%        | 3.8%           |
+| react-table (React, 300 rows)         | 10081.7 ms   | 0.1%        | 5.3%           |
 
 7 runs per mode on `linux x64`, 4 CPUs, load average 1.2 at start, chromium 149.0.7827.55, run https://github.com/BenSheridanEdwards/StyleProof/actions/runs/39602282519. Thresholds agreed in #989: J1 ≤ 5%, J1+J2 ≤ 15% (median total vs off). Verdict: J1 within threshold, J1+J2 within threshold.
 
@@ -175,6 +180,50 @@ the evidence adds to a capture on a GitHub runner:
      V8 does not give every potentially throwing expression its own continuation
      counter. Capture notes name these residuals; the 2.2 join must keep such code unknown rather than infer
      reached from block execution.
+     After an optional chain, V8 may end an enclosing idle continuation early,
+     so later code in that block can read executed even when it never ran:
+     `if (t) return 1; const i = s?.missing?.x; sink("dead");`.
+     These counters cannot prove the continuation executed.
+     V8 also reports **bodies of generator / async-generator functions that were called but never iterated**
+     as executed: iterator creation can give the whole function count 1 with no
+     inner idle range. A file whose raw text contains a generator-like pattern
+     has its ran evidence downgraded to unmeasured; this may include files with
+     no generator. The raw patterns are:
+     - `\byield\b` anywhere, including strings/comments;
+     - `function GAP *`;
+     - `* GAP KEY GAP ? GAP <GENERIC> GAP (` with `?` and `<GENERIC>` optional.
+
+     `GAP` permits whitespace, block comments and line comments between the star,
+     key, optional question mark, generic list and parenthesis. Keys accept optional
+     `#` followed by `(?:[\p{ID_Continue}$\\]|\{[\dA-Fa-f]+\})+` with Unicode semantics (including
+     fixed and braced escaped names with arbitrarily many leading hex zeros), numeric literals including `.5` and `0x…`, quoted keys
+     `'(?:\\[^]|[^'\\])*'` / `"(?:\\[^]|[^"\\])*"`, or computed keys equivalent to
+     `\[[^]{0,512}?\]`. Generic contents are equivalent to `<[^]{0,512}?>` and
+     may include parentheses/newlines. Bounds count Unicode characters.
+     A generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected.
+     Quoted keys accept escaped CR, LF, CRLF, U+2028 and U+2029 line continuations.
+     All raw source positions remain eligible: strings, comments, regex bodies
+     and templates are not excluded. Matching multiplication-like text and other
+     non-generator text intentionally flags. The rule covers changes outside a
+     generator and actually iterated bodies, before same-range corroboration.
+     Negative or missing evidence keeps its existing status. Gap ends are
+     precomputed once; key and suffix results are cached; each computed/generic
+     lookahead is bounded to 512 characters. This is linear in file size with
+     fixed bounds and avoids a backtracking whole-header regex. The bounded
+     context remains only for parameter residual naming.
+     Regex-literal attempts inspect at most 4,096 characters. A failed slash-start
+     attempt whose window was cut off before a line terminator makes the remaining
+     line negative-only; template and JSX-tag scans stop conservatively too.
+     Long division lines may also be over-flagged. Truncated regex bodies must
+     never be re-lexed as code.
+
+   - **J2 source-map attribution.** A minifier can merge equivalent arms
+     (`flag ? one : one` → `one`) or hoist a shared call
+     (`flag ? sink(a) : sink(b)` → `sink(flag ? a : b)`). The source-map anchor
+     can remain on one original arm even when the other arm ran, making that
+     original arm read executed. J2 cannot detect this from the map. This is
+     an attribution residual, and execution alone still supplies no rendering
+     proof; corroboration requires the same value's exact source range.
    - value-producing lines at any lexical scope: module, component or render
      body, hook, helper or memo. A value here is anything a line computes that
      can reach the page. Examples, not an exhaustive list: style objects,
@@ -193,14 +242,14 @@ the evidence adds to a capture on a GitHub runner:
      for example a J1 rule mapped to that template range) corroborates it. A
      unit from another value, line or hunk never does, including another value
      on the same line: in `<Banner className="new-x" style={{ color: fault ?
-     'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
-     the style value, which stays `unknown`. Class tokens follow the same rule:
+'red' : 'blue' }} />`, a `reached` J3 unit for `new-x` says nothing about
+     the style value, which stays `unknown`. Class tokens follow the same rule. J3 can report `never-rendered` only when no captured element on that occurrence's side carries the token (head for additions, base for removals), including unpaired elements, and every map on that side records complete omission facts. Volatile elements, configured ignore lists, untraversed open/closed author roots or embedded documents, omitted head content, route-announcer author children, and html children outside head/body leave absence unproven and the occurrence `unknown`. Facts must be version 2, with successful CDP shadow-root and document-boundary verification, zero omission counts, no instability, and complete capture-key pairing on both sides; version-1/missing facts remain conservative. Omission facts are collected and written only with captureReach. CDP excludes user-agent roots and the shared framework exemptions; route-announcer exemptions cover the host and its shadow tree, not author light-DOM children. Self-check preserves unknown when omission facts differ, even if a later read has zero omissions. Explicit evidence follows a positive token-role allow-list over the existing lexer, with comments skipped and no new runtime dependency: direct bare class-helper arguments, their array elements/object keys, ternary result branches and right-hand `&&`/`||`/`??` results inside positive roles, class attribute / `.className =` values, classList.add arguments and the second classList.replace argument. These roles recurse only through approved value positions; known cva variant/compound class values and supported framework class bindings also qualify. Everything else remains J3-only: non-helper/optional/non-null/generic calls, tagged templates, binary/relational operands including in/instanceof, lookup keys/containers, case labels, arrow bodies, unary/void expressions and non-class assignments. Queries/removals/toggles, dataset assignments, data-class attributes and vocabulary-only candidates cannot lower J2. Plain class properties remain explicit for Vue h() props, with data-object/name/type ambiguities and conservative syntax limits documented in REFERENCE. Presence is a capture-time snapshot; a class added and removed before capture can read never-rendered. Template nesting beyond 128 levels always produces a named extraction gap through EOF, even outside a class context. Bracket/expression limits apply only where role analysis runs (files with recognized class syntax or explicit bindings): completed statements before the first unfinished statement retain their roles; that statement is dropped back to the previous top-level semicolon and covered through EOF (the whole unread expression for a substitution). Implicit semicolons may conservatively widen the gap. Flat else-if chains do not increase nesting depth per alternate. Type scope is an inherited mode entered by annotations/return types, type aliases/interfaces/implements clauses, as/satisfies assertions and balanced generic arguments/parameters (including extends/defaults). Every nested object, tuple, parenthesized, generic, union/intersection or conditional type stays non-explicit until its initializer, parameter/statement boundary or runtime function body. Angle matching stops at runtime operators, statement boundaries and declarator commas; parenthesized arrow return types, ASI statements and case-expression labels resume runtime discovery. J3 re-lexes opaque generic prefixes with the existing TS lexer without changing J2. This remains lexical evidence: unsupported/ambiguous forms may omit both a candidate and its gap, so an absent J3 row does not establish complete checking. Recognized depth/fragment failures have named gaps; REFERENCE states the remaining lexical limits. Runtime property/ternary colons and case/default/statement labels retain runtime class values. Token presence without provenance stays `unknown`; the absence of a directional delta is not negative evidence. Pure additions/deletions cannot be excluded by opposite-blob positions. Replacement exclusions match ordered token values plus positive role/slot across the whole hunk, with multiplicity and cached matching; this does not establish binding identity or render provenance:
      a J3 delta corroborates only the occurrence whose source range produced
      it, proved by per-occurrence provenance (for example, source-mapped render
      provenance linking the captured element's class value to that
      occurrence's expression). A token-name match never counts, even when the
      token is unique in the diff, and neither does J2 execution. With `const
-     OK = 'new'` and `const FAULT = 'new'` (both were `'old'`), and `FAULT`
+OK = 'new'` and `const FAULT = 'new'` (both were `'old'`), and `FAULT`
      used only by an unopened overlay, a delta on the healthy element never
      clears `FAULT`, which reads `unknown` ("class token; delta not tied to
      this occurrence"). When reach cannot tie a delta to one occurrence, every
@@ -226,18 +275,18 @@ the evidence adds to a capture on a GitHub runner:
      `CERTIFICATION_FAILED`. In review-gate mode it needs review, and the existing
      Approve checkbox clears it.
 
-   | Status | `'warn'` (default) | `'gate'`, J1 unit | `'gate'`, J2/J3 unit | Counts toward reach-complete |
-   | --- | --- | --- | --- | --- |
-   | `reached` | no finding | no finding | no finding | yes |
-   | `never-rendered` | named finding "Changed but never matched" | certify: `CERTIFICATION_FAILED`; review-gate: needs review | named finding | no |
-   | `blind-channel` | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`) | blocks like `never-rendered` | named finding | no |
-   | `unmeasured` | named finding naming the setting to enable (source maps, `captureReach`) | blocks like `never-rendered` | named finding | no |
-   | `unknown` | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it) | blocks like `never-rendered`; legacy base names "recapture with `captureReach`" | named finding | no |
-   | `unknown`, run-level J1 evidence gap | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable (target design; until #934 the report names this as not checked) | missing or partial ledger blocks like `never-rendered`; unbuilt changed-stylesheet join stays `'warn'` (not held) | not applicable | no |
-   | `unmeasured`, run-level J2/J3 evidence gap | named finding naming the missing coverage, source maps or class-list delta (item 4) | not applicable | named finding | no |
-   | `unknown`, run-level dependency gap | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
-   | `unknown`, run-level non-visual list gap | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4) | named finding (stays `'warn'`) | named finding (stays `'warn'`) | no |
+   | Status                                            | `'warn'` (default)                                                                                                                                                                                                | `'gate'`, J1 unit                                                                                                 | `'gate'`, J2/J3 unit           | Counts toward reach-complete |
+   | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------- |
+   | `reached`                                         | no finding                                                                                                                                                                                                        | no finding                                                                                                        | no finding                     | yes                          |
+   | `never-rendered`                                  | named finding "Changed but never matched"                                                                                                                                                                         | certify: `CERTIFICATION_FAILED`; review-gate: needs review                                                        | named finding                  | no                           |
+   | `blind-channel`                                   | named finding "Changed in a channel computed styles cannot hold" (`@keyframes`, `@font-face`)                                                                                                                     | blocks like `never-rendered`                                                                                      | named finding                  | no                           |
+   | `unmeasured`                                      | named finding naming the setting to enable (source maps, `captureReach`)                                                                                                                                          | blocks like `never-rendered`                                                                                      | named finding                  | no                           |
+   | `unknown`                                         | named finding with the reason (legacy or partial ledger, value without rendering proof, class-token occurrence without a delta tied to it)                                                                        | blocks like `never-rendered`; legacy base names "recapture with `captureReach`"                                   | named finding                  | no                           |
+   | `unknown`, run-level J1 evidence gap              | named finding for a missing or partial ledger, or a changed stylesheet or component style block not served or attributable (target design; until #934 the report names this as not checked)                       | missing or partial ledger blocks like `never-rendered`; unbuilt changed-stylesheet join stays `'warn'` (not held) | not applicable                 | no                           |
+   | `unmeasured`, run-level J2/J3 evidence gap        | named finding naming the missing coverage, source maps or class-list delta (item 4)                                                                                                                               | not applicable                                                                                                    | named finding                  | no                           |
+   | `unknown`, run-level dependency gap               | named finding naming the changed packages, and the unserved or unattributed files when a comparison exists (item 4)                                                                                               | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
+   | `unknown`, run-level changed-line attribution gap | named finding naming each uncovered `file:lines` range or changed file without text hunks not attributable to any join or served source (item 4) and not exempted by the base revision's non-visual list (item 4) | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
+   | `unknown`, run-level non-visual list gap          | named finding for a PR change to the list or its location, or an unreadable or invalid base list (item 4)                                                                                                         | named finding (stays `'warn'`)                                                                                    | named finding (stays `'warn'`) | no                           |
 
    No status other than `reached` is ever silent, and under `'gate'` the Approve
    checkbox clears the verdict, not the status or the evidence-gap finding
@@ -248,6 +297,7 @@ the evidence adds to a capture on a GitHub runner:
      flags non-visual code (event handlers, error paths), as the corpus's noise
      case shows; they are still listed and still prevent reach-complete.
    - Revisit the default for the next major with that noise data.
+
 7. **J2 ships behind source maps.** J1+J2 stayed within its threshold on every target (worst 6.5%), so J2 proceeds to Phase 2. It is opt-in like J1 and needs source maps in the capture build. Without them, markup reach reads `unmeasured`. Cost was measured on a JS-light dogfood page, a static fixture and a 300-row React page. A larger production bundle can cost more, so Phase 2 (#999) re-measures on the receipt's targets plus a consumer app before J2 is enabled by default.
 
 ## Consequences
@@ -285,19 +335,19 @@ the evidence adds to a capture on a GitHub runner:
 - `bench/reach-corpus.mjs --check` is the oracle. Phase 1 and 2 replace its
   prototype joins with `src/` code and keep its expectations, with one change:
   the `runtime-css-in-js` scenario is expected as `unknown`, not `reached`.
-  PR #1031 / Phase 1 must also add four scenarios, not yet measured, each
+  The corpus now includes all four required scenarios, each
   expected as `unknown`: a render-scope value applied only in an unopened state
   (a component-body `faultStyle` used only by the fault overlay), an eagerly
   built JSX element that is never mounted (`const banner = <strong>` shown only
-  by `{fault && banner}`), a line where a changed class token is `reached`
+  by `{fault && banner}`), a line where a changed class token has a delta (currently `unknown` without provenance)
   but a changed style value on the same line renders only in an unopened state,
   and two module constants changing the same token `'old'`→`'new'`, one
   rendered on the healthy page and one only by the unopened fault overlay,
   where the overlay occurrence is expected as `unknown`, never `reached`. The
-  existing complete-state J3 expectations (`branch-class`, `module-constant`,
+  original complete-state J3 expectations (`branch-class`, `module-constant`,
   `colliding-constant`) stay `reached` only through per-occurrence evidence; if
   Phase 1 cannot record that evidence, they are deliberately re-expected as
-  `unknown`.
+  `unknown`. #1001 applies that re-expectation to all three complete cases. In declared, branch-class has J3 and combined status `never-rendered`. Module-constant has a `never-rendered` head J3 candidate but combined status `unknown`, because a vocabulary-only candidate cannot lower J2. Colliding-constant has head J3/combined status `unknown` because its token is already present on healthy; its base removal is `never-rendered`. Complete base/head class tokens stay `unknown`. The current corpus tally is 7 declared / 8 complete unknown cases.
 
 ## Alternatives rejected
 

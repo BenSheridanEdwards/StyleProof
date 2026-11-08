@@ -1,0 +1,38 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-report.test.mjs
+✖ J3 is listed in human and JSON reporting, warn-only at both levels (0.947458ms)
+✖ J3 detail and gaps use leftover JSON bytes, keeping full status counts (0.133417ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 93.355875
+
+✖ failing tests:
+
+test at test/class-join-report.test.mjs:22:1
+✖ J3 is listed in human and JSON reporting, warn-only at both levels (0.947458ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'length')
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-report.test.mjs:25:32)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17)
+
+test at test/class-join-report.test.mjs:39:1
+✖ J3 detail and gaps use leftover JSON bytes, keeping full status counts (0.133417ms)
+  TypeError [Error]: Cannot read properties of undefined (reading '0')
+      at file://<checkout>/test/class-join-report.test.mjs:41:82
+      at Array.from (<anonymous>)
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-report.test.mjs:41:28)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+[ELIFECYCLE] Command failed with exit code 1.

@@ -1,0 +1,9 @@
+  ✓  1160 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › a merged return cannot inherit execution from the selected zero branch (621ms)
+  ✓  1161 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (636ms)
+  ✓  1162 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (620ms)
+  ✓  1163 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (621ms)
+  ✓  1164 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (626ms)
+  ✓  1165 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (620ms)
+
+  1 skipped
+  1164 passed (8.2m)

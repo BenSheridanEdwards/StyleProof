@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nonLinuxUploadWarning, missingSpecMessage } from '../dist/cli-errors.js';
+import { nonLinuxUploadWarning, missingSpecMessage, cachedMapsUnavailableMessage } from '../dist/cli-errors.js';
 
 test('nonLinuxUploadWarning warns on a non-Linux platform', () => {
   const darwin = nonLinuxUploadWarning('darwin');
@@ -29,4 +29,12 @@ test('missingSpecMessage names a skipped config without claiming none was found'
   );
   assert.match(message, /styleproof\.config\.mjs.*not loaded/);
   assert.doesNotMatch(message, /no styleproof\.config/);
+});
+
+test('local compare guidance describes refusing an already running server', () => {
+  const message = cachedMapsUnavailableMessage('styleproof-diff', 'comparison', new Error('no cached maps'), {
+    captureBase: true,
+  });
+  assert.match(message, /capture refuses it/);
+  assert.doesNotMatch(message, /Playwright reuses it|captures would see the same build/);
 });

@@ -1,0 +1,203 @@
+{
+  "source": "80321b3835955ab9d01b0bf1b86b956c891a91e4",
+  "baseline": "6dc28f584884ec249449c72a3063ebc895e8d112",
+  "programsPerLanguagePerSeed": 4000,
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "baselineSeed1": {
+    "ts": {
+      "programs": 4000,
+      "rejected": 258,
+      "typeLits": 54079,
+      "fp": 3003,
+      "rtLits": 16640,
+      "fn": 866,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 866,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 4000,
+      "rejected": 274,
+      "typeLits": 55165,
+      "fp": 2234,
+      "rtLits": 16946,
+      "fn": 3237,
+      "hiddenWithGap": 240,
+      "hiddenNoGap": 285,
+      "nonExplicit": 2712,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 4000,
+      "rejected": 287,
+      "typeLits": 53989,
+      "fp": 2801,
+      "rtLits": 16833,
+      "fn": 1001,
+      "hiddenWithGap": 38,
+      "hiddenNoGap": 17,
+      "nonExplicit": 946,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 4000,
+      "rejected": 276,
+      "typeLits": 55338,
+      "fp": 2841,
+      "rtLits": 16863,
+      "fn": 1016,
+      "hiddenWithGap": 47,
+      "hiddenNoGap": 16,
+      "nonExplicit": 953,
+      "errors": 0
+    }
+  },
+  "finalSeed1": {
+    "ts": {
+      "programs": 4000,
+      "rejected": 258,
+      "typeLits": 54079,
+      "fp": 0,
+      "rtLits": 16640,
+      "fn": 0,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 4000,
+      "rejected": 274,
+      "typeLits": 55165,
+      "fp": 0,
+      "rtLits": 16946,
+      "fn": 836,
+      "hiddenWithGap": 213,
+      "hiddenNoGap": 312,
+      "nonExplicit": 311,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 4000,
+      "rejected": 287,
+      "typeLits": 53989,
+      "fp": 0,
+      "rtLits": 16833,
+      "fn": 55,
+      "hiddenWithGap": 40,
+      "hiddenNoGap": 15,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 4000,
+      "rejected": 276,
+      "typeLits": 55338,
+      "fp": 0,
+      "rtLits": 16863,
+      "fn": 63,
+      "hiddenWithGap": 55,
+      "hiddenNoGap": 8,
+      "nonExplicit": 0,
+      "errors": 0
+    }
+  },
+  "finalAggregate": {
+    "ts": {
+      "programs": 12000,
+      "typeLits": 164225,
+      "fp": 0,
+      "rtLits": 49806,
+      "fn": 1,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 1,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 12000,
+      "typeLits": 165362,
+      "fp": 0,
+      "rtLits": 50467,
+      "fn": 2513,
+      "hiddenWithGap": 632,
+      "hiddenNoGap": 915,
+      "nonExplicit": 966,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 12000,
+      "typeLits": 162662,
+      "fp": 0,
+      "rtLits": 50205,
+      "fn": 152,
+      "hiddenWithGap": 102,
+      "hiddenNoGap": 50,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 12000,
+      "typeLits": 164215,
+      "fp": 0,
+      "rtLits": 50151,
+      "fn": 193,
+      "hiddenWithGap": 147,
+      "hiddenNoGap": 46,
+      "nonExplicit": 0,
+      "errors": 0
+    }
+  },
+  "implementationBase": "fa8f46a8c5abed28cbc0c38b73bff504d96ee22d",
+  "baselineAggregate": {
+    "ts": {
+      "programs": 12000,
+      "typeLits": 164225,
+      "fp": 9213,
+      "rtLits": 49806,
+      "fn": 2688,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 2688,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 12000,
+      "typeLits": 165362,
+      "fp": 6567,
+      "rtLits": 50467,
+      "fn": 9767,
+      "hiddenWithGap": 679,
+      "hiddenNoGap": 868,
+      "nonExplicit": 8220,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 12000,
+      "typeLits": 162662,
+      "fp": 8436,
+      "rtLits": 50205,
+      "fn": 2881,
+      "hiddenWithGap": 94,
+      "hiddenNoGap": 58,
+      "nonExplicit": 2729,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 12000,
+      "typeLits": 164215,
+      "fp": 8374,
+      "rtLits": 50151,
+      "fn": 2880,
+      "hiddenWithGap": 137,
+      "hiddenNoGap": 56,
+      "nonExplicit": 2687,
+      "errors": 0
+    }
+  }
+}

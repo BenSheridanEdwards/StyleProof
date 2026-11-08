@@ -1,0 +1,103 @@
+✖ nested type has no positive role: type X = () => A extends B ? { class: 'old' } : C; (2.03225ms)
+✖ nested type has no positive role: let f: () => A extends B ? { class: 'old' } : C; (0.246792ms)
+✔ nested type has no positive role: let f: () => { class: 'old' }; (0.165042ms)
+✔ nested type has no positive role: function f(e: () => { class: 'old' }) {} (0.112125ms)
+✔ nested type has no positive role: type X = () => { class: 'old' }; (0.08825ms)
+✔ nested type has no positive role: const f = value as () => { class: 'old' }; (0.1035ms)
+✔ nested type has no positive role: function f(): () => { class: 'old' } { return value; } (0.079458ms)
+✔ nested type has no positive role: function f(x: unknown): x is { class: 'old' } { return true; } (0.080792ms)
+✔ nested type has no positive role: let m: Record<string, { className: 'old' }>; (0.120167ms)
+✔ nested type has no positive role: function f(e: Record<K, { class: 'old' }>) {} (0.164541ms)
+✔ nested type has no positive role: new Map<string, { class: 'old' }>(); (0.062042ms)
+✔ nested type has no positive role: foo<A, { class: 'old' }>(x); (0.05475ms)
+✔ nested type has no positive role: function f(e: [{ class: 'old' }]) {} (0.049833ms)
+✔ nested type has no positive role: let t: [A, { class: 'old' }]; (0.034875ms)
+✔ nested type has no positive role: let t: [a: string, b?: { class: 'old' }]; (0.034708ms)
+✔ nested type has no positive role: const t = x as ({ class: 'old' }); (0.035125ms)
+✔ nested type has no positive role: const t = x as [{ class: 'old' }]; (0.0355ms)
+✔ nested type has no positive role: const t = x as Map<K, { class: 'old' }>; (0.043417ms)
+✔ nested type has no positive role: const t = x satisfies Record<K, { class: 'old' }>; (0.050083ms)
+✔ nested type has no positive role: let x: A extends B ? { class: 'old' } : C; (0.047792ms)
+✔ nested type has no positive role: let x: A extends B ? C : { class: 'old' }; (0.038375ms)
+✔ nested type has no positive role: function f<G = { class: 'old' }>() {} (0.04625ms)
+✔ nested type has no positive role: const [a]: [{ class: 'old' }] = v; (0.036333ms)
+✔ nested type has no positive role: type X = [{ class: 'old' }]; (0.03075ms)
+✔ nested type has no positive role: type X = ({ class: 'old' }); (0.026875ms)
+✔ nested type has no positive role: interface X { prop: Record<K, { class: 'old' }> } (0.026542ms)
+✔ nested type has no positive role: class X implements Record<K, { class: 'old' }> {} (0.032583ms)
+✔ nested type has no positive role: const f = <T extends { class: 'old' }>(x: T) => x; (0.05575ms)
+✔ nested type has no positive role: function f(): Record<K, { class: 'old' }> { return value; } (0.046417ms)
+✔ nested type has no positive role: let a: ({ class: 'old' } | [{ className: 'old' }]) & A; (0.052375ms)
+✔ nested type has no positive role: type C<T> = T extends {class:'old'} ? {className:'old'} : never; (0.042125ms)
+✔ nested type has no positive role: let p: string extends unknown ? {class:'old'} : {className:'old'}; (0.032833ms)
+✔ nested type has no positive role: const p=value as ({class:'old'} & {inner:{className:'old'}}); (0.032792ms)
+✔ nested type has no positive role: const p:readonly [{class:'old'},{className:'old'}?]=value; (0.034542ms)
+✔ nested type has no positive role: function f<T={inner:{class:'old'}}>(p:T) {} (0.045375ms)
+✔ nested type has no positive role: function f<X,Y,T extends (X extends Y ? {class:'old'} : {className:'old'})>() {} (0.039084ms)
+✔ runtime boundary keeps positive values: switch(k) { default: { el.className='old'; } } (0.080959ms)
+✔ runtime boundary keeps positive values: switch(k) { case A: { el.className='old'; } } (0.041875ms)
+✔ runtime boundary keeps positive values: switch(k) { case K.A: { el.className='old'; } } (0.039375ms)
+✔ runtime boundary keeps positive values: outer: { el.className='old'; } (0.039416ms)
+✔ runtime boundary keeps positive values: $: { el.className='old'; } (0.02775ms)
+✔ runtime boundary keeps positive values: let x: Record<K, { class: 'type' }> = { class: 'old' }; (0.041417ms)
+✔ runtime boundary keeps positive values: function f(e: Record<K, { class: 'type' }>) { el.className='old'; } (0.045292ms)
+✔ runtime boundary keeps positive values: function f(): Record<K, { class: 'type' }> { el.className='old'; return value; } (0.054042ms)
+✔ runtime boundary keeps positive values: const f = (e: Record<K, { class: 'type' }>) => ({ class: 'old' }); (0.051792ms)
+✔ runtime boundary keeps positive values: const cfg = { as: { class: 'old' } }; (0.0415ms)
+✔ runtime boundary keeps positive values: const cfg = { implements: { class: 'old' } }; (0.030917ms)
+✔ runtime boundary keeps positive values: type X = { class: 'type' }
+el.className='old'; (0.038708ms)
+✔ runtime boundary keeps positive values: let p: Record<K, { class: 'type' }>
+el.className='old'; (0.027375ms)
+✔ runtime boundary keeps positive values: const p = value as { class: 'type' }
+el.className='old'; (0.026292ms)
+✔ runtime boundary keeps positive values: const f = (r): { class: 'type' } => { el.className='old'; return value; }; (0.035208ms)
+✔ runtime boundary keeps positive values: const cfg = on ? value : { class: 'old' }; (0.032084ms)
+✔ a bracket cap drops the entire unfinished statement but keeps earlier statements (0.324291ms)
+✔ nested inline type evidence cannot lower a same-line visual-change J2 range (1.717041ms)
+✔ dev-only TypeScript AST oracle: 8000 nested type-position literals have zero positive roles (126.898459ms)
+ℹ {"checkedTypeLiterals":8011,"falsePositives":0,"falsePositiveExamples":[]}
+ℹ tests 55
+ℹ suites 0
+ℹ pass 53
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 296.848166
+
+✖ failing tests:
+
+test at test/class-join-round7.test.mjs:51:3
+✖ nested type has no positive role: type X = () => A extends B ? { class: 'old' } : C; (2.03225ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":38},"end":{"line":1,"column":43}},"words":[{"token":"old","range":{"start":{"line":1,"column":39},"end":{"line":1,"column":42}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:54:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round7.test.mjs:51:3
+✖ nested type has no positive role: let f: () => A extends B ? { class: 'old' } : C; (0.246792ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":36},"end":{"line":1,"column":41}},"words":[{"token":"old","range":{"start":{"line":1,"column":37},"end":{"line":1,"column":40}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (file://<worktree>/test/class-join-round7.test.mjs:54:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

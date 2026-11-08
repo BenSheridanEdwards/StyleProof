@@ -34,8 +34,8 @@ export function cachedMapsUnavailableMessage(
     `  (cd .styleproof/base-checkout && ${install} && npx styleproof capture --base-dir ../maps --dir base)`,
     '  git worktree remove --force .styleproof/base-checkout',
     `  npx ${command} .styleproof/maps/base .styleproof/maps/head`,
-    "Stop any server already running on the app's port first: outside CI Playwright reuses it, so both",
-    'captures would see the same build.',
+    "Stop any server already running on the app's port first: capture refuses it so each",
+    'capture builds and serves its own commit.',
     ...(captureBase ? [] : ['Or rerun with --capture-base to capture the base in a temporary worktree']),
     `Any two capture directories work: ${command} <beforeDir> <afterDir>.`,
   ].join('\n');

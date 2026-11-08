@@ -1,0 +1,92 @@
+node:internal/modules/run_main:111
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: corpus J3 evidence must have no unchecked run-level gaps
++ actual - expected
+
++ [
++   {
++     join: 'J3',
++     kind: 'class-list',
++     paths: [
++       'app.jsx'
++     ],
++     range: {
++       end: {
++         column: 82,
++         line: 74
++       },
++       start: {
++         column: 75,
++         line: 74
++       }
++     },
++     reason: 'app.jsx:74:75: explicit class expression unresolved; no served class tokens',
++     remedy: 'capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges',
++     side: 'base',
++     status: 'unmeasured'
++   },
++   {
++     join: 'J3',
++     kind: 'class-list',
++     paths: [
++       'app.jsx'
++     ],
++     range: {
++       end: {
++         column: 80,
++         line: 74
++       },
++       start: {
++         column: 75,
++         line: 74
++       }
++     },
++     reason: 'app.jsx:74:75: explicit class expression unresolved; no served class tokens',
++     remedy: 'capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges',
++     side: 'head',
++     status: 'unmeasured'
++   }
++ ]
+- []
+
+    at jsUnit (bench/reach-corpus.mjs:160:10)
+    at evaluate (bench/reach-corpus.mjs:187:18)
+    at bench/reach-corpus.mjs:218:57 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: [
+    {
+      join: 'J3',
+      status: 'unmeasured',
+      kind: 'class-list',
+      side: 'base',
+      paths: [ 'app.jsx' ],
+      reason: 'app.jsx:74:75: explicit class expression unresolved; no served class tokens',
+      remedy: 'capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges',
+      range: {
+        start: { line: 74, column: 75 },
+        end: { line: 74, column: 82 }
+      }
+    },
+    {
+      join: 'J3',
+      status: 'unmeasured',
+      kind: 'class-list',
+      side: 'head',
+      paths: [ 'app.jsx' ],
+      reason: 'app.jsx:74:75: explicit class expression unresolved; no served class tokens',
+      remedy: 'capture both revisions with captureReach and retain paired maps, served CSS class vocabulary and changed source ranges',
+      range: {
+        start: { line: 74, column: 75 },
+        end: { line: 74, column: 80 }
+      }
+    }
+  ],
+  expected: [],
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v26.12.1

@@ -122,7 +122,7 @@ function navObserver(
         );
       }
       observedCount += take.length;
-      links.push(...take);
+      take.forEach((appended) => links.push(appended));
       if (take.length) reportObservedRoutes(take);
       return take;
     },

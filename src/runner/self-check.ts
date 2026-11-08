@@ -124,6 +124,9 @@ export function selfCheckErrorMessage(
 
 /** Enabled reach evidence must be present and agree, even when computed styles agree. */
 export function assertDeterministicReach(first: StyleMap, again: StyleMap, surfaceKey: string): void {
+  // Advisory omission evidence may only lose confidence across self-check reads.
+  if (first.classPresence && !isDeepStrictEqual(first.classPresence, again.classPresence))
+    first.classPresence = { ...first.classPresence, unstable: true };
   if (!first.reach || !again.reach || !isDeepStrictEqual(first.reach, again.reach)) {
     throw new Error(
       `styleproof self-check failed: ${surfaceKey} is non-deterministic — served CSS reach evidence changed or is missing.`,
@@ -149,6 +152,7 @@ export function assertDeterministicScriptReach(first: StyleMap, again: StyleMap,
     ? `: ${changed.sourceKey}:${firstScriptDifference(changed, rightByKey.get(changed.sourceKey)!)}`
     : '';
   first.scriptReach = {
+    ...first.scriptReach,
     version: 1,
     window: 'navigation',
     status: 'unknown',
@@ -200,7 +204,11 @@ export async function assertDeterministic(
   servedRules?: ServedRuleTracker,
 ): Promise<void> {
   const scriptReach = settings.captureScriptReach
-    ? await trackScriptReach(page, { projectRoot: settings.projectRoot, mediaState: surface.metadata?.mediaState })
+    ? await trackScriptReach(page, {
+        projectRoot: settings.projectRoot,
+        projectRootPrefix: settings.projectRootPrefix,
+        mediaState: surface.metadata?.mediaState,
+      })
     : undefined;
   let again: StyleMap;
   try {

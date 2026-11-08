@@ -1,0 +1,59 @@
+✖ large reach detail leaves the global chrome block its display budget first (314.39025ms)
+✔ unrendered changed CSS rules are listed with their condition and source without changing the verdict (10.344542ms)
+✔ gate holds never-rendered changes without claiming a clean computed-style result (9.904292ms)
+✔ outside-only changes stay unmeasured in reports and block only the opt-in gate (36.544375ms)
+✔ unscoped ledgers retain side-specific gaps and cannot certify legacy matches (62.713667ms)
+✔ gate holds missing ledgers even when neither side records reach evidence (4.979333ms)
+✔ gate keeps unbuilt joins advisory when all changed served rules matched captured elements (4.13875ms)
+✔ gate holds blind-channel changes and incomplete ledger evidence (3.4315ms)
+✔ directory reach assessment agrees with the report and does not depend on capture or rule order (27.191166ms)
+✔ fully reached CSS still discloses missing script evidence and unbuilt joins (4.604042ms)
+✔ an empty changed-rule list cannot claim reach is complete (6.821334ms)
+✔ captures without any reach ledger preserve all report bytes and omit the public reach field (5.770916ms)
+✔ missing and pre-version-2 ledgers name the affected side and the recapture remedy (15.515333ms)
+✔ missing captures produce an explicit reach gap and an empty head still refuses a report (8.060083ms)
+✔ an unreadable stylesheet ledger keeps known rules and names the unknown head evidence (11.848666ms)
+✔ rendered references to changed animation bodies appear in the blind-channel table (4.006667ms)
+✔ added and removed unrendered rules identify the kind of change (46.070833ms)
+✔ hostile rule keys, conditions, sheets and reasons stay inside their table cells (4.001417ms)
+✔ capture write order and rule order do not change Markdown, HTML or JSON bytes (8.145417ms)
+✔ a bounded report summarizes unrendered rules without losing the full JSON evidence (4.3305ms)
+✔ a bounded report retains the unmeasured count and full JSON evidence (4.231583ms)
+✔ a byte budget too small to show reach status refuses to write a misleading report (6.079167ms)
+✔ a restyle beside an unrendered rule cannot also say Nothing else (15.717667ms)
+✔ the reach strip names completeness without percentages and rejects any evidence gap (0.246291ms)
+✔ reach gate headline and CLI lines name matched rules and the current section (921.734459ms)
+✔ issue #1240: a changed stylesheet no capture served is named, not claimed matched, under gate and warn (10.234ms)
+✔ reach findings separate unchecked items from held findings and ledger gaps (18.581417ms)
+✔ reader unknown remains a ledger gap under gate (6.452125ms)
+✔ reader unknown remains a ledger gap under warn (6.728917ms)
+✔ script-only captures name unavailable map SHAs rather than inventing a source diff (0.20875ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 29
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1917.696625
+
+✖ failing tests:
+
+test at test/report-reach.test.mjs:53:1
+✖ large reach detail leaves the global chrome block its display budget first (314.39025ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(wide.md.indexOf('## 🧱 Global chrome') < wide.md.indexOf('## Changed but never matched'))
+
+      at TestContext.<anonymous> (file://<checkout>/test/report-reach.test.mjs:72:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

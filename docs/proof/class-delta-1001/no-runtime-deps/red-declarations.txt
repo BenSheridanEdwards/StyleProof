@@ -1,0 +1,121 @@
+✖ declarations do not supply class-helper arguments: function cn({ old: x }) {} (3.078ms)
+✖ declarations do not supply class-helper arguments: function cn(x?: 'old') {} (0.388334ms)
+✖ declarations do not supply class-helper arguments: class C { cn({ old: x }); } (0.156916ms)
+✖ declarations do not supply class-helper arguments: interface M { cn({ old: x }); class: 'old' } (0.13325ms)
+✖ declarations do not supply class-helper arguments: type M = { cn({ old: x }); class: 'old' } (0.118458ms)
+✔ helper values inside runtime bodies remain positive: function render() { return cn({ old: on }); } (0.103917ms)
+✔ helper values inside runtime bodies remain positive: class C { render() { return cn({ old: on }); } } (0.068541ms)
+✔ helper values inside runtime bodies remain positive: class C { classes = cn({ old: on }); } (0.065542ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 3
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 58.044709
+
+✖ failing tests:
+
+test at test/class-join-dependencies.test.mjs:39:3
+✖ declarations do not supply class-helper arguments: function cn({ old: x }) {} (3.078ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').every((l) => !l.explicit))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:40:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-dependencies.test.mjs:39:3
+✖ declarations do not supply class-helper arguments: function cn(x?: 'old') {} (0.388334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').every((l) => !l.explicit))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:40:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-dependencies.test.mjs:39:3
+✖ declarations do not supply class-helper arguments: class C { cn({ old: x }); } (0.156916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').every((l) => !l.explicit))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:40:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-dependencies.test.mjs:39:3
+✖ declarations do not supply class-helper arguments: interface M { cn({ old: x }); class: 'old' } (0.13325ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').every((l) => !l.explicit))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:40:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-dependencies.test.mjs:39:3
+✖ declarations do not supply class-helper arguments: type M = { cn({ old: x }); class: 'old' } (0.118458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(classLiterals(source, 'app.ts').every((l) => !l.explicit))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-dependencies.test.mjs:40:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

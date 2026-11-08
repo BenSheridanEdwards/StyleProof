@@ -26,7 +26,8 @@ import { alignRectsToFullPageGeometry } from './capture/full-page.js';
 import { trackInflightRequests } from './capture/network.js';
 import { trackServedRules } from './capture/reach.js';
 import { attachScriptReach } from './capture/script-reach.js';
-import { isUnder, skipSelector, warn } from './capture/shared.js';
+import { FRAMEWORK_IGNORE, ROUTE_ANNOUNCERS, isUnder, skipSelector, warn } from './capture/shared.js';
+import { captureAuthorShadowRoots } from './capture/class-presence.js';
 import type {
   CaptureOptions,
   ElementEntry,
@@ -133,14 +134,6 @@ const FREEZE_CSS = ['*,*::before,*::after', '::backdrop', '::file-selector-butto
   .map((selector) => `${selector}{animation:none!important;transition:none!important}`)
   .join('');
 
-// Always skipped: non-rendered elements frameworks stream into <body> and reorder, plus
-// framework-injected live regions. A real stylesheet change still shows in element styles.
-const FRAMEWORK_IGNORE = [
-  ...'meta title link script style base noscript template next-route-announcer'.split(' '),
-  '[id="__next-route-announcer__"]',
-  '[data-styleproof-hover-sink]',
-];
-
 async function assertRequiredVisibleState(page: Page, required: CaptureOptions['requiredVisibleState']): Promise<void> {
   if (!required) return;
   const visible = await page
@@ -242,7 +235,10 @@ async function stabilizePage(
 
       const end = realNow();
 
-      const lastPoll = Math.max(...lastChangedAt.values());
+      let lastPoll = -Infinity;
+      lastChangedAt.forEach((at) => {
+        lastPoll = Math.max(lastPoll, at);
+      });
       volatile = [...lastChangedAt].flatMap(([p, at]) =>
         (at === lastPoll && changedAgain.has(p)) || end - at <= quietFor ? [p] : [],
       );
@@ -395,6 +391,7 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
 
   const { states, stateLayers, stateLayerOmissions, stateTargets, statesSkipped, stateComputedValueStyle } =
     await captureStateLayer(page, options, read.limits, read.ignore, volatile);
+  const shadowRoots = options.captureReach ? await captureAuthorShadowRoots(page) : undefined;
   // Chromium clears print emulation when the forced-state reader detaches its CDP session.
   await restoreDeclaredMediaState(page, options.metadata);
   const tokens = await page.evaluate(capturePageTokens);
@@ -424,6 +421,19 @@ async function readSettledPage(page: Page, read: SettledRead): Promise<StyleMap>
     ...(stateComputedValueStyle ? { stateComputedValueStyle } : {}),
     ...(statesSkipped ? { statesSkipped: true } : {}),
     ...(volatile.length ? { volatile } : {}),
+    ...(options.captureReach
+      ? {
+          classPresence: {
+            version: 2 as const,
+            ignored: !!options.ignore?.length || base.ignored,
+            shadowHosts: Math.max(base.shadowHosts, shadowRoots ?? 0),
+            frames: base.frames,
+            outsideBody: base.outsideBody,
+            documentBoundsVerified: true as const,
+            ...(shadowRoots !== undefined ? { shadowRootsVerified: true as const } : {}),
+          },
+        }
+      : {}),
     ...(read.liveCandidates.length ? { liveCandidates: read.liveCandidates } : {}),
     ...(overlays.length ? { overlays } : {}),
     ...(Object.keys(tokens).length ? { tokens } : {}),
@@ -441,7 +451,15 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
   const skipSel = skipSelector(ignore);
   const captureText = options.captureText ?? true;
   // Shared by settle polls and the resting read; components require a separate capture.
-  const args = { skipSel, motionOnly: false, captureText, pseudoReferences: PSEUDO_REFERENCES };
+  const args = {
+    skipSel,
+    frameworkSkipSel: skipSelector(FRAMEWORK_IGNORE),
+    captureClassPresence: !!options.captureReach,
+    routeAnnouncerSel: ROUTE_ANNOUNCERS.join(', '),
+    motionOnly: false,
+    captureText,
+    pseudoReferences: PSEUDO_REFERENCES,
+  };
 
   // Resting captures clear ambient interactions; recipe captures keep the state
   // their driver deliberately reached, including CSS-only :hover and :focus.
@@ -516,7 +534,7 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
       map.metadata = { ...map.metadata, settleTimedOutWithRequestsInFlight: inFlightAtTimeout };
     }
     // Matches outside the compared elements do not count as reached (#993).
-    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements)) } : map;
+    const result = reach ? { ...map, reach: await reach.stop([FREEZE_CSS], Object.keys(map.elements), map) } : map;
     await attachScriptReach(result, options);
     // Validate before returning, outside best-effort cleanup: a page can replace its adopted sheets.
     await page.evaluate(unfreezeMotion, true);

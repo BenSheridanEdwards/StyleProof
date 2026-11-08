@@ -115,7 +115,8 @@ function styleSection(styles: StyleFinding[], added: boolean): string[] {
         ? 'Style inventory (head-side — no baseline):'
         : 'Style:';
     const header = added ? ['Property', 'Value'] : ['Property', 'Before', 'After'];
-    out.push('', heading, '', ...table(header, propRows(rows, added)));
+    out.push('', heading, '');
+    table(header, propRows(rows, added)).forEach((appended) => out.push(appended));
   }
   return out;
 }
@@ -198,7 +199,8 @@ function renderElements(findings: Finding[], maxElements = 40, folded = false): 
       );
       break;
     }
-    out.push('', b.count > 1 ? `${b.head} ×${b.count}` : b.head, ...b.body);
+    out.push('', b.count > 1 ? `${b.head} ×${b.count}` : b.head);
+    b.body.forEach((appended) => out.push(appended));
   }
   return out;
 }

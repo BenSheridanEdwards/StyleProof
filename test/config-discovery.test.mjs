@@ -1123,6 +1123,106 @@ for (const mode of [0o777, 0o1777]) {
   }
 }
 
+for (const mode of [0o666, 0o646]) {
+  test(
+    `world-writable ancestor config file: mode=${mode.toString(8)} is not evaluated`,
+    { skip: process.platform === 'win32' },
+    async () => {
+      const root = mkTmp();
+      try {
+        const nested = path.join(root, 'nested');
+        const marker = path.join(root, 'executed');
+        const config = path.join(root, 'styleproof.config.mjs');
+        fs.mkdirSync(nested);
+        fs.writeFileSync(
+          config,
+          `import fs from 'node:fs'; fs.writeFileSync(${JSON.stringify(marker)}, 'bad'); export default { requireApproval: true };`,
+        );
+        fs.chmodSync(root, 0o700);
+        fs.chmodSync(config, mode);
+        const discovery = discoverStyleProofConfig(nested);
+        assert.equal(discovery.location, undefined);
+        assert.equal(discovery.skippedConfig, config);
+        assert.equal((await loadStyleProofConfigAsync(nested)).requireApproval, undefined);
+        assert.equal(fs.existsSync(marker), false, 'library must not evaluate a world-writable ancestor config');
+        const child = spawnSync(
+          process.execPath,
+          [
+            '--input-type=module',
+            '-e',
+            `const c = await (await import(${JSON.stringify(pathToFileURL(CONFIG_DIST).href)})).loadStyleProofConfigAsync(); process.stdout.write(JSON.stringify(c));`,
+          ],
+          { cwd: nested, encoding: 'utf8', timeout: 15000 },
+        );
+        assert.equal(child.status, 0, child.stderr);
+        assert.equal(child.stdout, '{}', child.stderr);
+        const output = child.stderr;
+        const real = path.join(fs.realpathSync(root), 'styleproof.config.mjs');
+        assert.ok(output.includes(`${real} was not loaded (unsafe config file ${real}: world-writable)`), output);
+        assert.equal(fs.existsSync(marker), false, 'child must not evaluate a world-writable ancestor config');
+      } finally {
+        rmTmp(root);
+      }
+    },
+  );
+}
+
+test('ancestor config file owned by another user is not evaluated', { skip: process.platform === 'win32' }, (t) => {
+  const root = mkTmp();
+  const nested = path.join(root, 'nested');
+  const config = path.join(root, 'styleproof.config.mjs');
+  fs.mkdirSync(nested);
+  fs.writeFileSync(config, 'throw new Error("must not execute");');
+  fs.chmodSync(root, 0o700);
+  t.after(() => {
+    t.mock.restoreAll();
+    rmTmp(root);
+  });
+  const statSync = fs.statSync;
+  t.mock.method(fs, 'statSync', (candidate, ...args) => {
+    const stat = statSync(candidate, ...args);
+    return candidate === config
+      ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: 12345 })
+      : stat;
+  });
+  const discovery = discoverStyleProofConfig(nested);
+  assert.equal(discovery.location, undefined);
+  assert.equal(discovery.skippedConfig, config);
+  assert.deepEqual(loadStyleProofConfig(nested), {});
+});
+
+test('refusal names the refused config path, not a later sibling', { skip: process.platform === 'win32' }, () => {
+  const root = mkTmp();
+  try {
+    const nested = path.join(root, 'nested');
+    const refused = path.join(root, 'styleproof.config.ts');
+    fs.mkdirSync(nested);
+    fs.mkdirSync(refused);
+    fs.writeFileSync(path.join(root, 'styleproof.config.mjs'), 'throw new Error("must not execute");');
+    fs.chmodSync(refused, 0o777);
+    fs.chmodSync(root, 0o700);
+    const discovery = discoverStyleProofConfig(nested);
+    assert.equal(discovery.location, undefined);
+    assert.equal(discovery.skippedConfig, refused);
+  } finally {
+    fs.chmodSync(path.join(root, 'styleproof.config.ts'), 0o700);
+    rmTmp(root);
+  }
+});
+
+test('a world-writable config in the start folder still loads', { skip: process.platform === 'win32' }, async () => {
+  const root = mkTmp();
+  try {
+    const config = path.join(root, 'styleproof.config.mjs');
+    fs.writeFileSync(config, 'export default { requireApproval: true };');
+    fs.chmodSync(config, 0o666);
+    assert.equal(discoverStyleProofConfig(root).location?.path, config);
+    assert.equal((await loadStyleProofConfigAsync(root)).requireApproval, true);
+  } finally {
+    rmTmp(root);
+  }
+});
+
 test('group writable repo and start config load; shared inner repo bounds discovery', async () => {
   const root = mkTmp();
   try {

@@ -1,0 +1,228 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 10 tests using 1 worker
+
+(node:31071) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for html child (162ms)
+(node:31076) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for closed shadow (164ms)
+(node:31081) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for object document (206ms)
+(node:31086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for embed document (205ms)
+(node:31091) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture remove('clock') refactor cannot lower J2 (165ms)
+(node:31096) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture contains('clock') refactor cannot lower J2 (162ms)
+(node:31101) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture toggle('clock', false) refactor cannot lower J2 (163ms)
+(node:31106) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture replace('clock', 'card') refactor cannot lower J2 (160ms)
+(node:31112) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer> (119ms)
+(node:31117) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div> (117ms)
+
+
+  1) [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for html child
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      50 |     const result = classifyClassReach([maps[0]], [maps[1]], changes, [{ base: maps[0], head: maps[1] }]);
+      51 |     expect(result.units.length).toBeGreaterThanOrEqual(2);
+    > 52 |     expect(result.units.every((u) => u.status === 'unknown')).toBe(true);
+         |                                                               ^
+      53 |     const scripts = changes.map(({ sourceKey, side, range }) => ({
+      54 |       sourceKey,
+      55 |       side,
+        at <checkout>/test/class-join-round3.e2e.spec.ts:52:63
+
+    Error Context: test-results/test-class-join-round3.e2e-bc5c2-ence-unknown-for-html-child-chromium/error-context.md
+
+  2) [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for closed shadow
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      50 |     const result = classifyClassReach([maps[0]], [maps[1]], changes, [{ base: maps[0], head: maps[1] }]);
+      51 |     expect(result.units.length).toBeGreaterThanOrEqual(2);
+    > 52 |     expect(result.units.every((u) => u.status === 'unknown')).toBe(true);
+         |                                                               ^
+      53 |     const scripts = changes.map(({ sourceKey, side, range }) => ({
+      54 |       sourceKey,
+      55 |       side,
+        at <checkout>/test/class-join-round3.e2e.spec.ts:52:63
+
+    Error Context: test-results/test-class-join-round3.e2e-3917f-e-unknown-for-closed-shadow-chromium/error-context.md
+
+  3) [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for object document
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      50 |     const result = classifyClassReach([maps[0]], [maps[1]], changes, [{ base: maps[0], head: maps[1] }]);
+      51 |     expect(result.units.length).toBeGreaterThanOrEqual(2);
+    > 52 |     expect(result.units.every((u) => u.status === 'unknown')).toBe(true);
+         |                                                               ^
+      53 |     const scripts = changes.map(({ sourceKey, side, range }) => ({
+      54 |       sourceKey,
+      55 |       side,
+        at <checkout>/test/class-join-round3.e2e.spec.ts:52:63
+
+    Error Context: test-results/test-class-join-round3.e2e-313d8-unknown-for-object-document-chromium/error-context.md
+
+  4) [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for embed document
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      50 |     const result = classifyClassReach([maps[0]], [maps[1]], changes, [{ base: maps[0], head: maps[1] }]);
+      51 |     expect(result.units.length).toBeGreaterThanOrEqual(2);
+    > 52 |     expect(result.units.every((u) => u.status === 'unknown')).toBe(true);
+         |                                                               ^
+      53 |     const scripts = changes.map(({ sourceKey, side, range }) => ({
+      54 |       sourceKey,
+      55 |       side,
+        at <checkout>/test/class-join-round3.e2e.spec.ts:52:63
+
+    Error Context: test-results/test-class-join-round3.e2e-0f32a--unknown-for-embed-document-chromium/error-context.md
+
+  5) [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture remove('clock') refactor cannot lower J2
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      94 |       level: 'warn' as const,
+      95 |     }));
+    > 96 |     expect(result.units.every((u) => !u.explicit)).toBe(true);
+         |                                                    ^
+      97 |     expect(combineClassReach(scripts, result.units).every((u) => u.status === 'reached')).toBe(true);
+      98 |   });
+      99 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:96:52
+
+    Error Context: test-results/test-class-join-round3.e2e-450f6-ck-refactor-cannot-lower-J2-chromium/error-context.md
+
+  6) [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture contains('clock') refactor cannot lower J2
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      94 |       level: 'warn' as const,
+      95 |     }));
+    > 96 |     expect(result.units.every((u) => !u.explicit)).toBe(true);
+         |                                                    ^
+      97 |     expect(combineClassReach(scripts, result.units).every((u) => u.status === 'reached')).toBe(true);
+      98 |   });
+      99 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:96:52
+
+    Error Context: test-results/test-class-join-round3.e2e-79546-ck-refactor-cannot-lower-J2-chromium/error-context.md
+
+  7) [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture toggle('clock', false) refactor cannot lower J2
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      94 |       level: 'warn' as const,
+      95 |     }));
+    > 96 |     expect(result.units.every((u) => !u.explicit)).toBe(true);
+         |                                                    ^
+      97 |     expect(combineClassReach(scripts, result.units).every((u) => u.status === 'reached')).toBe(true);
+      98 |   });
+      99 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:96:52
+
+    Error Context: test-results/test-class-join-round3.e2e-8e6bb-se-refactor-cannot-lower-J2-chromium/error-context.md
+
+  8) [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture replace('clock', 'card') refactor cannot lower J2
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      94 |       level: 'warn' as const,
+      95 |     }));
+    > 96 |     expect(result.units.every((u) => !u.explicit)).toBe(true);
+         |                                                    ^
+      97 |     expect(combineClassReach(scripts, result.units).every((u) => u.status === 'reached')).toBe(true);
+      98 |   });
+      99 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:96:52
+
+    Error Context: test-results/test-class-join-round3.e2e-142b8-rd-refactor-cannot-lower-J2-chromium/error-context.md
+
+  9) [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer>
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      110 |     );
+      111 |     const result = classifyClassReach([map], [map], changes, [{ base: map, head: map }]);
+    > 112 |     expect(map.classPresence?.ignored).toBe(false);
+          |                                        ^
+      113 |     expect(result.units.every((u) => u.status === 'never-rendered')).toBe(true);
+      114 |   });
+      115 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:112:40
+
+    Error Context: test-results/test-class-join-round3.e2e-038f7-uncer-next-route-announcer--chromium/error-context.md
+
+  10) [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div>
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: false
+    Received: true
+
+      110 |     );
+      111 |     const result = classifyClassReach([map], [map], changes, [{ base: map, head: map }]);
+    > 112 |     expect(map.classPresence?.ignored).toBe(false);
+          |                                        ^
+      113 |     expect(result.units.every((u) => u.status === 'never-rendered')).toBe(true);
+      114 |   });
+      115 |
+        at <checkout>/test/class-join-round3.e2e.spec.ts:112:40
+
+    Error Context: test-results/test-class-join-round3.e2e-4ed10-d-next-route-announcer-div--chromium/error-context.md
+
+  10 failed
+    [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for html child
+    [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for closed shadow
+    [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for object document
+    [chromium] › test/class-join-round3.e2e.spec.ts:15:3 › real capture leaves absence unknown for embed document
+    [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture remove('clock') refactor cannot lower J2
+    [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture contains('clock') refactor cannot lower J2
+    [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture toggle('clock', false) refactor cannot lower J2
+    [chromium] › test/class-join-round3.e2e.spec.ts:72:3 › real capture replace('clock', 'card') refactor cannot lower J2
+    [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <next-route-announcer></next-route-announcer>
+    [chromium] › test/class-join-round3.e2e.spec.ts:101:3 › framework exemption permits absence: <div id="__next-route-announcer__"></div>

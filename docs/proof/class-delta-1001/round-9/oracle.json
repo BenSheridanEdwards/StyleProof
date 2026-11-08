@@ -1,0 +1,197 @@
+{
+  "source": "d2d8001f810722c566c179459de1962adf6fbf7b",
+  "seeds": [
+    1,
+    2,
+    3
+  ],
+  "programsPerLanguagePerSeed": 4000,
+  "baseline6dc": {
+    "ts": {
+      "programs": 12000,
+      "rejected": 855,
+      "typeLits": 164225,
+      "fp": 9213,
+      "rtLits": 49806,
+      "fn": 2688,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 2688,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 12000,
+      "rejected": 835,
+      "typeLits": 165362,
+      "fp": 6567,
+      "rtLits": 50467,
+      "fn": 9767,
+      "hiddenWithGap": 679,
+      "hiddenNoGap": 868,
+      "nonExplicit": 8220,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 12000,
+      "rejected": 850,
+      "typeLits": 162662,
+      "fp": 8436,
+      "rtLits": 50205,
+      "fn": 2881,
+      "hiddenWithGap": 94,
+      "hiddenNoGap": 58,
+      "nonExplicit": 2729,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 12000,
+      "rejected": 833,
+      "typeLits": 164215,
+      "fp": 8374,
+      "rtLits": 50151,
+      "fn": 2880,
+      "hiddenWithGap": 137,
+      "hiddenNoGap": 56,
+      "nonExplicit": 2687,
+      "errors": 0
+    }
+  },
+  "approvedRound8": {
+    "ts": {
+      "programs": 12000,
+      "rejected": 855,
+      "typeLits": 164225,
+      "fp": 0,
+      "rtLits": 49806,
+      "fn": 1,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 1,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 12000,
+      "rejected": 835,
+      "typeLits": 165362,
+      "fp": 0,
+      "rtLits": 50467,
+      "fn": 2513,
+      "hiddenWithGap": 632,
+      "hiddenNoGap": 915,
+      "nonExplicit": 966,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 12000,
+      "rejected": 850,
+      "typeLits": 162662,
+      "fp": 0,
+      "rtLits": 50205,
+      "fn": 152,
+      "hiddenWithGap": 102,
+      "hiddenNoGap": 50,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 12000,
+      "rejected": 833,
+      "typeLits": 164215,
+      "fp": 0,
+      "rtLits": 50151,
+      "fn": 193,
+      "hiddenWithGap": 147,
+      "hiddenNoGap": 46,
+      "nonExplicit": 0,
+      "errors": 0
+    }
+  },
+  "final": {
+    "ts": {
+      "programs": 12000,
+      "rejected": 855,
+      "typeLits": 164225,
+      "fp": 0,
+      "rtLits": 49806,
+      "fn": 0,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "tsx": {
+      "programs": 12000,
+      "rejected": 835,
+      "typeLits": 165362,
+      "fp": 0,
+      "rtLits": 50467,
+      "fn": 2512,
+      "hiddenWithGap": 632,
+      "hiddenNoGap": 915,
+      "nonExplicit": 965,
+      "errors": 0
+    },
+    "vue": {
+      "programs": 12000,
+      "rejected": 850,
+      "typeLits": 162662,
+      "fp": 0,
+      "rtLits": 50205,
+      "fn": 152,
+      "hiddenWithGap": 102,
+      "hiddenNoGap": 50,
+      "nonExplicit": 0,
+      "errors": 0
+    },
+    "svelte": {
+      "programs": 12000,
+      "rejected": 833,
+      "typeLits": 164215,
+      "fp": 0,
+      "rtLits": 50151,
+      "fn": 193,
+      "hiddenWithGap": 147,
+      "hiddenNoGap": 46,
+      "nonExplicit": 0,
+      "errors": 0
+    }
+  },
+  "ciSeed1": {
+    "ts": {
+      "typeLits": 13504,
+      "fp": 0,
+      "rtLits": 4243,
+      "fn": 0,
+      "hiddenWithGap": 0,
+      "hiddenNoGap": 0,
+      "nonExplicit": 0
+    },
+    "tsx": {
+      "typeLits": 14020,
+      "fp": 0,
+      "rtLits": 4173,
+      "fn": 224,
+      "hiddenWithGap": 59,
+      "hiddenNoGap": 75,
+      "nonExplicit": 90
+    },
+    "vue": {
+      "typeLits": 13835,
+      "fp": 0,
+      "rtLits": 4142,
+      "fn": 8,
+      "hiddenWithGap": 6,
+      "hiddenNoGap": 2,
+      "nonExplicit": 0
+    },
+    "svelte": {
+      "typeLits": 13532,
+      "fp": 0,
+      "rtLits": 4016,
+      "fn": 25,
+      "hiddenWithGap": 20,
+      "hiddenNoGap": 5,
+      "nonExplicit": 0
+    }
+  }
+}

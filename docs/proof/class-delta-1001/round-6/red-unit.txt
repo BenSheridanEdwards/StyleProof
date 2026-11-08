@@ -1,0 +1,273 @@
+✖ inline type has no positive class role: function f(e: { class: 'old'; id: string }) {} (1.696542ms)
+✖ inline type has no positive class role: const p: { className: 'old' } = value; (0.167583ms)
+✖ inline type has no positive class role: (p: { className: 'old' }) => p; (0.111667ms)
+✖ inline type has no positive class role: let cols: { class: 'old' }[]; (0.094375ms)
+✖ inline type has no positive class role: (r): { class: 'old' } => r; (0.093ms)
+✖ inline type has no positive class role: function f(e?: { class: 'old' }) {} (0.085583ms)
+✖ inline type has no positive class role: const f = (e?: { className: 'old' }) => e; (0.075583ms)
+✖ inline type has no positive class role: let p!: { class: 'old' }; (0.063042ms)
+✖ inline type has no positive class role: function f({id}: { class: 'old' }) {} (0.259958ms)
+✖ inline type has no positive class role: const cfg = { method(r): { class: 'old' } { return r; } }; (0.126042ms)
+✔ inline type has no positive class role: function f<T extends { class: 'old' }>(p: T) {} (0.138875ms)
+✔ inline type has no positive class role: const p = value as { class: 'old' }; (0.0515ms)
+✔ inline type has no positive class role: const p = value satisfies { class: 'old' }; (0.064292ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: { class: 'old' } }; (0.057166ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? value : { class: 'old' }; (0.03975ms)
+✔ runtime property/ternary colon keeps class values: const cfg = on ? get() : { class: 'old' }; (0.051708ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { row: on ? value : { class: 'old' } }; (0.048958ms)
+✔ runtime property/ternary colon keeps class values: h('div', { class: 'old' }); (0.069167ms)
+✔ runtime property/ternary colon keeps class values: const cfg = { [key]: { class: 'old' } }; (0.064167ms)
+✖ a bracket cap preserves completed positive roots before the incomplete frame (2.186208ms)
+✖ the depth gap covers unread words in an incomplete enclosing helper (0.523125ms)
+✖ ten thousand flat else-if arms retain positive roles without a depth gap (93.02075ms)
+ℹ {"arms":10000,"ms":91.652917}
+✔ pinned residual: receiver-only changes retain no J3 occurrence (2.066875ms)
+✔ pinned QA residual: unchanged neighbouring words can mask changed occurrences (0.299875ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 11
+ℹ fail 13
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 169.107708
+
+✖ failing tests:
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: function f(e: { class: 'old'; id: string }) {} (1.696542ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":23},"end":{"line":1,"column":28}},"words":[{"token":"old","range":{"start":{"line":1,"column":24},"end":{"line":1,"column":27}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: const p: { className: 'old' } = value; (0.167583ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":22},"end":{"line":1,"column":27}},"words":[{"token":"old","range":{"start":{"line":1,"column":23},"end":{"line":1,"column":26}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: (p: { className: 'old' }) => p; (0.111667ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":17},"end":{"line":1,"column":22}},"words":[{"token":"old","range":{"start":{"line":1,"column":18},"end":{"line":1,"column":21}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: let cols: { class: 'old' }[]; (0.094375ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":19},"end":{"line":1,"column":24}},"words":[{"token":"old","range":{"start":{"line":1,"column":20},"end":{"line":1,"column":23}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: (r): { class: 'old' } => r; (0.093ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":14},"end":{"line":1,"column":19}},"words":[{"token":"old","range":{"start":{"line":1,"column":15},"end":{"line":1,"column":18}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: function f(e?: { class: 'old' }) {} (0.085583ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":24},"end":{"line":1,"column":29}},"words":[{"token":"old","range":{"start":{"line":1,"column":25},"end":{"line":1,"column":28}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: const f = (e?: { className: 'old' }) => e; (0.075583ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":28},"end":{"line":1,"column":33}},"words":[{"token":"old","range":{"start":{"line":1,"column":29},"end":{"line":1,"column":32}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: let p!: { class: 'old' }; (0.063042ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":17},"end":{"line":1,"column":22}},"words":[{"token":"old","range":{"start":{"line":1,"column":18},"end":{"line":1,"column":21}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: function f({id}: { class: 'old' }) {} (0.259958ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":26},"end":{"line":1,"column":31}},"words":[{"token":"old","range":{"start":{"line":1,"column":27},"end":{"line":1,"column":30}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:22:3
+✖ inline type has no positive class role: const cfg = { method(r): { class: 'old' } { return r; } }; (0.126042ms)
+  AssertionError [ERR_ASSERTION]: [{"range":{"start":{"line":1,"column":34},"end":{"line":1,"column":39}},"words":[{"token":"old","range":{"start":{"line":1,"column":35},"end":{"line":1,"column":38}}}],"explicit":true,"role":"class-value:class-value","classContext":true}]
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:25:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:40:1
+✖ a bracket cap preserves completed positive roots before the incomplete frame (2.186208ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(literals.some((l) => l.explicit && l.words.some((w) => w.token === 'old')))
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:43:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:50:1
+✖ the depth gap covers unread words in an incomplete enclosing helper (0.523125ms)
+  AssertionError [ERR_ASSERTION]: {"range":{"start":{"line":1,"column":136},"end":{"line":1,"column":12013}},"words":[],"explicit":false,"context":true,"residual":"class role nesting depth limit (128) exceeded","extractionGap":true}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:55:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round6.test.mjs:58:1
+✖ ten thousand flat else-if arms retain positive roles without a depth gap (93.02075ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  127 !== 10001
+
+      at TestContext.<anonymous> (<workspace>/test/class-join-round6.test.mjs:62:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 127,
+    expected: 10001,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

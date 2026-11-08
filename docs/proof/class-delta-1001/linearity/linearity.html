@@ -1,0 +1,243 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: #f6f8fa;
+        color: #18252d;
+        padding: 20px;
+        font:
+          14px/1.45 system-ui,
+          -apple-system,
+          sans-serif;
+      }
+      main {
+        max-width: 728px;
+        margin: auto;
+        background: white;
+        border: 1px solid #dbe1e6;
+        border-radius: 16px;
+        padding: 24px;
+      }
+      h1 {
+        font-size: 23px;
+        margin: 0 0 6px;
+      }
+      p {
+        color: #4f5e68;
+        margin: 0 0 16px;
+      }
+      .legend {
+        font-size: 12px;
+        margin: 15px 0 20px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .legend i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 5px;
+        background: #237fa7;
+      }
+      .legend span:last-child i {
+        background: #b65e76;
+      }
+      section {
+        margin: 0 0 15px;
+      }
+      strong {
+        font-size: 13px;
+      }
+      .size {
+        font-size: 11px;
+        color: #65727b;
+        display: inline;
+        margin-left: 10px;
+      }
+      .row {
+        display: grid;
+        grid-template-columns: 30px 1fr 45px;
+        gap: 8px;
+        align-items: center;
+        margin-top: 3px;
+      }
+      small {
+        font-size: 11px;
+        color: #596a75;
+      }
+      .track {
+        height: 13px;
+        background: linear-gradient(to right, transparent 44.3%, #828d98 44.3%, #828d98 44.6%, transparent 44.6%);
+      }
+      .fill {
+        height: 100%;
+        border-radius: 3px;
+      }
+      .code {
+        background: #237fa7;
+      }
+      .stub {
+        background: #b65e76;
+      }
+      b {
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      footer {
+        border-top: 1px solid #dce3e8;
+        padding-top: 14px;
+        font-size: 12px;
+        color: #52616b;
+      }
+      footer p {
+        margin: 5px 0 0;
+      }
+      footer strong {
+        color: #18252d;
+      }
+      @media (max-width: 440px) {
+        body {
+          padding: 10px;
+        }
+        main {
+          padding: 17px;
+        }
+        h1 {
+          font-size: 20px;
+        }
+        .size {
+          display: block;
+          margin-left: 0;
+        }
+        .row {
+          gap: 5px;
+          grid-template-columns: 28px 1fr 43px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Linearity guards retain regression detection</h1>
+      <p>Observed time(4N) / time(N). The vertical marker is the strict 8× limit.</p>
+      <div class="legend">
+        <span><i></i>Code · Node 22 coverage</span><span><i></i>Quadratic mutation · Node 22</span>
+      </div>
+      <section>
+        <strong>String literals (~1 MB)</strong>
+        <div class="size">N=10,870 → 4N=43,480</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 22.592%"></div></div>
+          <b>4.07×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 87.6283%"></div></div>
+          <b>15.77×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Template literals (~1 MB)</strong>
+        <div class="size">N=6,411 → 4N=25,644</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 23.7605%"></div></div>
+          <b>4.28×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 87.706%"></div></div>
+          <b>15.79×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Scoped gap classification</strong>
+        <div class="size">N=4,000 → 4N=16,000</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 20.966%"></div></div>
+          <b>3.77×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 88.9345%"></div></div>
+          <b>16.01×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Negative evidence lookup</strong>
+        <div class="size">N=4,000 → 4N=16,000</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 25.5585%"></div></div>
+          <b>4.60×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 83.9653%"></div></div>
+          <b>15.11×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Replacement-hunk matching</strong>
+        <div class="size">N=4,000 → 4N=16,000</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 20.2024%"></div></div>
+          <b>3.64×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 89.4383%"></div></div>
+          <b>16.10×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Flat else-if arms</strong>
+        <div class="size">N=2,500 → 4N=10,000</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 23.9643%"></div></div>
+          <b>4.31×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 89.5579%"></div></div>
+          <b>16.12×</b>
+        </div>
+      </section>
+      <section>
+        <strong>Template literals (~4 MB)</strong>
+        <div class="size">N=27,595 → 4N=110,380</div>
+        <div class="row">
+          <small>Code</small>
+          <div class="track"><div class="fill code" style="width: 26.2348%"></div></div>
+          <b>4.72×</b>
+        </div>
+        <div class="row">
+          <small>Stub</small>
+          <div class="track"><div class="fill stub" style="width: 89.6945%"></div></div>
+          <b>16.15×</b>
+        </div>
+      </section>
+      <footer>
+        <strong>All seven code paths pass; all seven quadratic mutations fail by ratio.</strong>
+        <p>One warm-up per size, then median of three runs. A separate 10 s ceiling only guards hangs.</p>
+        <p>
+          The mutation caches correct product outputs during warm-up and replaces timed work with an observed nested
+          loop. Product code is unchanged. Source: results.json.
+        </p>
+      </footer>
+    </main>
+  </body>
+</html>

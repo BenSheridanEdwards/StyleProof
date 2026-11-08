@@ -7,6 +7,52 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
+  Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
+  any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
+  Version-2 capture omission facts cover volatile/ignored regions, html children outside head/body,
+  omitted head content, route-announcer light-DOM author children, object/embed documents and open/closed author roots verified through CDP when captureReach is enabled. Version-1/missing facts,
+  older version-2 maps without document-boundary verification, unmatched surfaces and changing self-check facts keep absence unknown. Framework exemptions are shared. Captures record no per-occurrence render provenance. Ordinary
+  prose is skipped. Only positive class values can lower J2, never upgrade it. A token-role allow-list grants
+  explicit roles to class attributes / `.className =` values, bare helper arguments and their array
+  elements/object keys, ternary results and logical RHS values recursively inside positive roles,
+  classList.add arguments, replace's second argument, supported framework bindings and known cva class values.
+  Non-helper/optional/non-null/generic calls, tagged templates, binary/relational operands, lookups,
+  case labels, arrow bodies, unary/void expressions and ordinary assignments remain J3-only, as do
+  query/removal/toggle classList arguments, dataset/data-class and vocabulary-only candidates. Comments
+  do not change roles. The role reader reuses the existing lexer and a bounded bracket/work stack, with
+  no new runtime dependencies. Unknown expressions stay J3-only; unreadable brackets and depth
+  limits name the unmeasured remainder. A regression pins runtime dependencies to pngjs only. Findings stay warn-only at both levels, with
+  bounded detail and full counts. Whole replacement hunks match ordered token values plus role/slot,
+  preserving unchanged arguments when constants move to other lines; pure additions/deletions retain
+  occurrences. CSS escapes, simple Vue/Svelte bindings, Solid classList keys, nested templates and cva
+  variant values are supported. Fragments and unresolved explicit contexts get scoped gaps. Template
+  depth limits always cover the capped template through EOF, even outside class contexts. JSX values
+  use decoded spelling; encoded component markup and escaped dynamic templates stay unmeasured.
+  Inherited type mode keeps annotations, nested generics/tuples/conditionals, aliases/interfaces,
+  return types and assertions non-explicit, including generic constraints/defaults. Runtime
+  initializers, parenthesized arrow returns, ASI statements and case-expression blocks keep positive class values.
+  Angle matching stops at statement/operator/declarator boundaries; opaque TSX generic prefixes use
+  the existing TS lexer in J3. Both-direction oracle tests pin type negatives, runtime positives and separate hidden/gap counts.
+  Compact type closers separate initialization, ASI declaration starters resume runtime discovery,
+  and runtime compact comparisons remain operators. Capture, report assembly and Markdown escaping avoid unbounded argument spreads on multi-megabyte inputs. Unresolved explicit contexts collapse to one gap per file and side with a distinct occurrence count and ten sampled ranges, preserving exact internal range evidence and the existing report budget.
+  Unsupported lexical forms may still omit occurrences and gaps, a documented checking limit. Bracket caps discard
+  the unfinished statement back to the previous top-level semicolon, preserve earlier
+  statement roles, and cover the unread remainder through EOF where class-role analysis runs. Template depth
+  gaps remain unconditional, and flat else-if chains do not consume nesting depth.
+  Source positions, template walks, hunk matches, scoped gaps and negative joins are indexed.
+  Omission facts remain opt-in, preserving default capture output. Plain `{ class: 'economy' }`
+  properties remain explicit for Vue h() props, a documented data-object/type/name ambiguity;
+  aliases and data flow remain unsupported. The corpus checks base removals too (#1001).
+
+- Change Reach counts forced `:checked`, `:disabled`, and `:placeholder-shown` matches
+  on compared elements when the capture recorded the layer and a compared owner.
+  Exact form-state probes remain available with layer metadata present, including inside
+  selector functions and when an ignored candidate prevents the relaxed probe from proving reach.
+  Only top-level form-state tokens are relaxed.
+  Form-state permission is per map, not per owner; the fingerprint misses state changes
+  made by script and reverted within the tracking window, as with action states.
+  Omitted form layers do not establish forced reach; unlisted pseudo-classes stay outside.
 - Action runtime installation and context lookup failures now replace earlier approval with a
   terminal failure status requesting a re-run, even when the runtime could not be built (#1284).
 - Script reach keeps anonymous app scripts that contain a StyleProof sourceURL marker as string data.
@@ -92,10 +138,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Migration
 
+- **Capture refuses separately started servers (#1300).** Capture fails when a Playwright
+  `webServer` URL already responds, even if the config enables reuse. If your app server
+  is started separately, pass `--external-server` or set `BASE_URL` (the only route under
+  `styleproof ci` and the Action). These opt-ins override `reuseExistingServer: false`
+  for that run. Config files are not rewritten. The directory containing the Playwright
+  config must be writable so capture can create and remove its temporary wrapper.
+
 1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
    subfolder are affected when the parent holding the config is world-writable,
    owned by another non-root user, or a runner-owned checkout above a root
-   container job. Windows non-git projects run from a subfolder are also affected.
+   container job. They are also affected when that parent's config file is
+   itself world-writable or owned by another non-root user (#1275). Windows non-git projects run from a subfolder are also affected.
    A `styleproof: warning:` on stderr names the skipped config and the reason,
    says the file was not loaded and built-in defaults apply, and gives the next
    step (#1274). Missing-config and missing-spec errors also name the skipped file.
@@ -126,6 +180,35 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 
+- J2 joins changed source ranges against navigation-window execution, using the
+  compared base maps' SHA, captured project-root prefixes and source-content hashes
+  (#1000). Exact token starts separate live operands from unopened branches;
+  punctuation, ambiguous lexical boundaries and unmapped text supply negative
+  evidence only. TypeScript assertions and generic headers cannot swallow later
+  expressions; embedded TypeScript declarations and Astro scripts retain their
+  dialect. Balanced, bounded context names function, arrow, method and constructor
+  defaults, including nested, multiline and whole-line template initializers.
+  V8 generator creation cannot prove body entry, so any otherwise-ran change in a
+  file whose raw text contains a generator-like pattern stays unmeasured, including
+  code outside a generator and files with no generator. Raw yield words also flag;
+  bounded header patterns accept Unicode/escaped, numeric, quoted and computed
+  keys (including braced escapes with arbitrarily many leading hex zeros and quoted
+  CR/LF/CRLF/U+2028/U+2029 continuations), comment gaps, optional
+  methods and generic constraints across newlines. No-yield generators with computed
+  keys or generic lists above the 512-character bound remain a named residual.
+  Regex-literal attempts are capped at 4,096 characters; failed slash-start
+  attempts cut off before a line terminator retain negative-only evidence for the
+  remaining line, including in template and JSX-tag scans. Long division lines
+  may also be over-flagged.
+  Cached gaps and bounded checks keep large-file scanning linear. Matching raw
+  multiplication, strings, comments, regex bodies and templates intentionally flag. Quoted tokens stop at a line
+  terminator; an unterminated quote is one character. Capture notes name this and the other V8 and
+  source-map residuals. Git reads have named 60-second deadlines; missing evidence,
+  empty lines, line-ending edits and unjudged paths stay named on both revisions.
+  Report budgets prioritize style findings and bound J2 units, gaps and path lists
+  with explicit omission counts. J2 stays warn-only under both levels; execution
+  alone never proves rendering, and corpus J3 prototypes never corroborate it.
+
 - Opt-in `captureScriptReach` stores navigation-window V8 block evidence at original-source anchors, content hashes and project-relative keys. Missing maps/shared coverage stay unmeasured; read failures and self-check drift become unknown. Evidence notes name expression-evaluation and throwing-expression residuals. Absolute bundler paths are root-validated/redacted, app-only mapping and script counts have deterministic caps, and Playwright injected scripts are excluded; no git-diff join or verdict change is included (#999).
 
 - Report CI queue and execution time per run attempt with `scripts/ci-stat.mjs` (#1124).
@@ -134,6 +217,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   During base install/capture, compare ignores SIGINT/SIGTERM and follows the child; Ctrl-C (process-group SIGINT/SIGTERM) exits 130/143 after cleanup. Compare-only SIGTERM is ignored, so container/systemd stops that signal only PID 1 wait for the child or escalate to SIGKILL. Interrupts at other moments, SIGHUP, SIGKILL or crashes can leave `<repo>/.worktrees/styleproof-base-*`; the next `--capture-base` removes only hour-old, current-user scratch dirs with confirmed dead owners. The nested base checkout can inherit head root files through Node module resolution, postcss/browserslist config or pnpm workspace detection when the base lacks its own. The flag rejects two explicit directories.
 
 ### Fixed
+
+- Show the selected Playwright config path in capture validation errors instead of the deleted temporary wrapper.
 
 - Render generated property line breaks in HTML reports instead of showing literal `<br>` text (#1286).
 
@@ -212,6 +297,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Security
 
+- Refuse a parent folder's config file when the file itself is world-writable or owned
+  by another non-root user, matching the folder check; the stat-only warning names it (#1275).
 - Refuse approval re-runs started by anyone other than the original ticker in both
   the reusable and example approval workflows (#1204).
 - Bind carried approvals to successful approver runs and PR/SHA artifacts; require `actions: read` (#1145).

@@ -1,0 +1,295 @@
+✖ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=false (18.539666ms)
+✖ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=true (3.354041ms)
+✖ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=false (2.989625ms)
+✖ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=true (2.307875ms)
+✖ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=false (1.738917ms)
+✖ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=true (1.830417ms)
+✖ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=false (1.631166ms)
+✖ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=true (1.371583ms)
+✖ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=false (2.433875ms)
+✖ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=true (1.561916ms)
+✖ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=false (1.613083ms)
+✖ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=true (1.364959ms)
+✖ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=false (1.271458ms)
+✖ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=true (1.620042ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=false (1.265ms)
+✔ JSX text // TODO cannot hide a removed sibling stays unmeasured with minify=true (1.081708ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=false (1.604541ms)
+✔ JSX text /* note cannot hide a removed sibling stays unmeasured with minify=true (1.53625ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=false (1.462583ms)
+✔ JSX text `npm i cannot hide a removed sibling stays unmeasured with minify=true (1.859875ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=false (1.376833ms)
+✔ an arrow in a JSX attribute cannot create a text token for removed code stays unmeasured with minify=true (1.560042ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=false (1.61175ms)
+✔ a JSX attribute keeps negative evidence for its unopened OR arm stays unmeasured with minify=true (1.050667ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=false (1.611291ms)
+✔ an escaped slash after a condition cannot start a fake comment stays unmeasured with minify=true (1.38375ms)
+✔ JSX text // TODO ends before the following expression (0.130958ms)
+✔ JSX text /* note ends before the following expression (0.042792ms)
+✔ JSX text `npm i ends before the following expression (0.023ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>i.label || __DEV__ && "red" (0.039875ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>({label:"}>"}).label || "red" (0.026ms)
+✔ JSX attributes keep expression tokens inside braces: (i)=>`x${i.label}` || "red" (0.07075ms)
+✔ ambiguous escaped-slash comments retain negative-only tail evidence (0.088542ms)
+ℹ tests 33
+ℹ suites 0
+ℹ pass 19
+ℹ fail 14
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 155.314125
+
+✖ failing tests:
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=false (18.539666ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ paired backticks across JSX siblings cannot invent a template stays unmeasured with minify=true (3.354041ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=false (2.989625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO after a child expression cannot hide code stays unmeasured with minify=true (2.307875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=false (1.738917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text // TODO after a closing tag cannot hide code stays unmeasured with minify=true (1.830417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=false (1.631166ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note after a child expression cannot hide code stays unmeasured with minify=true (1.371583ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=false (2.433875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text /* note after a closing tag cannot hide code stays unmeasured with minify=true (1.561916ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=false (1.613083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i after a child expression cannot hide code stays unmeasured with minify=true (1.364959ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=false (1.271458ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round10.test.mjs:15:5
+✖ JSX text `npm i after a closing tag cannot hide code stays unmeasured with minify=true (1.620042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'unmeasured' && unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (<checkout>/test/script-join-round10.test.mjs:53:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

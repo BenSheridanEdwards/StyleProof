@@ -1,0 +1,106 @@
+Already up to date
+Done in 77ms using pnpm v11.7.0
+
+Running 11 tests using 1 worker
+
+(node:78861) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   1 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › unopened overlay CSS-template and JSX-text edits use real Chromium execution through git (685ms)
+  ✓   2 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › opened overlay CSS-template and JSX-text edits use real Chromium execution through git (593ms)
+  ✓   3 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › unreachable declaration removed by esbuild cannot inherit execution in real Chromium through git (509ms)
+  ✓   4 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › optimized idle ternary arm removed by esbuild cannot inherit execution in real Chromium through git (490ms)
+  ✓   5 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › production-only debug JSX removed by esbuild cannot inherit execution in real Chromium through git (600ms)
+  ✓   6 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › return after throw removed by esbuild cannot inherit execution in real Chromium through git (493ms)
+  ✓   7 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › a merged return cannot inherit execution from the selected zero branch (511ms)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multiline template accounts for leading text before executed starts in real Chromium (445ms)
+(node:80009) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (580ms)
+(node:80270) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle clsx template accounts for leading text before executed starts in real Chromium (481ms)
+(node:80483) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  11 [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › empty map callback accounts for leading text before executed starts in real Chromium (476ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multiline template accounts for leading text before executed starts in real Chromium
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "never-rendered",
+    -   "never-rendered",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      125 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      126 |     expect(units).toHaveLength(scenario.count);
+    > 127 |     expect(units.map((unit) => unit.status)).toEqual(Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected));
+          |                                              ^
+      128 |     if (scenario.expected === 'unmeasured' || scenario.count === 4) {
+      129 |       expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      130 |       expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+        at <checkout>/test/script-join-round6.e2e.spec.ts:127:46
+
+    Error Context: test-results/test-script-join-round6.e2-765f8-ted-starts-in-real-Chromium-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multi-token template accounts for leading text before executed starts in real Chromium
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "never-rendered",
+    -   "never-rendered",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      125 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      126 |     expect(units).toHaveLength(scenario.count);
+    > 127 |     expect(units.map((unit) => unit.status)).toEqual(Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected));
+          |                                              ^
+      128 |     if (scenario.expected === 'unmeasured' || scenario.count === 4) {
+      129 |       expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      130 |       expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+        at <checkout>/test/script-join-round6.e2e.spec.ts:127:46
+
+    Error Context: test-results/test-script-join-round6.e2-c977c-ted-starts-in-real-Chromium-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle clsx template accounts for leading text before executed starts in real Chromium
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "never-rendered",
+    -   "never-rendered",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      125 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      126 |     expect(units).toHaveLength(scenario.count);
+    > 127 |     expect(units.map((unit) => unit.status)).toEqual(Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected));
+          |                                              ^
+      128 |     if (scenario.expected === 'unmeasured' || scenario.count === 4) {
+      129 |       expect(units.every((unit) => unit.executionScope === 'preceding-anchor')).toBe(true);
+      130 |       expect(units.every((unit) => unit.why.includes('preceding-anchor'))).toBe(true);
+        at <checkout>/test/script-join-round6.e2e.spec.ts:127:46
+
+    Error Context: test-results/test-script-join-round6.e2-856d9-ted-starts-in-real-Chromium-chromium/error-context.md
+
+  3 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multiline template accounts for leading text before executed starts in real Chromium
+    [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle multi-token template accounts for leading text before executed starts in real Chromium
+    [chromium] › test/script-join-round6.e2e.spec.ts:67:3 › idle clsx template accounts for leading text before executed starts in real Chromium
+  8 passed (8.9s)

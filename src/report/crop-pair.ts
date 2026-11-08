@@ -133,9 +133,11 @@ export function renderCropPair(
     );
   }
 
-  overlay.push(...zoomOverlay(ctx, spec, images));
+  zoomOverlay(ctx, spec, images).forEach((appended) => overlay.push(appended));
   if (overlay.length) {
-    md.push('', '<details>', '<summary>Show highlight overlay</summary>', ...overlay, '', '</details>');
+    md.push('', '<details>', '<summary>Show highlight overlay</summary>');
+    overlay.forEach((appended) => md.push(appended));
+    md.push('', '</details>');
   }
   return { md, images };
 }

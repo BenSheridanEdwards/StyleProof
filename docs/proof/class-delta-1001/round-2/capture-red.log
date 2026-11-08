@@ -1,0 +1,102 @@
+Already up to date
+Done in 57ms using pnpm v11.7.0
+
+Running 5 tests using 1 worker
+
+(node:21329) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with control (165ms)
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+styleproof: 1 live region(s) kept changing on their own and were excluded from this capture (nondeterministic — a stream, ticker, or late-loading content). The diff skips them so they never read as a change. If a real change is being hidden, settle the page in go() or raise stabilize.timeout.
+  ✘  2 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ticker (1.5s)
+(node:21335) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  3 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore (115ms)
+(node:21340) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 1 shadow host(s) and 0 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  4 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with shadow (128ms)
+(node:21345) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+styleproof: 0 shadow host(s) and 1 same-origin iframe(s) were NOT traversed — styles inside shadow roots and frames are not captured or diffed. A refactor inside one would be reported as identical. See README "Limitations".
+  ✘  5 [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame (139ms)
+
+
+  1) [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ticker
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      41 |     const result = classifyClassReach([maps[0]], [maps[1]], changes, [{ base: maps[0], head: maps[1] }]);
+      42 |     expect(result.units).toHaveLength(2);
+    > 43 |     expect(result.units.every((unit) => unit.status === 'unknown')).toBe(true);
+         |                                                                     ^
+      44 |     const scripts = changes.map(({ sourceKey, side, range }) => ({
+      45 |       sourceKey,
+      46 |       side,
+        at <checkout>/test/class-join-round2.e2e.spec.ts:43:69
+
+    Error Context: test-results/test-class-join-round2.e2e-28ff2-r-stays-unknown-with-ticker-chromium/error-context.md
+
+  2) [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: undefined
+
+      27 |       }
+      28 |       if (scenario === 'ignore') {
+    > 29 |         expect(map.classPresence?.ignored).toBe(true);
+         |                                            ^
+      30 |         expect(Object.values(map.elements).some((entry) => entry.tag === 'time')).toBe(false);
+      31 |       }
+      32 |       if (scenario === 'shadow') expect(map.classPresence?.shadowHosts).toBe(1);
+        at <checkout>/test/class-join-round2.e2e.spec.ts:29:44
+
+    Error Context: test-results/test-class-join-round2.e2e-ce995-r-stays-unknown-with-ignore-chromium/error-context.md
+
+  3) [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with shadow
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: undefined
+
+      30 |         expect(Object.values(map.elements).some((entry) => entry.tag === 'time')).toBe(false);
+      31 |       }
+    > 32 |       if (scenario === 'shadow') expect(map.classPresence?.shadowHosts).toBe(1);
+         |                                                                         ^
+      33 |       if (scenario === 'frame') expect(map.classPresence?.frames).toBe(1);
+      34 |       maps.push(map);
+      35 |     }
+        at <checkout>/test/class-join-round2.e2e.spec.ts:32:73
+
+    Error Context: test-results/test-class-join-round2.e2e-2f6dc-r-stays-unknown-with-shadow-chromium/error-context.md
+
+  4) [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: 1
+    Received: undefined
+
+      31 |       }
+      32 |       if (scenario === 'shadow') expect(map.classPresence?.shadowHosts).toBe(1);
+    > 33 |       if (scenario === 'frame') expect(map.classPresence?.frames).toBe(1);
+         |                                                                   ^
+      34 |       maps.push(map);
+      35 |     }
+      36 |     const changes = changedScriptRanges(
+        at <checkout>/test/class-join-round2.e2e.spec.ts:33:67
+
+    Error Context: test-results/test-class-join-round2.e2e-1fc43-or-stays-unknown-with-frame-chromium/error-context.md
+
+  4 failed
+    [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ticker
+    [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with ignore
+    [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with shadow
+    [chromium] › test/class-join-round2.e2e.spec.ts:7:3 › real capture class-preserving refactor stays unknown with frame
+  1 passed (4.3s)

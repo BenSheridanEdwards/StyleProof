@@ -1,0 +1,144 @@
+TAP version 13
+# Subtest: one MB of string literals scans with linear growth
+not ok 1 - one MB of string literals scans with linear growth
+  ---
+  duration_ms: 5241.661167
+  type: 'test'
+  location: 'quadratic/class-join-round1.test.mjs:221:3'
+  failureType: 'testCodeFailure'
+  error: 'string literal extraction: 4N/N median ratio must be < 8; {"name":"string literal extraction","n":10870,"largeN":43480,"warmupsPerSize":1,"samples":[[79.18837500000018,73.39791700000023,74.56370800000013],[1270.38075,1168.6707500000002,1176.1002909999997]],"medianN":74.56370800000013,"median4N":1176.1002909999997,"ratio":15.773092869791261}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round1.test.mjs:223:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"string literal extraction","n":10870,"largeN":43480,"warmupsPerSize":1,"samples":[[79.18837500000018,73.39791700000023,74.56370800000013],[1270.38075,1168.6707500000002,1176.1002909999997]],"medianN":74.56370800000013,"median4N":1176.1002909999997,"ratio":15.773092869791261}
+# Subtest: one MB of template literals scans with linear growth
+not ok 2 - one MB of template literals scans with linear growth
+  ---
+  duration_ms: 5239.661875
+  type: 'test'
+  location: 'quadratic/class-join-round1.test.mjs:221:3'
+  failureType: 'testCodeFailure'
+  error: 'template literal extraction: 4N/N median ratio must be < 8; {"name":"template literal extraction","n":6411,"largeN":25644,"warmupsPerSize":1,"samples":[[75.21437499999956,73.56766599999992,79.93091599999934],[1175.9400829999995,1187.4147919999996,1206.2777079999996]],"medianN":75.21437499999956,"median4N":1187.4147919999996,"ratio":15.787072511072603}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round1.test.mjs:223:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# {"name":"template literal extraction","n":6411,"largeN":25644,"warmupsPerSize":1,"samples":[[75.21437499999956,73.56766599999992,79.93091599999934],[1175.9400829999995,1187.4147919999996,1206.2777079999996]],"medianN":75.21437499999956,"median4N":1187.4147919999996,"ratio":15.787072511072603}
+# Subtest: scoped gaps and negative lookups scale linearly from 4k to 16k lines
+not ok 3 - scoped gaps and negative lookups scale linearly from 4k to 16k lines
+  ---
+  duration_ms: 5278.07825
+  type: 'test'
+  location: 'quadratic/class-join-round2.test.mjs:159:1'
+  failureType: 'testCodeFailure'
+  error: 'scoped gap classification: 4N/N median ratio must be < 8; {"name":"scoped gap classification","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[78.82512500000007,73.44958300000008,73.08504200000016],[1175.7965409999997,1179.10975,1173.1712909999997]],"medianN":73.44958300000008,"median4N":1175.7965409999997,"ratio":16.008212612997387}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round2.test.mjs:171:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"scoped gap classification","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[78.82512500000007,73.44958300000008,73.08504200000016],[1175.7965409999997,1179.10975,1173.1712909999997]],"medianN":73.44958300000008,"median4N":1175.7965409999997,"ratio":16.008212612997387}
+# Subtest: cached replacement-hunk matching scales linearly from 4k to 16k changed lines
+not ok 4 - cached replacement-hunk matching scales linearly from 4k to 16k changed lines
+  ---
+  duration_ms: 5569.118875
+  type: 'test'
+  location: 'quadratic/class-join-round5.test.mjs:197:1'
+  failureType: 'testCodeFailure'
+  error: 'replacement-hunk matching: 4N/N median ratio must be < 8; {"name":"replacement-hunk matching","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[79.01470799999993,73.46549999999979,72.7358750000003],[1272.3321249999997,1182.7132080000001,1170.4995410000001]],"medianN":73.46549999999979,"median4N":1182.7132080000001,"ratio":16.098892786409994}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round5.test.mjs:198:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"replacement-hunk matching","n":4000,"largeN":16000,"warmupsPerSize":1,"samples":[[79.01470799999993,73.46549999999979,72.7358750000003],[1272.3321249999997,1182.7132080000001,1170.4995410000001]],"medianN":73.46549999999979,"median4N":1182.7132080000001,"ratio":16.098892786409994}
+# Subtest: flat else-if arms scale linearly to ten thousand without a depth gap
+not ok 5 - flat else-if arms scale linearly to ten thousand without a depth gap
+  ---
+  duration_ms: 5143.062708
+  type: 'test'
+  location: 'quadratic/class-join-round6.test.mjs:63:1'
+  failureType: 'testCodeFailure'
+  error: 'flat else-if extraction: 4N/N median ratio must be < 8; {"name":"flat else-if extraction","n":2500,"largeN":10000,"warmupsPerSize":1,"samples":[[79.33845799999995,72.78745799999979,72.58383300000014],[1281.629625,1173.3645000000001,1171.262541]],"medianN":72.78745799999979,"median4N":1173.3645000000001,"ratio":16.12042146052145}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round6.test.mjs:64:3)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"flat else-if extraction","n":2500,"largeN":10000,"warmupsPerSize":1,"samples":[[79.33845799999995,72.78745799999979,72.58383300000014],[1281.629625,1173.3645000000001,1171.262541]],"medianN":72.78745799999979,"median4N":1173.3645000000001,"ratio":16.12042146052145}
+# Subtest: template occurrences scale linearly to four megabytes without argument-stack overflow
+not ok 6 - template occurrences scale linearly to four megabytes without argument-stack overflow
+  ---
+  duration_ms: 6651.668875
+  type: 'test'
+  location: 'quadratic/class-join-round9.test.mjs:106:1'
+  failureType: 'testCodeFailure'
+  error: 'four MB template extraction: 4N/N median ratio must be < 8; {"name":"four MB template extraction","n":27595,"largeN":110380,"warmupsPerSize":1,"samples":[[79.06254200000012,72.56995800000004,73.3272079999997],[1265.4139999999998,1172.6960420000005,1183.8684169999997]],"medianN":73.3272079999997,"median4N":1183.8684169999997,"ratio":16.145008780369825}'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    assertLinearScaling (quadratic/linearity-helper.mjs:37:10)
+    TestContext.<anonymous> (quadratic/class-join-round9.test.mjs:111:5)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# {"name":"four MB template extraction","n":27595,"largeN":110380,"warmupsPerSize":1,"samples":[[79.06254200000012,72.56995800000004,73.3272079999997],[1265.4139999999998,1172.6960420000005,1183.8684169999997]],"medianN":73.3272079999997,"median4N":1183.8684169999997,"ratio":16.145008780369825}
+1..6
+# tests 6
+# suites 0
+# pass 0
+# fail 6
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 33653.546833

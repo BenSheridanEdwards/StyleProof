@@ -1,0 +1,11 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:28776) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round8.e2e.spec.ts:11:3 › real Git/Chromium parenthesized return preserves occurrences and gaps, fragment=false (762ms)
+  ✓  2 [chromium] › test/class-join-round8.e2e.spec.ts:11:3 › real Git/Chromium parenthesized return preserves occurrences and gaps, fragment=true (724ms)
+
+  2 passed (2.0s)

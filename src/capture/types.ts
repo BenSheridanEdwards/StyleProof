@@ -141,6 +141,18 @@ export type StyleMap = {
   statesSkipped?: boolean;
   /** Paths still changing when the settle budget ran out; excluded here and skipped by the diff. */
   volatile?: string[];
+  /** J3 omission facts. Missing on legacy maps: absence of a class token is unproven. */
+  classPresence?: {
+    version: 1 | 2;
+    ignored: boolean;
+    shadowHosts: number;
+    frames: number;
+    outsideBody?: number;
+    shadowRootsVerified?: true;
+    /** Head/outside-body and framework light-DOM omissions were checked. */
+    documentBoundsVerified?: true;
+    unstable?: true;
+  };
   /** Semantic live-region candidates (`aria-live`, `role=status`, …). Diagnostics only. */
   liveCandidates?: LiveRegionCandidate[];
   /** Visible overlay roots present in `elements` — proof that an open state was reached. */

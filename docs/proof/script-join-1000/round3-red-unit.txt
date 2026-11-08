@@ -1,0 +1,276 @@
+TAP version 13
+# Subtest: five thousand unjudged paths cannot evict twenty style findings or overflow either report
+not ok 1 - five thousand unjudged paths cannot evict twenty style findings or overflow either report
+  ---
+  duration_ms: 7370.526667
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:81:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    0 !== 20
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 20
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:119:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: a self-check rewrite preserves root provenance and cannot drop a healthy surface head line
+not ok 2 - a self-check rewrite preserves root provenance and cannot drop a healthy surface head line
+  ---
+  duration_ms: 777.317583
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:131:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    undefined !== ''
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ''
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:138:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: prefix-less evidence without mapped scripts cannot conflict with a measured surface
+not ok 3 - prefix-less evidence without mapped scripts cannot conflict with a measured surface
+  ---
+  duration_ms: 677.672375
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:148:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    0 !== 1
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 1
+  actual: 0
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:161:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a side without usable prefix keeps git-path source ranges as explicitly unmeasured units
+not ok 4 - a side without usable prefix keeps git-path source ranges as explicitly unmeasured units
+  ---
+  duration_ms: 701.932833
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: 'head app.ts:1 must not vanish'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:173:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: unmeasured tracker early returns retain a supplied project-root prefix
+not ok 5 - unmeasured tracker early returns retain a supplied project-root prefix
+  ---
+  duration_ms: 2.295708
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:180:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + undefined
+    - 'apps/web'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'apps/web'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:183:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a slow successful git prefix lookup has enough budget to retain its provenance
+not ok 6 - a slow successful git prefix lookup has enough budget to retain its provenance
+  ---
+  duration_ms: 1321.809875
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:186:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+
+    undefined !== ''
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: ''
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:196:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a failed cached root lookup is retained as a named evidence gap
+not ok 7 - a failed cached root lookup is retained as a named evidence gap
+  ---
+  duration_ms: 0.59925
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:202:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /project-root prefix.*(?:failed|unavailable|timed out)/. Input:
+
+    ''
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: ''
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:206:10)
+    async Test.run (node:internal/test_runner/test:1054:7)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an idle arrow body on later lines cannot clear a mixed column-zero header
+not ok 8 - an idle arrow body on later lines cannot clear a mixed column-zero header
+  ---
+  duration_ms: 0.918875
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:211:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      [
+        [
+    +     'ran',
+    +     'unknown'
+    -     'partly-ran',
+    -     'never-rendered'
+        ],
+        [
+    +     'ran',
+    +     'unknown'
+    -     'partly-ran',
+    -     'never-rendered'
+        ]
+      ]
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    0:
+      0: 'partly-ran'
+      1: 'never-rendered'
+    1:
+      0: 'partly-ran'
+      1: 'never-rendered'
+  actual:
+    0:
+      0: 'ran'
+      1: 'unknown'
+    1:
+      0: 'ran'
+      1: 'unknown'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:226:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: residual naming avoids adversarial backtracking before its CPU use exceeds ten milliseconds
+not ok 9 - residual naming avoids adversarial backtracking before its CPU use exceeds ten milliseconds
+  ---
+  duration_ms: 1462.288208
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:235:1'
+  failureType: 'testCodeFailure'
+  error: 'residual CPU: 170298 microseconds'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:253:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: an anchor for another source on the same original line cannot represent an idle header run
+not ok 10 - an anchor for another source on the same original line cannot represent an idle header run
+  ---
+  duration_ms: 19.987542
+  type: 'test'
+  location: '<checkout>/test/script-join-round3.test.mjs:257:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(files.find((file) => file.sourceKey === 'app.ts').mixed.some((span) => span.start.line === 1))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (file://<checkout>/test/script-join-round3.test.mjs:274:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..10
+# tests 10
+# suites 0
+# pass 0
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 13523.048333

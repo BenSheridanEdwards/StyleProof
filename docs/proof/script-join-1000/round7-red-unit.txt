@@ -1,0 +1,111 @@
+✖ unreachable declaration removed by esbuild cannot inherit positive execution (111.753792ms)
+✖ optimized idle ternary arm removed by esbuild cannot inherit positive execution (34.164875ms)
+✖ an unopened multiline function without body anchors uses only negative executed preceding evidence (0.781ms)
+✔ an unopened multiline function without body anchors uses only negative unexecuted preceding evidence (0.290292ms)
+✔ an unopened multiline function without body anchors uses only negative mixed preceding evidence (0.221667ms)
+✖ a column-zero start proves entry only when it starts inside the changed range (0.263417ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 2
+ℹ fail 4
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 489.197667
+
+✖ failing tests:
+
+test at test/script-join-round7.test.mjs:18:3
+✖ unreachable declaration removed by esbuild cannot inherit positive execution (111.753792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'ran'
+  - 'unmeasured'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:36:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ran',
+    expected: 'unmeasured',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:18:3
+✖ optimized idle ternary arm removed by esbuild cannot inherit positive execution (34.164875ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'ran'
+  - 'unmeasured'
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:36:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'ran',
+    expected: 'unmeasured',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:45:3
+✖ an unopened multiline function without body anchors uses only negative executed preceding evidence (0.781ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+  +   'reached',
+  +   'reached'
+  -   'unmeasured',
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:58:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'reached', 'reached' ],
+    expected: [ 'unmeasured', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join-round7.test.mjs:64:1
+✖ a column-zero start proves entry only when it starts inside the changed range (0.263417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'ran',
+  +   'ran'
+  -   'unmeasured'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:77:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'ran', 'ran' ],
+    expected: [ 'ran', 'unmeasured' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

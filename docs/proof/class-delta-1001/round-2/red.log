@@ -1,0 +1,607 @@
+✖ volatile elements leave absence unproven only on the affected side (3.779792ms)
+✖ ignored elements leave absence unproven only on the affected side (0.466708ms)
+✖ shadow hosts leave absence unproven only on the affected side (0.303458ms)
+✖ frames leave absence unproven only on the affected side (0.732917ms)
+✖ legacy omission metadata leave absence unproven only on the affected side (0.304ms)
+✖ one incomplete surface prevents absence proof across the whole occurrence side (0.282708ms)
+✖ reordered vocabulary-only dataset values stay J3-only and cannot lower J2 (1.681083ms)
+✖ explicit class negatives may still lower J2 while legacy units cannot (0.279459ms)
+✖ cva class strings include base and variant values, excluding bare and quoted variant keys (0.743417ms)
+✖ zero-width change retains both occurrences: btn-x → btn (0.320042ms)
+✖ zero-width change retains both occurrences: btn → btn-x (0.189583ms)
+✖ zero-width change retains both occurrences: card-a → card (0.154792ms)
+✖ zero-width change retains both occurrences: card → card-a (0.139125ms)
+✖ zero-width change retains both occurrences: ab → a (0.12225ms)
+✖ zero-width change retains both occurrences: a → ab (0.109125ms)
+✖ zero-width change retains both occurrences: p-2 → p-20 (0.117042ms)
+✖ zero-width change retains both occurrences: p-20 → p-2 (0.124458ms)
+✖ class concatenation emits a named fragment gap and cannot lower J2 (0.290792ms)
+✖ Solid classList object keys yield explicit class occurrences (0.158959ms)
+✖ 16k scoped gaps and negative lookups stay below one second (4043.176333ms)
+ℹ {"count":16000,"classifiedMs":2990.2906669999998,"combinedMs":1051.1349579999996}
+ℹ tests 20
+ℹ suites 0
+ℹ pass 0
+ℹ fail 20
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4125.703375
+
+✖ failing tests:
+
+test at test/class-join-round2.test.mjs:44:3
+✖ volatile elements leave absence unproven only on the affected side (3.779792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'never-rendered'
+  -     'unknown'
+      ],
+      [
+        'head',
+        'never-rendered'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:44:3
+✖ ignored elements leave absence unproven only on the affected side (0.466708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'never-rendered'
+  -     'unknown'
+      ],
+      [
+        'head',
+        'never-rendered'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:44:3
+✖ shadow hosts leave absence unproven only on the affected side (0.303458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'never-rendered'
+  -     'unknown'
+      ],
+      [
+        'head',
+        'never-rendered'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:44:3
+✖ frames leave absence unproven only on the affected side (0.732917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'never-rendered'
+  -     'unknown'
+      ],
+      [
+        'head',
+        'never-rendered'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:44:3
+✖ legacy omission metadata leave absence unproven only on the affected side (0.304ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+  +     'never-rendered'
+  -     'unknown'
+      ],
+      [
+        'head',
+        'never-rendered'
+      ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:47:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'never-rendered' ], [ 'head', 'never-rendered' ] ],
+    expected: [ [ 'base', 'unknown' ], [ 'head', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:58:1
+✖ one incomplete surface prevents absence proof across the whole occurrence side (0.282708ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'never-rendered'
+  - 'unknown'
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:63:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'never-rendered',
+    expected: 'unknown',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:66:1
+✖ reordered vocabulary-only dataset values stay J3-only and cannot lower J2 (1.681083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.status === 'never-rendered' && u.explicit === false))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:72:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:76:1
+✖ explicit class negatives may still lower J2 while legacy units cannot (0.279459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((u) => u.explicit))
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:79:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:85:1
+✖ cva class strings include base and variant values, excluding bare and quoted variant keys (0.743417ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      'old',
+  +   'primary',
+      'x',
+  +   'open',
+      'old',
+      'new',
+  +   'open',
+      'y',
+  +   'primary',
+      'new'
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:89:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [
+      'old',     'primary',
+      'x',       'open',
+      'old',     'new',
+      'open',    'y',
+      'primary', 'new'
+    ],
+    expected: [ 'old', 'x', 'old', 'new', 'y', 'new' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: btn-x → btn (0.320042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'btn-x'
+      ],
+  -   [
+  -     'head',
+  -     'btn'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'btn-x' ] ],
+    expected: [ [ 'base', 'btn-x' ], [ 'head', 'btn' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: btn → btn-x (0.189583ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'btn'
+  -   ],
+  -   [
+        'head',
+        'btn-x'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 'btn-x' ] ],
+    expected: [ [ 'base', 'btn' ], [ 'head', 'btn-x' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: card-a → card (0.154792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'card-a'
+      ],
+  -   [
+  -     'head',
+  -     'card'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'card-a' ] ],
+    expected: [ [ 'base', 'card-a' ], [ 'head', 'card' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: card → card-a (0.139125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'card'
+  -   ],
+  -   [
+        'head',
+        'card-a'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 'card-a' ] ],
+    expected: [ [ 'base', 'card' ], [ 'head', 'card-a' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: ab → a (0.12225ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'ab'
+      ],
+  -   [
+  -     'head',
+  -     'a'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'ab' ] ],
+    expected: [ [ 'base', 'ab' ], [ 'head', 'a' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: a → ab (0.109125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'a'
+  -   ],
+  -   [
+        'head',
+        'ab'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 'ab' ] ],
+    expected: [ [ 'base', 'a' ], [ 'head', 'ab' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: p-2 → p-20 (0.117042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+  -     'base',
+  -     'p-2'
+  -   ],
+  -   [
+        'head',
+        'p-20'
+      ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'head', 'p-20' ] ],
+    expected: [ [ 'base', 'p-2' ], [ 'head', 'p-20' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:106:5
+✖ zero-width change retains both occurrences: p-20 → p-2 (0.124458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+    [
+      [
+        'base',
+        'p-20'
+      ],
+  -   [
+  -     'head',
+  -     'p-2'
+  -   ]
+    ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:108:14)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ [ 'base', 'p-20' ] ],
+    expected: [ [ 'base', 'p-20' ], [ 'head', 'p-2' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:117:1
+✖ class concatenation emits a named fragment gap and cannot lower J2 (0.290792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:120:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:128:1
+✖ Solid classList object keys yield explicit class occurrences (0.158959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   [
+  -     'danger',
+  -     true
+  -   ],
+  -   [
+  -     'safe',
+  -     true
+  -   ]
+  - ]
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:130:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ [ 'danger', true ], [ 'safe', true ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/class-join-round2.test.mjs:139:1
+✖ 16k scoped gaps and negative lookups stay below one second (4043.176333ms)
+  AssertionError [ERR_ASSERTION]: classify: 2990.2906669999998ms
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-round2.test.mjs:161:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

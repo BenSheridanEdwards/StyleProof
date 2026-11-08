@@ -1,0 +1,771 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 34 tests using 1 worker
+
+(node:31044) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=false (330ms)
+(node:31099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=true (314ms)
+(node:31156) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=false (348ms)
+(node:31218) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=true (317ms)
+(node:31291) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   5 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA ordinary function in a generator file whole-file generator residual with minify=false (326ms)
+  ✓   6 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA ordinary function in a generator file whole-file generator residual with minify=true (299ms)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=false (283ms)
+(node:31479) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=true (314ms)
+(node:31534) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   9 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=false (321ms)
+(node:31589) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  10 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=true (317ms)
+(node:31644) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=false (314ms)
+(node:31699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=true (330ms)
+(node:31754) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=false (314ms)
+(node:31810) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=true (319ms)
+(node:31866) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=false (328ms)
+(node:31921) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=true (320ms)
+(node:31976) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=false (308ms)
+(node:32031) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=true (333ms)
+(node:32086) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  19 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a numeric-name generator whole-file generator residual with minify=false (335ms)
+  ✓  20 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a numeric-name generator whole-file generator residual with minify=true (297ms)
+  ✘  21 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=false (289ms)
+(node:32271) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  22 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=true (325ms)
+(node:32334) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  23 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=false (304ms)
+(node:32398) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  24 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=true (319ms)
+(node:32473) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  25 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=false (329ms)
+(node:32530) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  26 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=true (319ms)
+(node:32585) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  27 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=false (319ms)
+(node:32640) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  28 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=true (306ms)
+(node:32699) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  29 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a generator expression whole-file generator residual with minify=false (355ms)
+  ✓  30 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a generator expression whole-file generator residual with minify=true (318ms)
+  ✓  31 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an async generator expression whole-file generator residual with minify=false (311ms)
+  ✓  32 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an async generator expression whole-file generator residual with minify=true (295ms)
+  ✘  33 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=false (277ms)
+(node:33026) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  34 [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=true (334ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-6e884--residual-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-e2edf-r-residual-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-c2d70--residual-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-bf9d3-r-residual-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-bce57--residual-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-3fb2d-r-residual-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-f8b5d--residual-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-9de88-r-residual-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-5d047--residual-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-9d84d-r-residual-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-e0797--residual-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-3687d-r-residual-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-09e90--residual-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-69f1a-r-residual-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-44419--residual-with-minify-false-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-cc340-r-residual-with-minify-true-chromium/error-context.md
+
+  17) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-4b6af--residual-with-minify-false-chromium/error-context.md
+
+  18) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-e73af-r-residual-with-minify-true-chromium/error-context.md
+
+  19) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-97a14--residual-with-minify-false-chromium/error-context.md
+
+  20) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-19ffb-r-residual-with-minify-true-chromium/error-context.md
+
+  21) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-14671--residual-with-minify-false-chromium/error-context.md
+
+  22) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-2d60e-r-residual-with-minify-true-chromium/error-context.md
+
+  23) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-a3f7d--residual-with-minify-false-chromium/error-context.md
+
+  24) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-398a6-r-residual-with-minify-true-chromium/error-context.md
+
+  25) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-34c61--residual-with-minify-false-chromium/error-context.md
+
+  26) [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      289 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      290 |     expect(units).toHaveLength(scenario.count);
+    > 291 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      292 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      293 |     );
+      294 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:291:46
+
+    Error Context: test-results/test-script-join-round6.e2-30cee-r-residual-with-minify-true-chromium/error-context.md
+
+  26 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA static method whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › QA async method without whitespace whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a static async generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a computed async generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private-name generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a quoted-name generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a public generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a private async generator whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › adjacent generator methods on one line whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › a long saga body whole-file generator residual with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:226:3 › an ordinary value elsewhere in a generator file whole-file generator residual with minify=true
+  8 passed (20.4s)

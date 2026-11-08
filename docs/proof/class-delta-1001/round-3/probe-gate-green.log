@@ -1,0 +1,22 @@
+Already up to date
+Done in 55ms using pnpm v11.7.0
+
+Running 9 tests using 1 worker
+
+(node:51782) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  1 [chromium] › test/class-join-round3.e2e.spec.ts:153:1 › Change Reach off adds no CDP probe and cannot verify class absence (100ms)
+  ✓  2 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: document (230ms)
+  ✓  3 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: stylesheet (180ms)
+styleproof: forcedStateScope 'stylesheet' fell back to whole-document forced-state reads: `section:has(button:hover)` uses :has().
+  ✓  4 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:94:3 › coalesces pre-read barriers without dropping state coverage: fallback (220ms)
+  ✓  5 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:184:1 › subtree scope shares one resting baseline: call sequence (778ms)
+styleproof: interactive element sp-0 detached during forced-state capture; skipping it.
+  ✓  6 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:424:3 › cleans the applied state when the pre-read target is removed (221ms)
+  ✓  7 [chromium] › test/forced-state-roundtrips.e2e.spec.ts:424:3 › cleans the applied state when the pre-read target is snapshot-error (132ms)
+  ✓  8 [chromium] › test/smoke.e2e.spec.ts:537:1 › forced-state maps recover the same uniquely marked element after its node is replaced (1.4s)
+styleproof: interactive element sp-0 detached during forced-state capture; skipping it.
+styleproof: interactive element sp-0 detached during forced-state capture; skipping it.
+  ✓  9 [chromium] › test/smoke.e2e.spec.ts:851:1 › missing or ambiguous marked replacements fail closed with bounded forced-state evidence (1.4s)
+
+  9 passed (5.3s)

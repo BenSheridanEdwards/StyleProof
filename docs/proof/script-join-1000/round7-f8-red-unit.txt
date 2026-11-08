@@ -1,0 +1,48 @@
+✖ a vendor chunk with resolved non-app sources avoids a run-level gap beside an app chunk (1.868958ms)
+✔ a vendor chunk with ambiguous legacy empty mapping retains a run-level gap beside an app chunk (0.242375ms)
+✔ a vendor chunk with missing source map retains a run-level gap beside an app chunk (0.124834ms)
+✔ a vendor chunk with unreadable source map retains a run-level gap beside an app chunk (0.098208ms)
+✔ unreachable declaration removed by esbuild cannot inherit positive execution (11.487583ms)
+✔ optimized idle ternary arm removed by esbuild cannot inherit positive execution (1.988875ms)
+✔ production-only removed debug JSX removed by esbuild cannot inherit positive execution (2.204375ms)
+✔ removed return after throw removed by esbuild cannot inherit positive execution (1.838958ms)
+✔ an unopened multiline function without body anchors uses only negative executed preceding evidence (1.081667ms)
+✔ an unopened multiline function without body anchors uses only negative unexecuted preceding evidence (0.356292ms)
+✔ an unopened multiline function without body anchors uses only negative mixed preceding evidence (0.135625ms)
+✔ a column-zero start proves entry only when it starts inside the changed range (0.130791ms)
+✔ a changed template tail combines idle leading text with later executed starts (0.267292ms)
+✔ a changed multi-token template tail combines idle leading text with later executed starts (0.070458ms)
+✔ a changed clsx template tail combines idle leading text with later executed starts (0.111542ms)
+✔ a changed empty map callback combines idle leading text with later executed starts (0.056333ms)
+✔ leading "prefix; " with executed preceding evidence reads unmeasured (0.079459ms)
+✔ leading "prefix; " with mixed preceding evidence reads partly-ran (0.023083ms)
+✔ leading ") " with unexecuted preceding evidence reads ran (0.027833ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 18
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 117.130166
+
+✖ failing tests:
+
+test at test/script-join-round7.test.mjs:18:3
+✖ a vendor chunk with resolved non-app sources avoids a run-level gap beside an app chunk (1.868958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  2 !== 0
+
+      at TestContext.<anonymous> (file://<checkout>/test/script-join-round7.test.mjs:28:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

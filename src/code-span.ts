@@ -16,7 +16,8 @@ export const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g;
 // written, but the raw text could otherwise carry a receipt marker into report.md.
 export function codeValue(v: string): string {
   const escaped = v.replace(CONTROL_CHARACTERS, ' ').split('|').join('\\|').split('<!--').join('<!\u200b--');
-  const longestRun = Math.max(0, ...(escaped.match(/`+/g) ?? []).map((r) => r.length));
+  let longestRun = 0;
+  for (const run of escaped.matchAll(/`+/g)) longestRun = Math.max(longestRun, run[0].length);
   const fence = '`'.repeat(longestRun + 1);
   const pad = /^`|`$/.test(escaped) ? ' ' : '';
   return `${fence}${pad}${escaped}${pad}${fence}`;

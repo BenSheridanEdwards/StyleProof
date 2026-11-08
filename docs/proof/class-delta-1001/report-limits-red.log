@@ -1,0 +1,65 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/class-join-report.test.mjs
+✔ J3 is listed in human and JSON reporting, warn-only at both levels (3.436917ms)
+✔ J3 detail and gaps use leftover JSON bytes, keeping full status counts (1.36525ms)
+✖ missing J3 inputs keep class-list deltas explicitly not checked (0.592209ms)
+✖ omitted J3 detail cannot retain a complete flag (0.512792ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 2
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 104.370458
+
+✖ failing tests:
+
+test at test/class-join-report.test.mjs:54:1
+✖ missing J3 inputs keep class-list deltas explicitly not checked (0.592209ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Class-list deltas are not checked/. Input:
+
+  '\n' +
+    "**Reach incomplete** — no changed CSS rule in any served stylesheet. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS).\n" +
+    '\n' +
+    '**J2 script reach (warn-only)** — 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 2 run-level gap(s) (warn-only). Navigation-window execution includes transient loading code; running a value does not prove rendering.\n' +
+    '\n' +
+    '**J3 class reach (warn-only)** — 0 reached, 0 never-rendered, 0 unknown, 0 unmeasured, 2 run-level gap(s) (warn-only). No per-occurrence render provenance is recorded.'
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-report.test.mjs:57:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "\n**Reach incomplete** — no changed CSS rule in any served stylesheet. Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS).\n\n**J2 script reach (warn-only)** — 0 reached, 0 never-rendered, 0 unmeasured, 0 unknown, 2 run-level gap(s) (warn-only). Navigation-window execution includes transient loading code; running a value does not prove rendering.\n\n**J3 class reach (warn-only)** — 0 reached, 0 never-rendered, 0 unknown, 0 unmeasured, 2 run-level gap(s) (warn-only). No per-occurrence render provenance is recorded.",
+    expected: /Class-list deltas are not checked/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at test/class-join-report.test.mjs:60:1
+✖ omitted J3 detail cannot retain a complete flag (0.512792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  true !== false
+
+      at TestContext.<anonymous> (file://<checkout>/test/class-join-report.test.mjs:64:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Command failed with exit code 1.

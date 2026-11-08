@@ -1,0 +1,268 @@
+ℹ tests 4875
+ℹ suites 32
+ℹ pass 4868
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 381887.338
+
+✖ failing tests:
+
+test at test/reach-corpus.test.mjs:180:13
+✖ partial (709.391916ms)
+  AssertionError [ERR_ASSERTION]: (node:44657) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/child_process:1175
+      result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+                     ^
+
+  <ref *1> Error: spawnSync git ENOENT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at file://<checkout>/bench/reach-corpus.mjs:43:1
+      at SourceTextModule.evaluate (node:internal/vm/module:233:26)
+      at corpusProbe (file://<checkout>/[eval1]:142:18) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'spawnSync git',
+    path: 'git',
+    spawnargs: [ 'init', '--quiet' ],
+    error: [Circular *1],
+    status: null,
+    signal: null,
+    output: null,
+    pid: 0,
+    stdout: undefined,
+    stderr: undefined
+  }
+
+  Node.js v26.12.1
+
+
+  1 !== 0
+
+      at runCorpusProbe (file://<checkout>/test/reach-corpus.test.mjs:170:10)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:181:22)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:180:13)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/reach-corpus.test.mjs:180:13
+✖ missing-scenario (334.512417ms)
+  AssertionError [ERR_ASSERTION]: (node:45295) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/child_process:1175
+      result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+                     ^
+
+  <ref *1> Error: spawnSync git ENOENT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at file://<checkout>/bench/reach-corpus.mjs:43:1
+      at SourceTextModule.evaluate (node:internal/vm/module:233:26)
+      at corpusProbe (file://<checkout>/[eval1]:142:18) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'spawnSync git',
+    path: 'git',
+    spawnargs: [ 'init', '--quiet' ],
+    error: [Circular *1],
+    status: null,
+    signal: null,
+    output: null,
+    pid: 0,
+    stdout: undefined,
+    stderr: undefined
+  }
+
+  Node.js v26.12.1
+
+
+  1 !== 0
+
+      at runCorpusProbe (file://<checkout>/test/reach-corpus.test.mjs:170:10)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:181:22)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:180:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/reach-corpus.test.mjs:196:13
+✖ missing-preflight (408.398375ms)
+  AssertionError [ERR_ASSERTION]: (node:45608) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/child_process:1175
+      result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+                     ^
+
+  <ref *1> Error: spawnSync git ENOENT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at file://<checkout>/bench/reach-corpus.mjs:43:1
+      at SourceTextModule.evaluate (node:internal/vm/module:233:26)
+      at corpusProbe (file://<checkout>/[eval1]:142:18) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'spawnSync git',
+    path: 'git',
+    spawnargs: [ 'init', '--quiet' ],
+    error: [Circular *1],
+    status: null,
+    signal: null,
+    output: null,
+    pid: 0,
+    stdout: undefined,
+    stderr: undefined
+  }
+
+  Node.js v26.12.1
+
+
+  1 !== 0
+
+      at runCorpusProbe (file://<checkout>/test/reach-corpus.test.mjs:170:10)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:197:22)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:196:13)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/reach-corpus.test.mjs:196:13
+✖ drift (401.056667ms)
+  AssertionError [ERR_ASSERTION]: (node:45974) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/child_process:1175
+      result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+                     ^
+
+  <ref *1> Error: spawnSync git ENOENT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at file://<checkout>/bench/reach-corpus.mjs:43:1
+      at SourceTextModule.evaluate (node:internal/vm/module:233:26)
+      at corpusProbe (file://<checkout>/[eval1]:142:18) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'spawnSync git',
+    path: 'git',
+    spawnargs: [ 'init', '--quiet' ],
+    error: [Circular *1],
+    status: null,
+    signal: null,
+    output: null,
+    pid: 0,
+    stdout: undefined,
+    stderr: undefined
+  }
+
+  Node.js v26.12.1
+
+
+  1 !== 0
+
+      at runCorpusProbe (file://<checkout>/test/reach-corpus.test.mjs:170:10)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:197:22)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at TestContext.test (node:internal/test_runner/test:400:20)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:196:13)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at test/reach-corpus.test.mjs:204:1
+✖ reach corpus scores CSS with source classifier keys and explanations (639.38575ms)
+  AssertionError [ERR_ASSERTION]: (node:46314) ExperimentalWarning: VM Modules is an experimental feature and might change at any time
+  (Use `node --trace-warnings ...` to show where the warning was created)
+  node:internal/child_process:1175
+      result.error = new ErrnoException(result.error, 'spawnSync ' + options.file);
+                     ^
+
+  <ref *1> Error: spawnSync git ENOENT
+      at Object.spawnSync (node:internal/child_process:1175:20)
+      at spawnSync (node:child_process:976:24)
+      at execFileSync (node:child_process:1019:15)
+      at file://<checkout>/bench/reach-corpus.mjs:43:1
+      at SourceTextModule.evaluate (node:internal/vm/module:233:26)
+      at corpusProbe (file://<checkout>/[eval1]:142:18) {
+    errno: -2,
+    code: 'ENOENT',
+    syscall: 'spawnSync git',
+    path: 'git',
+    spawnargs: [ 'init', '--quiet' ],
+    error: [Circular *1],
+    status: null,
+    signal: null,
+    output: null,
+    pid: 0,
+    stdout: undefined,
+    stderr: undefined
+  }
+
+  Node.js v26.12.1
+
+
+  1 !== 0
+
+      at runCorpusProbe (file://<checkout>/test/reach-corpus.test.mjs:170:10)
+      at TestContext.<anonymous> (file://<checkout>/test/reach-corpus.test.mjs:205:18)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+[ELIFECYCLE] Test failed. See above for more details.
+[ELIFECYCLE] Command failed with exit code 1.

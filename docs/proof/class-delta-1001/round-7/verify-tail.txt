@@ -1,0 +1,18 @@
+  ✔ store-dogfood.yml (0.069125ms)
+✔ main commits get their own concurrency group so queued main runs are not dropped; manual dogfood runs stay independent (0.662333ms)
+✔ release runs serialize without cancelling an in-flight publish (0.048083ms)
+✔ release completion requires npm, tag, and GitHub Release receipts (0.094666ms)
+✔ release repair preserves an existing version tag and names the GitHub Release from notes (0.086416ms)
+✔ shipped and generated workflows carry no stale actions/* pins (#706) (1.097167ms)
+✔ release installs without dependency scripts and never persists the checkout token (0.272625ms)
+✔ the GitHub Packages mirror installs without dependency scripts and never persists the checkout token (0.300291ms)
+✔ every release tag push carries explicit, step-scoped credentials (0.291125ms)
+✔ third-party actions are pinned to a full commit SHA with the tag in a comment (1.027542ms)
+ℹ tests 6369
+ℹ suites 32
+ℹ pass 6369
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 246783.991417

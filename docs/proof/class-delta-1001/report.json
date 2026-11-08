@@ -1,0 +1,236 @@
+{
+  "gateMode": "certify",
+  "counts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "rawCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "reviewableCounts": {
+    "dom": 0,
+    "style": 0,
+    "state": 0
+  },
+  "comparison": {
+    "rawCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "reviewableCounts": {
+      "dom": 0,
+      "style": 0,
+      "state": 0
+    },
+    "newSurfaces": 0,
+    "removedSurfaces": 0,
+    "rawChangedSurfaces": 0,
+    "reviewableChangedSurfaces": 0,
+    "hasReviewableEvidence": false,
+    "rawOnlyNoReviewable": false,
+    "contentGeometryUncertain": false,
+    "liveTextFreezeViolated": false,
+    "incomparableSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 0,
+    "globalRequiredUnprovenSurfaces": 0,
+    "status": "unproven",
+    "requireStateIdentity": false,
+    "blocksCertification": false,
+    "counts": {
+      "comparable": 0,
+      "incomparable": 0,
+      "unproven": 1,
+      "notRequired": 0,
+      "requiredUnproven": 0,
+      "globalRequiredUnproven": 0
+    }
+  },
+  "comparability": [
+    {
+      "surface": "home@1280",
+      "status": "unproven",
+      "required": false,
+      "reason": "state-identity-missing"
+    }
+  ],
+  "reportConsistency": {
+    "ok": true,
+    "reason": "aligned"
+  },
+  "baselineFailures": [],
+  "partialBaseline": false,
+  "content": {
+    "evaluated": false,
+    "changes": 0,
+    "advisory": true
+  },
+  "surfaces": [],
+  "confidence": {
+    "counts": {
+      "inaccessible": 0,
+      "unproven-determinism": 0,
+      "excluded-with-reason": 0,
+      "unknown": 0,
+      "captured": 1
+    },
+    "completeness": "complete"
+  },
+  "reach": {
+    "level": "gate",
+    "blocking": 0,
+    "complete": false,
+    "ledger": "complete",
+    "counts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "blind-channel": 0
+    },
+    "rules": [],
+    "unreadableSheets": 0,
+    "scripts": [
+      {
+        "sourceKey": "app.js",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 2,
+            "column": 20
+          }
+        },
+        "changeScope": "line",
+        "execution": "ran",
+        "status": "never-rendered",
+        "why": "value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved; J3: class token never landed on a captured element",
+        "level": "warn",
+        "count": 2
+      },
+      {
+        "sourceKey": "app.js",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 0
+          },
+          "end": {
+            "line": 2,
+            "column": 20
+          }
+        },
+        "changeScope": "line",
+        "execution": "ran",
+        "status": "never-rendered",
+        "why": "value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved; J3: class token never landed on a captured element",
+        "level": "warn",
+        "count": 2
+      }
+    ],
+    "classes": [
+      {
+        "sourceKey": "app.js",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 11
+          },
+          "end": {
+            "line": 1,
+            "column": 16
+          }
+        },
+        "token": "old",
+        "status": "never-rendered",
+        "why": "class token never landed on a captured element",
+        "level": "warn"
+      },
+      {
+        "sourceKey": "app.js",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 14
+          },
+          "end": {
+            "line": 2,
+            "column": 19
+          }
+        },
+        "token": "old",
+        "status": "never-rendered",
+        "why": "class token never landed on a captured element",
+        "level": "warn"
+      },
+      {
+        "sourceKey": "app.js",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 1,
+            "column": 11
+          },
+          "end": {
+            "line": 1,
+            "column": 16
+          }
+        },
+        "token": "new",
+        "status": "never-rendered",
+        "why": "class token never landed on a captured element",
+        "level": "warn"
+      },
+      {
+        "sourceKey": "app.js",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 14
+          },
+          "end": {
+            "line": 2,
+            "column": 19
+          }
+        },
+        "token": "new",
+        "status": "never-rendered",
+        "why": "class token never landed on a captured element",
+        "level": "warn"
+      }
+    ],
+    "classCounts": {
+      "reached": 0,
+      "never-rendered": 4,
+      "unknown": 0,
+      "unmeasured": 0
+    },
+    "classGapCount": 0,
+    "scriptCounts": {
+      "reached": 0,
+      "never-rendered": 4,
+      "unmeasured": 0,
+      "unknown": 0
+    },
+    "scriptGapCount": 0,
+    "gaps": [
+      {
+        "join": "J1",
+        "status": "unknown",
+        "kind": "not-built",
+        "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+      }
+    ]
+  }
+}

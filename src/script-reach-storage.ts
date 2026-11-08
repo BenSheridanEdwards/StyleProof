@@ -7,6 +7,9 @@ import type {
   SourceSpan,
 } from './script-reach.js';
 
+export const GENERATOR_BODY_RESIDUAL =
+  'bodies of generator / async-generator functions that were called but never iterated';
+
 /** Adapt the pure mapper's objects to stored tuples; no stored object format is supported. */
 function compactSpans(spans: (SourceSpan | CompactSourceSpan)[]): CompactSourceSpan[] {
   return spans
@@ -39,7 +42,10 @@ export function compactScriptEvidence(script: ScriptReachEntry<SourceSpan | Comp
 }
 
 /** Collisions invalidate every involved script, even when hashes happen to agree. */
-export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | CompactSourceSpan>[]): ScriptReach {
+export function storedScriptEvidence(
+  scripts: ScriptReachEntry<SourceSpan | CompactSourceSpan>[],
+  projectRootPrefix?: string,
+): ScriptReach {
   const entries = scripts.map((script) => ({ ...script }));
   const owners = new Map<string, ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
   const collisions = new Set<ScriptReachEntry<SourceSpan | CompactSourceSpan>>();
@@ -62,10 +68,14 @@ export function storedScriptEvidence(scripts: ScriptReachEntry<SourceSpan | Comp
     window: 'navigation',
     status: 'measured',
     notes: [
+      `V8 can mark ${GENERATOR_BODY_RESIDUAL} as executed, with no inner idle range. Iterator creation does not prove body entry. J2 downgrades ran evidence anywhere in a file whose raw text contains the word yield, function-star text or a star/key/optional-question/generics/paren pattern. Raw gaps allow whitespace and comments; keys include Unicode identifiers with fixed or braced escapes, numerics, quoted names with escaped line continuations, and computed names. Computed and generic contents are bounded to 512 characters; a generator with no \`yield\` whose computed key or type-parameter list exceeds 512 characters is not detected. Strings, comments, regex and template text are not excluded; this may flag files with no generator, including changes outside a generator and actually iterated bodies.`,
       'An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.',
+      'After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.',
+      'A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof.',
     ],
     scripts: entries.map(compactScriptEvidence),
   };
+  if (projectRootPrefix !== undefined) evidence.projectRootPrefix = projectRootPrefix;
   return Buffer.byteLength(JSON.stringify(evidence)) > MAX_CAPTURE_EVIDENCE_BYTES
     ? {
         version: 1,

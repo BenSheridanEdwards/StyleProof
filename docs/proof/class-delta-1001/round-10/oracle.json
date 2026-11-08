@@ -1,0 +1,45 @@
+{
+  "source": "d6465072d",
+  "baseline": "a9883f84d",
+  "programsPerKindPerSeed": 4000,
+  "kinds": ["ts", "tsx", "vue", "svelte"],
+  "generator": "test/class-join-review-oracle.mjs (expanded compact runtime fragments)",
+  "seeds": [
+    {
+      "seed": 1,
+      "typeLits": 216376,
+      "fp": 0,
+      "rtLits": 69870,
+      "fn": 886,
+      "hiddenWithGap": 254,
+      "hiddenNoGap": 333,
+      "nonExplicit": 299,
+      "errors": 0,
+      "beforeFn": 4102
+    },
+    {
+      "seed": 2,
+      "typeLits": 215613,
+      "fp": 0,
+      "rtLits": 68950,
+      "fn": 884,
+      "hiddenWithGap": 239,
+      "hiddenNoGap": 356,
+      "nonExplicit": 289,
+      "errors": 0,
+      "beforeFn": 3973
+    },
+    {
+      "seed": 3,
+      "typeLits": 218034,
+      "fp": 0,
+      "rtLits": 68864,
+      "fn": 947,
+      "hiddenWithGap": 270,
+      "hiddenNoGap": 335,
+      "nonExplicit": 342,
+      "errors": 0,
+      "beforeFn": 4058
+    }
+  ]
+}

@@ -1,0 +1,367 @@
+TAP version 13
+# Subtest: unloaded MDX, template, extensionless and gitlink paths remain named J2 gaps
+not ok 1 - unloaded MDX, template, extensionless and gitlink paths remain named J2 gaps
+  ---
+  duration_ms: 553.131958
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:25:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The input did not match the regular expression /changed files J2 does not judge: render, view.html, widget.gjs, z.mdx/. Input:
+
+    ''
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+  actual: ''
+  operator: 'match'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:31:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: git line three maps to JavaScript line four after an earlier Unicode line separator
+not ok 2 - git line three maps to JavaScript line four after an earlier Unicode line separator
+  ---
+  duration_ms: 6.027583
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:34:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(units.every((unit) => unit.range.start.line === 4))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:38:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async startSubtestAfterBootstrap (node:internal/test_runner/harness:296:3)
+  ...
+# Subtest: unrelated equal-count hunks use line scope and pure token insertions omit empty base units
+not ok 3 - unrelated equal-count hunks use line scope and pure token insertions omit empty base units
+  ---
+  duration_ms: 0.358625
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:43:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(units.every((unit) => unit.range.start.column === 0))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:45:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: capture root prefixes bind source keys independently of the report working directory
+not ok 4 - capture root prefixes bind source keys independently of the report working directory
+  ---
+  duration_ms: 538.324583
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:51:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(result.changes.every((change) => change.sourceKey === 'app.ts'))
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:57:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: without scriptReach there is no manifest or git work and J1 opt-in behavior is preserved
+not ok 5 - without scriptReach there is no manifest or git work and J1 opt-in behavior is preserved
+  ---
+  duration_ms: 1.591708
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:62:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+        changes: [],
+    +   gaps: [
+    +     {
+    +       join: 'J2',
+    +       kind: 'execution',
+    +       reason: 'base map SHA unavailable or dirty; changed source ranges cannot be listed',
+    +       remedy: 'capture both revisions with `captureScriptReach` and source maps, retaining their git SHAs and sourcesContent',
+    +       side: 'base',
+    +       status: 'unmeasured'
+    +     },
+    +     {
+    +       join: 'J2',
+    +       kind: 'execution',
+    +       reason: 'head map SHA unavailable or dirty; changed source ranges cannot be listed',
+    +       remedy: 'capture both revisions with `captureScriptReach` and source maps, retaining their git SHAs and sourcesContent',
+    +       side: 'head',
+    +       status: 'unmeasured'
+    +     }
+    +   ]
+    -   gaps: []
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    changes:
+    gaps:
+  actual:
+    changes:
+    gaps:
+      0:
+        join: 'J2'
+        status: 'unmeasured'
+        kind: 'execution'
+        reason: 'base map SHA unavailable or dirty; changed source ranges cannot be listed'
+        remedy: 'capture both revisions with `captureScriptReach` and source maps, retaining their git SHAs and sourcesContent'
+        side: 'base'
+      1:
+        join: 'J2'
+        status: 'unmeasured'
+        kind: 'execution'
+        reason: 'head map SHA unavailable or dirty; changed source ranges cannot be listed'
+        remedy: 'capture both revisions with `captureScriptReach` and source maps, retaining their git SHAs and sourcesContent'
+        side: 'head'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:64:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: three thousand adjacent findings render as ranges and a long fragmented table is capped
+not ok 6 - three thousand adjacent findings render as ranges and a long fragmented table is capped
+  ---
+  duration_ms: 5.17625
+  type: 'test'
+  location: '<checkout>/test/script-join-review.test.mjs:69:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    The expression evaluated to a falsy value:
+
+      assert.ok(lines.filter((line) => line.startsWith('| `app.ts')).length <= 2)
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-review.test.mjs:73:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: a changed main operand ran even when the nullish fallback on the same line did not
+ok 7 - a changed main operand ran even when the nullish fallback on the same line did not
+  ---
+  duration_ms: 3.698
+  type: 'test'
+  ...
+# Subtest: executed evidence supplies only a start point while mixed and unexecuted evidence supply spans
+ok 8 - executed evidence supplies only a start point while mixed and unexecuted evidence supply spans
+  ---
+  duration_ms: 0.241084
+  type: 'test'
+  ...
+# Subtest: each changed expression can be witnessed across captures without importing unrelated branches
+ok 9 - each changed expression can be witnessed across captures without importing unrelated branches
+  ---
+  duration_ms: 0.583625
+  type: 'test'
+  ...
+# Subtest: removed ranges use base evidence and added ranges use head evidence
+ok 10 - removed ranges use base evidence and added ranges use head evidence
+  ---
+  duration_ms: 1.123833
+  type: 'test'
+  ...
+# Subtest: an exact source range is required for rendering corroboration including on the same line
+ok 11 - an exact source range is required for rendering corroboration including on the same line
+  ---
+  duration_ms: 0.971417
+  type: 'test'
+  ...
+# Subtest: missing capture coverage stays a named run gap even with no changed units
+ok 12 - missing capture coverage stays a named run gap even with no changed units
+  ---
+  duration_ms: 0.949542
+  type: 'test'
+  ...
+# Subtest: not loaded, missing source maps and mismatched source content cannot prove execution
+ok 13 - not loaded, missing source maps and mismatched source content cannot prove execution
+  ---
+  duration_ms: 0.390167
+  type: 'test'
+  ...
+# Subtest: J2 names all five block-entry residuals and never treats their anchors as rendering proof
+ok 14 - J2 names all five block-entry residuals and never treats their anchors as rendering proof
+  ---
+  duration_ms: 0.313792
+  type: 'test'
+  ...
+# Subtest: ordering is by source code point, side, then numeric range and independent of capture order
+ok 15 - ordering is by source code point, side, then numeric range and independent of capture order
+  ---
+  duration_ms: 0.497459
+  type: 'test'
+  ...
+# Subtest: an enclosing mixed or idle expression does not flag its evaluated operand
+not ok 16 - an enclosing mixed or idle expression does not flag its evaluated operand
+  ---
+  duration_ms: 1.273125
+  type: 'test'
+  location: '<checkout>/test/script-join.test.mjs:151:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'partly-ran'
+    - 'ran'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ran'
+  actual: 'partly-ran'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join.test.mjs:154:12)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: column-zero line maps fall back to line evidence when the changed token has no anchor
+not ok 17 - column-zero line maps fall back to line evidence when the changed token has no anchor
+  ---
+  duration_ms: 0.482625
+  type: 'test'
+  location: '<checkout>/test/script-join.test.mjs:158:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'unmeasured'
+    - 'ran'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'ran'
+  actual: 'unmeasured'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join.test.mjs:160:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+# Subtest: six thousand changed lines index each source once instead of rescanning anchors per unit
+not ok 18 - six thousand changed lines index each source once instead of rescanning anchors per unit
+  ---
+  duration_ms: 14.235458
+  type: 'test'
+  location: '<checkout>/test/script-join.test.mjs:165:1'
+  failureType: 'testCodeFailure'
+  error: 'execution anchors must be indexed once per side and source'
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: true
+  actual: false
+  operator: '=='
+  stack: |-
+    Object.get [as executed] (<checkout>/test/script-join.test.mjs:170:12)
+    <checkout>/dist/script-join.js:71:51
+    Array.flatMap (<anonymous>)
+    executionIn (<checkout>/dist/script-join.js:71:28)
+    classifyRange (<checkout>/dist/script-join.js:107:23)
+    <checkout>/dist/script-join.js:127:71
+    Array.map (<anonymous>)
+    classifyScriptReach (<checkout>/dist/script-join.js:127:55)
+    TestContext.<anonymous> (<checkout>/test/script-join.test.mjs:174:16)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+  ...
+# Subtest: missing coverage on some captures is unmeasured rather than evidence that a file was not loaded
+not ok 19 - missing coverage on some captures is unmeasured rather than evidence that a file was not loaded
+  ---
+  duration_ms: 0.177875
+  type: 'test'
+  location: '<checkout>/test/script-join.test.mjs:177:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly equal:
+    + actual - expected
+
+    + 'not-loaded'
+    - 'unmeasured'
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected: 'unmeasured'
+  actual: 'not-loaded'
+  operator: 'strictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join.test.mjs:179:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..19
+# tests 19
+# suites 0
+# pass 9
+# fail 10
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1309.376708

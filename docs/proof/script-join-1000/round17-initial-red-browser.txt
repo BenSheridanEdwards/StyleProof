@@ -1,0 +1,433 @@
+Already up to date
+Done in 59ms using pnpm v11.7.0
+
+Running 18 tests using 1 worker
+
+(node:99346) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   1 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=false (405ms)
+(node:99463) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   2 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=true (338ms)
+(node:99586) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   3 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=false (342ms)
+(node:99714) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   4 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=true (324ms)
+(node:99828) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   5 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=false (322ms)
+(node:99941) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   6 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=true (344ms)
+(node:246) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   7 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=false (320ms)
+(node:462) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘   8 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=true (333ms)
+(node:604) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓   9 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX attribute capped-regex regression with minify=false (323ms)
+  ✓  10 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX attribute capped-regex regression with minify=true (287ms)
+  ✘  11 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=false (288ms)
+(node:874) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  12 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=true (312ms)
+(node:983) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  13 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=false (321ms)
+(node:1100) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  14 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=true (320ms)
+(node:1209) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  15 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=false (325ms)
+(node:1572) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  16 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=true (325ms)
+(node:1770) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  17 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=false (324ms)
+(node:1898) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  18 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=true (328ms)
+
+
+  1) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-9f066-egression-with-minify-false-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-f7b60-regression-with-minify-true-chromium/error-context.md
+
+  3) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-70d4b-egression-with-minify-false-chromium/error-context.md
+
+  4) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-3654a-regression-with-minify-true-chromium/error-context.md
+
+  5) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-35c2f-egression-with-minify-false-chromium/error-context.md
+
+  6) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-429e2-regression-with-minify-true-chromium/error-context.md
+
+  7) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-57987-egression-with-minify-false-chromium/error-context.md
+
+  8) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-31cb8-regression-with-minify-true-chromium/error-context.md
+
+  9) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=false
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-ed309-egression-with-minify-false-chromium/error-context.md
+
+  10) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=true
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 2
+    + Received  + 2
+
+      Array [
+    -   "unmeasured",
+    -   "unmeasured",
+    +   "unknown",
+    +   "unknown",
+      ]
+
+      400 |     const units = classifyScriptReach([maps[0]], [maps[1]], diff.changes).units;
+      401 |     expect(units).toHaveLength(scenario.count);
+    > 402 |     expect(units.map((unit) => unit.status)).toEqual(
+          |                                              ^
+      403 |       Array.isArray(scenario.expected) ? scenario.expected : Array(scenario.count).fill(scenario.expected),
+      404 |     );
+      405 |     if (
+        at <repo>/test/script-join-round6.e2e.spec.ts:402:46
+
+    Error Context: test-results/test-script-join-round6.e2-c27fd-regression-with-minify-true-chromium/error-context.md
+
+  11) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      418 |             ? 'ambiguous lexical boundary'
+      419 |             : 'it may have been removed by the bundler';
+    > 420 |       expect(units.every((unit) => unit.why.includes(reason))).toBe(true);
+          |                                                                ^
+      421 |     }
+      422 |     if ('idle' in scenario && scenario.idle) {
+      423 |       expect(units.every((unit) => ['never-ran', 'partly-ran'].includes(unit.execution))).toBe(true);
+        at <repo>/test/script-join-round6.e2e.spec.ts:420:64
+
+    Error Context: test-results/test-script-join-round6.e2-7dcc1-egression-with-minify-false-chromium/error-context.md
+
+  12) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      418 |             ? 'ambiguous lexical boundary'
+      419 |             : 'it may have been removed by the bundler';
+    > 420 |       expect(units.every((unit) => unit.why.includes(reason))).toBe(true);
+          |                                                                ^
+      421 |     }
+      422 |     if ('idle' in scenario && scenario.idle) {
+      423 |       expect(units.every((unit) => ['never-ran', 'partly-ran'].includes(unit.execution))).toBe(true);
+        at <repo>/test/script-join-round6.e2e.spec.ts:420:64
+
+    Error Context: test-results/test-script-join-round6.e2-ab8de-regression-with-minify-true-chromium/error-context.md
+
+  13) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      391 |     expect(diff.gaps).toEqual([]);
+      392 |     if ('rawGenerator' in scenario)
+    > 393 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      394 |     if ('boundedGeneratorResidual' in scenario) {
+      395 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      396 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:393:106
+
+    Error Context: test-results/test-script-join-round6.e2-dd6ba-egression-with-minify-false-chromium/error-context.md
+
+  14) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      391 |     expect(diff.gaps).toEqual([]);
+      392 |     if ('rawGenerator' in scenario)
+    > 393 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      394 |     if ('boundedGeneratorResidual' in scenario) {
+      395 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      396 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:393:106
+
+    Error Context: test-results/test-script-join-round6.e2-12ef2-regression-with-minify-true-chromium/error-context.md
+
+  15) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      391 |     expect(diff.gaps).toEqual([]);
+      392 |     if ('rawGenerator' in scenario)
+    > 393 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      394 |     if ('boundedGeneratorResidual' in scenario) {
+      395 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      396 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:393:106
+
+    Error Context: test-results/test-script-join-round6.e2-22626-egression-with-minify-false-chromium/error-context.md
+
+  16) [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      391 |     expect(diff.gaps).toEqual([]);
+      392 |     if ('rawGenerator' in scenario)
+    > 393 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === true)).toBe(true);
+          |                                                                                                          ^
+      394 |     if ('boundedGeneratorResidual' in scenario) {
+      395 |       expect(diff.changes.every((change: { generatorFile?: boolean }) => change.generatorFile === false)).toBe(true);
+      396 |       expect(maps.every((map) => map.scriptReach.notes.some((note: string) => note.includes(boundResidual)))).toBe(
+        at <repo>/test/script-join-round6.e2e.spec.ts:393:106
+
+    Error Context: test-results/test-script-join-round6.e2-895aa-regression-with-minify-true-chromium/error-context.md
+
+  16 failed
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex in a conditional capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long star-class regex in a conditional capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long brace regex in a substitution capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long slash-class regex before a comma capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › long regex inside a JSX template attribute capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › short regex control capped-regex regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced generator name padded-escape regression with minify=true
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=false
+    [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › eight-digit braced private generator name padded-escape regression with minify=true
+  2 passed (12.8s)

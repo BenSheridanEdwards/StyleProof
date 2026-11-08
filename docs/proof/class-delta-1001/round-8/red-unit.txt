@@ -1,0 +1,1790 @@
+✖ runtime role and occurrence survive type boundaries: 0 ts (2.139292ms)
+✖ runtime role and occurrence survive type boundaries: 0 tsx (0.314917ms)
+✖ runtime role and occurrence survive type boundaries: 0 vue (0.7195ms)
+✖ runtime role and occurrence survive type boundaries: 0 svelte (0.283292ms)
+✖ runtime role and occurrence survive type boundaries: 1 ts (0.121333ms)
+✖ runtime role and occurrence survive type boundaries: 1 tsx (0.090625ms)
+✖ runtime role and occurrence survive type boundaries: 1 vue (0.160916ms)
+✖ runtime role and occurrence survive type boundaries: 1 svelte (0.495833ms)
+✖ runtime role and occurrence survive type boundaries: 2 ts (0.1505ms)
+✖ runtime role and occurrence survive type boundaries: 2 tsx (0.137542ms)
+✖ runtime role and occurrence survive type boundaries: 2 vue (0.134458ms)
+✖ runtime role and occurrence survive type boundaries: 2 svelte (0.097666ms)
+✖ runtime role and occurrence survive type boundaries: 3 ts (0.10775ms)
+✖ runtime role and occurrence survive type boundaries: 3 tsx (0.099584ms)
+✖ runtime role and occurrence survive type boundaries: 3 vue (0.098875ms)
+✖ runtime role and occurrence survive type boundaries: 3 svelte (0.090417ms)
+✖ runtime role and occurrence survive type boundaries: 4 ts (0.060334ms)
+✖ runtime role and occurrence survive type boundaries: 4 tsx (0.046875ms)
+✖ runtime role and occurrence survive type boundaries: 4 vue (0.079375ms)
+✖ runtime role and occurrence survive type boundaries: 4 svelte (0.073666ms)
+✔ runtime role and occurrence survive type boundaries: 5 ts (2.430083ms)
+✔ runtime role and occurrence survive type boundaries: 5 tsx (0.383042ms)
+✔ runtime role and occurrence survive type boundaries: 5 vue (0.58975ms)
+✔ runtime role and occurrence survive type boundaries: 5 svelte (0.404167ms)
+✔ runtime role and occurrence survive type boundaries: 6 ts (0.337625ms)
+✔ runtime role and occurrence survive type boundaries: 6 tsx (0.300916ms)
+✔ runtime role and occurrence survive type boundaries: 6 vue (0.322708ms)
+✔ runtime role and occurrence survive type boundaries: 6 svelte (0.292417ms)
+✔ runtime role and occurrence survive type boundaries: 7 ts (0.201958ms)
+✔ runtime role and occurrence survive type boundaries: 7 tsx (0.235667ms)
+✔ runtime role and occurrence survive type boundaries: 7 vue (0.582042ms)
+✔ runtime role and occurrence survive type boundaries: 7 svelte (0.294958ms)
+✔ runtime role and occurrence survive type boundaries: 8 ts (0.185208ms)
+✔ runtime role and occurrence survive type boundaries: 8 tsx (0.162166ms)
+✔ runtime role and occurrence survive type boundaries: 8 vue (0.21875ms)
+✔ runtime role and occurrence survive type boundaries: 8 svelte (0.2265ms)
+✔ runtime role and occurrence survive type boundaries: 9 ts (0.19325ms)
+✔ runtime role and occurrence survive type boundaries: 9 tsx (0.191ms)
+✔ runtime role and occurrence survive type boundaries: 9 vue (0.242959ms)
+✔ runtime role and occurrence survive type boundaries: 9 svelte (0.24425ms)
+✖ runtime role and occurrence survive type boundaries: 10 ts (0.096875ms)
+✖ runtime role and occurrence survive type boundaries: 10 tsx (0.054292ms)
+✖ runtime role and occurrence survive type boundaries: 10 vue (0.058209ms)
+✖ runtime role and occurrence survive type boundaries: 10 svelte (0.053958ms)
+✖ runtime role and occurrence survive type boundaries: 11 ts (0.060583ms)
+✖ runtime role and occurrence survive type boundaries: 11 tsx (0.047ms)
+✖ runtime role and occurrence survive type boundaries: 11 vue (0.047209ms)
+✖ runtime role and occurrence survive type boundaries: 11 svelte (0.045959ms)
+✖ runtime role and occurrence survive type boundaries: 12 ts (0.035875ms)
+✖ runtime role and occurrence survive type boundaries: 12 tsx (0.045333ms)
+✖ runtime role and occurrence survive type boundaries: 12 vue (0.053833ms)
+✖ runtime role and occurrence survive type boundaries: 12 svelte (0.046042ms)
+✖ runtime role and occurrence survive type boundaries: 13 ts (0.038791ms)
+✖ runtime role and occurrence survive type boundaries: 13 tsx (0.039292ms)
+✖ runtime role and occurrence survive type boundaries: 13 vue (0.245375ms)
+✖ runtime role and occurrence survive type boundaries: 13 svelte (0.09575ms)
+✖ runtime role and occurrence survive type boundaries: 14 ts (0.049333ms)
+✖ runtime role and occurrence survive type boundaries: 14 tsx (0.050791ms)
+✖ runtime role and occurrence survive type boundaries: 14 vue (0.053625ms)
+✖ runtime role and occurrence survive type boundaries: 14 svelte (0.04325ms)
+✖ runtime role and occurrence survive type boundaries: 15 ts (0.05275ms)
+✖ runtime role and occurrence survive type boundaries: 15 tsx (0.04275ms)
+✖ runtime role and occurrence survive type boundaries: 15 vue (0.052917ms)
+✖ runtime role and occurrence survive type boundaries: 15 svelte (0.047458ms)
+✖ runtime role and occurrence survive type boundaries: 16 ts (0.041625ms)
+✖ runtime role and occurrence survive type boundaries: 16 tsx (0.0365ms)
+✖ runtime role and occurrence survive type boundaries: 16 vue (0.049042ms)
+✖ runtime role and occurrence survive type boundaries: 16 svelte (0.044042ms)
+✖ runtime role and occurrence survive type boundaries: 17 ts (0.037125ms)
+✖ runtime role and occurrence survive type boundaries: 17 tsx (0.03575ms)
+✖ runtime role and occurrence survive type boundaries: 17 vue (0.043333ms)
+✖ runtime role and occurrence survive type boundaries: 17 svelte (0.047959ms)
+✖ runtime role and occurrence survive type boundaries: 18 ts (0.039583ms)
+✖ runtime role and occurrence survive type boundaries: 18 tsx (0.034666ms)
+✖ runtime role and occurrence survive type boundaries: 18 vue (0.047708ms)
+✖ runtime role and occurrence survive type boundaries: 18 svelte (0.044917ms)
+✖ runtime role and occurrence survive type boundaries: 19 ts (0.03325ms)
+✖ runtime role and occurrence survive type boundaries: 19 tsx (0.034334ms)
+✖ runtime role and occurrence survive type boundaries: 19 vue (0.046291ms)
+✖ runtime role and occurrence survive type boundaries: 19 svelte (0.043208ms)
+✖ runtime role and occurrence survive type boundaries: 20 ts (0.036458ms)
+✖ runtime role and occurrence survive type boundaries: 20 tsx (0.036208ms)
+✖ runtime role and occurrence survive type boundaries: 20 vue (0.04175ms)
+✖ runtime role and occurrence survive type boundaries: 20 svelte (0.044292ms)
+✔ runtime role and occurrence survive type boundaries: 21 ts (0.268667ms)
+✔ runtime role and occurrence survive type boundaries: 21 tsx (0.177875ms)
+✔ runtime role and occurrence survive type boundaries: 21 vue (0.24925ms)
+✔ runtime role and occurrence survive type boundaries: 21 svelte (0.25775ms)
+✔ runtime role and occurrence survive type boundaries: 22 ts (0.15325ms)
+✔ runtime role and occurrence survive type boundaries: 22 tsx (0.1505ms)
+✔ runtime role and occurrence survive type boundaries: 22 vue (0.230834ms)
+✔ runtime role and occurrence survive type boundaries: 22 svelte (0.481083ms)
+✔ runtime role and occurrence survive type boundaries: 23 ts (0.191583ms)
+✔ runtime role and occurrence survive type boundaries: 23 tsx (0.162958ms)
+✔ runtime role and occurrence survive type boundaries: 23 vue (0.261791ms)
+✔ runtime role and occurrence survive type boundaries: 23 svelte (0.215625ms)
+✔ runtime role and occurrence survive type boundaries: 24 ts (0.221125ms)
+✔ runtime role and occurrence survive type boundaries: 24 tsx (0.171958ms)
+✔ runtime role and occurrence survive type boundaries: 24 vue (0.239708ms)
+✔ runtime role and occurrence survive type boundaries: 24 svelte (0.242ms)
+✖ runtime role and occurrence survive type boundaries: 25 ts (0.06225ms)
+✖ runtime role and occurrence survive type boundaries: 25 tsx (0.046875ms)
+✖ runtime role and occurrence survive type boundaries: 25 vue (0.050167ms)
+✖ runtime role and occurrence survive type boundaries: 25 svelte (0.049291ms)
+✔ runtime role and occurrence survive type boundaries: 26 ts (0.142084ms)
+✔ runtime role and occurrence survive type boundaries: 26 tsx (0.138458ms)
+✔ runtime role and occurrence survive type boundaries: 26 vue (0.403125ms)
+✔ runtime role and occurrence survive type boundaries: 26 svelte (0.193417ms)
+✖ runtime role and occurrence survive type boundaries: 27 ts (0.047959ms)
+✖ runtime role and occurrence survive type boundaries: 27 tsx (0.044ms)
+✖ runtime role and occurrence survive type boundaries: 27 vue (0.054ms)
+✖ runtime role and occurrence survive type boundaries: 27 svelte (0.039708ms)
+✖ runtime role and occurrence survive type boundaries: 28 ts (0.033167ms)
+✖ runtime role and occurrence survive type boundaries: 28 tsx (0.034667ms)
+✖ runtime role and occurrence survive type boundaries: 28 vue (0.052417ms)
+✖ runtime role and occurrence survive type boundaries: 28 svelte (0.038791ms)
+✖ runtime role and occurrence survive type boundaries: 29 ts (0.130708ms)
+✖ runtime role and occurrence survive type boundaries: 29 tsx (0.041541ms)
+✖ runtime role and occurrence survive type boundaries: 29 vue (0.081375ms)
+✖ runtime role and occurrence survive type boundaries: 29 svelte (0.066167ms)
+✖ parenthesized JSX return type preserves runtime values: const Card = (p: Props): (JSX.Element | null) => <div className="tk-old js-hook"/>; (0.498292ms)
+✖ parenthesized JSX return type preserves runtime values: const Card = (p: Props): (JSX.Element | null) => { return <div className="tk-old js-hook"/>; }; (0.211667ms)
+✖ TSX extends never enters markup mode inside generic type parameters (1.629666ms)
+✖ parenthesized arrow return keeps both dynamic-fragment gaps (0.386167ms)
+✔ export default is not a switch label: export default function f(): { class: 'ty-old' } { el.className='tk-old js-hook'; return value; } (0.065583ms)
+✔ export default is not a switch label: export default {data:1}; let p: { class: 'ty-old' }; (0.041042ms)
+ℹ tests 126
+ℹ suites 0
+ℹ pass 42
+ℹ fail 84
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 101.791125
+
+✖ failing tests:
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 0 ts (2.139292ms)
+  AssertionError [ERR_ASSERTION]: const subscribe = (cb: Cb): (() => void) => { el.className='tk-old js-hook'; return f; };
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 0 tsx (0.314917ms)
+  AssertionError [ERR_ASSERTION]: const subscribe = (cb: Cb): (() => void) => { el.className='tk-old js-hook'; return f; };
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 0 vue (0.7195ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const subscribe = (cb: Cb): (() => void) => { el.className='tk-old js-hook'; return f; };
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 0 svelte (0.283292ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const subscribe = (cb: Cb): (() => void) => { el.className='tk-old js-hook'; return f; };
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 1 ts (0.121333ms)
+  AssertionError [ERR_ASSERTION]: const o = { open: (e: Ev): (() => void) => { el.className='tk-old js-hook'; return f; } };
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 1 tsx (0.090625ms)
+  AssertionError [ERR_ASSERTION]: const o = { open: (e: Ev): (() => void) => { el.className='tk-old js-hook'; return f; } };
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 1 vue (0.160916ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const o = { open: (e: Ev): (() => void) => { el.className='tk-old js-hook'; return f; } };
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 1 svelte (0.495833ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const o = { open: (e: Ev): (() => void) => { el.className='tk-old js-hook'; return f; } };
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 2 ts (0.1505ms)
+  AssertionError [ERR_ASSERTION]: const f = (): (A | B) => cn('tk-old js-hook');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 2 tsx (0.137542ms)
+  AssertionError [ERR_ASSERTION]: const f = (): (A | B) => cn('tk-old js-hook');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 2 vue (0.134458ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const f = (): (A | B) => cn('tk-old js-hook');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 2 svelte (0.097666ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const f = (): (A | B) => cn('tk-old js-hook');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 3 ts (0.10775ms)
+  AssertionError [ERR_ASSERTION]: const narrow = w < 640; el.className='tk-old js-hook'; const wide = w > 1280;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 3 tsx (0.099584ms)
+  AssertionError [ERR_ASSERTION]: const narrow = w < 640; el.className='tk-old js-hook'; const wide = w > 1280;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 3 vue (0.098875ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const narrow = w < 640; el.className='tk-old js-hook'; const wide = w > 1280;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 3 svelte (0.090417ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const narrow = w < 640; el.className='tk-old js-hook'; const wide = w > 1280;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 4 ts (0.060334ms)
+  AssertionError [ERR_ASSERTION]: const ok = n < 3, cls = cn('tk-old js-hook'), big = n > 9;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 4 tsx (0.046875ms)
+  AssertionError [ERR_ASSERTION]: const ok = n < 3, cls = cn('tk-old js-hook'), big = n > 9;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 4 vue (0.079375ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const ok = n < 3, cls = cn('tk-old js-hook'), big = n > 9;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 4 svelte (0.073666ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const ok = n < 3, cls = cn('tk-old js-hook'), big = n > 9;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 10 ts (0.096875ms)
+  AssertionError [ERR_ASSERTION]: const small = n < 3
+  el.className='tk-old js-hook'
+  const big = n > 9;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 10 tsx (0.054292ms)
+  AssertionError [ERR_ASSERTION]: const small = n < 3
+  el.className='tk-old js-hook'
+  const big = n > 9;
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 10 vue (0.058209ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const small = n < 3
+  el.className='tk-old js-hook'
+  const big = n > 9;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 10 svelte (0.053958ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  const small = n < 3
+  el.className='tk-old js-hook'
+  const big = n > 9;
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 11 ts (0.060583ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  try { el.className='tk-old js-hook'; } catch {}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 11 tsx (0.047ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  try { el.className='tk-old js-hook'; } catch {}
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 11 vue (0.047209ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  try { el.className='tk-old js-hook'; } catch {}
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 11 svelte (0.045959ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  try { el.className='tk-old js-hook'; } catch {}
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 12 ts (0.035875ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  async function open() { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 12 tsx (0.045333ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  async function open() { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 12 vue (0.053833ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  async function open() { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 12 svelte (0.046042ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  async function open() { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 13 ts (0.038791ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  do { el.className='tk-old js-hook'; } while (on);
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 13 tsx (0.039292ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  do { el.className='tk-old js-hook'; } while (on);
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 13 vue (0.245375ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  do { el.className='tk-old js-hook'; } while (on);
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 13 svelte (0.09575ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  do { el.className='tk-old js-hook'; } while (on);
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 14 ts (0.049333ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 14 tsx (0.050791ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 14 vue (0.053625ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 14 svelte (0.04325ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 15 ts (0.05275ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  el!.className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 15 tsx (0.04275ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  el!.className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 15 vue (0.052917ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  el!.className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 15 svelte (0.047458ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  el!.className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 16 ts (0.041625ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  els[0].className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 16 tsx (0.0365ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  els[0].className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 16 vue (0.049042ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  els[0].className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 16 svelte (0.044042ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  els[0].className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 17 ts (0.037125ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  els?.[0].className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 17 tsx (0.03575ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  els?.[0].className='tk-old js-hook';
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 17 vue (0.043333ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  els?.[0].className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 17 svelte (0.047959ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  els?.[0].className='tk-old js-hook';
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 18 ts (0.039583ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  outer: { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 18 tsx (0.034666ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  outer: { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 18 vue (0.047708ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  outer: { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 18 svelte (0.044917ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  outer: { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 19 ts (0.03325ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  $: { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 19 tsx (0.034334ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  $: { el.className='tk-old js-hook'; }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 19 vue (0.046291ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  $: { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 19 svelte (0.043208ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  $: { el.className='tk-old js-hook'; }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 20 ts (0.036458ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  await cn('tk-old js-hook');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 20 tsx (0.036208ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  await cn('tk-old js-hook');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 20 vue (0.04175ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  await cn('tk-old js-hook');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 20 svelte (0.044292ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  await cn('tk-old js-hook');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 25 ts (0.06225ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  new Box({class:'tk-old js-hook'});
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 25 tsx (0.046875ms)
+  AssertionError [ERR_ASSERTION]: let timer: number | undefined
+  new Box({class:'tk-old js-hook'});
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 25 vue (0.050167ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  new Box({class:'tk-old js-hook'});
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 25 svelte (0.049291ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  let timer: number | undefined
+  new Box({class:'tk-old js-hook'});
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 27 ts (0.047959ms)
+  AssertionError [ERR_ASSERTION]: switch (0) { case (0): { el.className='tk-old js-hook'; } }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 27 tsx (0.044ms)
+  AssertionError [ERR_ASSERTION]: switch (0) { case (0): { el.className='tk-old js-hook'; } }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 27 vue (0.054ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  switch (0) { case (0): { el.className='tk-old js-hook'; } }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 27 svelte (0.039708ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  switch (0) { case (0): { el.className='tk-old js-hook'; } }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 28 ts (0.033167ms)
+  AssertionError [ERR_ASSERTION]: switch (0) { case zero(): { el.className='tk-old js-hook'; } }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 28 tsx (0.034667ms)
+  AssertionError [ERR_ASSERTION]: switch (0) { case zero(): { el.className='tk-old js-hook'; } }
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 28 vue (0.052417ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  switch (0) { case zero(): { el.className='tk-old js-hook'; } }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 28 svelte (0.038791ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  switch (0) { case zero(): { el.className='tk-old js-hook'; } }
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 29 ts (0.130708ms)
+  AssertionError [ERR_ASSERTION]: x = cond ? cn('tk-old js-hook') : cn('tk-other');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 29 tsx (0.041541ms)
+  AssertionError [ERR_ASSERTION]: x = cond ? cn('tk-old js-hook') : cn('tk-other');
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 29 vue (0.081375ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  x = cond ? cn('tk-old js-hook') : cn('tk-other');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:46:5
+✖ runtime role and occurrence survive type boundaries: 29 svelte (0.066167ms)
+  AssertionError [ERR_ASSERTION]: <script lang="ts">
+  x = cond ? cn('tk-old js-hook') : cn('tk-other');
+  </script>
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:54:16)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:69:3
+✖ parenthesized JSX return type preserves runtime values: const Card = (p: Props): (JSX.Element | null) => <div className="tk-old js-hook"/>; (0.498292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 2
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:71:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:69:3
+✖ parenthesized JSX return type preserves runtime values: const Card = (p: Props): (JSX.Element | null) => { return <div className="tk-old js-hook"/>; }; (0.211667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 2
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:71:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:75:1
+✖ TSX extends never enters markup mode inside generic type parameters (1.629666ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:78:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at <baseline>/test/class-join-round8.test.mjs:95:1
+✖ parenthesized arrow return keeps both dynamic-fragment gaps (0.386167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 2
+
+      at TestContext.<anonymous> (file://<baseline>/test/class-join-round8.test.mjs:98:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 2,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

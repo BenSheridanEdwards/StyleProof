@@ -1,16 +1,25 @@
 {
-  "generated": "2026-10-21T12:04:03.702Z",
+  "generated": "2026-11-06T05:51:07.630Z",
   "browser": "chromium 149.0.7827.55",
   "fixture": "bench/fixtures/reach",
+  "j2Gaps": {
+    "declared": [],
+    "complete": []
+  },
+  "j3Gaps": {
+    "declared": [],
+    "complete": []
+  },
+  "provenance": "No per-occurrence provenance is recorded; J3 cannot reach or corroborate J2.",
   "totals": {
-    "cases": 14,
-    "visual": 13,
-    "todayShownDeclared": "1/13",
-    "todayShownComplete": "12/13",
-    "missesNamedByReach": "11/12",
-    "residual": [
-      "runtime-css-in-js"
-    ],
+    "cases": 18,
+    "visual": 17,
+    "todayShownDeclared": "3/17",
+    "todayShownComplete": "16/17",
+    "missesNamedByReach": "14/14",
+    "residual": [],
+    "unknownDeclared": 7,
+    "unknownComplete": 8,
     "failed": []
   },
   "cases": [
@@ -46,7 +55,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".panel--fault .indicator: never-rendered (selector never matched)"
+            ".panel--fault .indicator: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -69,7 +78,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ":root: never-rendered (consumer of --warn never matched: .fault-badge)"
+            ":root: never-rendered (--warn changed, and its consumer .fault-badge never matched)"
           ],
           "ok": true
         },
@@ -92,7 +101,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".badge--bad: never-rendered (selector never matched)"
+            ".badge--bad: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -115,7 +124,7 @@
           "today": "missed",
           "reach": "blind-channel",
           "units": [
-            "@keyframes pulse: blind-channel (referenced by .badge)"
+            "@keyframes pulse: blind-channel (referenced by .badge, which matched a captured element)"
           ],
           "ok": true
         },
@@ -123,7 +132,7 @@
           "today": "missed",
           "reach": "blind-channel",
           "units": [
-            "@keyframes pulse: blind-channel (referenced by .badge)"
+            "@keyframes pulse: blind-channel (referenced by .badge, which matched a captured element)"
           ],
           "ok": true
         }
@@ -138,7 +147,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            "@media (prefers-color-scheme: dark) > .panel: never-rendered (gated by @media (prefers-color-scheme: dark))"
+            "@media (prefers-color-scheme: dark) > .panel: never-rendered (never matched while @media (prefers-color-scheme: dark) applied)"
           ],
           "ok": true
         },
@@ -161,7 +170,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            "@media (min-width: 1440px) > .panel: never-rendered (gated by @media (min-width: 1440px))"
+            "@media (min-width: 1440px) > .panel: never-rendered (never matched while @media (min-width: 1440px) applied)"
           ],
           "ok": true
         },
@@ -184,7 +193,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".panel--fault: never-rendered (selector never matched)"
+            ".panel--fault: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -207,7 +216,7 @@
           "today": "missed",
           "reach": "never-rendered",
           "units": [
-            ".card_alert: never-rendered (selector never matched)"
+            ".card_alert: never-rendered (its selector never matched)"
           ],
           "ok": true
         },
@@ -228,26 +237,30 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:40: reached"
+            "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           },
           "units": [
-            "app.jsx:40: reached"
+            ".css-11ycpj1: reached (matched in a captured state)",
+            ".css-xgzlw4: reached (matched in a captured state)",
+            "app.jsx:42: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -265,20 +278,65 @@
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:51: never-rendered"
+            "app.jsx:53: never-rendered (an anchor in the changed range never ran); J3: head:53:27 fault-badge--loud never-rendered"
           ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 53,
+                  "column": 27
+                },
+                "end": {
+                  "line": 53,
+                  "column": 73
+                }
+              },
+              "token": "fault-badge--loud",
+              "explicit": true,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "reached"
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:51: reached"
+            "app.jsx:53: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:53:27 fault-badge--loud unknown"
           ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 53,
+                  "column": 27
+                },
+                "end": {
+                  "line": 53,
+                  "column": 73
+                }
+              },
+              "token": "fault-badge--loud",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [],
           "ok": true
         }
       }
@@ -290,25 +348,111 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "never-rendered"
           },
           "units": [
-            "app.jsx:8: never-rendered"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber never-rendered"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 48
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
           ],
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "reached"
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:8: reached"
+            "app.jsx:8: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:8:36 tone-amber unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 48
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 8,
+                  "column": 36
+                },
+                "end": {
+                  "line": 8,
+                  "column": 46
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
           ],
           "ok": true
         }
@@ -321,25 +465,111 @@
       "scenarios": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "never-rendered"
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:9: never-rendered"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 36
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "status": "never-rendered",
+              "why": "class token never landed on a captured element",
+              "level": "warn"
+            }
           ],
           "ok": true
         },
         "complete": {
           "today": "shown",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "reached"
+            "J3": "unknown"
           },
           "units": [
-            "app.jsx:9: reached"
+            "app.jsx:9: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:9:26 tone-red unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 36
+                }
+              },
+              "token": "tone-red",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 9,
+                  "column": 26
+                },
+                "end": {
+                  "line": 9,
+                  "column": 38
+                }
+              },
+              "token": "tone-amber",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
           ],
           "ok": true
         }
@@ -353,22 +583,410 @@
         "declared": {
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran",
-            "J3": "n/a"
+            "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered"
+            "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
           ],
+          "classUnits": [],
+          "baseClassUnits": [],
           "ok": true
         },
         "complete": {
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran",
-            "J3": "n/a"
+            "J2": "never-ran"
           },
           "units": [
-            "app.jsx:63: never-rendered"
+            "app.jsx:66: never-rendered (an anchor in the changed range never ran)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "render-scope-value",
+      "category": "residual",
+      "desc": "component-body style object used only in the fault overlay",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          },
+          "units": [
+            "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          },
+          "units": [
+            "app.jsx:75: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "eager-jsx-element",
+      "category": "residual",
+      "desc": "eagerly built JSX element shown only in the fault overlay",
+      "scenarios": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          },
+          "units": [
+            "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          },
+          "units": [
+            "app.jsx:76: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved)"
+          ],
+          "classUnits": [],
+          "baseClassUnits": [],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "same-line-class-style",
+      "category": "residual",
+      "desc": "class delta on a healthy element cannot corroborate a style value on the same line",
+      "scenarios": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:74: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:74:34 same-line-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-new",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:74: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:74:34 same-line-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-new",
+              "explicit": true,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 74,
+                  "column": 34
+                },
+                "end": {
+                  "line": 74,
+                  "column": 58
+                }
+              },
+              "token": "same-line-old",
+              "explicit": true,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        }
+      }
+    },
+    {
+      "id": "same-token-collision",
+      "category": "residual",
+      "desc": "two constants change the same token; healthy deltas never identify the unopened overlay occurrence",
+      "scenarios": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:10: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:10:21 collision-new unknown",
+            "app.jsx:11: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:11:24 collision-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "ok": true
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "units": [
+            "app.jsx:10: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:10:21 collision-new unknown",
+            "app.jsx:11: unknown (value; rendering not proved; J2 block-entry limit: code after a throwing expression is not proved); J3: head:11:24 collision-new unknown"
+          ],
+          "classUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "head",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-new",
+              "explicit": false,
+              "delta": "gained",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
+          ],
+          "baseClassUnits": [
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 10,
+                  "column": 21
+                },
+                "end": {
+                  "line": 10,
+                  "column": 36
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            },
+            {
+              "sourceKey": "app.jsx",
+              "side": "base",
+              "range": {
+                "start": {
+                  "line": 11,
+                  "column": 24
+                },
+                "end": {
+                  "line": 11,
+                  "column": 39
+                }
+              },
+              "token": "collision-old",
+              "explicit": false,
+              "delta": "lost",
+              "status": "unknown",
+              "why": "token present on a captured element; not tied to this occurrence",
+              "level": "warn"
+            }
           ],
           "ok": true
         }

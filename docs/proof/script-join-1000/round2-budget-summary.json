@@ -1,0 +1,25 @@
+{
+  "findings": 20,
+  "listedFindings": 20,
+  "omittedFindings": 0,
+  "jsonBytes": 75427,
+  "jsonBudget": 450000,
+  "scriptCounts": {
+    "reached": 0,
+    "never-rendered": 0,
+    "unmeasured": 0,
+    "unknown": 3000
+  },
+  "retainedScriptUnits": 135,
+  "gaps": [
+    {
+      "join": "J2",
+      "status": "unmeasured",
+      "kind": "execution",
+      "reason": "J2 units truncated: 2865 more in report.json; full status counts retained",
+      "remedy": "review the remaining changed source ranges; J2 JSON detail is capped at 64 KB after style findings"
+    }
+  ],
+  "blocking": 0,
+  "complete": false
+}

@@ -1,0 +1,162 @@
+✖ a changed main operand ran even when the nullish fallback on the same line did not (3.877542ms)
+✖ executed evidence supplies only a start point while mixed and unexecuted evidence supply spans (0.141833ms)
+✖ each changed expression can be witnessed across captures without importing unrelated branches (0.08975ms)
+✖ removed ranges use base evidence and added ranges use head evidence (0.181125ms)
+✖ an exact source range is required for rendering corroboration including on the same line (0.087917ms)
+✖ missing capture coverage stays a named run gap even with no changed units (0.095083ms)
+✖ not loaded, missing source maps and mismatched source content cannot prove execution (2.223333ms)
+✖ J2 names all five block-entry residuals and never treats their anchors as rendering proof (0.098458ms)
+✔ ordering is by source code point, side, then numeric range and independent of capture order (0.190666ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 1
+ℹ fail 8
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 268.927667
+
+✖ failing tests:
+
+test at test/script-join.test.mjs:20:1
+✖ a changed main operand ran even when the nullish fallback on the same line did not (3.877542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   [
+  -     'ran',
+  -     'unknown'
+  -   ],
+  -   [
+  -     'never-ran',
+  -     'never-rendered'
+  -   ]
+  - ]
+
+      at TestContext.<anonymous> (./test/script-join.test.mjs:22:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ [ 'ran', 'unknown' ], [ 'never-ran', 'never-rendered' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join.test.mjs:26:1
+✖ executed evidence supplies only a start point while mixed and unexecuted evidence supply spans (0.141833ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'execution')
+      at TestContext.<anonymous> (./test/script-join.test.mjs:29:25)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3)
+
+test at test/script-join.test.mjs:33:1
+✖ each changed expression can be witnessed across captures without importing unrelated branches (0.08975ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'execution')
+      at TestContext.<anonymous> (./test/script-join.test.mjs:35:69)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/script-join.test.mjs:38:1
+✖ removed ranges use base evidence and added ranges use head evidence (0.181125ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   [
+  -     'base',
+  -     'never-ran'
+  -   ],
+  -   [
+  -     'head',
+  -     'ran'
+  -   ]
+  - ]
+
+      at TestContext.<anonymous> (./test/script-join.test.mjs:40:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ [ 'base', 'never-ran' ], [ 'head', 'ran' ] ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join.test.mjs:43:1
+✖ an exact source range is required for rendering corroboration including on the same line (0.087917ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'status')
+      at TestContext.<anonymous> (./test/script-join.test.mjs:45:76)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/script-join.test.mjs:51:1
+✖ missing capture coverage stays a named run gap even with no changed units (0.095083ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + []
+  - [
+  -   'base',
+  -   'head'
+  - ]
+
+      at TestContext.<anonymous> (./test/script-join.test.mjs:53:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [],
+    expected: [ 'base', 'head' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at test/script-join.test.mjs:57:1
+✖ not loaded, missing source maps and mismatched source content cannot prove execution (2.223333ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'execution')
+      at TestContext.<anonymous> (./test/script-join.test.mjs:66:23)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at test/script-join.test.mjs:72:1
+✖ J2 names all five block-entry residuals and never treats their anchors as rendering proof (0.098458ms)
+  TypeError [Error]: Cannot read properties of undefined (reading 'status')
+      at TestContext.<anonymous> (./test/script-join.test.mjs:82:23)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)

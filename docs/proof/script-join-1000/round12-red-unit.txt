@@ -1,0 +1,739 @@
+✖ a never-iterated generator stays unmeasured under {} (14.047334ms)
+✖ an iterated generator stays unmeasured under {} (1.982667ms)
+✖ a never-iterated async generator stays unmeasured under {} (1.221917ms)
+✖ a generator method stays unmeasured under {} (1.162584ms)
+✖ an async generator method stays unmeasured under {} (1.600083ms)
+✖ a multiline generator body stays unmeasured under {} (0.801333ms)
+✖ a never-iterated generator stays unmeasured under {"minifySyntax":true} (1.589791ms)
+✖ an iterated generator stays unmeasured under {"minifySyntax":true} (0.796917ms)
+✖ a never-iterated async generator stays unmeasured under {"minifySyntax":true} (1.431ms)
+✖ a generator method stays unmeasured under {"minifySyntax":true} (1.162625ms)
+✖ an async generator method stays unmeasured under {"minifySyntax":true} (0.793042ms)
+✖ a multiline generator body stays unmeasured under {"minifySyntax":true} (1.008167ms)
+✖ a never-iterated generator stays unmeasured under {"minifyWhitespace":true} (0.702084ms)
+✖ an iterated generator stays unmeasured under {"minifyWhitespace":true} (1.059417ms)
+✖ a never-iterated async generator stays unmeasured under {"minifyWhitespace":true} (0.650875ms)
+✖ a generator method stays unmeasured under {"minifyWhitespace":true} (0.997834ms)
+✖ an async generator method stays unmeasured under {"minifyWhitespace":true} (0.644292ms)
+✖ a multiline generator body stays unmeasured under {"minifyWhitespace":true} (1.124333ms)
+✖ a never-iterated generator stays unmeasured under {"minify":true} (1.464125ms)
+✖ an iterated generator stays unmeasured under {"minify":true} (0.724459ms)
+✖ a never-iterated async generator stays unmeasured under {"minify":true} (1.593542ms)
+✖ a generator method stays unmeasured under {"minify":true} (0.729875ms)
+✖ an async generator method stays unmeasured under {"minify":true} (0.871ms)
+✖ a multiline generator body stays unmeasured under {"minify":true} (0.971792ms)
+✖ a class method default names its changed initializer (0.827083ms)
+✖ an object method default names its changed initializer (0.845334ms)
+✖ a parameter-property constructor default names its changed initializer (0.903709ms)
+✖ a whole-line template default names its changed initializer (0.653958ms)
+✖ live TSX generic <T extends unknown> arm keeps its own execution under minify=false (1.467125ms)
+✖ live TSX generic <T extends unknown> arm keeps its own execution under minify=true (1.027125ms)
+✔ idle TSX generic <T extends unknown> arm keeps its own execution under minify=false (0.558083ms)
+✔ idle TSX generic <T extends unknown> arm keeps its own execution under minify=true (0.903042ms)
+✔ live TSX generic <T,> arm keeps its own execution under minify=false (0.65075ms)
+✔ live TSX generic <T,> arm keeps its own execution under minify=true (0.866458ms)
+✔ idle TSX generic <T,> arm keeps its own execution under minify=false (0.884833ms)
+✔ idle TSX generic <T,> arm keeps its own execution under minify=true (0.549375ms)
+✔ live TSX generic <T, U> arm keeps its own execution under minify=false (0.931459ms)
+✔ live TSX generic <T, U> arm keeps its own execution under minify=true (0.541584ms)
+✔ idle TSX generic <T, U> arm keeps its own execution under minify=false (0.849375ms)
+✔ idle TSX generic <T, U> arm keeps its own execution under minify=true (0.861542ms)
+✖ only the TSX type-parameter header <T extends unknown> is negative-only (0.2945ms)
+✖ only the TSX type-parameter header <T,> is negative-only (0.09775ms)
+✖ only the TSX type-parameter header <T, U> is negative-only (0.103209ms)
+✖ App.vue lang="typescript" uses TypeScript script boundaries (1.251042ms)
+✖ app.html type="text/typescript" uses TypeScript script boundaries (0.6515ms)
+✖ App.astro  uses TypeScript script boundaries (0.911042ms)
+✖ capture notes name generator creation without iteration (0.150042ms)
+ℹ tests 47
+ℹ suites 0
+ℹ pass 10
+ℹ fail 37
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 140.72375
+
+✖ failing tests:
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated generator stays unmeasured under {} (14.047334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an iterated generator stays unmeasured under {} (1.982667ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated async generator stays unmeasured under {} (1.221917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a generator method stays unmeasured under {} (1.162584ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an async generator method stays unmeasured under {} (1.600083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a multiline generator body stays unmeasured under {} (0.801333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated generator stays unmeasured under {"minifySyntax":true} (1.589791ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an iterated generator stays unmeasured under {"minifySyntax":true} (0.796917ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated async generator stays unmeasured under {"minifySyntax":true} (1.431ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a generator method stays unmeasured under {"minifySyntax":true} (1.162625ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an async generator method stays unmeasured under {"minifySyntax":true} (0.793042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a multiline generator body stays unmeasured under {"minifySyntax":true} (1.008167ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated generator stays unmeasured under {"minifyWhitespace":true} (0.702084ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an iterated generator stays unmeasured under {"minifyWhitespace":true} (1.059417ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated async generator stays unmeasured under {"minifyWhitespace":true} (0.650875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a generator method stays unmeasured under {"minifyWhitespace":true} (0.997834ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an async generator method stays unmeasured under {"minifyWhitespace":true} (0.644292ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a multiline generator body stays unmeasured under {"minifyWhitespace":true} (1.124333ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated generator stays unmeasured under {"minify":true} (1.464125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an iterated generator stays unmeasured under {"minify":true} (0.724459ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a never-iterated async generator stays unmeasured under {"minify":true} (1.593542ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a generator method stays unmeasured under {"minify":true} (0.729875ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ an async generator method stays unmeasured under {"minify":true} (0.871ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:54:5
+✖ a multiline generator body stays unmeasured under {"minify":true} (0.971792ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:57:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:72:3
+✖ a class method default names its changed initializer (0.827083ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:74:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:72:3
+✖ an object method default names its changed initializer (0.845334ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:74:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:72:3
+✖ a parameter-property constructor default names its changed initializer (0.903709ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.execution === 'ran' && unit.why.includes(scenario.residual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:74:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:72:3
+✖ a whole-line template default names its changed initializer (0.653958ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(parameterResiduals(whole).includes(scenario.residual))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:81:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:88:5
+✖ live TSX generic <T extends unknown> arm keeps its own execution under minify=false (1.467125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.status === (scenario.idle ? 'never-rendered' : 'unknown')))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:91:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:88:5
+✖ live TSX generic <T extends unknown> arm keeps its own execution under minify=true (1.027125ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.status === (scenario.idle ? 'never-rendered' : 'unknown')))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:91:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:98:3
+✖ only the TSX type-parameter header <T extends unknown> is negative-only (0.2945ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text, 'app.tsx').some((token) => token.negativeOnly && token.index === text.indexOf('<') && token.end === text.indexOf('>') + 1))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:100:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:98:3
+✖ only the TSX type-parameter header <T,> is negative-only (0.09775ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text, 'app.tsx').some((token) => token.negativeOnly && token.index === text.indexOf('<') && token.end === text.indexOf('>') + 1))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:100:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:98:3
+✖ only the TSX type-parameter header <T, U> is negative-only (0.103209ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(scriptTokens(text, 'app.tsx').some((token) => token.negativeOnly && token.index === text.indexOf('<') && token.end === text.indexOf('>') + 1))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:100:12)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:109:3
+✖ App.vue lang="typescript" uses TypeScript script boundaries (1.251042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:117:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:109:3
+✖ app.html type="text/typescript" uses TypeScript script boundaries (0.6515ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:117:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:109:3
+✖ App.astro  uses TypeScript script boundaries (0.911042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(result.units.every((unit) => unit.status === 'unmeasured'))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:117:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at test/script-join-round12.test.mjs:121:1
+✖ capture notes name generator creation without iteration (0.150042ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(storedScriptEvidence([]).notes.some((note) => note.includes(generatorResidual)))
+
+      at TestContext.<anonymous> (file://<repo>/test/script-join-round12.test.mjs:122:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

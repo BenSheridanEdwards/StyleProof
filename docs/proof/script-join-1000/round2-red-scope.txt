@@ -1,0 +1,89 @@
+Already up to date
+Done in 430ms using pnpm v11.7.0
+$ node scripts/run-node-test.mjs test/script-join-scope.test.mjs
+TAP version 13
+# Subtest: column-zero evidence discloses line scope when a changed range spans JavaScript lines
+not ok 1 - column-zero evidence discloses line scope when a changed range spans JavaScript lines
+  ---
+  duration_ms: 2.127541
+  type: 'test'
+  location: '<checkout>/test/script-join-scope.test.mjs:10:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+        execution: 'ran',
+    +   scope: 'range'
+    -   scope: 'line'
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    execution: 'ran'
+    scope: 'line'
+  actual:
+    execution: 'ran'
+    scope: 'range'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-scope.test.mjs:16:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.start (node:internal/test_runner/test:944:17)
+    startSubtestAfterBootstrap (node:internal/test_runner/harness:296:17)
+  ...
+# Subtest: a column-zero anchor at an exclusive ending line does not broaden the changed range scope
+ok 2 - a column-zero anchor at an exclusive ending line does not broaden the changed range scope
+  ---
+  duration_ms: 0.1335
+  type: 'test'
+  ...
+# Subtest: a multiline trimmed range without starts falls back to coarse line evidence
+not ok 3 - a multiline trimmed range without starts falls back to coarse line evidence
+  ---
+  duration_ms: 11.8855
+  type: 'test'
+  location: '<checkout>/test/script-join-scope.test.mjs:28:1'
+  failureType: 'testCodeFailure'
+  error: |-
+    Expected values to be strictly deep-equal:
+    + actual - expected
+
+      {
+    +   execution: 'unmeasured',
+    +   scope: 'range'
+    -   execution: 'ran',
+    -   scope: 'line'
+      }
+
+  code: 'ERR_ASSERTION'
+  name: 'AssertionError'
+  expected:
+    execution: 'ran'
+    scope: 'line'
+  actual:
+    execution: 'unmeasured'
+    scope: 'range'
+  operator: 'deepStrictEqual'
+  stack: |-
+    TestContext.<anonymous> (<checkout>/test/script-join-scope.test.mjs:31:10)
+    Test.runInAsyncScope (node:async_hooks:214:14)
+    Test.run (node:internal/test_runner/test:1047:25)
+    Test.processPendingSubtests (node:internal/test_runner/test:744:18)
+    Test.postRun (node:internal/test_runner/test:1173:19)
+    Test.run (node:internal/test_runner/test:1101:12)
+    async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+  ...
+1..3
+# tests 3
+# suites 0
+# pass 1
+# fail 2
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 872.211291
+[ELIFECYCLE] Command failed with exit code 1.

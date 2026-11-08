@@ -33,7 +33,7 @@
   },
   "expectations": {
     "today": "shown = today's diffStyleMaps puts a finding on the marker element (with an expected prop); missed = it does not",
-    "reach": "reached / never-rendered / blind-channel: the src/ J1 join for CSS units and prototype J2/J3 joins for JS units",
+    "reach": "src/ J1, J2 and per-occurrence J3; J3 negatives lower J2, token-name deltas remain unknown without render provenance",
     "edit": "the seeded change: each `from` must occur exactly once in the base file; the head side is base plus every case edit"
   },
   "cases": [
@@ -67,7 +67,7 @@
     {
       "id": "fault-rule",
       "category": "css",
-      "desc": "fault overlay indicator green → amber",
+      "desc": "fault overlay indicator green \u2192 amber",
       "edit": [
         {
           "file": "styles.css",
@@ -297,19 +297,18 @@
       },
       "sel": ".sp-probe",
       "props": ["color"],
-      "residual": "The definition runs at load (J2 ran), the rule is injected only on render (J1 sees nothing), and the changed value is no class token (J3 has no signal). Pinned as the named residual: a fix must update this expectation on purpose.",
+      "residual": "J2 proves execution of the definition, not rendering of the value. No exact-range J1/J3 corroboration is recorded, even when the full spec renders the rule.",
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "reached",
+          "reach": "unknown",
           "joins": {
-            "J2": "ran",
-            "J3": "n/a"
+            "J2": "ran"
           }
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown"
         }
       }
     },
@@ -334,12 +333,20 @@
           "today": "missed",
           "reach": "never-rendered",
           "joins": {
-            "J2": "never-ran"
-          }
+            "J2": "never-ran",
+            "J3": "never-rendered"
+          },
+          "classCount": 1,
+          "baseClassCount": 0
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 0
         }
       }
     },
@@ -362,15 +369,24 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
             "J3": "never-rendered"
-          }
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         }
       }
     },
@@ -393,15 +409,24 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered",
+          "reach": "unknown",
           "joins": {
             "J2": "ran",
-            "J3": "never-rendered"
-          }
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "never-rendered"
         },
         "complete": {
           "today": "shown",
-          "reach": "reached"
+          "reach": "unknown",
+          "joins": {
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
         }
       }
     },
@@ -419,7 +444,7 @@
       "unit": {
         "js": "console.warn("
       },
-      "noise": "Changed code that never runs during capture and has no visual effect. Flagged by J2 today; the client-bundle filter (#1000) and acknowledgements (#1006) address it.",
+      "noise": "Changed client code that never runs during capture and has no visual effect. J2 keeps this advisory noise; acknowledgements (#1006) are a later remedy.",
       "expect": {
         "declared": {
           "reach": "never-rendered",
@@ -432,6 +457,158 @@
           "joins": {
             "J2": "never-ran"
           }
+        }
+      }
+    },
+    {
+      "id": "render-scope-value",
+      "category": "residual",
+      "desc": "component-body style object used only in the fault overlay",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const faultStyle = { color: 'green' };",
+          "to": "const faultStyle = { color: 'red' };"
+        }
+      ],
+      "unit": {
+        "js": "const faultStyle"
+      },
+      "sel": ".sp-fault-style",
+      "props": ["color"],
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          }
+        }
+      }
+    },
+    {
+      "id": "eager-jsx-element",
+      "category": "residual",
+      "desc": "eagerly built JSX element shown only in the fault overlay",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const banner = <span className=\"sp-banner\">Down</span>;",
+          "to": "const banner = <strong className=\"sp-banner\">Down</strong>;"
+        }
+      ],
+      "unit": {
+        "js": "const banner"
+      },
+      "sel": ".sp-banner",
+      "expect": {
+        "declared": {
+          "today": "missed",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          }
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran"
+          }
+        }
+      }
+    },
+    {
+      "id": "same-line-class-style",
+      "category": "residual",
+      "desc": "class delta on a healthy element cannot corroborate a style value on the same line",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const mixed = <Banner className=\"same-line-old sp-mixed\" style={{ color: 'green' }} />;",
+          "to": "const mixed = <Banner className=\"same-line-new sp-mixed\" style={{ color: 'red' }} />;"
+        }
+      ],
+      "unit": {
+        "js": "const mixed"
+      },
+      "sel": ".sp-mixed",
+      "props": ["text-transform", "color"],
+      "expect": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 1,
+          "baseClassCount": 1,
+          "baseJ3": "unknown"
+        }
+      }
+    },
+    {
+      "id": "same-token-collision",
+      "category": "residual",
+      "desc": "two constants change the same token; healthy deltas never identify the unopened overlay occurrence",
+      "edit": [
+        {
+          "file": "app.jsx",
+          "from": "const COLLISION_OK = 'collision-old';",
+          "to": "const COLLISION_OK = 'collision-new';"
+        },
+        {
+          "file": "app.jsx",
+          "from": "const COLLISION_FAULT = 'collision-old';",
+          "to": "const COLLISION_FAULT = 'collision-new';"
+        }
+      ],
+      "unit": {
+        "js": "const COLLISION_"
+      },
+      "sel": ".sp-collision",
+      "props": ["font-weight"],
+      "expect": {
+        "declared": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 2,
+          "baseClassCount": 2,
+          "baseJ3": "unknown"
+        },
+        "complete": {
+          "today": "shown",
+          "reach": "unknown",
+          "joins": {
+            "J2": "ran",
+            "J3": "unknown"
+          },
+          "classCount": 2,
+          "baseClassCount": 2,
+          "baseJ3": "unknown"
         }
       }
     }

@@ -1,0 +1,71 @@
+
+Running 3 tests using 1 worker
+
+(node:10710) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/script-join-round3.e2e.spec.ts:47:1 › a never-called arrow header stays mixed when its idle run is anchored on other original lines (2.2s)
+(node:46983) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/script-join-round3.e2e.spec.ts:73:1 › pre-owned Chromium coverage retains the supplied root prefix without taking the profiler (237ms)
+(node:83827) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✓  3 [chromium] › test/script-join-round3.e2e.spec.ts:87:1 › real captured revisions join through git multi-line hunks, a recorded prefix and type-change patch pairing (5.8s)
+
+
+  1) [chromium] › test/script-join-round3.e2e.spec.ts:47:1 › a never-called arrow header stays mixed when its idle run is anchored on other original lines
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 4
+    + Received  + 4
+
+      Array [
+        Array [
+    -     "partly-ran",
+    -     "never-rendered",
+    +     "ran",
+    +     "unknown",
+          "line",
+        ],
+        Array [
+    -     "partly-ran",
+    -     "never-rendered",
+    +     "ran",
+    +     "unknown",
+          "line",
+        ],
+      ]
+
+      65 |   expect(
+      66 |     classifyScriptReach([captured], [captured], changes).units.map((u) => [u.execution, u.status, u.executionScope]),
+    > 67 |   ).toEqual([
+         |     ^
+      68 |     ['partly-ran', 'never-rendered', 'line'],
+      69 |     ['partly-ran', 'never-rendered', 'line'],
+      70 |   ]);
+        at <checkout>/test/script-join-round3.e2e.spec.ts:67:5
+
+    Error Context: test-results/test-script-join-round3.e2-7efe9-red-on-other-original-lines-chromium/error-context.md
+
+  2) [chromium] › test/script-join-round3.e2e.spec.ts:73:1 › pre-owned Chromium coverage retains the supplied root prefix without taking the profiler
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: "apps/web"
+    Received: undefined
+
+      77 |     const evidence = await tracker.stop();
+      78 |     expect(evidence.status).toBe('unmeasured');
+    > 79 |     expect(evidence.projectRootPrefix).toBe('apps/web');
+         |                                        ^
+      80 |     expect(evidence.reason).toMatch(/page.coverage active/);
+      81 |     await page.coverage.stopJSCoverage();
+      82 |   } finally {
+        at <checkout>/test/script-join-round3.e2e.spec.ts:79:40
+
+    Error Context: test-results/test-script-join-round3.e2-13cca-without-taking-the-profiler-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/script-join-round3.e2e.spec.ts:47:1 › a never-called arrow header stays mixed when its idle run is anchored on other original lines
+    [chromium] › test/script-join-round3.e2e.spec.ts:73:1 › pre-owned Chromium coverage retains the supplied root prefix without taking the profiler
+  1 passed (1.9m)

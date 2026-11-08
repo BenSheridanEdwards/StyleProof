@@ -1,0 +1,27 @@
+✖ component markup inside a script template remains prose (6.998458ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 0
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 88.854917
+
+✖ failing tests:
+
+test at test/class-join-round5.test.mjs:183:1
+✖ component markup inside a script template remains prose (6.998458ms)
+  AssertionError [ERR_ASSERTION]: {"units":[{"sourceKey":"App.svelte","side":"base","range":{"start":{"line":1,"column":53},"end":{"line":1,"column":58}},"token":"old","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"},{"sourceKey":"App.svelte","side":"head","range":{"start":{"line":1,"column":53},"end":{"line":1,"column":58}},"token":"new","explicit":true,"status":"never-rendered","why":"class token never landed on a captured element","level":"warn"}],"gaps":[]}
+      at TestContext.<anonymous> (<workspace>/test/class-join-round5.test.mjs:187:10)
+      at Test.runInAsyncScope (node:async_hooks:226:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

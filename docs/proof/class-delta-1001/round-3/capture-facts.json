@@ -1,0 +1,24 @@
+[
+  {
+    "side": "base",
+    "classPresence": {
+      "version": 2,
+      "ignored": false,
+      "shadowHosts": 1,
+      "frames": 0,
+      "outsideBody": 0,
+      "shadowRootsVerified": true
+    }
+  },
+  {
+    "side": "head",
+    "classPresence": {
+      "version": 2,
+      "ignored": false,
+      "shadowHosts": 1,
+      "frames": 0,
+      "outsideBody": 0,
+      "shadowRootsVerified": true
+    }
+  }
+]

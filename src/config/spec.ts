@@ -44,7 +44,7 @@ export function missingStyleProofSpecMessage(options: {
   } else if (options.configFile) {
     lines.push(`  declared in ${options.configFile}`);
   } else if (options.skippedConfig || options.searched?.length) {
-    lines.push(...searchedLines(options.searched ?? [], '  ', options.skippedConfig));
+    searchedLines(options.searched ?? [], '  ', options.skippedConfig).forEach((appended) => lines.push(appended));
   }
   return lines.join('\n');
 }

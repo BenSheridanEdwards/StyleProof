@@ -91,3 +91,8 @@ main {
     background: #1f2937;
   }
 }
+
+.same-line-old { text-transform: none; }
+.same-line-new { text-transform: uppercase; }
+.collision-old { font-weight: 400; }
+.collision-new { font-weight: 700; }

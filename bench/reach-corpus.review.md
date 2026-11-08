@@ -1,107 +1,117 @@
 # Reach corpus: method and results
 
-Buyer-legible answer to: _when a pull request restyles a state the capture spec
-never opens, does today's gate see it, and can reach evidence name it?_ This is
-Phase 0 of Change Reach ([#934](https://github.com/BenSheridanEdwards/StyleProof/issues/934),
-ticket [#988](https://github.com/BenSheridanEdwards/StyleProof/issues/988)).
+`bench/reach-corpus.results.json` is the measured receipt;
+`pnpm run bench:reach:check` is the CI oracle. “Complete” names the five-state spec,
+not reach-complete certification.
 
 ## Method
 
-- `bench/fixtures/reach/` is one small app: the base side of a PR. Each case in
-  the corpus declares its seeded `edit`, and the head side is the base plus every
-  edit. There are 14 edits. 13 are visual and one is not.
-- `bench/reach-corpus.json` is the only source of truth. It lists five surfaces
-  (home, fault overlay, `status=bad`, dark mode, the 1440px band) and two
-  scenarios. **declared** opens only `home`, as a typical spec does.
-  **complete** opens all five.
-- `bench/reach-corpus.mjs` runs the real product path. esbuild bundles each
-  side with source maps. Chromium renders every surface on both sides.
-  `captureStyleMap` captures each one with `captureReach` and V8 JS coverage, and
-  `diffStyleMaps` compares base with head.
-- `src/rule-reach.ts` supplies J1 through `classifyRuleReach` on the
-  `captureReach` ledger. `bench/reach-joins.mjs` holds the J2/J3 prototypes.
-  - **J1:** a changed served CSS rule must match an element. Changed custom
-    properties follow `aliases`, need every consumer to match, and require a
-    read outside a custom-property declaration. Unread and alias-only tokens
-    are never matched. `@keyframes`, `@font-face` and `@property` resolve
-    through matched references; `@property` also resolves through declarations;
-    alias-only reads do not count.
-  - **J2:** a changed line of render code must run. This uses V8 block coverage
-    resolved through the bundle's source map.
-  - **J3:** a changed class token must land on a captured element. Some paired
-    element's class list must gain or lose it between base and head.
-- Before any case runs, the healthy base is captured twice. The two captures
-  must self-diff to zero and record identical reach ledgers and execution.
-  Missing ledgers or any drift abort the run. Each scenario also fails if its
-  J1 ledger is not complete, because CSS reach is then unknown.
-- Every changed unit, meaning each changed served rule or changed source line,
-  must belong to exactly one case. A unit no case claims fails the run.
+There are 18 seeded changes: 17 visual and one non-visual error handler. Declared
+captures only home; complete captures home, fault, status-bad, dark and wide.
+esbuild source maps, real Chromium, `trackScriptReach`, `captureStyleMap`, and
+`diffStyleMaps` supply the evidence. Healthy repeated captures must have identical
+style and reach evidence. Every changed source unit has exactly one case owner.
 
-## Results (receipt: `bench/reach-corpus.results.json`)
+J1 uses `src/rule-reach.ts`. J2 uses `changedScriptRanges` and
+`classifyScriptReach`; J3 uses `classifyClassReach` and `combineClassReach` from
+`src/`. There is no token-name J3 prototype. The historical noise runner's adapter
+also calls src J3; its previously recorded receipt is historical, not remeasured.
+The corpus constructs one-line patches and selects head units (base for removals),
+not `readScriptChanges`. Real Git/manifest and Chromium tests exercise the adapter,
+captured revision SHAs, project prefixes and report filename pairing.
 
-The migrated runner (J1 from `src/rule-reach.ts`) reproduces these totals in
-Chromium: CI's `node bench/reach-corpus.mjs --check` passed every case on commit
-`b8ebaf468` (run 40170871007). The committed receipt file's timestamp and CSS
-unit strings still come from the earlier prototype run; `npm run bench:reach`
-refreshes them.
+The temporary fixture is a Git repository, so captures resolve actual
+`src/base`/`src/head` project prefixes. Every source unit asserts zero J2 and J3
+run-level gaps. Class-case expectations also assert the number and status of every
+selected occurrence, including both constants in the same-token collision. Base-side
+removals on replacement lines have independent counts and status expectations; they
+are retained under `baseClassUnits` in the receipt.
+No per-occurrence render provenance is recorded. A delta is unknown, never reached
+or J2 corroboration. Token absence is negative evidence only when every map on the occurrence side records
+no omissions with verified version-2 facts and complete pairing: volatile elements,
+ignore lists, untraversed author roots/documents, outside-body children, unstable
+facts and version-1/legacy maps leave absence unknown. Only positive class-context
+negatives may lower J2; vocabulary-only candidates cannot. Token presence, including
+on unpaired elements or unchanged class lists, stays unknown.
 
-| Scenario                | Today's diff shows      | Reach joins                                        |
-| ----------------------- | ----------------------- | -------------------------------------------------- |
-| declared (`home` only)  | 1 of 13 visual changes  | name 11 of the 12 misses; 1 is the pinned residual |
-| complete (all 5 states) | 12 of 13 visual changes | mark every rendered change reached                 |
+## Before/after (#1001)
 
-What each kind of change does in the declared scenario:
+The baseline is main after #1000 / PR #1302 (`0cc4bd2dc`). Its corpus log is retained
+in `docs/proof/class-delta-1001/corpus-before.log`.
 
-| Change                                                         | Today  | Reach                                        |
-| -------------------------------------------------------------- | ------ | -------------------------------------------- |
-| `:hover` colour                                                | shown  | reached (forced `:hover` matches)            |
-| Fault-overlay rule, removed rule, CSS Module rule, ternary arm | missed | never matched (J1)                           |
-| Token used only by the fault badge                             | missed | never matched (J1 consumer closure)          |
-| Dark-mode and 1440px `@media` rules                            | missed | never matched, with the gating `@media`      |
-| `@keyframes` body                                              | missed | blind channel (a matched rule references it) |
-| Class added inside the fault overlay                           | missed | never rendered (J2 never ran)                |
-| Module-scope class constants (incl. one that collides)         | missed | never rendered (J3; J2 alone says "ran")     |
-| Runtime CSS-in-JS style string                                 | missed | **reached: the pinned residual**             |
-| `console.warn` text in an error handler                        | n/a    | never rendered (**noise**)                   |
+| Measurement                   | Before: src J1/J2, separate J3 prototype | After: src J1/J2/J3 |
+| ----------------------------- | ---------------------------------------- | ------------------- |
+| Cases / visual                | 16 / 15                                  | 18 / 17             |
+| Declared visual changes shown | 1/15                                     | 3/17                |
+| Complete visual changes shown | 14/15                                    | 16/17               |
+| Declared misses named         | 14/14                                    | 14/14               |
+| Declared unknown cases        | 5                                        | 7                   |
+| Complete unknown cases        | 6                                        | 8                   |
+| Total unknown scenario cells  | 11                                       | 15                  |
+| Error handler, both scenarios | never-rendered                           | never-rendered      |
 
-## What this proves, and what it doesn't
+On the **16 existing cases**, no combined case changes relative to main. Declared
+module-constant is a vocabulary-only candidate: its head J3 token is absent and
+reads never-rendered, but cannot lower its ran/unknown J2 range. Round two restores
+that combined cell to unknown. Colliding-constant stays unknown: its head token
+`tone-red` appears on the healthy delete link; its base `tone-amber` is absent and
+negative on declared. Both complete sides are unknown.
 
-**Proven:** on a deterministic fixture, a restyle confined to a state the spec
-never opens is invisible to today's diff, and that holds for a CSS rule, a
-token, a media query, a CSS Module, a markup class, and a module-scope constant.
-Reach evidence from a real browser names each of those misses with the changed
-rule or line. Capturing the missing states turns each one into an ordinary
-finding.
+The two new ADR cases add four unknown cells versus main (11 → 15). Declared/complete
+unknown totals are **7/8**, versus main's **5/6**, round zero's **5/8**, and round
+one's **6/8**. Shown counts and the 14/14 declared misses named are unchanged from
+round one. No corpus token status changes from round one's corrected presence rule.
 
-**Named limits, pinned so they cannot drift silently:**
+| Case                  | Declared J2 / J3 / combined                 | Complete J2 / J3 / combined |
+| --------------------- | ------------------------------------------- | --------------------------- |
+| branch-class          | never-ran / never-rendered / never-rendered | ran / unknown / unknown     |
+| module-constant       | ran / never-rendered / unknown              | ran / unknown / unknown     |
+| colliding-constant    | ran / unknown / unknown                     | ran / unknown / unknown     |
+| same-line-class-style | ran / unknown / unknown                     | ran / unknown / unknown     |
+| same-token-collision  | ran / unknown / unknown                     | ran / unknown / unknown     |
 
-- **Runtime CSS-in-JS** (`runtime-css-in-js`). The style string runs at load,
-  so J2 says it ran. The rule is injected only on render, so J1 sees nothing.
-  The value is not a class token, so J3 has no signal. Today it reads as
-  reached, which is a false clearance. Zero-runtime CSS-in-JS compiles to CSS,
-  and J1 covers that exactly.
-- **Noise** (`error-handler`). Changed code that never runs during capture and
-  has no visual effect is still flagged. The client-bundle filter
-  ([#1000](https://github.com/BenSheridanEdwards/StyleProof/issues/1000)) and
-  acknowledgements ([#1006](https://github.com/BenSheridanEdwards/StyleProof/issues/1006))
-  are where that gets addressed.
-- **Blind channel** (`keyframes`). It is reached but computed styles cannot
-  hold it, so it is named rather than counted as clean.
+The same-line case computes a style object on every render; Banner applies it
+only when fault is open, while its class changes on healthy. The class occurrence
+has a delta but no provenance, and cannot corroborate the style value on that same
+line. Both stay unknown. In the same-token case both module constants change
+`collision-old` to `collision-new`; one renders on healthy and one only in fault.
+Both selected occurrences are unknown even when only healthy is captured.
 
-**Not proven:** the cost of recording reach evidence and the noise rate on a real
-app's PRs ([#989](https://github.com/BenSheridanEdwards/StyleProof/issues/989)).
-J2/J3 remain bench prototypes; J3 pairs changed lines by position inside each diff
-hunk. Unsupported CSS parsing fails with unknown reach. The fixture is synthetic,
-and its rates say nothing about a particular consumer app.
+## Limits
 
-## Reproduce
+This synthetic fixture does not measure consumer noise. J2 block entry cannot
+prove value rendering, default parameter values, destructuring defaults, logical
+assignment RHS, later optional-chain links or code after a throwing expression.
+The non-visual error handler remains named noise; keyframes remain a blind channel.
+J3 skips prose, checks presence on all captured elements (including unpaired),
+and cannot reach an occurrence
+without future source-mapped render provenance. Missing class vocabulary, ledgers,
+source ranges or paired captures remain named unmeasured gaps. J2/J3 findings and
+gaps stay advisory at both levels and prevent reach-complete. The changed-stylesheet
+and other ADR attribution joins remain unbuilt.
 
-```sh
-npm run bench:reach         # measure + write the receipt
-npm run bench:reach:check   # fail on any violated expectation
-```
+Round three retains the measured 7/8 unknown totals and all combined/J3 corpus
+statuses. The capture/context fixes do not change this fully paired fixture;
+base-removal counts/statuses remain independently asserted.
 
-Adding a case: add it to `reach-corpus.json` with its `edit`, its `unit`
-matcher, and its expectations, then rerun. Each edit's `from` must occur exactly
-once in the base file. A changed unit that no case's matcher claims fails the
-run.
+Round four preserves every round-three corpus status and the 7/8 unknown totals.
+Predicate/lookup literals and dataset assignments cannot lower J2; unchanged class
+arguments survive inserted constants. Omission facts are opt-in, and complete facts
+now verify head content and announcer author children. Older version-2 facts without
+document-boundary verification remain conservative. This fixture has no such
+omissions, and the independent base-removal checks continue to pass.
+
+Round five preserves every round-four case, J3/base-removal status and count, with
+7/8 unknown totals and zero J2/J3 gaps. The positive AST role allow-list and ordered
+whole-hunk token/role/slot matching do not change this fixture. The measured
+receipt differs only in its generation timestamp.
+
+The dependency-free correction replaces the Babel role reader with the existing
+lexer and an in-repo bounded bracket/work stack. Its receipt matches round five
+exactly except the generation timestamp: all 36 scenario cells, base removals,
+zero J2/J3 gaps and 7/8 unknown totals are unchanged. Runtime dependency files
+match origin/main, with pngjs as the sole runtime dependency.
+
+Round six retains every corpus status/count and the 7/8 unknown totals. Inline
+type scopes, completed-prefix preservation and iterative flat ternary chains do
+not change this fixture; independent base removals and zero J2/J3 gaps still pass.

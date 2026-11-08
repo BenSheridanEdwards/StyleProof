@@ -375,7 +375,9 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
         ? contentCropLines(sides, surface, c, `content-${seq + 1}`)
         : cropCapNote('this surface', ctx.maxCrops);
     if (cropLines.some((line) => line.startsWith('!['))) seq++;
-    md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '', ...changeLines(ctx, c), ...cropLines);
+    md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '');
+    changeLines(ctx, c).forEach((appended) => md.push(appended));
+    cropLines.forEach((appended) => md.push(appended));
   }
   return { md, seq };
 }
@@ -404,7 +406,7 @@ export function renderContentSection(
   let seq = 0;
   for (const surface of surfaces) {
     const out = renderContentSurface(ctx, surface, seq);
-    md.push(...out.md);
+    out.md.forEach((appended) => md.push(appended));
     seq = out.seq;
   }
   return { md, count };

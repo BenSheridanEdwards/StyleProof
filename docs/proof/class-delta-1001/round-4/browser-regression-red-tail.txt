@@ -1,0 +1,30 @@
+  ✓  1192 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multiline template accounts for leading text before executed starts in real Chromium (650ms)
+  ✓  1193 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle multi-token template accounts for leading text before executed starts in real Chromium (656ms)
+  ✓  1194 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle two-line template hunk accounts for leading text before executed starts in real Chromium (653ms)
+  ✓  1195 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › idle clsx template accounts for leading text before executed starts in real Chromium (645ms)
+  ✓  1196 [chromium] › test/script-join-round6.e2e.spec.ts:329:3 › empty map callback accounts for leading text before executed starts in real Chromium (641ms)
+
+
+  1) [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      85 |     expect(diff.changes.every((change) => change.sourceKey === 'app.js')).toBe(true);
+      86 |     const result = classifyClassReach([maps[0]], [maps[1]], diff.changes, [{ base: maps[0], head: maps[1] }]);
+    > 87 |     if (refactor) expect(result.gaps.some((gap) => gap.side === 'head' && gap.paths?.includes('app.js'))).toBe(true);
+         |                                                                                                           ^
+      88 |     else expect(result.gaps).toEqual([]);
+      89 |     expect(result.units).toHaveLength(4);
+      90 |     expect(result.units.every((unit) => unit.status === expected)).toBe(true);
+        at test/class-join.e2e.spec.ts:87:107
+
+    Error Context: test-results/test-class-join.e2e-real-G-0c22d-ving-refactor-stays-unknown-chromium/error-context.md
+
+  1 failed
+    [chromium] › test/class-join.e2e.spec.ts:13:3 › real Git/Chromium J3 class-preserving refactor stays unknown
+  1 skipped
+  1194 passed (8.3m)
+[ELIFECYCLE] Command failed with exit code 1.

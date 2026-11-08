@@ -1,0 +1,439 @@
+{
+  "base": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "V8 can mark bodies of generator / async-generator functions that were called but never iterated as executed, with no inner idle range. Iterator creation does not prove body entry. J2 downgrades ran evidence anywhere in a file whose raw text contains the word yield, function-star text or a star/key/optional-question/generics/paren pattern. Raw gaps allow whitespace and comments; keys include Unicode identifiers with fixed or braced escapes, numerics, quoted names with escaped line continuations, and computed names. Computed and generic contents are bounded to 512 characters; a generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected. Strings, comments, regex and template text are not excluded; this may flag files with no generator, including changes outside a generator and actually iterated bodies.",
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.ts",
+            "sourceKey": "app.ts",
+            "contentHash": "338bb3fea85665696231cc22a58637dd0d179357b420396bec789cd3590f2171",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                11,
+                11
+              ],
+              [
+                1,
+                16,
+                16
+              ],
+              [
+                2,
+                0,
+                0
+              ],
+              [
+                2,
+                6,
+                6
+              ],
+              [
+                2,
+                8,
+                8
+              ],
+              [
+                2,
+                9,
+                9
+              ],
+              [
+                2,
+                10,
+                10
+              ],
+              [
+                2,
+                20,
+                20
+              ],
+              [
+                2,
+                21,
+                21
+              ],
+              [
+                2,
+                28,
+                28
+              ],
+              [
+                2,
+                33,
+                33
+              ],
+              [
+                2,
+                36,
+                36
+              ],
+              [
+                2,
+                38,
+                38
+              ],
+              [
+                2,
+                39,
+                39
+              ],
+              [
+                3,
+                0,
+                0
+              ],
+              [
+                3,
+                11,
+                11
+              ],
+              [
+                3,
+                20,
+                20
+              ],
+              [
+                3,
+                24,
+                24
+              ],
+              [
+                3,
+                26,
+                26
+              ],
+              [
+                3,
+                28,
+                28
+              ],
+              [
+                3,
+                30,
+                30
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [
+              [
+                1,
+                18,
+                18
+              ],
+              [
+                1,
+                27,
+                27
+              ],
+              [
+                1,
+                32,
+                32
+              ],
+              [
+                1,
+                34,
+                34
+              ],
+              [
+                1,
+                35,
+                35
+              ],
+              [
+                1,
+                46,
+                46
+              ],
+              [
+                1,
+                60,
+                60
+              ],
+              [
+                1,
+                62,
+                62
+              ]
+            ],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "head": {
+    "version": 1,
+    "window": "navigation",
+    "status": "measured",
+    "notes": [
+      "V8 can mark bodies of generator / async-generator functions that were called but never iterated as executed, with no inner idle range. Iterator creation does not prove body entry. J2 downgrades ran evidence anywhere in a file whose raw text contains the word yield, function-star text or a star/key/optional-question/generics/paren pattern. Raw gaps allow whitespace and comments; keys include Unicode identifiers with fixed or braced escapes, numerics, quoted names with escaped line continuations, and computed names. Computed and generic contents are bounded to 512 characters; a generator with no `yield` whose computed key or type-parameter list exceeds 512 characters is not detected. Strings, comments, regex and template text are not excluded; this may flag files with no generator, including changes outside a generator and actually iterated bodies.",
+      "An executed anchor means its block was entered; code after any expression that threw in that block is not proved. V8 expression evaluation is unknown for default parameter values, destructuring defaults, logical assignment RHS (||=, &&=, ??=), and later links of a short-circuited optional chain. J2 2.2 must not treat these expressions as reached.",
+      "After an optional chain, V8 may end an enclosing idle continuation early, so later code in that block can read executed even when it never ran. J2 cannot prove that continuation from these counters.",
+      "A minifier can merge equivalent arms or hoist a shared call, retaining a source-map anchor on one original arm while the other arm ran. J2 cannot detect this source-map attribution limit from the map; execution alone is not rendering proof."
+    ],
+    "scripts": [
+      {
+        "url": "https://overlay.test/app.js",
+        "status": "mapped",
+        "files": [
+          {
+            "source": "app.ts",
+            "sourceKey": "app.ts",
+            "contentHash": "d1272bbbd0883182e40f74cf56b0aadc8ce7c15e9b30f31dbf70e1a45f350443",
+            "executed": [
+              [
+                1,
+                0,
+                0
+              ],
+              [
+                1,
+                11,
+                11
+              ],
+              [
+                1,
+                16,
+                16
+              ],
+              [
+                2,
+                0,
+                0
+              ],
+              [
+                2,
+                6,
+                6
+              ],
+              [
+                2,
+                8,
+                8
+              ],
+              [
+                2,
+                9,
+                9
+              ],
+              [
+                2,
+                10,
+                10
+              ],
+              [
+                2,
+                20,
+                20
+              ],
+              [
+                2,
+                21,
+                21
+              ],
+              [
+                2,
+                28,
+                28
+              ],
+              [
+                2,
+                33,
+                33
+              ],
+              [
+                2,
+                36,
+                36
+              ],
+              [
+                2,
+                38,
+                38
+              ],
+              [
+                2,
+                39,
+                39
+              ],
+              [
+                3,
+                0,
+                0
+              ],
+              [
+                3,
+                11,
+                11
+              ],
+              [
+                3,
+                20,
+                20
+              ],
+              [
+                3,
+                24,
+                24
+              ],
+              [
+                3,
+                26,
+                26
+              ],
+              [
+                3,
+                28,
+                28
+              ],
+              [
+                3,
+                30,
+                30
+              ]
+            ],
+            "mixed": [],
+            "unexecuted": [
+              [
+                1,
+                18,
+                18
+              ],
+              [
+                1,
+                27,
+                27
+              ],
+              [
+                1,
+                32,
+                32
+              ],
+              [
+                1,
+                34,
+                34
+              ],
+              [
+                1,
+                35,
+                35
+              ],
+              [
+                1,
+                46,
+                46
+              ],
+              [
+                1,
+                60,
+                60
+              ],
+              [
+                1,
+                62,
+                62
+              ]
+            ],
+            "encoding": "line-column-tuples"
+          }
+        ]
+      }
+    ],
+    "projectRootPrefix": ""
+  },
+  "reach": {
+    "level": "warn",
+    "blocking": 0,
+    "complete": false,
+    "ledger": "complete",
+    "counts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 0,
+      "blind-channel": 0
+    },
+    "rules": [],
+    "unreadableSheets": 0,
+    "scripts": [
+      {
+        "sourceKey": "app.ts",
+        "side": "base",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 33
+          },
+          "end": {
+            "line": 2,
+            "column": 36
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "J2 block-entry residual: bodies of generator / async-generator functions that were called but never iterated; V8 iterator creation cannot prove body entry; raw generator-like text downgrades ran evidence anywhere in this file to unmeasured, including outside a generator; this may include files with no generator",
+        "level": "warn"
+      },
+      {
+        "sourceKey": "app.ts",
+        "side": "head",
+        "range": {
+          "start": {
+            "line": 2,
+            "column": 33
+          },
+          "end": {
+            "line": 2,
+            "column": 36
+          }
+        },
+        "execution": "unmeasured",
+        "status": "unmeasured",
+        "why": "J2 block-entry residual: bodies of generator / async-generator functions that were called but never iterated; V8 iterator creation cannot prove body entry; raw generator-like text downgrades ran evidence anywhere in this file to unmeasured, including outside a generator; this may include files with no generator",
+        "level": "warn"
+      }
+    ],
+    "scriptCounts": {
+      "reached": 0,
+      "never-rendered": 0,
+      "unmeasured": 2,
+      "unknown": 0
+    },
+    "scriptGapCount": 0,
+    "gaps": [
+      {
+        "join": "J1",
+        "status": "unknown",
+        "kind": "not-built",
+        "reason": "changed stylesheets no capture served: StyleProof does not yet join the pull request's changed stylesheets with the sheets captures served, so a lazy route's or code-split chunk's changed CSS is not listed here",
+        "remedy": "add a surface that loads each changed stylesheet; a later Change Reach phase (#934) adds the join"
+      },
+      {
+        "join": "J3",
+        "status": "unmeasured",
+        "kind": "not-built",
+        "reason": "class-list deltas are not recorded yet",
+        "remedy": "none yet: a later Change Reach phase (#934) adds it"
+      }
+    ]
+  }
+}

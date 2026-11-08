@@ -48,7 +48,7 @@ function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number):
 const boxesOverlap = (l: Box | null, r: Box | null): boolean => visible(l) && visible(r) && intersects(l, r);
 
 function mergeInto(left: Group, right: Group): void {
-  left.paths.push(...right.paths);
+  right.paths.forEach((appended) => left.paths.push(appended));
   left.before = unionVisibleBoxes(left.before, right.before);
   left.after = unionVisibleBoxes(left.after, right.after);
 }
@@ -211,13 +211,13 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     const layers = screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`);
     if (layers[0] && layers[1]) {
       const packed = regionCrop(a, sf, layers, state);
-      md.push(...packed.md);
+      packed.md.forEach((appended) => md.push(appended));
       if (packed.images.composite) stateImages[state] = packed.images;
     } else {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
     }
 
-    md.push(...a.changes(sf));
+    a.changes(sf).forEach((appended) => md.push(appended));
   }
   return { md, stateImages };
 }
@@ -236,9 +236,10 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
   const glance = propertyGlanceLine(cropFindings);
   if (glance) md.push('', glance);
-  md.push(...spacingLines(a.spacing));
+  spacingLines(a.spacing).forEach((appended) => md.push(appended));
   const pack = regionCrop(a, cropFindings, a.pngs);
-  md.push(...pack.md, ...a.changes(cropFindings));
+  pack.md.forEach((appended) => md.push(appended));
+  a.changes(cropFindings).forEach((appended) => md.push(appended));
   return { md, pack, trailing: [] };
 }
 
@@ -265,19 +266,21 @@ function renderRegion(a: RegionArgs) {
   const cropFindings = hasDom ? regionFindings : rest;
   const section = restingSection(a, cropFindings, !stateOnly && shownRest.length > 0);
   const resting = section.pack;
-  md.push(...section.md);
+  section.md.forEach((appended) => md.push(appended));
   const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
-  md.push(...states.md);
+  states.md.forEach((appended) => md.push(appended));
 
-  if (stateOnly && rest.length) md.push(...a.changes(rest));
+  if (stateOnly && rest.length) {
+    a.changes(rest).forEach((appended) => md.push(appended));
+  }
   const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);
     if (note) md.push('', note);
-    md.push(...a.changes(regionFindings));
+    a.changes(regionFindings).forEach((appended) => md.push(appended));
   }
-  md.push(...section.trailing);
+  section.trailing.forEach((appended) => md.push(appended));
   const { visualEvidence, reason } = resting;
 
   const rendered = {

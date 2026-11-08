@@ -1,0 +1,52 @@
+Already up to date
+Done in 58ms using pnpm v11.7.0
+
+Running 2 tests using 1 worker
+
+(node:26545) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  1 [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=false (912ms)
+(node:26689) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ✘  2 [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=true (867ms)
+
+
+  1) [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=false
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      75 |       expect(head.length).toBeGreaterThan(0);
+      76 |       fs.writeFileSync(path.join(root, 'reach.json'), JSON.stringify(report, null, 2));
+    > 77 |       expect(head.every((u) => u.status !== 'never-rendered')).toBe(true);
+         |                                                                ^
+      78 |       expect(report.classes.every((u) => !u.explicit)).toBe(true);
+      79 |     } finally {
+      80 |       process.chdir(previous);
+        at <worktree>/test/class-join-round7.e2e.spec.ts:77:64
+
+    Error Context: test-results/test-class-join-round7.e2e-459b6-ower-J2-visual-change-false-chromium/error-context.md
+
+  2) [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=true
+
+    Error: expect(received).toBe(expected) // Object.is equality
+
+    Expected: true
+    Received: false
+
+      75 |       expect(head.length).toBeGreaterThan(0);
+      76 |       fs.writeFileSync(path.join(root, 'reach.json'), JSON.stringify(report, null, 2));
+    > 77 |       expect(head.every((u) => u.status !== 'never-rendered')).toBe(true);
+         |                                                                ^
+      78 |       expect(report.classes.every((u) => !u.explicit)).toBe(true);
+      79 |     } finally {
+      80 |       process.chdir(previous);
+        at <worktree>/test/class-join-round7.e2e.spec.ts:77:64
+
+    Error Context: test-results/test-class-join-round7.e2e-a4956-lower-J2-visual-change-true-chromium/error-context.md
+
+  2 failed
+    [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=false
+    [chromium] › test/class-join-round7.e2e.spec.ts:11:3 › real Git/Chromium nested inline type cannot lower J2, visual change=true
