@@ -19,9 +19,10 @@ report branch and posts PR comments using the token you provide. Reports of cred
 handling, command injection, or path traversal in the CLIs, library, or Action are in
 scope.
 
-StyleProof loads the `styleproof.config.*` it discovers; a `.ts`, `.mjs` or `.js` config runs
-with your permissions. The limits of that discovery are documented under
-[Configuration](README.md#configuration): on POSIX, group-writable parent folders owned by
-you or root are trusted. On Windows no owner or write check applies, so a `.git` entry in a
-shared ancestor lets a config in that ancestor, or in any folder between it and the start
-folder, load when StyleProof runs from a non-git folder below it.
+StyleProof loads the `styleproof.config.*` it discovers; a `.ts`, `.mjs` or `.js` config
+runs with your permissions. The limits of that discovery are documented under
+[Configuration](README.md#configuration): on POSIX, parent folders and their config files
+are trusted when owned by you or root and not world-writable, even if group-writable. On
+Windows no owner or write check applies, so a `.git` entry in a shared ancestor lets a
+config in that ancestor, or in any folder between it and the start folder, load when
+StyleProof runs from a non-git folder below it.
