@@ -117,14 +117,14 @@ function locationAt(dir: string): StyleProofConfigLocation | undefined {
   return fs.existsSync(jsonPath) ? { path: jsonPath, dir, filename: CONFIG_JSON } : undefined;
 }
 
-function unsafeDiscoveryFolder(dir: string): string | undefined {
+function unsafeDiscoveryPath(target: string, kind: 'folder' | 'config file'): string | undefined {
   try {
-    const stat = fs.statSync(dir);
+    const stat = fs.statSync(target);
     if (stat.uid !== process.getuid!() && stat.uid !== 0) return 'owned by another user';
     if (stat.mode & 0o002) return 'world-writable';
     return undefined;
   } catch {
-    return 'cannot stat folder';
+    return `cannot stat ${kind}`;
   }
 }
 
@@ -140,7 +140,14 @@ function findGitBoundary(start: string): string | undefined {
 
 function discoveryFolderRejection(dir: string, start: string): string | undefined {
   if (dir === start || process.platform === 'win32') return undefined;
-  return unsafeDiscoveryFolder(dir);
+  return unsafeDiscoveryPath(dir, 'folder');
+}
+
+/** An ancestor's config file needs the same owner and write checks as its folder. */
+function configFileRejection(location: StyleProofConfigLocation, start: string): string | undefined {
+  if (location.dir === start || process.platform === 'win32') return undefined;
+  const reason = unsafeDiscoveryPath(location.path, 'config file');
+  return reason && `unsafe config file ${location.path}: ${reason}`;
 }
 
 function endsDiscovery(dir: string, windowsBoundary: string | undefined): boolean {
@@ -180,6 +187,14 @@ function reportDiscoveryRefusal(dir: string, reason: string): string | undefined
   }
 }
 
+/** The config in an accepted folder, or a stat-only refusal when the file itself is unsafe. */
+function discoveryAt(dir: string, start: string, searched: string[]): StyleProofConfigDiscovery | undefined {
+  const location = locationAt(dir);
+  if (!location) return undefined;
+  const reason = configFileRejection(location, start);
+  return reason ? { searched, skippedConfig: reportDiscoveryRefusal(dir, reason) } : { location, searched };
+}
+
 /** Accept the start folder; walk trusted ancestors up to the nearest .git marker. */
 export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofConfigDiscovery {
   const searched: string[] = [];
@@ -195,8 +210,8 @@ export function discoverStyleProofConfig(startDir = process.cwd()): StyleProofCo
       return { searched, skippedConfig };
     }
     CONFIG_FILENAMES.map((filename) => path.join(dir, filename)).forEach((appended) => searched.push(appended));
-    const location = locationAt(dir);
-    if (location) return { location, searched };
+    const found = discoveryAt(dir, start, searched);
+    if (found) return found;
     if (endsDiscovery(dir, windowsBoundary)) {
       if (process.platform === 'win32' && !windowsBoundary && path.dirname(dir) !== dir) {
         const skippedConfig = reportDiscoveryRefusal(
