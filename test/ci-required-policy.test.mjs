@@ -192,8 +192,10 @@ for (const name of workflowNames) {
     const parsed = load(source);
     const changes = parsed.jobs.changes;
     assert.ok(changes, `${name} has a changes job`);
-    assert.equal(parsed.on.pull_request?.paths, undefined);
-    assert.equal(parsed.on.pull_request?.['paths-ignore'], undefined);
+    for (const [event, trigger] of Object.entries(parsed.on)) {
+      assert.equal(trigger?.paths, undefined, `${name} starts on every ${event}`);
+      assert.equal(trigger?.['paths-ignore'], undefined, `${name} starts on every ${event}`);
+    }
     if (name !== 'ci.yml') {
       const sameRepository = 'github.event.pull_request.head.repo.full_name == github.repository';
       const gate =
