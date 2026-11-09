@@ -37,7 +37,7 @@ function report(t, extraText = '') {
   return fs.readFileSync(result.reportMdPath, 'utf8');
 }
 
-const BASE = 'https://github.com/acme/app/blob/' + 'c'.repeat(40) + '/pr-7/';
+const BASE = 'https://github.com/BenSheridanEdwards/StyleProof/blob/' + 'c'.repeat(40) + '/pr-7/';
 
 test('without a verified image URL the comment carries each section as text', (t) => {
   const comment = reportCommentSummary(report(t), { imageBase: '' });

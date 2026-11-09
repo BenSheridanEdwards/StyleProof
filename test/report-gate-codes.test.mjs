@@ -58,7 +58,7 @@ test('the README live report and its PR comment show no internal gate code (QA1-
 
 test('the PR comment built from the demo report shows no internal gate code (QA1-02)', () => {
   const md = read('docs/demo/report.md');
-  const base = 'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/';
+  const base = 'https://github.com/BenSheridanEdwards/StyleProof/blob/' + 'a'.repeat(40) + '/pr-1/';
   assertNoCodes('text-only comment', reportCommentSummary(md));
   assertNoCodes('image comment', reportCommentSummary(md, { imageBase: base }));
 });
