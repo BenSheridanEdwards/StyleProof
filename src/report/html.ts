@@ -3,7 +3,10 @@ import path from 'node:path';
 import {
   decodeCapturedMeta,
   decodeSectionMeta,
+  PAIR_ROW,
   SECTION_END,
+  STATE_LABEL,
+  WHERE_LINE,
   type CapturedMeta,
   type SectionMeta,
 } from './section-meta.js';
@@ -122,7 +125,6 @@ const RULE = /^\s*---+\s*$/;
 const LIST_ITEM = /^- /;
 const QUOTE = /^> /;
 const IMAGE_LINE = /^!\[/;
-const WHERE_LINE = /^(<img [^<>]*>)<br><sub>([^<>]*)<\/sub>$/;
 const TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
 /** A line ending in `<br>` not preceded by an odd run of backslashes (which would escape its `<`). */
 const GENERATED_BREAK = /(?<!\\)(?:\\\\)*<br>$/;
@@ -299,8 +301,6 @@ function pairBlock(
   return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
 }
 
-const PAIR_ROW = /^\| (?:Before \| After|--- \| ---|<img [^|]*\| <img [^|]*) \|$/;
-const STATE_LABEL = /^\*\*While [^*]+\*\*$/;
 const PAGE_LINE = /^_On (.+)_$/;
 
 /** Split a section's Markdown body into its line, Where captions, notes and the CSS fold. */
@@ -677,13 +677,29 @@ function embedImages(page: string, outDir: string, maxBytes: number): string {
     omitted -= 1;
     return true;
   };
+  // Maps of the same page share one inlined copy: the first carries an id, the rest `<use>` it.
+  const pageIds = new Map<string, string>();
+  const reuse = (slot: ImageSlot, i: number): boolean => {
+    const id = pageIds.get(slot.src);
+    const html =
+      id && slot.match.replace(/<image href="[^"]*" width="[^"]*" height="[^"]*"\/>/, `<use href="#${id}"/>`);
+    const cost = html ? Buffer.byteLength(html) - Buffer.byteLength(rendered[i]) : Infinity;
+    if (!html || cost > remaining) return false;
+    rendered[i] = html;
+    remaining -= cost;
+    omitted -= 1;
+    return true;
+  };
   for (const { slot, i } of order) {
     if (slot.fallback) {
-      // The SVG map needs the whole page; without it, the PNG overview stands in.
-      if (!embed(slot.match, slot.src, 'href', i)) {
-        const fallbackSrc = slot.fallback.match(/ src="([^"]*)"/)?.[1] ?? '';
-        embed(slot.fallback, fallbackSrc, 'src', i);
+      if (reuse(slot, i)) continue;
+      const id = `sp-page-${pageIds.size + 1}`;
+      if (embed(slot.match.replace('<image href=', `<image id="${id}" href=`), slot.src, 'href', i)) {
+        pageIds.set(slot.src, id);
+        continue;
       }
+      // The SVG map needs the whole page; without it, the PNG overview stands in.
+      embed(slot.fallback, slot.fallback.match(/ src="([^"]*)"/)?.[1] ?? '', 'src', i);
     } else embed(slot.match, slot.src, 'src', i);
   }
   body = body.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);

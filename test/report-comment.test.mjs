@@ -95,3 +95,33 @@ test('map-supplied text cannot inject an approval box, a receipt or a mention in
   assert.doesNotMatch(comment, /@owner/, 'mentions are neutralised');
   assert.doesNotMatch(comment, /\]\(javascript:/);
 });
+
+test('the opening block is capped too, even with no change section (RV2-02)', () => {
+  const long = Array.from(
+    { length: 5000 },
+    (_, i) => `⚠️ line ${i} of a very long blocking notice that keeps going`,
+  ).join('\n\n');
+  const md = [
+    '## 🗺️ StyleProof report',
+    '',
+    long,
+    '',
+    '<details>',
+    '<summary>Evidence</summary>',
+    '',
+    'x',
+    '</details>',
+  ].join('\n');
+  const summary = reportCommentSummary(md, { maxChars: 2000 });
+  assert.ok(summary.length <= 2000, `${summary.length} characters`);
+  assert.match(summary, /^## 🗺️ StyleProof report/);
+  assert.match(summary, /in the full report\._$/);
+  assert.doesNotMatch(summary, /Evidence/);
+});
+
+test('keepImages keeps image lines a caller already made resolvable, without an image base (RV2-13)', (t) => {
+  const md = report(t).replaceAll('src="crops/', 'src="docs/readme/live-report/crops/');
+  const comment = reportCommentSummary(md, { keepImages: true });
+  assert.match(comment, /<img src="docs\/readme\/live-report\/crops\/[^"]+-before\.png"/);
+  assert.doesNotMatch(comment, /\?raw=1/);
+});

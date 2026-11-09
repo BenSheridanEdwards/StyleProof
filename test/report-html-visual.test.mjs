@@ -79,7 +79,7 @@ test('a change section is a card: name, line, SVG Where map, clean pair, collaps
     html,
     /<svg viewBox="0 \d+ 800 \d+" role="img" aria-label="Where on shop @ 800: 2 card titles highlighted" class="map"/,
   );
-  assert.match(html, /<image href="data:image\/png;base64,[^"]+" width="800" height="400"\/>/);
+  assert.match(html, /<image id="sp-page-\d+" href="data:image\/png;base64,[^"]+" width="800" height="400"\/>/);
   assert.equal(html.match(/<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" rx="6" class="ring"\/>/g)?.length, 2);
   assert.match(
     html,
@@ -170,4 +170,35 @@ test('a budget too small for the full design still keeps every word in a plain p
   } finally {
     rmTmp(root);
   }
+});
+
+test('each whole page is inlined once, however many Where maps draw on it (RV2-14)', (t) => {
+  const root = mkTmp('styleproof-html-once-');
+  t.after(() => rmTmp(root));
+  for (const side of ['before', 'after']) {
+    const color = side === 'before' ? 'rgb(0, 0, 0)' : 'rgb(200, 0, 0)';
+    const png = new PNG({ width: 1280, height: 900 });
+    png.data.fill(235);
+    const elements = {};
+    for (const [i, cls] of ['title', 'price', 'note'].entries()) {
+      elements[`body > p:nth-child(${i + 1})`] = { tag: 'p', cls, rect: [20, 40 + i * 250, 300, 40], style: { color } };
+    }
+    writeCapture(path.join(root, side), 'home@1280', makeMap({ elements }), PNG.sync.write(png));
+  }
+  const outDir = path.join(root, 'report');
+  const result = generateStyleMapReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir,
+  });
+  const html = renderReportHtml(fs.readFileSync(result.reportMdPath, 'utf8'), { outDir });
+  const maps = html.match(/<svg [^>]*class="map"/g) ?? [];
+  assert.equal(maps.length, 3, 'three sections, three SVG maps');
+  const head = fs
+    .readFileSync(path.join(outDir, 'crops', 'home-1280-page-head.png'))
+    .toString('base64')
+    .slice(0, 200);
+  const inMaps = [...html.matchAll(/<svg [^>]*class="map"[\s\S]*?<\/svg>/g)].filter((m) => m[0].includes(head)).length;
+  assert.equal(inMaps, 1, 'the head page is inlined in one map; the others reuse it');
+  assert.equal((html.match(/<use href="#sp-page-\d+"\/>/g) ?? []).length, 2);
 });

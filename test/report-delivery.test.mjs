@@ -261,6 +261,30 @@ test('a report with hundreds of sections still fits one GitHub comment (QA1-01)'
   assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
 });
 
+test('a report with no change section but a huge reach table still fits one comment with its box (RV2-02)', async () => {
+  const rows = Array.from(
+    { length: 2000 },
+    (_, i) => `| \`.legacy-rule-${i}:hover > .child-${i}\` | \`/assets/legacy-${i}.css\` | never matched |`,
+  );
+  const reportMd = [
+    '## 🗺️ StyleProof report',
+    '',
+    '**No visual changes.**',
+    '',
+    '## Changed but never matched',
+    '',
+    '| Rule | Sheet | Status |',
+    '| --- | --- | --- |',
+    ...rows,
+  ].join('\n');
+  const body = (await executeActionComment({ repositoryPrivate: false, reportMd })).created[0].body;
+  assert.ok(body.length <= 65_536, `${body.length} characters`);
+  assert.match(body, /\*\*No visual changes\.\*\*/);
+  assert.doesNotMatch(body, /legacy-rule-0/, 'the reach table stays in the linked report');
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+  assert.equal(body.split(reportUrl).length - 1, 1);
+});
+
 test('report delivery formatter remains Action-internal rather than a public package promise', () => {
   assert.equal(Object.hasOwn(publicApi, 'buildReportDelivery'), false);
   assert.equal(Object.hasOwn(publicApi, 'buildArtifactReportDelivery'), false);

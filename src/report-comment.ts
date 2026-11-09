@@ -1,3 +1,5 @@
+import { isSectionMetaLine, PAIR_ROW, SECTION_END, STATE_LABEL, WHERE_LINE } from './report/section-meta.js';
+
 /**
  * The PR comment's report content: report.md's summary plus every change section (name,
  * line, Where, the CSS on demand), as the approved design shows it. The Action adds the
@@ -14,12 +16,10 @@
  */
 export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 
-const SECTION_DATA = /^<!-- styleproof-section [^<>]* -->$/;
-const SECTION_END = '<!-- styleproof-section-end -->';
-const WHERE_LINE = /^<img [^<>]*><br><sub>([^<>]*)<\/sub>$/;
-const PAIR_ROW = /^\| (?:Before \| After|--- \| ---|<img [^|]*\| <img [^|]*) \|$/;
-const STATE_LABEL = /^\*\*While [^*]+\*\*$/;
 const APPROVAL_BOX = /^\s*- \[[ xX]\]/;
+/** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
+const HEAD_END = /^(?:## |<details>)/;
+const MORE_RESERVE = 64;
 
 type Section = { title: string; body: string[] };
 
@@ -30,7 +30,7 @@ function parse(lines: string[]): { top: string[]; sections: Section[] } {
   const sections: Section[] = [];
   for (let i = Math.max(first, 0); first >= 0 && i < lines.length; i++) {
     const data = lines.slice(i + 1).find((l) => l.trim()) ?? '';
-    if (!lines[i].startsWith('### ') || !SECTION_DATA.test(data)) continue;
+    if (!lines[i].startsWith('### ') || !isSectionMetaLine(data)) continue;
     const end = lines.indexOf(SECTION_END, i);
     sections.push({ title: lines[i], body: lines.slice(i + 1, end < 0 ? lines.length : end) });
     i = end < 0 ? lines.length : end;
@@ -38,17 +38,18 @@ function parse(lines: string[]): { top: string[]; sections: Section[] } {
   return { top, sections };
 }
 
-/** One section for the comment: absolute images behind `imageBase`, otherwise text only. */
-function sectionLines(section: Section, imageBase: string): string[] {
+/** One section for the comment: images when `images` is set (rebased onto `imageBase`), otherwise text only. */
+function sectionLines(section: Section, images: boolean, imageBase: string): string[] {
   const out = [section.title];
   section.body.forEach((line, i) => {
     if (line.includes('<!--') || APPROVAL_BOX.test(line)) return;
-    if (imageBase) {
-      out.push(line.replace(/src="crops\/([^"?]+)"/g, (_m, file: string) => `src="${imageBase}crops/${file}?raw=1"`));
+    if (images) {
+      const rebase = (_m: string, file: string) => `src="${imageBase}crops/${file}?raw=1"`;
+      out.push(imageBase ? line.replace(/src="crops\/([^"?]+)"/g, rebase) : line);
       return;
     }
     const where = line.match(WHERE_LINE);
-    if (where) out.push(`<sub>${where[1]}</sub>`);
+    if (where) out.push(`<sub>${where[2]}</sub>`);
     else if (PAIR_ROW.test(line)) return;
     // A state label stays only when it heads a note, not a pair table.
     else if (
@@ -71,26 +72,48 @@ function tidy(lines: string[]): string[] {
   return out;
 }
 
+/** The summary and blocking lines only: group headings, Evidence and reach tables stay in the report. */
+function openingLines(top: string[]): string[] {
+  const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l));
+  return tidy((end < 0 ? top : top.slice(0, end)).filter((l) => !l.includes('<!--') && !APPROVAL_BOX.test(l)));
+}
+
+type Block = { text: string; sep: string; section: boolean };
+
+/** Join blocks until `maxChars`, then close with what was left out. */
+function cutToBudget(blocks: Block[], maxChars: number): string {
+  let body = '';
+  for (const [n, block] of blocks.entries()) {
+    const next = body ? `${body}${block.sep}${block.text}` : block.text;
+    // Room for whichever closing line a later cut would need.
+    const reserve = n === blocks.length - 1 ? 0 : MORE_RESERVE;
+    if (next.length + reserve > maxChars) return `${body}${moreLine(blocks.slice(n).filter((b) => b.section).length)}`;
+    body = next;
+  }
+  return body;
+}
+
+const moreLine = (left: number): string =>
+  left
+    ? `\n\n_…and ${left} more ${left === 1 ? 'change' : 'changes'} in the full report._`
+    : '\n\n_…the rest is in the full report._';
+
 /** The comment's report content, inside `maxChars`. */
 export function reportCommentSummary(
   markdown: string,
-  options: { imageBase?: string; maxChars?: number } = {},
+  options: {
+    imageBase?: string;
+    /** Keep image lines as they are: the caller already made their sources resolvable (the README example). */
+    keepImages?: boolean;
+    maxChars?: number;
+  } = {},
 ): string {
   const imageBase = /^https:\/\/github\.com\/[^\s"<>?#]+\/$/.test(options.imageBase ?? '') ? options.imageBase! : '';
-  const maxChars = options.maxChars ?? COMMENT_SUMMARY_MAX_CHARS;
+  const images = Boolean(imageBase || options.keepImages);
   const { top, sections } = parse(markdown.split('\n'));
-  // Section-group H2s ("## Changes") would sit empty above the approval box.
-  const head = tidy(
-    top.filter((l, i) => (i === 0 || !l.startsWith('## ')) && !l.includes('<!--') && !APPROVAL_BOX.test(l)),
-  ).join('\n');
-  const blocks = sections.map((s) => sectionLines(s, imageBase).join('\n'));
-  let body = head;
-  for (const [n, block] of blocks.entries()) {
-    const rest = blocks.length - n;
-    const more = `\n\n_…and ${rest} more ${rest === 1 ? 'change' : 'changes'} in the full report._`;
-    const reserve = n === blocks.length - 1 ? 0 : more.length + 40;
-    if (body.length + 2 + block.length + reserve > maxChars) return `${body}${more}`;
-    body = `${body}\n\n${block}`;
-  }
-  return body;
+  const blocks: Block[] = [
+    ...openingLines(top).map((text) => ({ text, sep: '\n', section: false })),
+    ...sections.map((s) => ({ text: sectionLines(s, images, imageBase).join('\n'), sep: '\n\n', section: true })),
+  ];
+  return cutToBudget(blocks, options.maxChars ?? COMMENT_SUMMARY_MAX_CHARS);
 }

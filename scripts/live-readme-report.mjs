@@ -92,7 +92,7 @@ fs.writeFileSync(res.reportMdPath, report);
 const inlined = report.replaceAll('src="crops/', 'src="docs/readme/live-report/crops/');
 // The Action's comment content, as a public repository gets it (images kept). The crops
 // were repointed above, so they resolve from the README rather than the report branch.
-const summary = reportCommentSummary(inlined, { imageBase: 'https://github.com/BenSheridanEdwards/StyleProof/' });
+const summary = reportCommentSummary(inlined, { keepImages: true });
 const comment = [
   '<!-- styleproof-report -->',
   '',

@@ -71,6 +71,17 @@ const PREFIX = '<!-- styleproof-section ';
 const SUFFIX = ' -->';
 export const SECTION_END = '<!-- styleproof-section-end -->';
 
+/** Whether a line is a section's hidden data comment (without decoding it). */
+export const isSectionMetaLine = (line: string): boolean => line.startsWith(PREFIX) && line.endsWith(SUFFIX);
+
+// The Markdown lines a section writes around its data, read back by report.html and the PR comment.
+/** The Where map line: its `<img>` tag and caption. */
+export const WHERE_LINE = /^(<img [^<>]*>)<br><sub>([^<>]*)<\/sub>$/;
+/** A before/after pair table row: header, separator or the two images. */
+export const PAIR_ROW = /^\| (?:Before \| After|--- \| ---|<img [^|]*\| <img [^|]*) \|$/;
+/** The bold label above a forced state's pair ("**While hovered**"). */
+export const STATE_LABEL = /^\*\*While [^*]+\*\*$/;
+
 /** The hidden comment line for one section. */
 export function encodeSectionMeta(meta: SectionMeta): string {
   // `-` is encoded too, so the comment body can never hold `--`.
