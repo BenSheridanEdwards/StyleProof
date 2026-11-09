@@ -179,7 +179,7 @@ test('coverage merges three shards and remains required', () => {
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}coverage-shards:)/)?.[0] ?? '';
   const coverageJob = ci.match(/ {2}coverage-shards:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
-  const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
+  const e2eJob = ci.match(/\n {2}e2e:\n[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
   const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}detection-corpus:)/)?.[0] ?? '';
   const detectionCorpus = ci.match(/ {2}detection-corpus:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
