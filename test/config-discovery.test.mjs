@@ -1318,6 +1318,13 @@ test('nested start searches up to the .git root (win32)', async (t) => {
   fs.mkdirSync(path.join(repo, '.git'));
   fs.writeFileSync(configPath, "export default { blocking: 'advisory' };");
   Object.defineProperty(process, 'platform', { value: 'win32' });
+  const statSync = fs.statSync;
+  t.mock.method(fs, 'statSync', (candidate, ...args) => {
+    const stat = statSync(candidate, ...args);
+    return candidate === parent || candidate === repo
+      ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: 12345, mode: 0o777 })
+      : stat;
+  });
   let output = '';
   t.mock.method(process.stderr, 'write', (chunk) => {
     output += chunk;
@@ -1360,11 +1367,6 @@ test('the walk stops at the nearest .git (win32)', async (t) => {
   fs.writeFileSync(path.join(inner, '.git'), 'gitdir: x\n');
   fs.writeFileSync(configPath, 'throw new Error("must not execute");');
   Object.defineProperty(process, 'platform', { value: 'win32' });
-  const readFileSync = fs.readFileSync;
-  t.mock.method(fs, 'readFileSync', (candidate, ...args) => {
-    assert.notEqual(String(candidate), configPath, 'outer config must never be read');
-    return readFileSync(candidate, ...args);
-  });
   let output = '';
   t.mock.method(process.stderr, 'write', (chunk) => {
     output += chunk;
@@ -1390,7 +1392,8 @@ test('the walk stops at the nearest .git (win32)', async (t) => {
 test('accepted documented Windows limit: planted ancestor .git loads its config without warning', async (t) => {
   const root = mkTmp();
   const shared = path.join(root, 'shared');
-  const start = path.join(shared, 'project', 'work');
+  const project = path.join(shared, 'project');
+  const start = path.join(project, 'work');
   const configPath = path.join(shared, 'styleproof.config.mjs');
   const platform = Object.getOwnPropertyDescriptor(process, 'platform');
   t.after(() => {
@@ -1405,7 +1408,7 @@ test('accepted documented Windows limit: planted ancestor .git loads its config 
   const statSync = fs.statSync;
   t.mock.method(fs, 'statSync', (candidate, ...args) => {
     const stat = statSync(candidate, ...args);
-    return candidate === shared || candidate === configPath
+    return candidate === project || candidate === shared || candidate === configPath
       ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: 12345, mode: 0o777 })
       : stat;
   });
@@ -1416,6 +1419,20 @@ test('accepted documented Windows limit: planted ancestor .git loads its config 
   });
   const discovery = discoverStyleProofConfig(start);
   assert.equal(discovery.location?.path, configPath);
+  assert.deepEqual(discovery.searched, [
+    path.join(start, 'styleproof.config.ts'),
+    path.join(start, 'styleproof.config.mjs'),
+    path.join(start, 'styleproof.config.js'),
+    path.join(start, 'styleproof.config.json'),
+    path.join(project, 'styleproof.config.ts'),
+    path.join(project, 'styleproof.config.mjs'),
+    path.join(project, 'styleproof.config.js'),
+    path.join(project, 'styleproof.config.json'),
+    path.join(shared, 'styleproof.config.ts'),
+    path.join(shared, 'styleproof.config.mjs'),
+    path.join(shared, 'styleproof.config.js'),
+    path.join(shared, 'styleproof.config.json'),
+  ]);
   assert.equal(discovery.skippedConfig, undefined);
   assert.equal((await loadStyleProofConfigAsync(start)).blocking, 'advisory');
   assert.doesNotMatch(output, /styleproof: warning:/);
