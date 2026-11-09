@@ -35,7 +35,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   longhands, `currentColor` followers). report.html renders the same report as a browser page with an
   Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
-  under the label, with the checkbox named as the driver, and each control's state gets its own section.
+  under the label, with the checkbox named as the driver ("when their opts are checked" for a list of them),
+  and each control's state gets its own section. A new or removed hover/focus style names the resting value
+  it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
+  `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
   state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
   digest, the distinct-change tally and "Nothing else". They stay in report.json (`comparability`,
@@ -51,12 +54,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   budget, after every crop. See Migration step 4.
 - `zoomBelow` is still accepted but has no effect (crops are never magnified). `foldDetailsAt` no longer
   changes change sections; their CSS is always collapsed.
-- A crop of a small element widens to its enclosing card or component (up to 640 × 480) so text is not cut in
-  half. The Where map still rings only the changed elements.
+- A crop of a small element widens to its enclosing card or component (up to 640 × 480) when one fits and
+  contains it, so its text is not cut in half. Otherwise (no enclosing box fits, or the element paints outside
+  its parent, as in an inner scroller) the crop is centred on the element as before and can still cut nearby
+  text. The Where map still rings only the changed elements.
+- A before/after pair, and each pair of whole pages, is downscaled together when either side is over the
+  per-file size limit, so both sides are always at the same scale.
+- `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
+  and counted, with a note and no crop or Where map. Before, the extra regions collapsed into one union crop.
 - A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
   otherwise it gives the hex value alone.
 - The PR comment carries every change section from report.md: its name, its line, the Where caption and the
-  CSS on demand, cut at 50,000 characters with a count of the sections left out. On a public repository with
+  CSS on demand, cut at 50,000 characters with a count of the sections left out. The cap covers the whole
+  summary, so a report with no change section (a large Change Reach table, say) still posts one comment with
+  its approval box; group tables and Evidence stay in the linked report. On a public repository with
   `report-storage: branch` it also shows the Where map and the clean crops, from the report's commit-bound
   `https://github.com/<owner>/<repo>/blob/<sha>/pr-<n>/crops/…?raw=1` URL. Private repositories and artifact
   storage get the sections as text, because no image URL there works for every reader. The branch-storage link
@@ -237,6 +248,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    - read the crops from `images.before` / `images.after` and
      `stateImages[state].before` / `.after`; `composite`, `annotated` and `zoom`
      are gone and nothing is drawn on the crops;
+   - a region whose crop a limit left out has `cropOmitted: 'budget'` (crop
+     file or byte budget, as before) or the new `cropOmitted: 'max-crops'`;
+     `visualEvidence: 'not-rendered'` now means only that the element is not
+     visible in the capture;
    - read highlight boxes from the new `where[]` (`{ image, side, boxes }`,
      `boxes` as `[x, y, width, height]` in page pixels) instead of the
      annotated crop;

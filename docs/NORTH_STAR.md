@@ -33,6 +33,8 @@ A deterministic visual report that shows **all visual changes with 100% confiden
 
 The current report is honest and well-engineered, but it is a **markdown comment**, not a visual report. The content is right; the presentation is wrong for the end state. The redesign:
 
+> The visual-first report described above supersedes items 4, 6 and 7. Highlight boxes appear only on the small Where map, never on the before/after crops (item 4). The PR comment carries every change section, not a one-line summary per change (item 6). Pairs sit side by side and stack on narrow screens; no slider shipped (item 7, explored in `docs/spikes/crop-compare/`). The items below are kept as the record of the grilling session.
+
 1. **Crops are the product.** A reviewer opens the report to see what changed, not to read a status. The crop is the main event — full-width, before/after side by side — with the verdict demoted to a thin strip at the top.
 2. **Confidence strip at the top.** Either `100% confidence` or a plain-language warning about what to fix to improve the result. Not a wall of gate jargon — one line a human can act on.
 3. **`currentColor` collapse.** Eight identical rows cascading from one color change is noise. Collapse them into a single row with a count, or nest them under the primary property. That alone cuts the Link hover card from nine rows to two.
@@ -44,7 +46,7 @@ The current report is honest and well-engineered, but it is a **markdown comment
 ## Two modes: review or certify
 
 - **Review-gate mode** (`require-approval: true`) — every visual change is reported with evidence; the `StyleProof` status stays red until a reviewer ticks **Approve all changes**; approved changes become the new baseline on merge.
-- **Certify mode** (`fail-on-diff: true`) — proves a change touched *nothing* visual. Any difference at all fails the job. Zero diff is the contract.
+- **Certify mode** (`fail-on-diff: true`) — proves a change touched _nothing_ visual. Any difference at all fails the job. Zero diff is the contract.
 
 ## What a green certifies
 

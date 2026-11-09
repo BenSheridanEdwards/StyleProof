@@ -21,7 +21,10 @@ const cli = defineCli({
     pad: { value: 'px', help: 'padding around changed rects when cropping (default: 12)' },
     'report-max-bytes': { value: 'bytes', help: 'combined HTML, Markdown and JSON byte ceiling (default: 2000000)' },
     'html-max-bytes': { value: 'bytes', help: 'self-contained HTML byte ceiling (default: 2000000)' },
-    'max-crops': { value: 'n', help: 'max crop regions per surface before collapsing (default: 8)' },
+    'max-crops': {
+      value: 'n',
+      help: 'change sections per changed surface that get crops; later ones are listed without (default: 8)',
+    },
     'max-crop-files': { value: 'n', help: 'whole-report crop file ceiling (default: 60)' },
     'max-crop-bytes': { value: 'bytes', help: 'whole-report crop byte ceiling (default: 900000)' },
     'fold-details-at': {

@@ -135,7 +135,7 @@ export type ReportOptions = {
   maxHeight?: number;
   /** Accepted for backward compatibility; no longer has an effect. */
   zoomBelow?: number;
-  /** Max crop regions per surface before collapsing into one union crop (default 8). */
+  /** Change sections per change group that get crops and a Where map; later sections are listed without them (default 8). */
   maxCrops?: number;
   /** Whole-report crop ceilings (default 60 files / 900_000 bytes). Zero disables crops. */
   maxCropFiles?: number;
