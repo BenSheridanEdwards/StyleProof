@@ -9,6 +9,7 @@ import {
   summarizeProps,
   prettyLabel,
 } from '../dist/report.js';
+import { decodeCapturedMeta } from '../dist/report/section-meta.js';
 import { escapeInlineMarkdown } from '../dist/code-span.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
@@ -253,7 +254,7 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Zero counts are dropped from the headline; only the real one shows.
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 1280px wide: 1 element\./);
   assert.doesNotMatch(md, /0 DOM change\(s\)/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
@@ -311,7 +312,7 @@ test('an identical change across surfaces collapses into one grouped section', (
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 390 and 1280px wide: 1 element\./);
   assert.match(md, /the same on s @ (?:390, 1280|1280, 390)/);
   assert.equal(
     (md.match(/`div\.box` · 1 element restyled/g) || []).length,
@@ -516,8 +517,8 @@ test('a change only on a display: none element keeps the PR comment verdict and 
   const lines = markdown.split('\n');
   const headEnd = lines.findIndex((l) => l.startsWith('### '));
   const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
-  assert.match(summary, /\*\*1 change needs review\*\*/);
-  assert.match(summary, /\*\*What changed\*\*/);
+  assert.match(summary, /\*\*1 change to review\*\*/);
+  assert.doesNotMatch(summary, /What changed/);
   assert.match(lines[headEnd], /^### Drawer$/, 'the heading names the changed element');
   assert.match(markdown, /`nav\.drawer` · 1 element restyled/);
   assert.match(markdown, /^_On settings @ 390_$/m, 'the group names its surface');
@@ -684,8 +685,8 @@ test('new surface details render before existing-surface change groups', () => {
   assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
   assert.ok(
-    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 distinct change**'),
-    'comment summary leads with the named new surface before aggregate existing-surface churn',
+    commentSummary.indexOf('**2 changes to review**') < commentSummary.indexOf('🆕 **1 new surface(s)**'),
+    'the comment summary states the total, then names the new surface',
   );
   assert.match(commentSummary, /`workspace @ 900`/);
   rmTmp(root);
@@ -820,7 +821,8 @@ test('add-only: headline counts DOM only — head-side inventory is not a restyl
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
   assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 DOM change\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\*/);
+  assert.match(md, /· 1 element added/, 'the head-side inventory is an addition, not a restyle');
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /state-delta difference/);
   assert.match(md, /Style inventory \(head-side — no baseline\)/);
@@ -857,7 +859,7 @@ test('matched-path restyle still counts as a computed-style difference (not inve
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 1280px wide: 1 element\./);
   assert.match(md, /1 element restyled/);
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.doesNotMatch(md, /Style inventory \(head-side/);
@@ -910,7 +912,6 @@ test('wrapper path-churn: inventory copy, not restyle differences', () => {
   assert.equal(json.counts.style, 0, 'wrapper path-churn inventories are not style differences');
   assert.equal(json.counts.state, 0);
   assert.ok(json.counts.dom >= 2, 'adds + remove are DOM changes');
-  assert.match(md, /DOM change/);
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /1 element restyled|elements restyled/);
   assert.match(md, /element(?:s)? added/);
@@ -1017,7 +1018,7 @@ test('correspondence: wrapper insert with true font-size delta shows paired befo
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.ok(json.counts.style >= 1, 'paired leaf contributes computed-style differences');
-  assert.match(md, /computed-style difference/);
+  assert.match(md, /elements? restyled/, 'the paired leaf is a restyle, not an inventory');
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.match(md, /`font-size` \| `12px` \| `13\.3333px`/);
   assert.match(md, /`height` \| `14px` \| `15px`/);
@@ -1687,11 +1688,11 @@ test('end-to-end: state coverage is a separate exact recipe ledger without inven
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
-  assert.match(md, /## State coverage/);
-  assert.match(md, /Captured recipe states: 1 across 1 surface/);
-  assert.match(md, /\| `dashboard` \| `toast-visible` \| `click` \| observation 250 ms \|/);
-  assert.doesNotMatch(md, /State coverage[^#]*%/s);
-  assert.doesNotMatch(md, /Route coverage/);
+  // The recipe ledger is "What was captured" data for report.html, not a table in report.md.
+  const captured = md.split('\n').map(decodeCapturedMeta).find(Boolean);
+  assert.deepEqual(captured.recipes, [{ surface: 'dashboard', state: 'toast-visible', action: 'click' }]);
+  assert.doesNotMatch(md, /State coverage|Route coverage/);
+  assert.doesNotMatch(JSON.stringify(captured), /\d+(\.\d+)?%/, 'no invented percentages');
   rmTmp(root);
 });
 
@@ -1731,7 +1732,7 @@ test('end-to-end: forced-state echoes are suppressed and the change reads in pla
   assert.equal(json.counts.state, 0); // hover echo + (gone) focus delta both suppressed
   assert.equal(json.counts.style, 2); // color + border-color, the real change
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /recoloured/); // plain-English bullet, not a raw prop dump
+  assert.match(md, /changes text colour from light yellow to cyan\./); // plain English; the border-color echo is in the table
   assert.doesNotMatch(md, /\(gone\)/);
   rmTmp(root);
 });

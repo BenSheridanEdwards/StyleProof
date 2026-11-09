@@ -119,7 +119,9 @@ fs.writeFileSync(
   result.reportJsonPath,
   `${JSON.stringify({ ...reportJson, ...(migration ? { migration: true } : {}), sourceBinding, evidenceBinding }, null, 2)}\n`,
 );
-// An unverified source binding is a diagnostic, never a certification.
+// An unverified source binding is a diagnostic, never a certification. A clean verdict is
+// relabeled so it can never read as certified; otherwise the note goes to stderr and
+// report.json (`sourceBinding`), not into the report a reviewer reads.
 const sourceBindingFailed = sourceBinding.status !== 'bound';
 if (sourceBindingFailed) {
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
@@ -127,9 +129,8 @@ if (sourceBindingFailed) {
     /✓ No reviewable computed-style changes/g,
     '⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes',
   );
-  const labeled =
-    relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled;
-  fs.writeFileSync(result.reportMdPath, labeled);
+  if (relabeled !== markdown) fs.writeFileSync(result.reportMdPath, relabeled);
+  else console.error('⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified (see sourceBinding in report.json).');
 }
 // Bindings and diagnostic labels change sibling sizes; use their final bytes.
 

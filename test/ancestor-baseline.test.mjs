@@ -524,11 +524,8 @@ test('report: an ancestor-reused baseline is stated in report.md and report.json
     });
     const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
     const reportMarkdown = fs.readFileSync(result.reportMdPath, 'utf8');
-    assert.match(
-      reportMarkdown,
-      /\*\*Baseline\*\* — ♻ restored from nearest ancestor `aaaaaaaaaaaa` of base `bbbbbbbbbbbb`/,
-    );
-    assert.match(reportMarkdown, /2 path\(s\) changed between them, none capture-relevant/);
+    // Baseline provenance is machine output: stated in report.json, not repeated in the report.
+    assert.doesNotMatch(reportMarkdown, /restored from nearest ancestor/);
     const reportJson = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
     assert.equal(reportJson.baselineProvenance.baseline, 'ancestor-reuse');
     assert.equal(reportJson.baselineProvenance.restoredSha, 'a'.repeat(40));

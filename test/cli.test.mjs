@@ -2039,14 +2039,16 @@ test('report CLI labels an unverified empty report UNVERIFIED in report.html, no
   rmTmp(root);
 });
 
-test('report CLI carries the UNVERIFIED banner into report.html when the report has no ✓ line', () => {
+test('report CLI prints the UNVERIFIED source-binding note to stderr, not into a report with changes', () => {
   const { root, A, B } = differingPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 1, r.stdout + r.stderr);
   const pair = readReportPair(out);
-  assert.match(pair.md, /^> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
-  assert.match(pair.html, /UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  assert.match(r.stderr, /⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified/);
+  assert.doesNotMatch(pair.md, /UNVERIFIED/);
+  assert.doesNotMatch(pair.html, /UNVERIFIED/);
+  assert.notEqual(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).sourceBinding.status, 'bound');
   assertHtmlRendersMd(pair);
   rmTmp(root);
 });

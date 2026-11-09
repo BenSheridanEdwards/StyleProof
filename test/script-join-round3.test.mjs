@@ -128,8 +128,13 @@ test('five thousand unjudged paths cannot evict twenty style findings or overflo
   assert.ok(json.reach.gaps.some((gap) => /J2 gap paths truncated: \d+ more/.test(gap.reason)));
   const markdown = fs.readFileSync(output.reportMdPath, 'utf8');
   assert.ok(Buffer.byteLength(markdown) < 100_000, `${Buffer.byteLength(markdown)} Markdown bytes`);
-  assert.match(markdown, /J2 gap paths truncated/);
-  assert.match(markdown, /1 run-level gap\(s\)/);
+  // J2 is warn-only machine output: report.json holds it; report.md stays free of it.
+  assert.doesNotMatch(markdown, /J2|run-level gap/);
+  assert.equal(
+    json.reach.gaps.filter((gap) => gap.join === 'J2' && !gap.side).length >= 1,
+    true,
+    'the run-level gap stays in report.json',
+  );
 });
 
 test('a self-check rewrite preserves root provenance and cannot drop a healthy surface head line', (t) => {

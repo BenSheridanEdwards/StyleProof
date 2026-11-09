@@ -65,8 +65,11 @@ test('report discloses explicit product-state mismatch and withholds approvable 
   ]);
   assert.equal(json.comparison.status, 'incomparable');
   assert.deepEqual(json.comparability, result.comparability);
-  assert.match(md, /product-state comparison.*incomparable|incomparable.*product-state comparison/i);
-  assert.match(md, /diagnostic only|not approval evidence|cannot be approved/i);
+  assert.match(
+    md,
+    /⛔ \*\*This compare cannot certify:\*\* 1 paired capture\(s\) declare a different product state on base and head/,
+  );
+  assert.match(md, /not shown as changes to approve/);
   assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   assert.doesNotMatch(md, /private-selector/, 'suppressed raw paths must not appear as report evidence');
   rmTmp(dirs.root);
@@ -80,7 +83,10 @@ test('report strict mode suppresses undeclared legacy style deltas as globally r
   assert.equal(result.comparison.counts.globalRequiredUnproven, 1);
   assert.equal(result.comparison.blocksCertification, true);
   assert.equal(result.comparison.reviewableCounts.style, 0);
-  assert.match(md, /product-state comparison.*unproven|unproven.*product-state comparison/i);
+  assert.match(
+    md,
+    /⛔ \*\*This compare cannot certify:\*\* 1 paired capture\(s\) are not proven to show the same product state/,
+  );
   assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   rmTmp(dirs.root);
 });
@@ -92,7 +98,8 @@ test('report keeps undeclared legacy deltas reviewable without strict mode while
   assert.equal(result.comparison.status, 'unproven');
   assert.equal(result.comparison.blocksCertification, false);
   assert.equal(result.comparison.reviewableCounts.style, 1);
-  assert.match(md, /no product-state declared|not proof|visual-only/i);
+  // Unproven but not required: report.json carries the status; the report shows the changes without a warning.
+  assert.doesNotMatch(md, /product.state|cannot certify/i);
   assert.match(md, /## Changes/);
   rmTmp(dirs.root);
 });

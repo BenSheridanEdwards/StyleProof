@@ -63,15 +63,13 @@ import {
   type MigrationGallery,
 } from './report/migration-gallery.js';
 import {
-  baselineProvenanceLine,
   certificationLines,
-  comparabilityLine,
   criticalObligationLines,
   evidenceSection,
   liveTextFreezeLines,
   productStateWarningLines,
 } from './report/certification.js';
-import { buildDigest, digestLines } from './report/digest.js';
+import { buildDigest } from './report/digest.js';
 import {
   baselineFailureDetailLines,
   oneSidedStatus,
@@ -79,17 +77,23 @@ import {
   reportHeadline,
   type BaselineInfo,
 } from './report/headline.js';
-import { countShownChanges, groupBySignature } from './report/regions.js';
+import { countShownChanges, groupBySignature, sectionSummary } from './report/regions.js';
 import { finishSections } from './report/change-sections.js';
+import { capturedComment } from './report/captured.js';
 import { createSectionRegistry } from './report/section-meta.js';
-import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
+import {
+  assessReach,
+  reachHeadlineLines,
+  reachSectionLines,
+  reachSummaryLine,
+  type ReportReach,
+} from './report/reach.js';
 import {
   ReportMarkdown,
   DEFAULT_MAX_JSON_BYTES,
   DEFAULT_MAX_REPORT_BYTES,
   renderChangedSections,
   renderOneSidedSections,
-  stateCoverageLines,
   writeReportArtifacts,
   buildReportJson,
   type ReportArtifacts,
@@ -475,7 +479,8 @@ function renderReportBody(
       `- ${content.contentCount} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
-  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
+  // Change Reach is machine output (report.json `reach`); the report shows it only when it blocks.
+  const reachBlock = reach?.blocking ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
   return { oneSided, changed, reachBlock };
 }
 
@@ -483,20 +488,15 @@ function renderReportBody(
 function evidenceLines(input: {
   certIssues: string[];
   liveText: LiveTextAudit;
-  provenanceLine: string;
-  comparison: ReportComparison;
   gates: Gates;
   criticalObligations: DeclaredCriticalObligations | undefined;
 }): string[] {
-  const { certIssues, liveText, provenanceLine, comparison, gates } = input;
-  const comparabilityText = comparabilityLine(comparison, gates.legacyPairs);
-  // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
-  const comparabilityEvidence = /✓ comparable|not required/.test(comparabilityText) ? [] : [comparabilityText, ''];
+  // Failures only. Product-state status and baseline provenance are machine output
+  // (report.json `comparability` / `baselineProvenance`), never repeated in the report.
+  const { certIssues, liveText, gates } = input;
   return [
     ...certIssues,
     ...liveTextFreezeLines(liveText),
-    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
-    ...comparabilityEvidence,
     ...criticalObligationLines(gates.criticalStates, input.criticalObligations),
   ];
 }
@@ -524,6 +524,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
   const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
   const reach = assessReach(ctx, opts.changeReach ?? 'warn');
+  // Sections name the changed rules their elements match; report.json keeps the full Change Reach.
+  if (reach && ctx.sections) ctx.sections.rules = reach.rules;
   const baseline = readBaselineInfo(beforeDir, afterDir);
   const elevation = collectStructureElevation({ beforeDir, afterDir, migration, surfacePaths, surfaceKeyOf });
   const comparison = reportComparison(
@@ -564,9 +566,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
     missing: view.missing,
-    shown: view.shown,
-    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
-    whatChanged: digestLines(digest),
+    ...sectionSummary(ctx, view.changeGroups, reach?.rules.length, surfaceKeyOf),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -585,15 +585,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
-  const reachStrip = reach ? reachStripLines(reach) : [];
+  const reachStrip = reach ? reachHeadlineLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
   productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
   headline.forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
-  stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
-  if (reach && !md.lines.includes(reachStrip[1])) {
+  if (reachStrip.length && !md.lines.includes(reachStrip[1])) {
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
   }
 
@@ -632,18 +631,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { ledger: confidenceLedger, summary: confidence },
     elevation.chrome.count,
   );
-  // "Nothing else" when restyles exist but no advisory content / inventory issues.
-  const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
-  if (
-    view.changeGroups.length > 0 &&
-    view.missing.length === 0 &&
-    content.total === 0 &&
-    !migrationGallery &&
-    !inventoryTouched &&
-    !(reach && reachSectionLines(reach).length > 0)
-  ) {
-    md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
-  }
+  // What was captured: hidden data for report.html (pages, widths, forced states, changed rules).
+  md.append(['', capturedComment(ctx, reach)]);
   // 4. Write report.md and report.json, and return the result.
 
   const artifacts: ReportArtifacts = {
@@ -689,7 +678,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reachBlock.full = reachSectionLines(reach);
       reachBlock.summary = reachSummaryLine(reach);
     }
-    const updatedStrip = reachStripLines(reach);
+    const updatedStrip = reachHeadlineLines(reach);
     for (const [index, line] of reachStrip.entries()) {
       const position = md.lines.indexOf(line);
       if (position >= 0 && line) md.lines[position] = updatedStrip[index];
@@ -711,8 +700,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       evidenceLines({
         certIssues,
         liveText,
-        provenanceLine: baselineProvenanceLine(baselineProvenance),
-        comparison,
         gates,
         criticalObligations: opts.criticalObligations,
       }),

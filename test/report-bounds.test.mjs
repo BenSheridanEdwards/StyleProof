@@ -104,14 +104,22 @@ test('a capped report.md accounts for every surface and never drops its Evidence
     writeCapture(afterDir, `zeta-${s}@1280`, map(`rgb(${s + 1}, 0, 3)`), null);
   }
   const report = (name, maxReportBytes) => {
-    const res = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(root, name), maxReportBytes });
+    // A declared critical state with no evidence is a real failure, so Evidence always has content.
+    const res = generateStyleMapReport({
+      beforeDir,
+      afterDir,
+      outDir: path.join(root, name),
+      maxReportBytes,
+      criticalObligations: { 'checkout-confirmed': { owner: 'payments', reason: 'must stay certified' } },
+      criticalStatesArmed: true,
+    });
     return {
       md: fs.readFileSync(res.reportMdPath, 'utf8'),
       surfaces: JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces.length,
     };
   };
   const EVIDENCE = '<summary>Evidence (warnings & failures)</summary>';
-  // No manifests, so the product-state comparison is unproven and Evidence carries that warning.
+  // The failing critical obligation keeps an Evidence block in every layout.
   const full = report('full', Infinity);
   assert.ok(full.md.includes(EVIDENCE), 'the uncapped report has an Evidence block');
 
@@ -138,7 +146,7 @@ test('a capped report.md accounts for every surface and never drops its Evidence
     assertCapped(
       `capped-${budget}`,
       budget,
-      (md) => md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE))),
+      (md) => md.includes(EVIDENCE) && /Critical state obligations/.test(md.slice(md.indexOf(EVIDENCE))),
     );
   }
 
@@ -286,9 +294,9 @@ test('report headline and global chrome use surface-base counts with variant det
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### '));
-  assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
+  assert.match(summary, /changes? to review\*\* on `[^`]+` and `[^`]+` at /, 'the summary names both surface bases');
   assert.doesNotMatch(summary, /Surface base.*@width/);
-  assert.match(summary, /changes need review|change needs review/);
+  assert.match(summary, /changes? to review\*\*/);
   assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
   rmTmp(root);
 });
@@ -323,7 +331,7 @@ test('report headline counts live-state variants under metadata.surfaceKey produ
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
-  assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
+  assert.match(summary, /changes? to review\*\* on `[^`]+` at /, 'live-state variants count under one product base');
   rmTmp(root);
 });
 

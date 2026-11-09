@@ -1,7 +1,14 @@
 import type { DiffCounts } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
-import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
+import {
+  groupBySignature as groupByWidth,
+  safeKey,
+  summarizeProps,
+  surfaceBase,
+  surfaceWidth,
+} from '../change-groups.js';
+import { codeValue } from '../code-span.js';
 import { buildChangeSections, renderChangeSection } from './change-sections.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { isSameOrDescendant } from './geometry.js';
@@ -149,5 +156,53 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       classification: sd.classification,
     },
     findingCount,
+  };
+}
+
+const andList = (items: string[]): string =>
+  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
+
+/** " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." */
+function scopeText(keys: string[], base: (key: string) => string, elements: number, changedRules?: number): string {
+  const bases = [...new Set(keys.map(base))].sort();
+  const widths = [...new Set(keys.map(surfaceWidth))].filter(Boolean).sort((a, b) => a - b);
+  const where = bases.length <= 3 ? andList(bases.map((base) => codeValue(safeKey(base)))) : `${bases.length} pages`;
+  const wide =
+    widths.length === 0
+      ? ''
+      : widths.length <= 4
+        ? ` at ${andList(widths.map(String))}px wide`
+        : ` at ${widths.length} widths`;
+  const rules = changedRules === undefined ? '' : `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}`;
+  return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
+}
+
+/** How many change sections the report shows, and the summary's scope phrase for them. */
+export function sectionSummary(
+  ctx: RenderCtx,
+  groups: ChangeGroup[],
+  changedRules?: number,
+  surfaceKeyOf: (captureKey: string) => string | undefined = () => undefined,
+): { sectionCount: number; scope: string } {
+  let sectionCount = 0;
+  let elements = 0;
+  for (const cg of groups) {
+    // A group with only folded size/position rows renders one block.
+    const sections = cg.rep.findings.length
+      ? buildChangeSections(cg.rep.findings, presentationMaps(ctx, cg.rep.sd.surface))
+      : [];
+    sectionCount += Math.max(1, sections.length);
+    elements += sections.reduce((n, section) => n + section.paths.length, 0);
+  }
+  return {
+    sectionCount,
+    scope: groups.length
+      ? scopeText(
+          groups.flatMap((g) => g.surfaces),
+          (key) => surfaceKeyOf(key) ?? surfaceBase(key),
+          elements,
+          changedRules,
+        )
+      : '',
   };
 }

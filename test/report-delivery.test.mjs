@@ -174,7 +174,7 @@ test('public and private reports use one commit-bound linked-delivery contract',
     assert.equal(delivery.mode, 'linked-report');
     assert.equal(delivery.cropDelivery, 'relative-paths-in-committed-report');
     assert.equal(delivery.url, reportUrl);
-    assert.equal(delivery.markdown, `### 📊 [**View the side-by-side visual report →**](${reportUrl})`);
+    assert.equal(delivery.markdown, `### 📊 [**Open the full visual report →**](${reportUrl})`);
   }
   assert.equal(publicDelivery.access, 'public-github-view');
   assert.equal(privateDelivery.access, 'authenticated-github-view');

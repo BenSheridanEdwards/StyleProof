@@ -45,11 +45,19 @@ export type SectionMeta = {
 /** Sections collected during one report render; whole pages are written once every crop is done. */
 export type SectionRegistry = {
   metas: SectionMeta[];
+  /** Changed CSS rules (Change Reach), and the section each one is attributed to by key. */
+  rules: Array<{ key: string; sheet?: string; status: string }>;
+  ruleSections: Map<string, string>;
   /** Whole-page captures the sections want, in first-request order. */
   pages: Array<{ surface: string; state: PairState }>;
 };
 
-export const createSectionRegistry = (): SectionRegistry => ({ metas: [], pages: [] });
+export const createSectionRegistry = (): SectionRegistry => ({
+  metas: [],
+  pages: [],
+  rules: [],
+  ruleSections: new Map(),
+});
 
 /** The placeholder a section's comment line holds until its whole pages are written. */
 export const sectionRef = (index: number): string => `<!-- styleproof-section-ref:${index} -->`;
@@ -110,6 +118,44 @@ export function decodeSectionMeta(line: string): SectionMeta | null {
       meta.where.every(isWhere) &&
       Array.isArray(meta.pages) &&
       meta.pages.every(isPage);
+    return valid ? meta : null;
+  } catch {
+    return null;
+  }
+}
+
+/** "What was captured" for report.html: pages, widths, forced states, recipe states and changed rules. */
+export type CapturedMeta = {
+  v: 1;
+  pages: Array<{ base: string; widths: number[]; states: string[] }>;
+  recipes: Array<{ surface: string; state: string; action: string }>;
+  rules: Array<{ key: string; sheet: string; status: string; section?: string }>;
+};
+
+const CAPTURED_PREFIX = '<!-- styleproof-captured ';
+
+export function encodeCapturedMeta(meta: CapturedMeta): string {
+  return `${CAPTURED_PREFIX}${encodeURIComponent(JSON.stringify(meta)).replace(/-/g, '%2D')}${SUFFIX}`;
+}
+
+const isStringArray = (v: unknown): v is string[] => Array.isArray(v) && v.every(isString);
+
+export function decodeCapturedMeta(line: string): CapturedMeta | null {
+  if (!line.startsWith(CAPTURED_PREFIX) || !line.endsWith(SUFFIX)) return null;
+  try {
+    const meta = JSON.parse(decodeURIComponent(line.slice(CAPTURED_PREFIX.length, -SUFFIX.length))) as CapturedMeta;
+    const valid =
+      meta?.v === 1 &&
+      Array.isArray(meta.pages) &&
+      meta.pages.every(
+        (p) => isString(p?.base) && Array.isArray(p.widths) && p.widths.every(isNumber) && isStringArray(p.states),
+      ) &&
+      Array.isArray(meta.recipes) &&
+      meta.recipes.every((r) => [r?.surface, r?.state, r?.action].every(isString)) &&
+      Array.isArray(meta.rules) &&
+      meta.rules.every(
+        (r) => [r?.key, r?.sheet, r?.status].every(isString) && (r.section === undefined || isString(r.section)),
+      );
     return valid ? meta : null;
   } catch {
     return null;

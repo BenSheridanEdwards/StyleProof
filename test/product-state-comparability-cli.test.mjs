@@ -371,7 +371,10 @@ test('unbound report lists a pair with no product-state declared advisory-only, 
     assert.equal(result.status, 1, result.stderr || result.stdout);
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
     assert.doesNotMatch(markdown, /legacy/i);
-    assert.match(markdown, /Product-state identity unproven\*\* \(pair with no product-state declared\)/);
+    assert.match(
+      markdown,
+      /⛔ \*\*This compare cannot certify:\*\* 1 paired capture\(s\) are not proven to show the same product state/,
+    );
     assert.match(markdown, /\| `color` \| `#d6e4e8` \| `#c8e4e8` \|/);
     const reportJson = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
     assert.equal(reportJson.comparison.blocksCertification, true);

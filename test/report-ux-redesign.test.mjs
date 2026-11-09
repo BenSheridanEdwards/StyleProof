@@ -80,8 +80,8 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
   // Verdict first — before any Certification / Evidence fold.
-  assert.match(md, /\*\*1 change needs review\*\*/);
-  assert.ok(md.indexOf('**1 change needs review**') < md.indexOf('## Changes'));
+  assert.match(md, /\*\*1 change to review\*\*/);
+  assert.ok(md.indexOf('**1 change to review**') < md.indexOf('## Changes'));
   assert.doesNotMatch(md.slice(0, md.indexOf('## Changes')), /\*\*Certification\*\*/);
 
   // Human name as the heading; the selector sits in the CSS fold.
@@ -96,10 +96,10 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   assert.doesNotMatch(md, /Show highlight overlay|-annotated\.png|-zoom\.png/);
 
   // Nothing else line when only this restyle exists.
-  assert.match(md, /Nothing else — no other element or inventory changes/);
+  assert.doesNotMatch(md, /Nothing else/, 'no filler line after the changes');
 
-  // Evidence collapsed by default.
-  assert.match(md, /<summary>Evidence \(warnings & failures\)<\/summary>/);
+  // No failure, so no Evidence block: product-state status is report.json data, not a report warning.
+  assert.doesNotMatch(md, /Evidence \(warnings & failures\)|Product-state/);
 
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -140,6 +140,6 @@ test('proven product-state identity does not emit the above-the-fold warning', (
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(result.comparison.status, 'comparable');
   assert.doesNotMatch(md, /Product-state identity unproven/);
-  assert.match(md, /\*\*1 change needs review\*\*/);
+  assert.match(md, /\*\*1 change to review\*\*/);
   fs.rmSync(root, { recursive: true, force: true });
 });

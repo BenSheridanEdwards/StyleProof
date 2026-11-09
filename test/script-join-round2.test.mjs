@@ -184,7 +184,11 @@ for (const tokenScoped of [false, true])
       const retained = json.reach.scripts.reduce((sum, unit) => sum + (unit.count ?? 1), 0);
       assert.ok(retained < 3000);
       assert.ok(json.reach.gaps.some((gap) => gap.reason.includes(`J2 units truncated: ${3000 - retained} more`)));
-      assert.match(fs.readFileSync(output.reportMdPath, 'utf8'), /J2 units truncated: \d+ more/);
+      assert.doesNotMatch(
+        fs.readFileSync(output.reportMdPath, 'utf8'),
+        /J2 units truncated/,
+        'J2 detail is report.json data',
+      );
     } else {
       assert.equal(json.reach.scripts.length, 2);
       assert.equal(

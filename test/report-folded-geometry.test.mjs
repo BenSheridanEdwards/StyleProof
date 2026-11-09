@@ -44,13 +44,14 @@ test('#1140 a width change beside a colour change is shown or counted in report.
   const shown = /\bwidth\b[^\n]*240px[^\n]*280px/.test(md);
   const counted = /\+?1 (derived longhand|size\/position)/.test(md);
   assert.ok(shown || counted, `report.md neither shows nor counts the folded width row:\n${md}`);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/, 'the PR-comment digest includes the count');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.digest[0].foldedRows, 1, 'the report.json digest includes the count');
   assert.match(
     md,
     /<details>[\s\S]*Folded size\/position rows:[\s\S]*\| `width` \| `240px` \| `280px` \|[\s\S]*<\/details>/,
   );
   const html = fs.readFileSync(res.reportMdPath.replace(/report\.md$/, 'report.html'), 'utf8');
-  assert.match(html, /\+1 size\/position row folded/);
+  assert.match(html, /Folded size\/position rows:/);
   assert.match(html, /<td><code>width<\/code><\/td>.*<td><code>240px<\/code><\/td>.*<td><code>280px<\/code><\/td>/);
 });
 
@@ -91,7 +92,9 @@ test('folded geometry on a narrow surface prevents identical surface grouping', 
   writeCapture(fixture.afterDir, 's@375', sidebar('280px', 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   assert.match(md, /\| `width` \| `240px` \| `280px` \|/);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/);
+  assert.ok(
+    JSON.parse(fs.readFileSync(`${fixture.outDir}/report.json`, 'utf8')).digest.some((row) => row.foldedRows === 1),
+  );
   assert.doesNotMatch(md, /Identical across 2 surfaces/);
   assert.match(md, /375/);
 });
@@ -200,8 +203,8 @@ test('a hover geometry-only surface remains beside a visible colour surface', (t
     JSON.parse(json).surfaces.find((s) => s.surfaces.includes('geometry@1280')).visualEvidence,
     'not-rendered',
   );
-  assert.match(md.split(/^### /m)[0], /geometry[\s\S]*\+1 size\/position row folded/);
   assert.match(md.split(/^### /m).slice(1).join('\n'), /geometry[\s\S]*\+1 size\/position row folded/);
+  assert.ok(JSON.parse(json).digest.some((row) => row.surface === 'geometry@1280' && row.foldedRows === 1));
   assert.match(md, /`:hover` \| `width` \| `240px` → `280px`/);
   assert.match(md, /color/);
 });

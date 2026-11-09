@@ -1,17 +1,8 @@
 ## 🗺️ StyleProof report
 
-⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.
-
-**2 changes need review**
+**4 changes to review** on `home` at 900px wide: 3 elements.
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
-
-**1 distinct change** (3 computed-style difference(s)) in 1 changed surface base with an existing baseline.
-
-**What changed**
-
-- `pricing @ 900` — 🆕 new surface, no baseline
-- `home @ 900` — **`aside.off-canvas-status`** opacity 0.85 → 1 · **`span.caret`** text gray (`#9ca3af`) → blue (`#2563eb`) · **`button.cta`** background blue (`#2563eb`) → red (`#dc2626`)
 
 🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
 
@@ -147,9 +138,4 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 | --- | --- |
 | <img src="crops/sibling-insertion-900-content-3-before.png" width="340" alt="Before: the changed content"> | <img src="crops/sibling-insertion-900-content-3-after.png" width="340" alt="After: the changed content"> |
 
-<details>
-<summary>Evidence (warnings & failures)</summary>
-
-⚠️ **Product-state comparison** — unproven on 3 paired capture(s) with no product-state declared.
-
-</details>
+<!-- styleproof-captured %7B%22v%22%3A1%2C%22pages%22%3A%5B%7B%22base%22%3A%22duplicate%2Dinsertion%22%2C%22widths%22%3A%5B900%5D%2C%22states%22%3A%5B%5D%7D%2C%7B%22base%22%3A%22home%22%2C%22widths%22%3A%5B900%5D%2C%22states%22%3A%5B%5D%7D%2C%7B%22base%22%3A%22pricing%22%2C%22widths%22%3A%5B900%5D%2C%22states%22%3A%5B%5D%7D%2C%7B%22base%22%3A%22sibling%2Dinsertion%22%2C%22widths%22%3A%5B900%5D%2C%22states%22%3A%5B%5D%7D%5D%2C%22recipes%22%3A%5B%5D%2C%22rules%22%3A%5B%5D%7D -->

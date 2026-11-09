@@ -2,11 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
 import { isChromeLandmarkPath } from '../change-chrome.js';
-import { captureKeysIn } from '../capture.js';
 import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
 import type { ReportOptions, ReportResult } from '../report.js';
-import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
+import { chromeSpanLabel, safeKey } from '../change-groups.js';
 import { cropPng, cropStem, readPng } from './png.js';
 import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
@@ -346,55 +345,6 @@ export function renderChangedSections(
     out.md.detail(detail, compactChangeSummary(ctx, group, rendered.json));
   }
   return { totalFindings };
-}
-
-const inRange = (v: unknown, lo: number, hi: number): v is number =>
-  typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
-const RECIPE_ACTIONS = new Set(['hover', 'focus', 'press', 'click', 'route']);
-
-/** One coverage-table row for a captured state-recipe variant, or undefined. */
-function stateCoverageRow(ctx: RenderCtx, captureKey: string): string[] | undefined {
-  const metadata = ctx.load(ctx.afterDir, captureKey).metadata;
-  const recipe = metadata?.stateRecipe;
-  if (metadata?.variantKind !== 'state-recipe' || !recipe) return undefined;
-  const action = RECIPE_ACTIONS.has(recipe.action) ? recipe.action : 'unknown';
-  let evidence = 'captured';
-  if (inRange(recipe.observationMs, 50, 5_000)) evidence = `observation ${recipe.observationMs} ms`;
-  else if (action === 'route' && inRange(recipe.status, 400, 599)) evidence = `response ${recipe.status}`;
-  return [
-    safeKey(metadata.surfaceKey || surfaceBase(captureKey)).slice(0, 120),
-    safeKey(recipe.stateKey || metadata.variantKey || captureKey).slice(0, 120),
-    action,
-    evidence,
-  ];
-}
-
-/** Captured state-recipe variants on head, as a coverage table. */
-export function stateCoverageLines(ctx: RenderCtx): string[] {
-  const rows = new Map<string, string[]>();
-  for (const captureKey of captureKeysIn(ctx.afterDir)) {
-    const row = stateCoverageRow(ctx, captureKey);
-    if (row) rows.set(row.join('\0'), row);
-  }
-  if (rows.size === 0) return [];
-  const ordered = [...rows.values()].sort(
-    (a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]) || a[2].localeCompare(b[2]),
-  );
-  const surfaceCount = new Set(ordered.map((r) => r[0])).size;
-  return [
-    '',
-    '## State coverage',
-    '',
-    `Captured recipe states: ${ordered.length} across ${surfaceCount} surface${surfaceCount === 1 ? '' : 's'}.`,
-    '',
-    '| Surface | State | Action | Evidence |',
-    '| --- | --- | --- | --- |',
-    ...ordered.map(
-      ([surface, state, action, evidence]) => `| \`${surface}\` | \`${state}\` | \`${action}\` | ${evidence} |`,
-    ),
-    '',
-    '_Discovery outcomes such as skipped, deduplicated, timed out, or requires fixture are recorded by the state harvester; this capture report does not infer them._',
-  ];
 }
 
 export type ReportArtifacts = Pick<

@@ -9,7 +9,7 @@ import {
   type BaselineFailureReceipt,
   type SurfaceCaptureFailure,
 } from '../map-store.js';
-import { formatChangedSurfaceScope, formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
+import { formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
 import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 
@@ -17,10 +17,10 @@ import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 export type HeadlineInput = {
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
-  shown: DiffCounts;
-  changedScope: { bases: number; variants: number };
-  /** The "What changed" block, placed right after the count sentence so the PR comment carries it. */
-  whatChanged: string[];
+  /** Change sections the report shows; each is one change to review. */
+  sectionCount: number;
+  /** " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." (empty without style changes). */
+  scope: string;
   volatileCount: number;
   /** Subtrees volatile on the head only: excluded, never certified. */
   headOnlyVolatile?: HeadOnlyVolatile[];
@@ -69,27 +69,6 @@ export function readBaselineInfo(beforeDir: string, afterDir: string): BaselineI
     undeclaredOnBase: ledger.undeclaredOnBase,
     sha: ledger.sha,
   };
-}
-
-/** Property/DOM/state tallies with the zeros dropped (secondary headline detail). */
-function changeCountLabel(shown: DiffCounts): string {
-  const parts: [number, string][] = [
-    [shown.dom, 'DOM change(s)'],
-    [shown.style, 'computed-style difference(s)'],
-    [shown.state, 'state-delta difference(s)'],
-  ];
-  return parts
-    .filter(([n]) => n)
-    .map(([n, label]) => `${n} ${label}`)
-    .join(' · ');
-}
-
-/** Lead with distinct/reviewable groups; property tally is parenthetical (#770). */
-function distinctChangeLine(groupCount: number, shown: DiffCounts, scope: string): string {
-  const distinct = groupCount === 1 ? '**1 distinct change**' : `**${groupCount} distinct changes**`;
-  const tallies = changeCountLabel(shown);
-  const detail = tallies ? ` (${tallies})` : '';
-  return `${distinct}${detail} in ${scope} with an existing baseline.`;
 }
 
 function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
@@ -259,42 +238,29 @@ function cleanScopeSummary(input: HeadlineInput): string[] {
   return [blocked ? scope.replace(/^✓ /, 'Computed-style scope only: ') : scope];
 }
 
-function verdictNeedsReview(n: number): string {
-  return n === 1 ? '**1 change needs review**' : `**${n} changes need review**`;
+/** "**3 changes to review** on `index` at 1280px wide: 9 elements, 4 changed CSS rules." */
+function verdictToReview(n: number, scope: string): string {
+  return `**${n} ${n === 1 ? 'change' : 'changes'} to review**${scope}`;
 }
 
 function summaryLines(input: HeadlineInput): string[] {
-  const { changeGroups, missing, shown, changedScope, baseline } = input;
+  const { changeGroups, missing, baseline } = input;
   const noChange = changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input) : undefined;
   if (noChange) return noChange;
-  const reviewable = changeGroups.length + missing.length;
   const md = [
-    verdictNeedsReview(reviewable),
+    verdictToReview(input.sectionCount + missing.length, changeGroups.length ? input.scope : ''),
     '',
     ...baselineFailureSummaryLines(baseline.failures),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
-  if (changeGroups.length > 0) {
-    (md.length > 0 && md[md.length - 1] !== '' ? [''] : []).forEach((appended) => md.push(appended));
-    md.push(
-      distinctChangeLine(
-        changeGroups.length,
-        shown,
-        formatChangedSurfaceScope(changedScope.bases, changedScope.variants),
-      ),
-    );
-  }
+  while (md[md.length - 1] === '') md.pop();
   return md;
 }
 
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
-  if (input.whatChanged.length > 0) {
-    (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
-    input.whatChanged.forEach((appended) => md.push(appended));
-  }
   if (input.volatileCount > 0) {
     const candidates = input.liveCandidateLabels.length
       ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`

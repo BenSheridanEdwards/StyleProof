@@ -441,7 +441,7 @@ for (const [restingHeight, hoverBeforeHeight, hoverAfterHeight, mixed] of [
       const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const surface = report.surfaces[0];
       const region = surface.regions[0];
-      assert.match(md, /needs review/);
+      assert.match(md, /to review\*\*/);
       if (hoverBeforeHeight > 200 || hoverAfterHeight > 200) {
         assert.ok(region?.stateImages?.hover?.after, 'visible hover change keeps its crop');
         assert.notEqual(surface.visualEvidence, 'not-rendered');

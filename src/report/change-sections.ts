@@ -238,6 +238,57 @@ export function cssRows(findings: Finding[]): string[][] {
 
 const counted = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
+/** Forced-state pseudo-classes a captured state proves; any other pseudo-class cannot be attributed. */
+const STATE_PSEUDO: Record<string, string> = {
+  hover: 'hover',
+  focus: 'focus',
+  'focus-visible': 'focus',
+  'focus-within': 'focus',
+  active: 'active',
+  checked: 'checked',
+  disabled: 'disabled',
+  'placeholder-shown': 'placeholder-shown',
+};
+
+const COMPOUND = /^([a-z][a-z0-9-]*|\*)?((?:\.[\w-]+|::?[\w-]+)*)$/i;
+
+/**
+ * Whether a simple compound selector (tag, classes, state pseudo-classes, pseudo-elements; no
+ * combinators, ids or attributes) provably matches this element in one of the section's states.
+ */
+function compoundMatches(selector: string, entry: ElementEntry, states: Set<string>): boolean {
+  const match = COMPOUND.exec(selector.trim());
+  if (!match || (!match[1] && !match[2])) return false;
+  const tag = match[1];
+  if (tag && tag !== '*' && tag.toLowerCase() !== entry.tag.toLowerCase()) return false;
+  const own = new Set(entry.cls.split(/\s+/).filter(Boolean));
+  const classes = [...match[2].matchAll(/\.([\w-]+)/g)].map((m) => m[1]);
+  if (!classes.every((c) => own.has(c))) return false;
+  const pseudos = [...match[2].matchAll(/(?<!:):([\w-]+)/g)].map((m) => m[1]);
+  return (tag !== undefined || classes.length > 0) && pseudos.every((p) => states.has(STATE_PSEUDO[p] ?? '\u0000'));
+}
+
+/** Changed rules (reached in a captured state) whose selector provably matches every section element. */
+function attributedRules(section: ChangeSection, entries: ElementEntry[], ctxRules: SectionRegistry['rules']) {
+  const states = new Set<string>(section.states);
+  return ctxRules.filter((rule) => {
+    if (rule.status !== 'reached') return false;
+    const parts = rule.key.split(' > ');
+    while (parts[0]?.startsWith('@')) parts.shift();
+    const selectors = parts.join(' > ').split(',');
+    return entries.length > 0 && entries.every((entry) => selectors.some((sel) => compoundMatches(sel, entry, states)));
+  });
+}
+
+/** " · changed rule `.card-title` in `/styles.css`" when Change Reach knows the rule. */
+function ruleMeta(rules: SectionRegistry['rules']): string {
+  if (!rules.length) return '';
+  const sheets = [...new Set(rules.map((r) => r.sheet ?? ''))];
+  const named = rules.map((r) => codeValue(r.key));
+  const where = sheets.length === 1 && sheets[0] ? ` in ${codeValue(sheets[0])}` : '';
+  return ` · changed rule${rules.length === 1 ? '' : 's'} ${named.join(', ')}${where}`;
+}
+
 /** "Show the CSS": the meta line, the property table, then spacing and folded geometry. */
 function cssDetailLines(
   section: ChangeSection,
@@ -246,12 +297,13 @@ function cssDetailLines(
     folded: Finding[];
     describe: Parameters<typeof renderCropChanges>[2];
     surfaces?: string;
+    rules: SectionRegistry['rules'];
   },
 ): string[] {
   const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
   const across = extra.surfaces ? ` · the same on ${extra.surfaces}` : '';
   const verb = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom')?.change ?? 'restyled';
-  const meta = `${codeValue(section.selector)} · ${counted(section.paths.length, 'element')} ${verb}${across}`;
+  const meta = `${codeValue(section.selector)} · ${counted(section.paths.length, 'element')} ${verb}${ruleMeta(extra.rules)}${across}`;
   const driver = section.driver
     ? ` · when ${codeValue(prettyLabel(section.driver.path, section.driver.entry?.cls ?? ''))} is ${section.states
         .filter((s) => s !== 'rest')
@@ -442,7 +494,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput): Render
     ...whereLines,
     ...(pairs.note ? ['', pairs.note] : []),
     ...pairs.md,
-    ...cssDetailLines(section, input),
+    ...cssDetailLines(section, { ...input, rules: sectionRules(ctx, section, maps, ref) }),
     ...(ref ? ['', SECTION_END] : []),
   ];
   return { md, region: sectionRegion(ctx, input, pairs, where, shown), shown };
@@ -488,6 +540,17 @@ function sectionId(registry: SectionRegistry, title: string): string {
   let id = base;
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
   return id;
+}
+
+/** The changed rules this section's elements match, recorded for "What was captured". */
+function sectionRules(ctx: RenderCtx, section: ChangeSection, maps: [StyleMap, StyleMap], ref: string | null) {
+  const registry = ctx.sections;
+  if (!registry?.rules.length) return [];
+  const entries = section.paths.map((p) => entryOf(maps, p)).filter((e): e is ElementEntry => !!e);
+  const rules = attributedRules(section, entries, registry.rules);
+  const id = ref ? registry.metas[sectionRefIndex(ref) ?? -1]?.id : undefined;
+  for (const rule of rules) if (id && !registry.ruleSections.has(rule.key)) registry.ruleSections.set(rule.key, id);
+  return rules;
 }
 
 /** Record the section's report.html data and return its placeholder line (null when not collecting). */

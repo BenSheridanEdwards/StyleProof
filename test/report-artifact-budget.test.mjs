@@ -164,7 +164,9 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
     assert.ok(json.sourceBinding);
     assert.ok(json.evidenceBinding);
-    assert.match(fs.readFileSync(path.join(outDir, 'report.html'), 'utf8'), /UNVERIFIED/);
+    // The unverified binding is stated on stderr and in report.json, never left out silently.
+    assert.notEqual(json.sourceBinding.status, 'bound');
+    assert.match(child.stderr, /UNVERIFIED DIAGNOSTIC: source binding was not verified/);
   });
 });
 

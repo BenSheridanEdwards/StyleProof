@@ -288,6 +288,41 @@ export function reachStripLines(reach: ReportReach): string[] {
   ];
 }
 
+const MAX_NAMED_RULES = 5;
+
+function namedRules(rules: RuleReach[]): string {
+  const named = rules.slice(0, MAX_NAMED_RULES).map((rule) => codeValue(rule.key));
+  return `${named.join(', ')}${rules.length > MAX_NAMED_RULES ? ` and ${rules.length - MAX_NAMED_RULES} more` : ''}`;
+}
+
+/**
+ * What report.md says about Change Reach: the full strip when the opt-in gate holds findings;
+ * otherwise only what a reviewer must act on, in plain words: changed rules no captured page
+ * matched, and changed rules computed styles cannot show. Join gaps and unmeasured rules stay
+ * in report.json (`reach`).
+ */
+export function reachHeadlineLines(reach: ReportReach): string[] {
+  if (reach.blocking > 0) return reachStripLines(reach);
+  const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
+  const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
+  const lines: string[] = [];
+  if (never.length) {
+    const one = never.length === 1;
+    lines.push(
+      '',
+      `⚠️ **${never.length} changed CSS rule${one ? '' : 's'} never matched on a captured page:** ${namedRules(never)}. ` +
+        `Add a surface or state that shows ${one ? 'it' : 'them'}, or ${one ? 'it goes' : 'they go'} unreviewed.`,
+    );
+  }
+  if (blind.length) {
+    lines.push(
+      '',
+      `⚠️ **${blind.length} changed CSS rule${blind.length === 1 ? '' : 's'} computed styles cannot show:** ${namedRules(blind)}. Review ${blind.length === 1 ? 'it' : 'them'} in the diff.`,
+    );
+  }
+  return lines;
+}
+
 function ruleTable(rules: RuleReach[]): string[] {
   return [
     '| Rule | Change | Gated by | Source | Why |',
