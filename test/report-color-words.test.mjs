@@ -35,3 +35,27 @@ test('the change line keeps values, not a wrong word, when either side has no cl
   assert.match(line, /text colour changes from `#a5f3fc` to `#fca5a5` when hovered/);
   assert.doesNotMatch(line, /white/);
 });
+
+test('a state side with no single resting value says what the state does, never "none" (RV2-06)', () => {
+  const subject = { tag: 'a', cls: 'docs-link', path: 'body > a', texts: ['Docs'], count: 1, sameSelectorCount: 1 };
+  const added = changeLine({
+    subject,
+    rest: [],
+    states: [{ state: 'hover', props: [{ prop: 'padding', before: '(state does not change it)', after: '4px 8px' }] }],
+  });
+  assert.match(added, /^On the Docs link, the padding now changes to `4px 8px` when hovered\./);
+  const removed = changeLine({
+    subject,
+    rest: [],
+    states: [
+      { state: 'hover', props: [{ prop: 'padding', before: '4px 8px', after: '(state no longer changes it)' }] },
+    ],
+  });
+  assert.match(removed, /^On the Docs link, the padding no longer changes when hovered\./);
+});
+
+test('a size/position-only line states what moved and gives no cause (RV2-12)', () => {
+  const subject = { tag: 'div', cls: 'card', path: 'body > div', texts: [''], count: 1, sameSelectorCount: 1 };
+  const line = changeLine({ subject, rest: [], states: [], geometryOnly: true });
+  assert.equal(line, 'The card changes size/position only, no styling property changed.');
+});

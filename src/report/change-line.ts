@@ -32,7 +32,7 @@ export type ChangeLineInput = {
   rest: Array<PropChange & { pseudo?: string }>;
   states: StateChange[];
   /** A state owned by another element (a checkbox `:checked` restyling its label). */
-  driver?: { subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'> };
+  driver?: { subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>; count?: number };
   dom?: 'added' | 'removed' | 'retagged';
   /** Only size/position values moved: no styling property changed. */
   geometryOnly?: boolean;
@@ -190,6 +190,9 @@ function propFragment(change: PropChange & { pseudo?: string }): string {
   if (words) return `${label} from ${words[0]} to ${words[1]}`;
   const before = valueWords(change.before);
   const after = valueWords(change.after);
+  // A state side with no single resting value to name (a shorthand): say what the state does.
+  if (change.before === '(state does not change it)' && after) return `${label} now changes to ${after}`;
+  if (change.after === '(state no longer changes it)') return `${label} no longer changes`;
   return before && after ? `${label} from ${before} to ${after}` : label;
 }
 
@@ -222,12 +225,16 @@ const stateWord = (state: string): string => STATE_WORDS[state] ?? `:${state}`;
 
 /** "background from blue to red" → "background changes from blue to red". */
 const withVerb = (fragment: string): string =>
-  fragment.includes(' from ') ? fragment.replace(' from ', ' changes from ') : `${fragment} changes`;
+  / (?:now|no longer) changes/.test(fragment)
+    ? fragment
+    : fragment.includes(' from ')
+      ? fragment.replace(' from ', ' changes from ')
+      : `${fragment} changes`;
 
 /** "background changes from blue to red when hovered" */
 function stateClause(change: StateChange, driver: string | null): string {
   const [first, ...more] = withoutColorEchoes(change.props).map(propFragment);
-  const when = driver ? `when ${driver} is ${stateWord(change.state)}` : `when ${stateWord(change.state)}`;
+  const when = driver ? `when ${driver} ${stateWord(change.state)}` : `when ${stateWord(change.state)}`;
   return `${fragmentList([withVerb(first), ...more])} ${when}`;
 }
 
@@ -250,10 +257,7 @@ function structuralSentence(input: ChangeLineInput, who: string, many: boolean):
   }
   if (input.dom === 'retagged') return `${Who} ${many ? 'change' : 'changes'} element type.`;
   if (!input.geometryOnly) return null;
-  return (
-    `${Who} ${many ? 'change' : 'changes'} size/position only, no styling property changed. ` +
-    'This is often content-length drift; check the rendered text before suspecting CSS.'
-  );
+  return `${Who} ${many ? 'change' : 'changes'} size/position only, no styling property changed.`;
 }
 
 /** "a and the b", "a, the b, and the c" */
@@ -268,7 +272,8 @@ function listClauses(clauses: string[], article: string): string {
 
 /** The forced-state sentences: after a resting change, "Their …"; alone, "On …, the …" plus the resting claim. */
 function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
-  const driver = input.driver ? `the ${sectionNoun(input.driver.subject)}` : null;
+  const noun = input.driver ? sectionNoun(input.driver.subject) : '';
+  const driver = !input.driver ? null : (input.driver.count ?? 1) > 1 ? `their ${plural(noun)} are` : `the ${noun} is`;
   const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driver));
   if (!clauses.length) return [];
   if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];

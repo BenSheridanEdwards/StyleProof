@@ -101,6 +101,83 @@ test('a state that restyles another element names that element and the control d
   );
 });
 
+test('a list of checkboxes restyling their labels still names the driving control (RV2-01)', (t) => {
+  const root = mkTmp('styleproof-state-drivers-');
+  t.after(() => rmTmp(root));
+  const [c1, l1, c2, l2] = [1, 2, 3, 4].map((n) => `body > ${n % 2 ? 'input' : 'label'}:nth-child(${n})`);
+  const dirs = ['before', 'after'].map((side) => path.join(root, side));
+  for (const dir of dirs) {
+    const color = dir === dirs[0] ? 'rgb(20, 120, 60)' : 'rgb(160, 40, 40)';
+    const map = makeMap({
+      elements: {
+        [c1]: { tag: 'input', cls: 'opt', rect: [20, 20, 20, 20] },
+        [l1]: { tag: 'label', cls: 'opt-label', rect: [40, 20, 100, 20] },
+        [c2]: { tag: 'input', cls: 'opt', rect: [20, 60, 20, 20] },
+        [l2]: { tag: 'label', cls: 'opt-label', rect: [40, 60, 100, 20] },
+      },
+      states: { [c1]: { checked: { [l1]: { color } } }, [c2]: { checked: { [l2]: { color } } } },
+    });
+    writeCapture(dir, 'form@390', map, solidPng(390, 180));
+    fs.writeFileSync(path.join(dir, 'form@390.checked.png'), solidPng(390, 180));
+  }
+  const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+  const labels = sectionsOf(fs.readFileSync(result.reportMdPath, 'utf8'))['Opt labels'];
+  assert.match(labels, /^On both opt labels, the text colour changes from .+ when their opts are checked\./m);
+  assert.match(labels, /· when `input\.opt` is `:checked`/);
+});
+
+test('a state layer captured on one side only gets a plain line, not an unnamed element (RV2-05)', (t) => {
+  const root = mkTmp('styleproof-state-layer-');
+  t.after(() => rmTmp(root));
+  const dirs = ['before', 'after'].map((side) => path.join(root, side));
+  for (const dir of dirs) {
+    const map = makeMap({ elements: { 'body > h1': { tag: 'h1', cls: 'title', rect: [20, 20, 300, 60] } } });
+    map.stateLayers = dir === dirs[0] ? ['hover', 'focus', 'active'] : ['hover', 'focus', 'active', 'checked'];
+    writeCapture(dir, 'home@1280', map, solidPng(1280, 400));
+  }
+  const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const sections = sectionsOf(md);
+  assert.equal(sections.Element, undefined, 'no unnamed "Element" section');
+  const layer = sections['Interaction states not compared'];
+  assert.ok(layer, Object.keys(sections).join(', '));
+  assert.match(layer, /^The forced `:checked` state was captured on head only, so it was not compared\./m);
+  assert.match(md, /\*\*1 change to review\*\* on `home` at 1280px wide\./, 'no element is counted for it');
+});
+
+for (const [added, expected] of [
+  [true, /^On the Docs link, the text colour changes from `#a5f3fc` to `#fca5a5` when hovered\./m],
+  [false, /^On the Docs link, the text colour changes from `#fca5a5` to `#a5f3fc` when hovered\./m],
+]) {
+  test(`a hover style ${added ? 'added' : 'removed'} states the resting value, never "none" (RV2-06)`, (t) => {
+    const root = mkTmp('styleproof-state-none-');
+    t.after(() => rmTmp(root));
+    const link = 'body > a';
+    const dirs = ['before', 'after'].map((side) => path.join(root, side));
+    for (const dir of dirs) {
+      const hovered = (dir === dirs[1]) === added;
+      const map = makeMap({
+        elements: {
+          [link]: {
+            tag: 'a',
+            cls: 'docs-link',
+            text: 'Docs',
+            rect: [20, 20, 80, 20],
+            style: { color: 'rgb(165, 243, 252)' },
+          },
+        },
+        states: hovered ? { [link]: { hover: { [link]: { color: 'rgb(252, 165, 165)' } } } } : {},
+      });
+      writeCapture(dir, 'docs@1280', map, solidPng(1280, 300));
+      fs.writeFileSync(path.join(dir, 'docs@1280.hover.png'), solidPng(1280, 300));
+    }
+    const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(md, expected);
+    assert.doesNotMatch(md, /from none|to none/);
+  });
+}
+
 test('machine findings keep the state owners', (t) => {
   const { json } = fixture(t);
   const owners = json.surfaces[0].findings.map((f) => [f.path, f.state, f.sub]).sort();

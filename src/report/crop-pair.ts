@@ -1,7 +1,7 @@
 import type { PNG } from 'pngjs';
 import type { Box } from './geometry.js';
 import { cropPng, cropStem } from './png.js';
-import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.js';
+import { cropBudgetNote, cropBudgetOpen, writeBudgetedPair } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
@@ -45,9 +45,10 @@ export function stateLabel(state: string): string | undefined {
   return labels[state];
 }
 
+/** Escape for an attribute in a table cell; entities already in the text (escaped page text) stay single. */
 const escapeCellAttribute = (value: string): string =>
   value
-    .replace(/&/g, '&amp;')
+    .replace(/&(?!(?:amp|lt|gt|quot);)/g, '&amp;')
     .replace(/"/g, '&quot;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -97,9 +98,8 @@ export function renderCropPair(
   const images: CropImages = {};
   const beforeRel = `${stem}-before.png`;
   const afterRel = `${stem}-after.png`;
-  if (!writeBudgetedPng(ctx, beforeRel, before.png)) return omittedCrop(ctx);
+  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx);
   images.before = beforeRel;
-  if (!writeBudgetedPng(ctx, afterRel, after.png)) return omittedCrop(ctx);
   images.after = afterRel;
   const image = (rel: string, side: string) =>
     `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${spec.what}`)}">`;

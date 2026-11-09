@@ -9,7 +9,7 @@ import {
   surfaceWidth,
 } from '../change-groups.js';
 import { codeValue } from '../code-span.js';
-import { buildChangeSections, renderChangeSection } from './change-sections.js';
+import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT } from './change-sections.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { isSameOrDescendant } from './geometry.js';
 import { MISLEADING_CROP_REASON } from './crop-pair.js';
@@ -145,7 +145,9 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     : [];
   // A changed run no section shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));
-  const notRendered = !rendered.some((r) => r.shown) && pngs[0] && pngs[1];
+  // Not shown because a limit left the crops out is not "not visible".
+  const notRendered =
+    !rendered.some((r) => r.shown) && rendered.some((r) => !r.region.cropOmitted) && pngs[0] && pngs[1];
   return {
     md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
     json: {
@@ -174,6 +176,7 @@ function scopeText(keys: string[], base: (key: string) => string, elements: numb
         ? ` at ${andList(widths.map(String))}px wide`
         : ` at ${widths.length} widths`;
   const rules = changedRules === undefined ? '' : `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}`;
+  if (!elements && !rules) return ` on ${where}${wide}.`;
   return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
 }
 
@@ -192,7 +195,8 @@ export function sectionSummary(
       ? buildChangeSections(cg.rep.findings, presentationMaps(ctx, cg.rep.sd.surface))
       : [];
     sectionCount += Math.max(1, sections.length);
-    elements += sections.reduce((n, section) => n + section.paths.length, 0);
+    // A state layer captured on one side is a change to review, but not an element.
+    elements += sections.reduce((n, s) => n + (s.paths[0] === SURFACE_SUBJECT ? 0 : s.paths.length), 0);
   }
   return {
     sectionCount,

@@ -54,6 +54,42 @@ export function writeBudgetedPng(ctx: RenderCtx, rel: string, png: PNG): boolean
   return true;
 }
 
+/**
+ * Write a before/after pair at ONE scale: both sides are halved together until both fit the
+ * per-file cap, then both are written or neither. `context` pages (whole pages) do not count
+ * toward the downscaled-crops notice.
+ */
+export function writeBudgetedPair(
+  ctx: RenderCtx,
+  [relA, pngA]: [string, PNG],
+  [relB, pngB]: [string, PNG],
+  options: { context?: boolean } = {},
+): boolean {
+  const b = ctx.crops;
+  if (!cropBudgetOpen(b)) return false;
+  const cap = Math.min(MAX_CROP_FILE_BYTES, b.maxBytes);
+  let pair = [pngA, pngB];
+  let encoded = pair.map(encodePng);
+  let halved = false;
+  for (let tries = 0; encoded.some((e) => e.length > cap) && tries < 3; tries++) {
+    pair = pair.map(halvePng);
+    encoded = pair.map(encodePng);
+    halved = true;
+  }
+  if (encoded.some((e) => e.length > cap)) return false;
+  const bytes = encoded[0].length + encoded[1].length;
+  if (b.files + 2 > b.maxFiles || b.bytes + bytes > b.maxBytes) {
+    b.exhausted = true;
+    return false;
+  }
+  fs.writeFileSync(path.join(ctx.outDir, relA), encoded[0]);
+  fs.writeFileSync(path.join(ctx.outDir, relB), encoded[1]);
+  if (halved && !options.context) b.downscaled += 2;
+  b.files += 2;
+  b.bytes += bytes;
+  return true;
+}
+
 export const cropBudgetNote = (b: CropBudget): string =>
   !b.exhausted && b.files < b.maxFiles
     ? `_Crop omitted: the image could not fit the ${b.maxBytes < MAX_CROP_FILE_BYTES ? 'report byte limit' : 'per-file size limit'} after downscaling._`

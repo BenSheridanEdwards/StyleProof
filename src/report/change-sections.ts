@@ -11,7 +11,7 @@ import { cellPair, renderCropChanges } from './markdown.js';
 import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
 import { spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { whereMapLine, whereReceipt, writeWhereMap, type WhereMap } from './where-map.js';
-import { writeBudgetedPng } from './crop-budget.js';
+import { writeBudgetedPair } from './crop-budget.js';
 import { cropStem } from './png.js';
 import type { ReportMarkdown } from './sections.js';
 import {
@@ -45,9 +45,33 @@ export type ChangeSection = {
   findings: Finding[];
   /** Pairs to show: resting first when anything changed at rest, then each forced state. */
   states: PairState[];
-  /** The element whose state restyles these (a checkbox restyling its label). */
-  driver?: { path: string; entry?: ElementEntry };
+  /** The element whose state restyles these (a checkbox restyling its label); `count` drivers share its label. */
+  driver?: { path: string; entry?: ElementEntry; count: number };
 };
+
+/** What the diff writes for the side of a state change the state leaves alone, per side. */
+const GEOMETRY_HINT =
+  '_Only size/position values moved. This is often content-length drift; check the rendered text before suspecting CSS._';
+
+const STATE_ADDS = ['(state does not change it)', '(state no longer changes it)'] as const;
+
+/** The diff's surface-level finding: a forced-state layer captured on one side only. */
+export const SURFACE_SUBJECT = '(surface)';
+
+/** "The forced `:checked` state was captured on head only, so it was not compared." */
+function stateLayerLine(findings: Finding[]): string {
+  const layers = findings
+    .flatMap((f) => (f.kind === 'state' ? f.props : []))
+    .map((p) => ({
+      name: codeValue(`:${p.prop.replace(/^forced :/, '').replace(/ layer$/, '')}`),
+      side: p.before === 'captured' ? 'base' : p.after === 'captured' ? 'head' : 'one side',
+    }));
+  if (layers.length === 1) {
+    return `The forced ${layers[0].name} state was captured on ${layers[0].side} only, so it was not compared.`;
+  }
+  const list = layers.map((l) => `${l.name} (${l.side} only)`).join(', ');
+  return `The forced states ${list} were captured on one side only, so they were not compared.`;
+}
 
 /** The element a finding changes: a state finding's target, otherwise its own path. */
 export const subjectPath = (f: Finding): string => (f.kind === 'state' ? f.sub.replace(/::[\w-]+$/, '') : f.path);
@@ -93,19 +117,16 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
   const groups = new Map<string, string[]>();
   for (const p of [...bySubject.keys()].sort(order)) {
     const entry = entryOf(maps, p);
-    const owners = [
+    // Driven targets group by what drives them, so each section names one kind of control.
+    const ownerLabels = [
       ...new Set(
         bySubject
           .get(p)!
           .filter((f) => f.kind === 'state' && f.path !== p)
-          .map((f) => f.path),
+          .map((f) => prettyLabel(f.path, entryOf(maps, f.path)?.cls ?? '')),
       ),
-    ];
-    const key = JSON.stringify([
-      prettyLabel(p, entry?.cls ?? ''),
-      owners.length ? 'driven' : '',
-      changeSignature(bySubject.get(p)!),
-    ]);
+    ].sort();
+    const key = JSON.stringify([prettyLabel(p, entry?.cls ?? ''), ownerLabels, changeSignature(bySubject.get(p)!)]);
     groups.set(key, [...(groups.get(key) ?? []), p]);
   }
   return [...groups.values()].map((paths) => {
@@ -127,13 +148,15 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
     };
     const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
     return {
-      title: sectionTitle(subject),
+      title: paths[0] === SURFACE_SUBJECT ? 'Interaction states not compared' : sectionTitle(subject),
       selector,
       paths,
       sameSelectorCount: subject.sameSelectorCount,
       findings: own,
       states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
-      ...(drivers.length === 1 ? { driver: { path: drivers[0], entry: entryOf(maps, drivers[0]) } } : {}),
+      ...(drivers.length
+        ? { driver: { path: drivers[0], entry: entryOf(maps, drivers[0]), count: drivers.length } }
+        : {}),
     };
   });
 }
@@ -169,13 +192,26 @@ const SIZING =
 
 /** The section's plain-English line, from its first element's findings (all elements changed alike). */
 export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], folded: Finding[] = []): string {
+  if (section.paths[0] === SURFACE_SUBJECT) return stateLayerLine(section.findings);
   const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
   const dom = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
   const rest = first.flatMap((f) =>
     f.kind === 'style' ? summarizeProps(f.props).map((p) => ({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) })) : [],
   );
+  const target = section.paths[0];
+  // A side the state leaves alone renders the resting value: say that value, not "none".
+  const resting = (side: 0 | 1, prop: string, value: string): string =>
+    value === STATE_ADDS[side] ? (maps[side].elements[target]?.style?.[prop] ?? value) : value;
   const states: StateChange[] = STATE_LAYER_NAMES.flatMap((state) => {
-    const props = first.flatMap((f) => (f.kind === 'state' && f.state === state ? summarizeProps(f.props) : []));
+    const props = first.flatMap((f) =>
+      f.kind === 'state' && f.state === state
+        ? summarizeProps(f.props).map((p) => ({
+            ...p,
+            before: resting(0, p.prop, p.before),
+            after: resting(1, p.prop, p.after),
+          }))
+        : [],
+    );
     return props.length ? [{ state, props }] : [];
   });
   const driver = section.driver?.entry
@@ -186,6 +222,7 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
           path: section.driver.path,
           texts: [section.driver.entry.text ?? ''],
         },
+        count: section.driver.count,
       }
     : undefined;
   return changeLine({
@@ -335,6 +372,8 @@ function cssDetailLines(
     `${meta}${driver}`,
     '',
     ...table,
+    // A hint, not a finding: it belongs with the CSS, not in the change line.
+    ...(isGeometryOnlyGroup(first) ? ['', GEOMETRY_HINT] : []),
     ...spacingLines(extra.spacing),
     ...folded,
     '',
@@ -433,6 +472,8 @@ type SectionPairs = {
   stateImages: Record<string, CropImages>;
   /** The written pairs, for report.html. */
   meta: SectionMetaPair[];
+  /** A pair was left out for a limit (the element is visible): which one. */
+  omitted?: 'budget' | 'max-crops';
 };
 
 const MAX_CROPS_NOTE = (max: number) =>
@@ -444,7 +485,13 @@ const pairTargets = (section: ChangeSection, state: PairState): string[] =>
     ? section.paths
     : [...new Set(section.findings.filter((f) => f.kind === 'state' && f.state === state).map(subjectPath))];
 
-type StatePair = { md: string[]; note?: string; images?: CropImages; size?: { w: number; h: number } };
+type StatePair = {
+  md: string[];
+  note?: string;
+  images?: CropImages;
+  size?: { w: number; h: number };
+  omitted?: boolean;
+};
 
 /** One state's clean pair, or the reason it has none. */
 function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: string): StatePair {
@@ -468,17 +515,23 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
     ...(state === 'rest' ? {} : { state }),
     what: `${what}${stateWhat(state)}`,
   })!;
-  return { md: pair.md, images: pair.images, ...(pair.size ? { size: pair.size } : {}) };
+  return {
+    md: pair.md,
+    images: pair.images,
+    ...(pair.size ? { size: pair.size } : {}),
+    ...(pair.omitted ? { omitted: true } : {}),
+  };
 }
 
 /** One clean before/after pair per state, or the reason a state has none. */
 function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): SectionPairs {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, meta: [] };
-  if (!input.cropsAllowed) return { ...out, note: MAX_CROPS_NOTE(ctx.maxCrops) };
+  if (!input.cropsAllowed) return { ...out, note: MAX_CROPS_NOTE(ctx.maxCrops), omitted: 'max-crops' };
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state, what);
     pair.md.forEach((line) => out.md.push(line));
     if (pair.note) out.note = pair.note;
+    if (pair.omitted) out.omitted = 'budget';
     if (state === 'rest' && pair.images) out.images = pair.images;
     else if (pair.images?.after) out.stateImages[state] = pair.images;
     if (pair.images?.before && pair.images.after && pair.size) {
@@ -509,8 +562,10 @@ function sectionRegion(ctx: RenderCtx, input: SectionInput, pairs: SectionPairs,
     images: pairs.images,
     ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
     ...(where.length ? { where: where.map(whereReceipt) } : {}),
+    // A limit left the crop out: say which (main's `cropOmitted: 'budget'`, plus `'max-crops'`).
+    ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
     // Screenshots exist but no changed element is exposed in them: say so in the receipt too.
-    ...(!shown && input.pngs[0] && input.pngs[1]
+    ...(!shown && !pairs.omitted && input.pngs[0] && input.pngs[1]
       ? { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON }
       : {}),
     ...(input.spacing.length ? { spacing: input.spacing } : {}),
@@ -646,7 +701,7 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
     // `-base` / `-head`, never `-before` / `-after`: those names mean clean crops.
     const page = { state, before: `${stem}-base.png`, after: `${stem}-head.png`, w: pngB.width, h: pngB.height };
     // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
-    if (writeBudgetedPng(ctx, page.before, pngA) && writeBudgetedPng(ctx, page.after, pngB)) {
+    if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {
       written.set(`${surface}\0${state}`, page);
     }
   }
