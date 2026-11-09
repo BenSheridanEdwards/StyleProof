@@ -1,12 +1,11 @@
 import type { PNG } from 'pngjs';
-import type { Rect } from '../capture.js';
-import { pad, unionRects, type Box } from './geometry.js';
-import { annotateCrop, compositePair, cropPng, cropStem, zoomCrop } from './png.js';
+import type { Box } from './geometry.js';
+import { cropPng, cropStem } from './png.js';
 import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
-export type CropImages = { composite?: string; annotated?: string; zoom?: string };
+export type CropImages = { before?: string; after?: string };
 
 export const MISLEADING_CROP_REASON =
   'The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.';
@@ -26,23 +25,33 @@ export type CropPairSpec = {
   box: Box;
   pngA: PNG;
   pngB: PNG;
-  /** Leaf rects to outline on each side. */
-  rectsA: Rect[];
-  rectsB: Rect[];
-  labels?: { left: string; right: string };
-  /** Caption fragments: the annotated suffix, the zoom suffix. */
-  captions: { annotated: string; zoom: (factor: number) => string };
+  state?: string;
+  /** Noun phrase describing the changed element or content. */
+  what: string;
   /** Skip (return null) when the crop renders identically on both sides. */
   skipIdentical?: boolean;
 };
 
-function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box; factor: number } | null {
-  const changed = unionRects([...rectsA, ...rectsB]);
-  const maxDim = changed ? Math.max(changed.w, changed.h) : 0;
-  if (zoomBelow <= 0 || !changed || maxDim <= 0 || maxDim > zoomBelow) return null;
-  const box = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
-  return { box, factor: Math.min(8, Math.max(2, Math.round(240 / Math.max(box.w, box.h)))) };
+/** Human-readable label for a forced-state capture. */
+export function stateLabel(state: string): string | undefined {
+  const labels: Record<string, string> = {
+    hover: 'While hovered',
+    focus: 'While focused',
+    active: 'While pressed',
+    checked: 'While checked',
+    disabled: 'While disabled',
+    'placeholder-shown': 'While showing its placeholder',
+  };
+  return labels[state];
 }
+
+const escapeCellAttribute = (value: string): string =>
+  value
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\|/g, '\\|');
 
 const MAX_CROP_W = 1280;
 const MAX_CROP_AREA = 1_024_000;
@@ -53,33 +62,15 @@ function omittedCrop(ctx: RenderCtx) {
   return { md: ['', cropBudgetNote(ctx.crops)], images: {}, omitted: true };
 }
 
-function zoomOverlay(ctx: RenderCtx, spec: CropPairSpec, images: CropImages): string[] {
-  const { pngA, pngB, rectsA, rectsB, captions } = spec;
-  const zoom = zoomPlan(rectsA, rectsB, ctx.zoomBelow);
-
-  if (!zoom || !cropBudgetOpen(ctx.crops)) return [];
-  const rel = `${cropStem(spec.surface, spec.suffix)}-zoom.png`;
-  const zoomed = (png: PNG, rects: Rect[]): PNG => zoomCrop(png, zoom.box, rects, zoom.factor);
-
-  if (!writeBudgetedPng(ctx, rel, compositePair(zoomed(pngA, rectsA), zoomed(pngB, rectsB)))) return [];
-  images.zoom = rel;
-  const { left = 'before', right = 'after' } = spec.labels ?? {};
-
-  return ['', `![zoomed ${left} ◀ │ ▶ ${right}](${ctx.img(rel)})`, '', `<sub>🔬 ${captions.zoom(zoom.factor)}</sub>`];
-}
-
 /**
- * Crop, composite, annotate and (for small changes) zoom one before/after pair,
- * writing the PNGs and returning the image markdown plus the images sidecar.
+ * Write two clean crops and return a GitHub-safe before/after table plus its image paths.
  * Returns null only for `skipIdentical` pairs whose pixels match.
  */
 export function renderCropPair(
   ctx: RenderCtx,
   spec: CropPairSpec,
 ): { md: string[]; images: CropImages; omitted?: boolean } | null {
-  const { box, pngA, pngB, rectsA, rectsB, captions } = spec;
-  const left = spec.labels?.left ?? 'before';
-  const right = spec.labels?.right ?? 'after';
+  const { box, pngA, pngB } = spec;
   const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
   // When the box lies in the area both screenshots cover, crop one origin clamped to the
@@ -103,41 +94,22 @@ export function renderCropPair(
 
   if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx);
   const stem = cropStem(spec.surface, spec.suffix);
-  const images: CropImages = { composite: `${stem}-composite.png` };
-
-  if (!writeBudgetedPng(ctx, images.composite!, compositePair(before.png, after.png))) return omittedCrop(ctx);
+  const images: CropImages = {};
+  const beforeRel = `${stem}-before.png`;
+  const afterRel = `${stem}-after.png`;
+  if (!writeBudgetedPng(ctx, beforeRel, before.png)) return omittedCrop(ctx);
+  images.before = beforeRel;
+  if (!writeBudgetedPng(ctx, afterRel, after.png)) return omittedCrop(ctx);
+  images.after = afterRel;
+  const image = (rel: string, side: string) =>
+    `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${spec.what}`)}">`;
+  const label = spec.state ? stateLabel(spec.state) : undefined;
   const md = [
     '',
-    `![${left} ◀ │ ▶ ${right}](${ctx.img(images.composite!)})`,
-    '',
-    `<sub>◀ ${left}  ·  ${right} ▶</sub>`,
+    ...(label ? [`**${label}**`, ''] : []),
+    '| Before | After |',
+    '| --- | --- |',
+    `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
-
-  // One primary before/after. Annotated + zoom live under a single optional
-  // highlight toggle so the report is not three duplicate carousels.
-  const overlay: string[] = [];
-  const annotatedA = annotateCrop(before, rectsA);
-  const annotatedB = annotateCrop(after, rectsB);
-  const annotated = `${stem}-annotated.png`;
-
-  if (
-    (annotatedA.highlighted || annotatedB.highlighted) &&
-    writeBudgetedPng(ctx, annotated, compositePair(annotatedA.png, annotatedB.png))
-  ) {
-    images.annotated = annotated;
-    overlay.push(
-      '',
-      `![highlighted ${left} ◀ │ ▶ ${right}](${ctx.img(images.annotated)})`,
-      '',
-      `<sub>🔍 ${captions.annotated}</sub>`,
-    );
-  }
-
-  zoomOverlay(ctx, spec, images).forEach((appended) => overlay.push(appended));
-  if (overlay.length) {
-    md.push('', '<details>', '<summary>Show highlight overlay</summary>');
-    overlay.forEach((appended) => md.push(appended));
-    md.push('', '</details>');
-  }
   return { md, images };
 }

@@ -90,13 +90,9 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   // No mid-report glossary.
   assert.doesNotMatch(md, /Surface base.*=.*product UI state/);
 
-  // One primary before/after; highlight overlay is optional/collapsed.
-  assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/.+-composite\.png\)/);
-  assert.match(md, /<summary>Show highlight overlay<\/summary>/);
-  // Annotated must not appear as a peer carousel above the fold.
-  const beforeDetails = md.slice(0, md.indexOf('<summary>Show highlight overlay</summary>'));
-  assert.doesNotMatch(beforeDetails, /-annotated\.png/);
-  assert.doesNotMatch(beforeDetails, /-zoom\.png/);
+  // One primary clean before/after pair; no overlay, annotated twin or zoom anywhere.
+  assert.equal(md.match(/^\| Before \| After \|$/gm)?.length, 1);
+  assert.doesNotMatch(md, /Show highlight overlay|-annotated\.png|-zoom\.png/);
 
   // Nothing else line when only this restyle exists.
   assert.match(md, /Nothing else — no other element or inventory changes/);

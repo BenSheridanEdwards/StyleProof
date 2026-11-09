@@ -60,11 +60,12 @@ for (const alternate of [true, false]) {
       const result = generateStyleMapReport({ ...dirs, pad: 4, minWidth: 40, minHeight: 40, maxHeight: 40 });
       const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const images = json.surfaces[0].regions[0].images;
-      assert.ok(images.composite, 'the changed style has screenshot evidence');
-      assert.ok(containsColor(path.join(dirs.outDir, images.composite), BEFORE), 'crop contains before pixels');
-      assert.ok(containsColor(path.join(dirs.outDir, images.composite), AFTER), 'crop contains after pixels');
-      assert.ok(images.annotated, 'the annotation boxes intersect the actual screenshot crop');
-      assert.ok(containsColor(path.join(dirs.outDir, images.annotated), [255, 0, 200]), 'annotation is drawn');
+      assert.ok(images.before && images.after, 'the changed style has screenshot evidence');
+      assert.ok(containsColor(path.join(dirs.outDir, images.before), BEFORE), 'crop contains before pixels');
+      assert.ok(containsColor(path.join(dirs.outDir, images.after), AFTER), 'crop contains after pixels');
+      const where = json.surfaces[0].regions[0].where?.[0];
+      assert.ok(where, 'the Where map boxes the element at its screenshot position');
+      assert.ok(containsColor(path.join(dirs.outDir, where.image), [224, 17, 157]), 'the Where ring is drawn');
     } finally {
       rmTmp(dirs.root);
     }
@@ -84,7 +85,7 @@ for (const alternate of [true, false]) {
         maxHeight: 40,
       });
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
-      const crops = [...md.matchAll(/\]\((crops\/[^)]+-composite\.png)\)/g)].map((match) => match[1]);
+      const crops = [...md.matchAll(/src="(crops\/[^"]+-after\.png)"/g)].map((match) => match[1]);
       assert.ok(
         crops.some((file) => containsColor(path.join(dirs.outDir, file), AFTER)),
         'content crop shows added pixels',
@@ -94,8 +95,8 @@ for (const alternate of [true, false]) {
         /renders identically/,
         'the expanded element must not be described as absent pixel evidence',
       );
-      const annotated = [...md.matchAll(/\]\((crops\/[^)]+-annotated\.png)\)/g)].map((match) => match[1]);
-      assert.ok(annotated.some((file) => containsColor(path.join(dirs.outDir, file), [255, 0, 200])));
+      const where = [...md.matchAll(/src="(crops\/[^"]+-where\.png)"/g)].map((match) => match[1]);
+      assert.ok(where.some((file) => containsColor(path.join(dirs.outDir, file), [224, 17, 157])));
     } finally {
       rmTmp(dirs.root);
     }

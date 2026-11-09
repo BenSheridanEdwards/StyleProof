@@ -7,6 +7,7 @@ import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, sur
 import { chromeHosted, isChromeLandmarkPath } from '../change-chrome.js';
 import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
+import { whereMapLine, writeWhereMap } from './where-map.js';
 import { codeValue } from '../code-span.js';
 import { clipText } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
@@ -119,15 +120,6 @@ function parentStructureBox(s: Sides, pathKey: string, leaf: Box): Box | null {
 function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
   const box = contentBox(s, c);
   if (!box) return [];
-  const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
-  const rects = (entry: ElementEntry | undefined): Rect[] => {
-    const rect = screenshotRectOf(entry);
-    return rect ? [rect] : [];
-  };
-  const captions = {
-    annotated: 'magenta boxes mark the changed content',
-    zoom: (factor: number) => `magnified ${factor}×: content change too small to read at 1:1`,
-  };
   // Identical pixels on both sides is no evidence; name the absence instead.
   let pair = renderCropPair(s.ctx, {
     surface,
@@ -135,9 +127,7 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
     box,
     pngA: s.pngA,
     pngB: s.pngB,
-    rectsA: rects(entryA),
-    rectsB: rects(entryB),
-    captions,
+    what: 'the changed content',
     skipIdentical: true,
   });
   // One-sided add/remove: if the leaf crop matches on both screenshots, try a shared
@@ -151,17 +141,36 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
         box: parentBox,
         pngA: s.pngA,
         pngB: s.pngB,
-        rectsA: rects(entryA),
-        rectsB: rects(entryB),
-        captions,
+        what: 'the changed content',
         skipIdentical: true,
       });
     }
-    if (pair) return pair.md;
+    if (pair) return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
     return ['', noStructureCropNote(c.change)];
   }
-  if (pair) return pair.md;
+  if (pair) return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
   return ['', NO_PIXEL_DIFFERENCE_NOTE];
+}
+
+/** Where maps for a content change: on the head page where the element exists there, else on the base page. */
+function contentWhereLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
+  const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
+  const rect = (entry: ElementEntry | undefined): Rect[] => {
+    const r = screenshotRectOf(entry);
+    return r ? [r] : [];
+  };
+  const map =
+    writeWhereMap(s.ctx, { surface, suffix, page: s.pngB, side: 'after', rects: rect(entryB) }) ??
+    (entryB
+      ? null
+      : writeWhereMap(s.ctx, {
+          surface,
+          suffix: `${suffix}-before`,
+          page: s.pngA,
+          side: 'before',
+          rects: rect(entryA),
+        }));
+  return map ? ['', whereMapLine(s.ctx, map, '1 changed element')] : [];
 }
 
 function withoutRedundantStructuralDescendants(changes: ContentChange[]): ContentChange[] {
@@ -373,7 +382,7 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
       : seq - firstSeq < ctx.maxCrops
         ? contentCropLines(sides, surface, c, `content-${seq + 1}`)
         : cropCapNote('this surface', ctx.maxCrops);
-    if (cropLines.some((line) => line.startsWith('!['))) seq++;
+    if (cropLines.some((line) => line.startsWith('| <img '))) seq++;
     md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '');
     changeLines(ctx, c).forEach((appended) => md.push(appended));
     cropLines.forEach((appended) => md.push(appended));
@@ -398,7 +407,9 @@ export function renderContentSection(
         `gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, ` +
         `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
-        `computed-style certification and do not affect the check._`;
+        `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
+        `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
+        `so it cannot be mistaken for a product style regression._`;
   const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
   for (const surface of surfaces) {

@@ -195,13 +195,12 @@ test('end-to-end: crop anchors on the real-change element, not the reflow casual
   rmTmp(root);
 });
 
-test('end-to-end: a tiny change gets a magnified zoom crop and the highlight shows by default', () => {
+test('end-to-end: a tiny change is located by the Where map, never magnified or drawn on', () => {
   const caret = (color) =>
     makeMap({
       elements: {
         body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
-        // 12×16 caret — far below the 64px zoom threshold, so a colour change here
-        // is imperceptible at 1:1 and must get a magnified crop.
+        // 12×16 caret: hard to see at 1:1, so the Where map is how the reviewer finds it.
         'body > span:nth-child(1)': { tag: 'span', cls: 'caret', rect: [40, 40, 12, 16], style: { color } },
       },
     });
@@ -217,49 +216,16 @@ test('end-to-end: a tiny change gets a magnified zoom crop and the highlight sho
   assert.equal(res.changedSurfaces, 1);
 
   const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-  assert.match(region.images.zoom, /-zoom\.png$/, 'a zoom image is recorded for the tiny change');
-  assert.match(region.images.annotated, /-annotated\.png$/);
-  assert.ok(fs.existsSync(path.join(outDir, region.images.zoom)), 'the zoom png is actually written');
+  assert.deepEqual(Object.keys(region.images).sort(), ['after', 'before'], 'no zoom or annotated image');
+  assert.deepEqual(region.where[0].boxes, [{ x: 40, y: 40, w: 12, h: 16 }], 'the Where map boxes the caret');
 
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  for (const imagePath of Object.values(region.images)) {
+  for (const imagePath of [...Object.values(region.images), region.where[0].image]) {
     assert.match(imagePath, /^crops\//, 'report JSON records crop paths relative to report.md');
-    assert.ok(md.includes(`](${imagePath})`), `report.md references committed relative crop ${imagePath}`);
+    assert.ok(md.includes(`src="${imagePath}"`), `report.md references committed relative crop ${imagePath}`);
+    assert.ok(fs.existsSync(path.join(outDir, imagePath)), `${imagePath} is written`);
   }
-  assert.match(md, /🔬 magnified \d+× — change too small to see at 1:1/, 'zoom is captioned with its factor');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight overlay is present');
-  assert.match(md, /changed: `span\.caret`/, 'the changed element is named next to the image');
-  assert.match(md, /<summary>Show highlight overlay<\/summary>/, 'highlight sits under an optional toggle');
-  rmTmp(root);
-});
-
-test('end-to-end: a large change gets no zoom crop (visible at 1:1)', () => {
-  const panel = (color) =>
-    makeMap({
-      elements: {
-        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
-        'body > div:nth-child(1)': {
-          tag: 'div',
-          cls: 'panel',
-          rect: [0, 0, 400, 300], // well above the zoom threshold
-          style: { 'background-color': color },
-        },
-      },
-    });
-  const { beforeDir, afterDir, outDir, root } = pairFixture({
-    surface: 'home@1280',
-    before: panel('rgb(0, 0, 0)'),
-    after: panel('rgb(255, 0, 0)'),
-    beforePng: solidPng(1280, 800),
-    afterPng: solidPng(1280, 800),
-  });
-
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-  assert.equal(region.images.zoom, undefined, 'no zoom image for a clearly-visible change');
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.doesNotMatch(md, /🔬 magnified/, 'no zoom caption for a large change');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'highlight overlay still present under the toggle');
+  assert.doesNotMatch(md, /magnified|magenta|Show highlight overlay/, 'no zoom or overlay');
   rmTmp(root);
 });
 
@@ -352,9 +318,9 @@ test('an identical change across surfaces collapses into one grouped section', (
     'the element bullet renders once, not once per surface',
   );
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-after.png')).length,
     1,
-    'one composite image for the group, not one per surface',
+    'one crop pair for the group, not one per surface',
   );
   rmTmp(root);
 });
@@ -584,14 +550,14 @@ test('a mixed group omits only the off-canvas region crop and keeps its audit de
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   const [visibleRegion, offCanvasRegion] = report.surfaces[0].regions;
-  assert.ok(visibleRegion.images.composite, 'the visible finding keeps its screenshot proof');
+  assert.ok(visibleRegion.images.after, 'the visible finding keeps its screenshot proof');
   assert.deepEqual(offCanvasRegion.images, {});
   assert.equal(offCanvasRegion.visualEvidence, 'not-rendered');
   assert.match(offCanvasRegion.reason, /outside the screenshot canvas/);
   assert.match(markdown, /outside the screenshot canvas/);
   assert.match(markdown, /div\.off-canvas-card/);
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('-after.png')).length,
     1,
     'the off-canvas finding must not produce a crop of unrelated on-screen pixels',
   );
@@ -643,9 +609,9 @@ test('two far-apart changes become two crop sections, each holding only its own 
   // Crops read top-to-bottom: the nav-cta (y=20) section precedes the card (y=600).
   assert.ok(md.indexOf('`a.nav-cta`') < md.indexOf('`div.card`'), 'sections are in page order');
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-after.png')).length,
     2,
-    'one composite per crop',
+    'one crop pair per crop',
   );
   rmTmp(root);
 });
@@ -1306,7 +1272,7 @@ test('captureComponent: an added element names its React component + props', () 
   rmTmp(root);
 });
 
-test('end-to-end: a valid composite PNG of the expected size is written', () => {
+test('end-to-end: clean before/after PNGs of the crop size are written', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -1316,48 +1282,20 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositeRel = json.surfaces[0].regions[0].images.composite;
-  assert.ok(compositeRel, 'composite image recorded in json');
-  const compositePath = path.join(outDir, compositeRel);
-  assert.ok(fs.existsSync(compositePath), 'composite png on disk');
-  // Re-decode it: proves a real PNG, not an empty/corrupt file.
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
-  // Crop is min 320x180; composite = PAD20 + w + GAP28 + w + PAD20 wide,
-  // PAD20 + h + PAD20 tall (no accent strip). With w=320,h=180: 2*320+68=708 by 220.
-  assert.equal(png.width, 708);
-  assert.equal(png.height, 220);
-  rmTmp(root);
-});
-
-test('end-to-end: composite PNG is pure UI chrome with no in-image direction labels', () => {
-  const { beforeDir, afterDir, outDir, root } = pairFixture({
-    surface: 'home@1280',
-    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
-    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
-    beforePng: solidPng(1280, 800),
-    afterPng: solidPng(1280, 800),
-  });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /◀ before {2}· {2}after ▶/, 'direction lives in the markdown caption');
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-        labelPixels++;
-      }
-    }
+  for (const side of ['before', 'after']) {
+    const rel = json.surfaces[0].regions[0].images[side];
+    assert.ok(rel, `${side} image recorded in json`);
+    // Re-decode it: proves a real PNG, not an empty/corrupt file. Crop is min 320x180, no padding or chrome.
+    const png = PNG.sync.read(fs.readFileSync(path.join(outDir, rel)));
+    assert.equal(png.width, 320);
+    assert.equal(png.height, 180);
   }
-  assert.equal(labelPixels, 0, 'top pad band has no bitmap BEFORE/AFTER glyphs');
+  assert.match(md, /\| Before \| After \|/, 'direction lives in the markdown table header');
   rmTmp(root);
 });
 
-test('end-to-end: narrow crops stay panel-sized with no in-image direction labels', () => {
+test('end-to-end: narrow crops keep the capture size with nothing added', () => {
   const map = (color) =>
     makeMap({
       elements: {
@@ -1378,17 +1316,12 @@ test('end-to-end: narrow crops stay panel-sized with no in-image direction label
     crop: { pad: 0, minWidth: 1, minHeight: 1 },
   });
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
-  // 1×1 panels: PAD20 + 1 + GAP28 + 1 + PAD20 = 70 wide, PAD20 + 1 + PAD20 = 41 tall.
-  assert.equal(png.width, 70);
-  assert.equal(png.height, 41);
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let i = 0; i < png.data.length; i += 4) {
-    if (png.data[i] === label[0] && png.data[i + 1] === label[1] && png.data[i + 2] === label[2]) labelPixels++;
+  for (const side of ['before', 'after']) {
+    const png = PNG.sync.read(fs.readFileSync(path.join(outDir, json.surfaces[0].regions[0].images[side])));
+    // A 1×1 capture gives a 1×1 crop: no panels, padding or glyphs.
+    assert.equal(png.width, 1);
+    assert.equal(png.height, 1);
   }
-  assert.equal(labelPixels, 0, 'narrow composite has no bitmap direction glyphs');
   rmTmp(root);
 });
 

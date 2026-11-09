@@ -194,7 +194,7 @@ function belowCanvasReport(extraChanged) {
     return {
       markdown: fs.readFileSync(result.reportMdPath, 'utf8'),
       group: JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces[0],
-      composites: fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png')),
+      composites: fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-after.png')),
     };
   } finally {
     rmTmp(dirs.root);
@@ -203,7 +203,7 @@ function belowCanvasReport(extraChanged) {
 
 test('a change below the screenshot canvas gets the not-visible note, not a crop (#955)', () => {
   const { markdown, group, composites } = belowCanvasReport(false);
-  assert.equal(markdown.match(/!\[before.*\)/)?.[0], undefined, 'no before/after crop image');
+  assert.equal(markdown.match(/^\| Before \| After \|$/m)?.[0], undefined, 'no before/after crop image');
   assert.ok(markdown.includes(`_${MISLEADING_CROP_REASON}_`), 'the not-visible note replaces the crop');
   assert.equal(group.visualEvidence, 'not-rendered');
   assert.equal(group.reason, MISLEADING_CROP_REASON);
@@ -214,7 +214,7 @@ test('a mixed group crops only the change that intersects the screenshot canvas 
   const { group, composites } = belowCanvasReport(true);
   const sheet = group.regions.find((r) => r.paths.includes(SHEET));
   const card = group.regions.find((r) => r.paths.includes(CARD));
-  assert.ok(card.images.composite, 'the on-canvas change keeps its crop');
+  assert.ok(card.images.after, 'the on-canvas change keeps its crop');
   assert.deepEqual(sheet.images, {});
   assert.equal(sheet.visualEvidence, 'not-rendered');
   assert.equal(sheet.reason, MISLEADING_CROP_REASON);

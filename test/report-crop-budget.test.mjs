@@ -151,20 +151,20 @@ test('one-sided pages retain partial tiles and the page-capped warning', (t) => 
   assert.match(capped.md, /Page capped: showing 1600 of 4000px/);
 });
 
-test('a tall changed element has a composite clipped to the pixel cap', (t) => {
+test('a tall changed element has clean crops clipped to the pixel cap', (t) => {
   const dirs = tmpDirs();
   t.after(() => rmTmp(dirs.root));
   const rect = [0, 0, 1280, 801];
   writeCapture(dirs.beforeDir, 'tall@1280', surfaceMap(0, 0, rect), solidPng(1280, 801));
   writeCapture(dirs.afterDir, 'tall@1280', surfaceMap(0, 30, rect), solidPng(1280, 801, [100, 100, 100]));
   const capped = report(dirs, 'pixels');
-  const composites = capped.files.filter((file) => file.endsWith('-composite.png'));
-  assert.ok(composites.length > 0);
+  const crops = capped.files.filter((file) => /-(before|after)\.png$/.test(file));
+  assert.ok(crops.length > 0);
 
-  for (const file of composites) {
+  for (const file of crops) {
     const png = PNG.sync.read(fs.readFileSync(path.join(capped.outDir, 'crops', file)));
-    assert.ok(png.width <= 2 * 1280 + 68, `composite width ${png.width}`);
-    assert.ok(png.height <= 800 + 40, `composite height ${png.height}`);
+    assert.ok(png.width <= 1280, `crop width ${png.width}`);
+    assert.ok(png.height <= 800, `crop height ${png.height}`);
   }
 });
 

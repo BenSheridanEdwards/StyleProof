@@ -33,9 +33,7 @@ test('renderCropPair crops the same page rectangle on both sides when the page g
       box: { x: 100, y: 940, w: 200, h: 40 },
       pngA: page(800, 1000),
       pngB: page(800, 1600),
-      rectsA: [],
-      rectsB: [],
-      captions: { pair: 'pair', annotated: 'annotated', zoom: () => 'zoom' },
+      what: 'the changed element',
       skipIdentical: true,
     });
     assert.equal(result, null, 'identical content at the same page rectangle is not a change');
@@ -44,7 +42,7 @@ test('renderCropPair crops the same page rectangle on both sides when the page g
   }
 });
 
-// A white page, optionally with a blue block, to find a change in the composite.
+// A white page, optionally with a blue block, to find a change in the after crop.
 function white(width, height, block) {
   const png = new PNG({ width, height });
   png.data.fill(255);
@@ -69,18 +67,16 @@ test("renderCropPair still shows a change added below the shorter page's end", (
       box: block,
       pngA: white(800, 1000),
       pngB: white(800, 1600, block),
-      rectsA: [],
-      rectsB: [[block.x, block.y, block.w, block.h]],
-      captions: { pair: 'pair', annotated: 'annotated', zoom: () => 'zoom' },
+      what: 'the changed element',
       skipIdentical: true,
     });
     assert.ok(result, 'the added block is a visible difference, not an identical pair');
-    const composite = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images.composite)));
+    const after = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images.after)));
     let blue = 0;
-    for (let i = 0; i < composite.data.length; i += 4) {
-      if (composite.data[i] === 0 && composite.data[i + 1] === 0 && composite.data[i + 2] === 255) blue++;
+    for (let i = 0; i < after.data.length; i += 4) {
+      if (after.data[i] === 0 && after.data[i + 1] === 0 && after.data[i + 2] === 255) blue++;
     }
-    assert.ok(blue > 0, 'the added block appears in the after panel');
+    assert.ok(blue > 0, 'the added block appears in the after crop');
   } finally {
     rmTmp(outDir);
   }
@@ -98,9 +94,7 @@ function paddedRowsPair(outDir, box, skipIdentical) {
     box,
     pngA: page(800, 1000),
     pngB: page(800, 1600),
-    rectsA: [],
-    rectsB: [],
-    captions: { pair: 'pair', annotated: 'annotated', zoom: () => 'zoom' },
+    what: 'the changed element',
     skipIdentical,
   });
 }
@@ -128,14 +122,12 @@ test('renderCropPair crops both panels of a full-width element from the same pag
   const outDir = mkTmp();
   try {
     const result = paddedRowsPair(outDir, { x: -12, y: 928, w: 824, h: 64 }, false);
-    const composite = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images.composite)));
-    // compositePair: a 20px border and a 28px gap; a panel's top row is its first page row.
-    const panelW = (composite.width - 20 - 28 - 20) / 2;
-    const topPageY = (x) => {
-      const i = (20 * composite.width + x) * 4;
-      return composite.data[i] + (composite.data[i + 1] << 8);
+    // Each clean crop's top row is its first page row.
+    const topPageY = (side) => {
+      const crop = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images[side])));
+      return crop.data[0] + (crop.data[1] << 8);
     };
-    assert.deepEqual({ before: topPageY(20), after: topPageY(20 + panelW + 28) }, { before: 820, after: 820 });
+    assert.deepEqual({ before: topPageY('before'), after: topPageY('after') }, { before: 820, after: 820 });
   } finally {
     rmTmp(outDir);
   }

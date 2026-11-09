@@ -1,5 +1,5 @@
 import type { PNG } from 'pngjs';
-import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
+import { STATE_LAYER_NAMES, type Rect, type StyleMap } from '../capture.js';
 import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
@@ -18,8 +18,8 @@ import {
   type Box,
 } from './geometry.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
-import { codeValue } from '../code-span.js';
-import { cropChangeParts, oneSidedDomPaths, regionHeading, type CropChanges } from './markdown.js';
+import { whereMapLine, writeWhereMap, type WhereMap } from './where-map.js';
+import { oneSidedDomPaths, propertyGlanceLine, regionHeading, renderCropChanges } from './markdown.js';
 import {
   formatSurfaceListWithContext,
   formatSurfaceWithContext,
@@ -135,7 +135,6 @@ export function countShownChanges(changeGroups: ChangeGroup[]): DiffCounts {
 }
 
 type Pngs = [PNG | null, PNG | null];
-const flat = (changes: CropChanges): string[] => [...changes.summary, ...changes.details];
 type RegionArgs = {
   ctx: RenderCtx;
   g: Group;
@@ -149,7 +148,7 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
-  changes: (findings: Finding[]) => CropChanges;
+  changes: (findings: Finding[]) => string[];
 };
 
 type CropPack = {
@@ -172,13 +171,8 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     };
   }
   a.seq.crop++;
-  // Outline the LEAF changed elements on each side, not the merged anchor container.
   const marked = annotationPaths(findings, mapA, mapB);
-  const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
-    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
-  const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
-  const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
-  const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
+  const first = mapB.elements[marked.after[0]] ?? mapA.elements[marked.before[0]];
   return renderCropPair(a.ctx, {
     surface: cg.rep.sd.surface,
     suffix: String(a.seq.crop),
@@ -186,13 +180,8 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     box: visible(g.before) && visible(g.after) ? union(g.before, g.after) : region,
     pngA,
     pngB,
-    rectsA: rectsOf(marked.before, mapA),
-    rectsB: rectsOf(marked.after, mapB),
-    labels: state ? { left: `base :${state}`, right: `head :${state}` } : undefined,
-    captions: {
-      annotated: `magenta boxes mark each change${changedLabel}`,
-      zoom: (factor) => `magnified ${factor}× — change too small to see at 1:1${changedLabel}`,
-    },
+    state,
+    what: first ? `the ${shortElementName(first)} element` : 'the changed element',
   })!;
 }
 
@@ -205,18 +194,19 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
     const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
     md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
-    const changes = a.changes(sf);
-    changes.summary.forEach((appended) => md.push(appended));
+    md.push('', `_Both sides are :${state}. Left is the old :${state}. Right is the new :${state}._`);
+    const glance = propertyGlanceLine(sf);
+    if (glance) md.push('', glance);
     const layers = screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`);
     if (layers[0] && layers[1]) {
       const packed = regionCrop(a, sf, layers, state);
       packed.md.forEach((appended) => md.push(appended));
-      if (packed.images.composite) stateImages[state] = packed.images;
+      if (packed.images.after) stateImages[state] = packed.images;
     } else {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
     }
 
-    changes.details.forEach((appended) => md.push(appended));
+    a.changes(sf).forEach((appended) => md.push(appended));
   }
   return { md, stateImages };
 }
@@ -226,19 +216,19 @@ const spacingJson = (spacing: SiblingSpacingChange[]) => (spacing.length ? { spa
 type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
 
 /**
- * The resting section: heading, plain-English summary, spacing lines, crop, then the
- * folded property tables. A region without one still names its spacing, once, at its end (`trailing`).
+ * The resting section: heading, glance line, spacing lines, crop, then the property
+ * changes. A region without one still names its spacing, once, at its end (`trailing`).
  */
 function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
   const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
   const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
-  const changes = a.changes(cropFindings);
-  changes.summary.forEach((appended) => md.push(appended));
+  const glance = propertyGlanceLine(cropFindings);
+  if (glance) md.push('', glance);
   spacingLines(a.spacing).forEach((appended) => md.push(appended));
   const pack = regionCrop(a, cropFindings, a.pngs);
   pack.md.forEach((appended) => md.push(appended));
-  changes.details.forEach((appended) => md.push(appended));
+  a.changes(cropFindings).forEach((appended) => md.push(appended));
   return { md, pack, trailing: [] };
 }
 
@@ -250,6 +240,50 @@ function regionVisibility(cg: ChangeGroup, regionFindings: Finding[]) {
   const stateOnly = !hasDom && shownRest.length === 0 && regionFindings.some((f) => f.kind === 'state');
 
   return { rest, shownRest, hasDom, stateOnly };
+}
+
+const whereJson = (where: WhereMap[]) => (where.length ? { where } : {});
+
+const changedThings = (n: number): string => (n === 1 ? '1 changed element' : `${n} changed elements`);
+
+/**
+ * The region's Where maps: the changed leaf elements boxed on the resting head capture,
+ * plus a base-capture map for marked elements with no head mark (removals, moved changes).
+ */
+function regionWhereMaps(a: RegionArgs, findings: Finding[]): WhereMap[] {
+  const [pngA, pngB] = a.pngs;
+  const marked = annotationPaths(findings, a.mapA, a.mapB);
+  const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
+    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
+  const surface = a.cg.rep.sd.surface;
+  const removed = marked.before.filter((p) => !marked.after.includes(p));
+  const maps = [
+    pngB &&
+      writeWhereMap(a.ctx, {
+        surface,
+        suffix: `${a.seq.crop}`,
+        page: pngB,
+        side: 'after',
+        rects: rectsOf(marked.after, a.mapB),
+      }),
+    pngA &&
+      writeWhereMap(a.ctx, {
+        surface,
+        suffix: `${a.seq.crop}-before`,
+        page: pngA,
+        side: 'before',
+        rects: rectsOf(removed, a.mapA),
+      }),
+  ];
+  return maps.filter((m): m is WhereMap => !!m);
+}
+
+/** Write the region's Where maps and put them under the heading and surface line. */
+function insertWhereMaps(a: RegionArgs, md: string[], images: CropImages, findings: Finding[]): WhereMap[] {
+  const where = images.after ? regionWhereMaps(a, findings) : [];
+  const lines = where.flatMap((map) => ['', whereMapLine(a.ctx, map, changedThings(map.boxes.length))]);
+  if (md.length >= 4) md.splice(4, 0, ...lines);
+  return where;
 }
 
 /** One crop region: heading, resting crop, then each forced-state crop. */
@@ -270,17 +304,18 @@ function renderRegion(a: RegionArgs) {
   states.md.forEach((appended) => md.push(appended));
 
   if (stateOnly && rest.length) {
-    flat(a.changes(rest)).forEach((appended) => md.push(appended));
+    a.changes(rest).forEach((appended) => md.push(appended));
   }
-  const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
+  const images = stateOnly && !resting.images.after ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);
     if (note) md.push('', note);
-    flat(a.changes(regionFindings)).forEach((appended) => md.push(appended));
+    a.changes(regionFindings).forEach((appended) => md.push(appended));
   }
   section.trailing.forEach((appended) => md.push(appended));
   const { visualEvidence, reason } = resting;
+  const where = insertWhereMaps(a, md, images, regionFindings);
 
   const rendered = {
     md,
@@ -290,6 +325,7 @@ function renderRegion(a: RegionArgs) {
       after: g.after,
       images,
       ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
+      ...whereJson(where),
       ...(visualEvidence ? { visualEvidence, reason } : {}),
       ...spacingJson(a.spacing),
     },
@@ -313,8 +349,8 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const shownSet = new Set(findings);
   const foldedSet = new Set(folded);
 
-  const changes = (shown: Finding[]): CropChanges =>
-    cropChangeParts(
+  const changes = (shown: Finding[]): string[] =>
+    renderCropChanges(
       shown.filter((f) => shownSet.has(f)),
       ctx.foldDetailsAt,
       describeCtx,
@@ -333,7 +369,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
 
   if (!findings.length && folded.length) {
     const label = regionHeading([...new Set(folded.map((f) => f.path))], folded, true);
-    const md = ['', `### ${label}`, '', surfaceList, ...flat(changes(folded))];
+    const md = ['', `### ${label}`, '', surfaceList, ...changes(folded)];
 
     return { md, json, findingCount };
   }
@@ -359,7 +395,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
         `_${reason}_`,
         ...spacingLines(spacing),
         '',
-        ...flat(changes([...findings, ...folded])),
+        ...changes([...findings, ...folded]),
       ],
       json: {
         ...json,
@@ -387,7 +423,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
 
   const outsideMd = outside.length
-    ? ['', '### Folded size/position rows outside the crops', '', surfaceList, ...flat(changes(outside))]
+    ? ['', '### Folded size/position rows outside the crops', '', surfaceList, ...changes(outside)]
     : [];
 
   // A changed run no crop region shows is still named, once, under the group.

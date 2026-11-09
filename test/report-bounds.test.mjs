@@ -9,16 +9,7 @@ import {
 import { codeValue } from '../dist/code-span.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { ReportMarkdown } from '../dist/report/sections.js';
-import {
-  makeMap,
-  mkTmp,
-  rmTmp,
-  solidPng,
-  pairFixture,
-  tmpDirs,
-  writeCapture,
-  highlightPixelsBySide,
-} from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture, whereBoxesBySide } from './helpers.mjs';
 
 // ---------------------------------------- bounded report (always GitHub-renderable)
 
@@ -414,9 +405,9 @@ test('end-to-end: a size-changing duplicate style swap keeps annotated proof', (
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  const mapped = report.surfaces[0].regions.filter((region) => region.where);
   assert.ok(report.counts.style >= 2, 'the diff itself still records the restyle');
-  assert.ok(annotatedPaths.length > 0, 'a restyle that could be a swap keeps annotated proof');
+  assert.ok(mapped.length > 0, 'a restyle that could be a swap keeps its Where map');
   rmTmp(root);
 });
 
@@ -450,15 +441,14 @@ test('end-to-end: uniform-shell list insertion leaves unchanged displaced items 
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
-  const highlights = annotatedPaths
-    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+  const highlights = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
     .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
       before: 0,
       after: 0,
     });
-  assert.equal(highlights.before, 0, 'unchanged displaced items must not be boxed on the before side');
-  assert.ok(highlights.after > 0, 'the inserted item itself stays annotated');
+  assert.equal(highlights.before, 0, 'unchanged displaced items must not be boxed as removals');
+  assert.ok(highlights.after > 0, 'the inserted item itself stays boxed on the Where map');
   rmTmp(root);
 });
 
@@ -489,9 +479,15 @@ test('end-to-end: a removal and a distinct addition in different containers both
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  const highlights = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
+      before: 0,
+      after: 0,
+    });
   assert.equal(report.counts.dom, 2, 'both structural findings remain in the audit');
-  assert.ok(annotatedPaths.length > 0, 'independent changes in different containers keep visual proof');
+  assert.ok(highlights.before > 0, 'the removal is located on the base page');
+  assert.ok(highlights.after > 0, 'the addition is located on the head page');
   rmTmp(root);
 });
 

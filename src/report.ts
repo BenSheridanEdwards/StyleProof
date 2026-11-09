@@ -127,7 +127,7 @@ export type ReportOptions = {
   minHeight?: number;
   /** Crops taller than this are clamped (default 1600px). */
   maxHeight?: number;
-  /** Changed-element footprint (px) at or below which a magnified zoom crop is added (default 64; 0 disables). */
+  /** Accepted for backward compatibility; no longer has an effect. */
   zoomBelow?: number;
   /** Max crop regions per surface before collapsing into one union crop (default 8). */
   maxCrops?: number;

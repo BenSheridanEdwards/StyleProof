@@ -45,6 +45,7 @@ export type RenderCtx = {
   minWidth: number;
   minHeight: number;
   maxHeight: number;
+  /** Accepted for backward compatibility; no longer has an effect. */
   zoomBelow: number;
   maxCrops: number;
   crops: CropBudget;

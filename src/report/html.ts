@@ -39,6 +39,16 @@ const BACKSLASH_ESCAPE = /\\([!-/:-@[-`{-~])/g;
 /** The entities `escapeInlineMarkdown` emits; GitHub renders them once, so must we. */
 const NAMED_ENTITY = /&(?:amp|lt|gt|quot);/g;
 
+/** Only the attribute order and dimensions emitted by clean crop tables are accepted. */
+const CROP_IMAGE =
+  /<img src="((?:[^"&<>]|&(?:amp|quot|lt|gt);)*)" (width|height)="([0-9]+)" alt="((?:[^"&<>]|&(?:amp|quot|lt|gt);)*)">/;
+const CODE_OR_CROP_IMAGE = new RegExp(`${CODE_SPAN.source}|${CROP_IMAGE.source}`, 'g');
+const decodeAttribute = (value: string): string =>
+  value.replace(
+    /&(amp|quot|lt|gt);/g,
+    (_match, entity: string) => ({ amp: '&', quot: '"', lt: '<', gt: '>' })[entity]!,
+  );
+
 /** Link and image targets: http(s) or scheme-less (relative crops, anchors) only — never `javascript:`. */
 const isSafeUrl = (url: string) => {
   const probe = url.replace(/[\u0000- \u007f-\u009f]/g, ''); // eslint-disable-line no-control-regex -- browsers strip these from a scheme
@@ -59,7 +69,14 @@ function inline(text: string): string {
   };
   const restore = (html: string) => html.replace(/\uE000(\d+)\uE000/g, (_m, index) => staged[Number(index)]);
   const protectedText = text
-    .replace(CODE_SPAN, (_m, _fence, code) => stage(`<code>${escapeHtml(unpad(code))}</code>`))
+    .replace(CODE_OR_CROP_IMAGE, (match, fence, code, src, dimension, size, alt) => {
+      if (fence) return stage(`<code>${escapeHtml(unpad(code))}</code>`);
+      const url = decodeAttribute(src);
+      if (!isSafeUrl(url)) return stage(escapeHtml(match));
+      return stage(
+        `<img src="${escapeHtml(url)}" ${dimension}="${size}" alt="${escapeHtml(decodeAttribute(alt))}" loading="lazy">`,
+      );
+    })
     .replace(STYLEPROOF_COMMENT, (comment) => stage(comment))
     .replace(BACKSLASH_ESCAPE, (_m, char: string) => stage(escapeHtml(char)))
     .replace(NAMED_ENTITY, (entity) => stage(entity));
@@ -98,6 +115,7 @@ const RULE = /^\s*---+\s*$/;
 const LIST_ITEM = /^- /;
 const QUOTE = /^> /;
 const IMAGE_LINE = /^!\[/;
+const WHERE_LINE = /^(<img [^<>]*>)<br><sub>([^<>]*)<\/sub>$/;
 const TABLE_SEPARATOR_CELL = /^:?-{3,}:?$/;
 /** A line ending in `<br>` not preceded by an odd run of backslashes (which would escape its `<`). */
 const GENERATED_BREAK = /(?<!\\)(?:\\\\)*<br>$/;
@@ -171,6 +189,13 @@ const blockReaders: BlockReader[] = [
   runOf(QUOTE, (taken) => `<blockquote>${taken.map((l) => inline(l.slice(2))).join('<br>')}</blockquote>`),
   oneLine(IMAGE_LINE.test.bind(IMAGE_LINE), (line) => `<p class="shot">${inline(line)}</p>`),
   (lines, i) => {
+    // The Where map line: an image and its caption on one line (GitHub keeps them inline).
+    const where = lines[i].match(WHERE_LINE);
+    return where
+      ? { html: `<p class="where">${inline(where[1])}<br><sub>${inline(where[2])}</sub></p>`, next: i + 1 }
+      : null;
+  },
+  (lines, i) => {
     const { taken, next } = takeWhile(lines, i, (l) => !startsBlock(l));
     // The generator's trailing `<br>` (spacing lines) is a line break; an escaped `\<br>` stays text.
     const paragraph = taken.map((line) =>
@@ -237,8 +262,10 @@ ${body}
 </html>
 `;
   if (!options) return page;
-  const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];
-  const captions = images.map((image) => `<span>${image[2]} (image omitted)</span>`);
+  const images = [
+    ...page.matchAll(/<img src="([^"]*)"((?: (?:width|height)="[0-9]+")?) alt="([^"]*)" loading="lazy">/g),
+  ];
+  const captions = images.map((image) => `<span>${image[3]} (image omitted)</span>`);
   images.forEach((image, i) => {
     page = page.replace(image[0], `<!-- image-${i} -->`);
   });
@@ -252,13 +279,13 @@ ${body}
     .map((image, i) => ({ image, i }))
     .sort(
       (a, b) =>
-        Number(/new surface|removed surface/i.test(b.image[2])) -
-        Number(/new surface|removed surface/i.test(a.image[2])),
+        Number(/new surface|removed surface/i.test(b.image[3])) -
+        Number(/new surface|removed surface/i.test(a.image[3])),
     );
   for (const { image, i } of priority) {
-    const src = readCropDataUrl(image[1], options.outDir, remaining);
+    const src = readCropDataUrl(decodeAttribute(image[1]), options.outDir, remaining);
     if (!src) continue;
-    const tag = `<img src="${src}" alt="${image[2]}" loading="lazy">`;
+    const tag = `<img src="${src}"${image[2]} alt="${image[3]}" loading="lazy">`;
     const cost = Buffer.byteLength(tag) - Buffer.byteLength(captions[i]);
     if (cost > remaining) continue;
     rendered[i] = tag;

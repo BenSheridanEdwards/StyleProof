@@ -173,22 +173,19 @@ export function sceneMap({ buttonColor, bodyHeight }) {
   });
 }
 
-/** Count magenta highlight pixels on each half of a side-by-side annotated crop. */
-export function highlightPixelsBySide(filePath) {
-  const png = PNG.sync.read(fs.readFileSync(filePath));
-  const dividerWidth = 12;
-  const halfWidth = (png.width - dividerWidth) / 2;
-  let before = 0;
-  let after = 0;
-  for (let y = 0; y < png.height; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] !== 255 || png.data[offset + 1] !== 0 || png.data[offset + 2] !== 200) continue;
-      if (x < halfWidth) before++;
-      else if (x >= halfWidth + dividerWidth) after++;
-    }
+/** Count the Where-map boxes a report.json region draws on each capture (base = before, head = after). */
+export function whereBoxesBySide(region) {
+  const counts = { before: 0, after: 0 };
+  for (const map of region?.where ?? []) counts[map.side] += map.boxes.length;
+  return counts;
+}
+
+/** Whether a decoded PNG contains the Where map's ring colour. */
+export function hasWhereRing(png) {
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 224 && png.data[i + 1] === 17 && png.data[i + 2] === 157) return true;
   }
-  return { before, after };
+  return false;
 }
 
 /**

@@ -77,7 +77,7 @@ test('#971: Global chrome entries past maxCrops carry an omission note, verdict 
   assert.match(capped.md, /## 🧱 Global chrome — 2 element changes/);
   const composites = fs
     .readdirSync(`${capped.dirs.outDir}/crops`)
-    .filter((name) => /-chrome-\d+-composite\.png$/.test(name));
+    .filter((name) => /-chrome-\d+-after\.png$/.test(name));
   assert.equal(composites.length, 1);
   const note =
     '_Crop omitted: Global chrome reached the `--max-crops` limit (1). The change is still listed and counted._';

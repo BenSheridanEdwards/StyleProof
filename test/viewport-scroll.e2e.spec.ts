@@ -229,17 +229,22 @@ test('horizontal-scrolled style changes retain real screenshot crops', async ({ 
     });
     const receipt = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
     expect(receipt.surfaces[0].regions.length).toBeGreaterThan(0);
-    expect(receipt.surfaces[0].regions[0].images.composite).toBeTruthy();
-    const file = path.join(root, 'report', receipt.surfaces[0].regions[0].images.composite);
-    expect(fs.existsSync(file)).toBe(true);
-    const png = PNG.sync.read(fs.readFileSync(file));
+    const images = receipt.surfaces[0].regions[0].images;
+    expect(images.before && images.after).toBeTruthy();
+    const pngs = [images.before, images.after].map((rel) => {
+      const file = path.join(root, 'report', rel);
+      expect(fs.existsSync(file)).toBe(true);
+      return PNG.sync.read(fs.readFileSync(file));
+    });
     for (const expected of [
       [0, 100, 200],
       [240, 100, 0],
     ]) {
       let found = false;
-      for (let i = 0; i < png.data.length; i += 4) {
-        if (expected.every((value, channel) => png.data[i + channel] === value)) found = true;
+      for (const png of pngs) {
+        for (let i = 0; i < png.data.length; i += 4) {
+          if (expected.every((value, channel) => png.data[i + channel] === value)) found = true;
+        }
       }
       expect(found, `crop contains the real ${expected.join(',')} marker pixels`).toBe(true);
     }

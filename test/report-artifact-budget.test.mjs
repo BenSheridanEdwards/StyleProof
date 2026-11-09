@@ -194,15 +194,15 @@ test('large noise crops are downscaled to at most 300 KB per file', (t) => {
   const capped = report(dirs, 'capped');
   const cropsDir = path.join(capped.outDir, 'crops');
   const files = fs.readdirSync(cropsDir);
-  const composites = files.filter((file) => file.endsWith('-composite.png'));
-  assert.ok(composites.length > 0, 'downscaling must retain a composite');
+  const afters = files.filter((file) => file.endsWith('-after.png'));
+  assert.ok(afters.length > 0, 'downscaling must retain the after crop');
 
   for (const file of files) {
     assert.ok(fs.statSync(path.join(cropsDir, file)).size <= 300_000, `${file} exceeds 300 KB`);
   }
 
-  const composite = PNG.sync.read(fs.readFileSync(path.join(cropsDir, composites[0])));
-  assert.ok(composite.width < 2 * 1280, 'composite must have been downscaled');
+  const after = PNG.sync.read(fs.readFileSync(path.join(cropsDir, afters[0])));
+  assert.ok(after.width < 320, 'the after crop must have been downscaled');
   assert.match(capped.md, /crop\(s\) downscaled.*smaller than 1:1/);
 
   if (capped.json.cropBudget) assert.ok(capped.json.cropBudget.omitted > 0);

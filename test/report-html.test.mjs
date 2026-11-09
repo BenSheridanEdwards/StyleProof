@@ -265,3 +265,23 @@ test('omitted HTML images do not promise complete findings in capped JSON', () =
   assert.match(html, /1 image omitted/);
   assert.doesNotMatch(html, /report.json holds the full data/);
 });
+
+test('report.html renders only exact safe crop image tags inside table cells', () => {
+  const html = renderReportHtml(
+    [
+      '| Before | After |',
+      '| --- | --- |',
+      '| <img src="crops/before.png" width="340" alt="Before: &quot;&lt;button&gt; &amp; label"> | <img src="crops/after.png" height="180" alt="After: label"> |',
+      '| <img src="javascript:alert(1)" width="340" alt="hostile"> | <img src="crops/a.png" width="340" alt="" onerror="alert(1)"> |',
+      '| <img src="java&#115;cript:alert(1)" width="340" alt="hostile"> | <img src="crops/a.png&quot; onerror=&quot;alert(1)" width="340" alt="safe text"> |',
+    ].join('\n'),
+  );
+  assert.match(
+    html,
+    /<td><img src="crops\/before.png" width="340" alt="Before: &quot;&lt;button&gt; &amp; label" loading="lazy"><\/td>/,
+  );
+  assert.match(html, /<img src="crops\/after.png" height="180" alt="After: label" loading="lazy">/);
+  assert.doesNotMatch(html, /<img src="(?:javascript:|java&#115;cript:)/);
+  assert.doesNotMatch(html, /<img[^>]* alt="" onerror=/);
+  assert.match(html, /&lt;img src=&quot;javascript:/);
+});

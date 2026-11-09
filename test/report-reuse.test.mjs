@@ -143,7 +143,7 @@ test('report decodes each screenshot once per surface', async (t) => {
       assert.equal(json.surfaces[0].regions.length, 2, 'separated changes exercise repeated state crops');
 
       for (const region of json.surfaces[0].regions) {
-        assert.ok(region.stateImages.hover.composite, 'each region has visible hover evidence');
+        assert.ok(region.stateImages.hover.after, 'each region has visible hover evidence');
       }
 
       assert.deepEqual(
@@ -199,7 +199,7 @@ test('report output and every crop are byte-identical to an uncached run across 
 
   for (const n of [1, 2]) {
     assert.ok(
-      expected.some(([file]) => file.includes(`-chrome-${n}-composite.png`)),
+      expected.some(([file]) => file.includes(`-chrome-${n}-after.png`)),
       'each chrome entry has a crop',
     );
   }

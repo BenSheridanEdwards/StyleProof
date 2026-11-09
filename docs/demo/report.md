@@ -31,28 +31,19 @@ _No baseline to compare against. This is a reviewable first-adoption surface; ap
 
 ## Changes
 
-### `span.caret` · 1 element restyled
+### **Caret** `span.caret` · 1 element restyled
 
 _home @ 900_
 
+<img src="crops/home-900-2-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
+
+`color` `#9ca3af` → `#2563eb`
+
+| Before | After |
+| --- | --- |
+| <img src="crops/home-900-2-before.png" width="340" alt="Before: the span.caret element"> | <img src="crops/home-900-2-after.png" width="340" alt="After: the span.caret element"> |
+
 - **`span.caret`** — text gray (`#9ca3af`) → blue (`#2563eb`)
-
-![before ◀ │ ▶ after](crops/home-900-2-composite.png)
-
-<sub>◀ before  ·  after ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/home-900-2-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `span.caret`</sub>
-
-![zoomed before ◀ │ ▶ after](crops/home-900-2-zoom.png)
-
-<sub>🔬 magnified 5× — change too small to see at 1:1 — changed: `span.caret`</sub>
-
-</details>
 
 <details>
 <summary>Show the property change</summary>
@@ -67,24 +58,19 @@ Style:
 
 </details>
 
-### `button.cta` · 1 element restyled
+### **Cta** `button.cta` · 1 element restyled
 
 _home @ 900_
 
+<img src="crops/home-900-3-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
+
+`background-color` `#2563eb` → `#dc2626`
+
+| Before | After |
+| --- | --- |
+| <img src="crops/home-900-3-before.png" width="340" alt="Before: the button.cta element"> | <img src="crops/home-900-3-after.png" width="340" alt="After: the button.cta element"> |
+
 - **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
-
-![before ◀ │ ▶ after](crops/home-900-3-composite.png)
-
-<sub>◀ before  ·  after ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/home-900-3-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `button.cta`</sub>
-
-</details>
 
 <details>
 <summary>Show the property change</summary>
@@ -99,13 +85,15 @@ Style:
 
 </details>
 
-### `aside.off-canvas-status` · 1 element restyled
+### **Off canvas status** `aside.off-canvas-status` · 1 element restyled
 
 _home @ 900_
 
-- **`aside.off-canvas-status`** — opacity 0.85 → 1
+`opacity` `0.85` → `1`
 
 _The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
+
+- **`aside.off-canvas-status`** — opacity 0.85 → 1
 
 <details>
 <summary>Show the property change</summary>
@@ -132,18 +120,11 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 
 - element added
 
-![before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-composite.png)
+<img src="crops/duplicate-insertion-900-content-1-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
 
-<sub>◀ before  ·  after ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-annotated.png)
-
-<sub>🔍 magenta boxes mark the changed content</sub>
-
-</details>
+| Before | After |
+| --- | --- |
+| <img src="crops/duplicate-insertion-900-content-1-before.png" width="340" alt="Before: the changed content"> | <img src="crops/duplicate-insertion-900-content-1-after.png" width="340" alt="After: the changed content"> |
 
 ### `home@900` · 1 content/structure change(s)
 
@@ -152,22 +133,11 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 - before: `Old`
 - after: `New`
 
-![before ◀ │ ▶ after](crops/home-900-content-2-composite.png)
+<img src="crops/home-900-content-2-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
 
-<sub>◀ before  ·  after ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/home-900-content-2-annotated.png)
-
-<sub>🔍 magenta boxes mark the changed content</sub>
-
-![zoomed before ◀ │ ▶ after](crops/home-900-content-2-zoom.png)
-
-<sub>🔬 magnified 2×: content change too small to read at 1:1</sub>
-
-</details>
+| Before | After |
+| --- | --- |
+| <img src="crops/home-900-content-2-before.png" width="340" alt="Before: the changed content"> | <img src="crops/home-900-content-2-after.png" width="340" alt="After: the changed content"> |
 
 ### `sibling-insertion@900` · 1 content/structure change(s)
 
@@ -175,18 +145,11 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 
 - element added
 
-![before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-composite.png)
+<img src="crops/sibling-insertion-900-content-3-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
 
-<sub>◀ before  ·  after ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-annotated.png)
-
-<sub>🔍 magenta boxes mark the changed content</sub>
-
-</details>
+| Before | After |
+| --- | --- |
+| <img src="crops/sibling-insertion-900-content-3-before.png" width="340" alt="Before: the changed content"> | <img src="crops/sibling-insertion-900-content-3-after.png" width="340" alt="After: the changed content"> |
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
