@@ -255,14 +255,24 @@ function structuralSentence(input: ChangeLineInput, who: string, many: boolean):
   );
 }
 
+/** "a and the b", "a, the b, and the c" */
+function listClauses(clauses: string[], article: string): string {
+  const [first, ...rest] = clauses;
+  if (!rest.length) return first;
+  const tail = rest.map((c) => `${article}${c}`);
+  return rest.length === 1
+    ? `${first}, and ${tail[0]}`
+    : `${[first, ...tail.slice(0, -1)].join(', ')}, and ${tail[tail.length - 1]}`;
+}
+
 /** The forced-state sentences: after a resting change, "Their …"; alone, "On …, the …" plus the resting claim. */
 function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
   const driver = input.driver ? `the ${sectionNoun(input.driver.subject)}` : null;
   const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driver));
   if (!clauses.length) return [];
-  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${clauses.join(', and ')}.`];
+  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
   const rest = input.restFolded ? [] : [many ? 'At rest they look the same.' : 'At rest it looks the same.'];
-  return [`On ${who}, the ${clauses.join(', and the ')}.`, ...rest];
+  return [`On ${who}, the ${listClauses(clauses, 'the ')}.`, ...rest];
 }
 
 /** The section's one plain-English line. */

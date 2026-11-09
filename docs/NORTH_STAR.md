@@ -22,11 +22,11 @@ A deterministic visual report that shows **all visual changes with 100% confiden
 
 ## What the report contains
 
-- **Verdict first** — `N change(s) need review`, then the named change cards (human label, selector, surface@width, token story).
-- **One change = one card** — distinct restyles group together; `currentColor` follow-ons nest under the primary property.
-- **One primary before/after** — optional highlight overlay (and zoom) sit under a collapsed toggle, not three duplicate carousels.
-- **Product-state warning** — when identity is unproven, a plain-language warning sits above the fold next to the verdict; it is omitted when proven.
-- **Evidence collapsed** — green certification stays hidden; only failures/warnings appear, under a default-collapsed Evidence section.
+- **Summary first** — `N change(s) to review` with the page, width, element count and changed CSS rules.
+- **One change = one section** — elements that changed the same way share one section with a plain-English name and one sentence; `currentColor` followers are marked under the colour that drove them.
+- **Clean evidence** — the before/after pair is an unedited crop of each capture; the only drawn image is a small Where map that rings the changed elements. The CSS sits behind **Show the CSS**.
+- **Light and dark** — the browser report follows the system theme, with an Auto / Light / Dark switch.
+- **No internal diagnostics** — product-state status, Change Reach gaps and baseline provenance stay in `report.json`; the report says only what blocks certification or needs the reviewer.
 - **Action footer** — review-gate / migration modes keep the existing **Approve all changes** checkbox (no new GitHub APIs). Advisory mode stays non-blocking.
 
 ## The redesign (from the grilling session)

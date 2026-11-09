@@ -56,13 +56,14 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
-Below the headline count, the comment lists **What changed**. Each one-sided
-surface gets a row with its status. Each change gets a row that names up to
-five elements and what happened to them, and counts the rest as
-`+N more element(s)`. Elements with the same name and the same change share one
-entry, marked `×N`. After ten rows, `…and N more changes` counts what is left.
-`report.json` records the same rows under `digest`, as
+Below the title, the comment carries the summary line: how many changes to review, on
+which pages and widths, and how many elements and changed CSS rules they cover. The
+report itself (linked from the comment) names each change in its own section.
+`report.json` records one row per one-sided surface and per change group under
+`digest`, as
 `{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase, count? }], more }`.
+A row names up to five elements; elements with the same name and the same change share
+one entry, and its `count` says how many.
 The key is present only when there is at least one row.
 
 ### A safety policy blocks
@@ -280,12 +281,14 @@ opt-in advisory content section.
 
 ### What a report looks like
 
-New pages, states, and surfaces appear before element-level changes. Existing
-surfaces render one distinct change per section, with aligned crops, truthful
-annotations, a one-line summary, and exact properties under a toggle.
+New pages, states, and surfaces appear before element-level changes. On existing
+surfaces, elements that changed the same way share one section: a plain-English
+name and sentence, a small Where map that rings them on the page, an unedited
+before/after crop per changed state, and the exact properties under **Show the
+CSS**.
 
-Headline counts cover **matched-element restyles** ("N computed-style
-difference(s)") and interaction-state differences. One-sided DOM structure has
+The summary counts changes to review: one per change section (matched-element
+restyles and interaction-state differences) plus one per new or removed surface. One-sided DOM structure has
 no like-for-like style baseline for _style_ certification, but a **visible**
 added or removed element on a paired surface is review-required on its own
 (Approve clears it with other reviewable changes). Turn on `--include-content`
@@ -298,9 +301,10 @@ can move with surrounding content without being mistaken for a stylesheet
 change. If the computed value itself changes — including a deliberate `width`,
 `margin`, colour, font, grid, or state change — it remains a blocking finding.
 
-Tiny changes also receive a magnified crop. Structural matching avoids painting
-an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
-explicit rather than receiving invented provenance.
+Tiny changes are found on the Where map; crops are never magnified or drawn on.
+Structural matching avoids marking an unchanged shifted subtree as changed, while
+ambiguous duplicate elements stay explicit rather than receiving invented
+provenance.
 
 **[Open the full generated report](demo/report.md)** ([`report.html`](demo/report.html) — download and open for the rendered page).
 The fixture includes a
@@ -2131,7 +2135,7 @@ consumer-owned and are not rewritten; capture still enforces the refusal policy.
 | `--max-crops <n>`          | `8`                 | Max crop regions per surface before collapsing.                                                                                              |
 | `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted. |
 | `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                          |
-| `--fold-details-at <n>`    | `0`                 | Row count at which a crop's property tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds.                       |
+| `--fold-details-at <n>`    | `0`                 | Row count at which content-layer and folded-row tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds. Change sections always keep their CSS under **Show the CSS**. |
 | `--min-width <px>`         | `320`               | Minimum crop width, for context.                                                                                                             |
 | `--min-height <px>`        | `180`               | Minimum crop height, for context.                                                                                                            |
 | `--include-layout-noise`   | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain.    |

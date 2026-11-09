@@ -27,6 +27,31 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `ProductStateIdentityError` can no longer be extended: the class is non-extensible, so adding a static property
   or swapping its prototype with `Object.setPrototypeOf` fails (a `TypeError` in strict mode). Subclassing it with
   `extends` still works.
+- The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
+  9 elements, 4 changed CSS rules"). Each change is one section: elements that changed the same way, with a
+  plain-English name and one sentence built from captured data, a small Where map that rings them on the page
+  (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
+  the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
+  longhands, `currentColor` followers). report.html renders the same report as a browser page with an
+  Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after.
+- A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
+  under the label, with the checkbox named as the driver, and each control's state gets its own section.
+- Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
+  state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
+  digest, the distinct-change tally and "Nothing else". They stay in report.json (`comparability`,
+  `baselineProvenance`, `reach`, `digest`). The report still says, in plain words, when a compare cannot
+  certify, when evidence fails, and when a changed CSS rule was never matched or cannot be seen in computed
+  styles. `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
+  has changes; an unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`.
+- **report.json:** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean crops) instead
+  of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`). Change sections
+  replace overlap-merged crop regions, so `regions` holds one entry per section. Whole-page captures for
+  report.html are written to `crops/` as `*-page-base.png` / `*-page-head.png` inside the crop budget, after
+  every crop.
+- `zoomBelow` is still accepted but has no effect (crops are never magnified). `foldDetailsAt` no longer
+  changes change sections; their CSS is always collapsed.
+- The branch-storage PR comment link reads "Open the full visual report →".
+
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.

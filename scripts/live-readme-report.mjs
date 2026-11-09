@@ -75,22 +75,20 @@ function restingChangesFirst(markdown) {
   const start = markdown.indexOf(heading);
   if (start === -1) return markdown;
   const bodyStart = start + heading.length;
-  // Only reorder ### change cards. Trailing "Nothing else" / Evidence stay put.
-  const trailMatch = markdown.slice(bodyStart).search(/\n(?=_Nothing else|<details>\n<summary>Evidence)/);
+  // Only reorder ### change sections. The trailing captured-data comment and Evidence stay put.
+  const trailMatch = markdown.slice(bodyStart).search(/\n(?=<!-- styleproof-captured|<details>\n<summary>Evidence)/);
   const bodyEnd = trailMatch === -1 ? markdown.length : bodyStart + trailMatch;
   const body = markdown.slice(bodyStart, bodyEnd);
   const trail = markdown.slice(bodyEnd);
   const blocks = body.split(/(?=^### )/m).filter(Boolean);
-  const resting = blocks.filter(
-    (block) => block.startsWith('### ') && !['`:hover`', '`:focus`', '`:active`'].some((s) => block.includes(s)),
-  );
+  const resting = blocks.filter((block) => block.startsWith('### ') && !/`:(hover|focus|active) /.test(block));
   const states = blocks.filter((block) => !resting.includes(block));
   return markdown.slice(0, bodyStart) + [...resting, ...states].join('') + trail;
 }
 
 const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
 fs.writeFileSync(res.reportMdPath, report);
-const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
+const inlined = report.replaceAll('src="crops/', 'src="docs/readme/live-report/crops/');
 const comment = [
   '<!-- styleproof-report -->',
   '',
