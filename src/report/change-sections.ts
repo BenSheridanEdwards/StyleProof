@@ -210,6 +210,15 @@ function longhandNote(row: PropChange, raw: PropChange[]): string {
   return n > 1 ? ` (${n} longhands)` : '';
 }
 
+/** `color` leads the rows that moved exactly like it (a `border-color` echo), as a reviewer reads the change. */
+function colorFirst<T extends PropChange>(rows: T[]): T[] {
+  const color = rows.find((r) => r.prop === 'color');
+  if (!color) return rows;
+  const echoes = (r: T) => r !== color && r.before === color.before && r.after === color.after;
+  const at = rows.findIndex((r) => r === color || echoes(r));
+  return [...rows.slice(0, at), color, ...rows.slice(at).filter((r) => r !== color)];
+}
+
 /** The CSS table rows for one element's findings: rest, pseudo-elements, then states; followers last. */
 export function cssRows(findings: Finding[]): string[][] {
   const rows: string[][] = [];
@@ -223,7 +232,7 @@ export function cssRows(findings: Finding[]): string[][] {
     if (f.kind === 'dom') continue;
     const prefix = [f.kind === 'state' ? `:${f.state}` : '', pseudoOf(f) ?? ''].filter(Boolean).join(' ');
     const label = (prop: string) => codeValue(prefix ? `${prefix} ${prop}` : prop);
-    for (const row of summarizePropsWithFollowOns(f.props)) {
+    for (const row of colorFirst(summarizePropsWithFollowOns(f.props))) {
       rows.push([`${label(row.prop)}${longhandNote(row, f.props)}`, ...cellPair(row.before, row.after)]);
       for (const follower of row.followOns ?? []) {
         followers.push([
