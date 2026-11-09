@@ -407,8 +407,10 @@ test('styleproof-report two-directory diagnostic shows a demo colour change with
     const report = run(dir, 'node', [REPORT, 'base', 'head', '--out', out]);
     expect(report.status, report.stderr).toBe(1);
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-    expect(markdown).toContain('UNVERIFIED DIAGNOSTIC');
-    expect(markdown).toContain('Product-state identity unproven');
+    // The unbound binding is said on stderr; the armed ledger blocks, in plain words.
+    expect(report.stderr).toContain('UNVERIFIED DIAGNOSTIC');
+    expect(markdown).toContain('This compare cannot certify');
+    expect(markdown).not.toContain('Product-state identity unproven');
     expect(markdown).toContain('`color`');
     expect(markdown).toContain('#c8e4e8');
     expect(fs.readdirSync(path.join(out, 'crops')).length).toBeGreaterThan(0);
