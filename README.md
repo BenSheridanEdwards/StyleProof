@@ -776,7 +776,7 @@ for the dev loop, and [`.agents/README.md`](https://github.com/BenSheridanEdward
 (where `AGENTS.md` and `CLAUDE.md` point) for the operating rules and agent tooling. The repo
 is wired for Claude Code with **GitNexus**
 (code-intelligence graph — MCP server in [`.mcp.json`](.mcp.json), skills in
-`.claude/skills/gitnexus/`), and **Graphify** (`/graphify` knowledge graph). The
+`.claude/skills/gitnexus/`) and **Graphify** (`/graphify` knowledge graph). The
 GitNexus index (`.gitnexus/`) and Graphify output (`graphify-out/`) are gitignored;
 build the index with `npx gitnexus analyze --skip-agents-md`.
 
