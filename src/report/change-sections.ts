@@ -6,7 +6,7 @@ import { isGeometryOnlyGroup } from '../findings-clean.js';
 import { codeValue } from '../code-span.js';
 import { changeLine, plural, sectionNoun, sectionTitle, type SectionSubject, type StateChange } from './change-line.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
-import { paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
+import { containerOf, paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
 import { cellPair, renderCropChanges } from './markdown.js';
 import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
 import { spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
@@ -349,6 +349,43 @@ function elementBox(ctx: RenderCtx, maps: [StyleMap, StyleMap], p: string): Box 
   return visible(a) && visible(b) ? union(a, b) : visible(b) ? b : visible(a) ? a : null;
 }
 
+/** A crop frame larger than this is not "the element's card": keep the element's own frame. */
+const MAX_FRAME = { w: 640, h: 480 };
+
+/**
+ * The crop frame for a changed element. When the element alone is smaller than the crop
+ * window, the window would cut through whatever surrounds it, so frame the largest
+ * enclosing box (a card or component) that still fits a crop; otherwise the element.
+ */
+function frameBox(ctx: RenderCtx, maps: [StyleMap, StyleMap], p: string): Box | null {
+  const own = elementBox(ctx, maps, p);
+  if (!own || (own.w >= ctx.minWidth && own.h >= ctx.minHeight)) return own;
+  let frame = own;
+  for (let ancestor = containerOf(p); ancestor; ancestor = containerOf(ancestor)) {
+    const box = elementBox(ctx, maps, ancestor);
+    if (!box) continue;
+    // An ancestor painted elsewhere (the element sits in an inner scroller) cannot frame it.
+    if (
+      !encloses(box, own) ||
+      box.w > Math.max(MAX_FRAME.w, ctx.minWidth) ||
+      box.h > Math.max(MAX_FRAME.h, ctx.minHeight)
+    ) {
+      break;
+    }
+    frame = box;
+  }
+  return frame;
+}
+
+function encloses(outer: Box, inner: Box): boolean {
+  return (
+    outer.x <= inner.x &&
+    outer.y <= inner.y &&
+    outer.x + outer.w >= inner.x + inner.w &&
+    outer.y + outer.h >= inner.y + inner.h
+  );
+}
+
 export type RenderedSection = {
   md: string[];
   region: Record<string, unknown>;
@@ -425,7 +462,7 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
   const pair = renderCropPair(ctx, {
     surface,
     suffix: String(seq.crop),
-    box: elementBox(ctx, maps, target)!,
+    box: frameBox(ctx, maps, target)!,
     pngA: pngs[0],
     pngB: pngs[1],
     ...(state === 'rest' ? {} : { state }),
