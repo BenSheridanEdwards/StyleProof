@@ -1,6 +1,6 @@
 import type { PropChange } from '../diff.js';
-import { colorName, toHex } from '../describe.js';
-import { codeValue } from '../code-span.js';
+import { colorNameIfClose, toHex } from '../describe.js';
+import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { humanLabel, isNonValue } from '../change-groups.js';
 
 /**
@@ -84,9 +84,10 @@ const MAX_TEXT = 32;
 const leafTag = (subject: Pick<SectionSubject, 'tag' | 'path'>): string =>
   (subject.tag || (subject.path.split('>').pop() ?? '').trim().replace(/[:.].*$/, '') || 'element').toLowerCase();
 
+/** Short captured text, escaped: it is page content and reaches report.md and the PR comment. */
 const shortText = (text: string): string | null => {
   const t = text.replace(/\s+/g, ' ').trim();
-  return t && t.length <= MAX_TEXT ? t : null;
+  return t && t.length <= MAX_TEXT ? escapeInlineMarkdown(t) : null;
 };
 
 /** The text every element shares, when they all share one short text. */
@@ -167,29 +168,29 @@ const PROP_WORDS: Record<string, string> = {
 
 const MAX_VALUE = 24;
 
-/** A value as a reviewer reads it: a colour name, else the value itself. */
-function valueWords(prop: string, value: string): string | null {
+/** A value as a reviewer reads it: the value itself (a colour word is decided per pair). */
+function valueWords(value: string): string | null {
   if (isNonValue(value)) return 'none';
-  if (/color$/.test(prop) || prop === 'color') {
-    const name = colorName(value);
-    if (name) return name;
-  }
   const v = toHex(value);
   return v.length <= MAX_VALUE ? codeValue(v) : null;
+}
+
+/** Colour words only when both sides have a genuinely close name; otherwise both values. */
+function colorWords(prop: string, before: string, after: string): [string, string] | null {
+  if (!/color$/.test(prop)) return null;
+  const [b, a] = [colorNameIfClose(before), colorNameIfClose(after)];
+  return b && a && b !== a ? [b, a] : null;
 }
 
 /** "text colour from dark indigo to dark red", "`box-shadow`" (long values left to the CSS table). */
 function propFragment(change: PropChange & { pseudo?: string }): string {
   const name = PROP_WORDS[change.prop] ?? codeValue(change.prop);
   const label = change.pseudo ? `${codeValue(change.pseudo)} ${name}` : name;
-  const before = valueWords(change.prop, change.before);
-  const after = valueWords(change.prop, change.after);
-  if (!before || !after) return label;
-  // Same colour word on both sides: the shade changed, so show the values.
-  if (before === after) {
-    return `${label} from ${codeValue(toHex(change.before))} to ${codeValue(toHex(change.after))}`;
-  }
-  return `${label} from ${before} to ${after}`;
+  const words = colorWords(change.prop, change.before, change.after);
+  if (words) return `${label} from ${words[0]} to ${words[1]}`;
+  const before = valueWords(change.before);
+  const after = valueWords(change.after);
+  return before && after ? `${label} from ${before} to ${after}` : label;
 }
 
 /** Props that moved exactly like `color` read as one colour change in the sentence (the table lists them all). */
