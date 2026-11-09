@@ -50,7 +50,7 @@ test('report.html covers the report Markdown grammar (#698)', () => {
   );
 
   assert.match(html, /^<!doctype html>/);
-  assert.match(html, /<h2>🗺️ StyleProof report<\/h2>/);
+  assert.match(html, /<h1>StyleProof report<\/h1>/);
   assert.match(html, /<strong>1 change needs review<\/strong>/);
   assert.match(
     html,
@@ -106,7 +106,9 @@ test('report.html only accepts exact trailing paragraph breaks and escapes other
   assert.match(html, /<p>near matches &lt;br\/&gt; &lt;BR&gt; &lt;br&gt; <\/p>/);
   assert.match(html, /<p>escaped &lt;br&gt;<\/p>/, 'a Markdown-escaped <br> stays literal text, as on main');
   assert.match(html, /<p>ordinary paragraph lines<\/p>/);
-  assert.doesNotMatch(html, /<script\b|<strong\b/i);
+  // The page's only script is its own theme switch; report text never becomes markup.
+  assert.equal(html.match(/<script\b/gi)?.length, 1);
+  assert.doesNotMatch(html, /<script>alert|<strong\b/i);
 });
 
 test('report.html never interprets untrusted text as markup (#698)', () => {
@@ -158,18 +160,14 @@ test('the committed demo report renders completely (#698)', () => {
   const md = fs.readFileSync(path.join(here, '..', 'docs/demo/report.md'), 'utf8');
   const html = renderReportHtml(md, { outDir: path.join(here, '..', 'docs/demo') });
   assert.equal(html, fs.readFileSync(path.join(here, '..', 'docs/demo/report.html'), 'utf8'));
-  assert.match(html, /<h2>🗺️ StyleProof report<\/h2>/);
-  // TEMPORARY until report.html draws the section data: whole pages are only referenced from it.
-  const crops = fs
-    .readdirSync(path.join(here, '..', 'docs/demo/crops'))
-    .filter((f) => f.endsWith('.png') && !f.includes('-page'));
-  for (const crop of crops) {
-    assert.ok(
-      html.includes(
-        `src="data:image/png;base64,${fs.readFileSync(path.join(here, '..', 'docs/demo/crops', crop)).toString('base64')}"`,
-      ),
-      `every demo crop must be inlined in report.html — missing crops/${crop}`,
-    );
+  assert.match(html, /<h1>StyleProof report<\/h1>/);
+  const base64 = (crop) => fs.readFileSync(path.join(here, '..', 'docs/demo/crops', crop)).toString('base64');
+  for (const crop of fs.readdirSync(path.join(here, '..', 'docs/demo/crops')).filter((f) => f.endsWith('.png'))) {
+    const inlined = html.includes(`src="data:image/png;base64,${base64(crop)}"`);
+    // A Where PNG is the fallback for the SVG map, which draws the same boxes over the inlined whole page.
+    const drawnAsSvg = crop.endsWith('-where.png') && html.includes(`data-fallback="crops/${crop}"`);
+    const svgPage = html.includes(`href="data:image/png;base64,${base64(crop)}"`);
+    assert.ok(inlined || drawnAsSvg || svgPage, `every demo image must be in report.html — missing crops/${crop}`);
   }
   assert.doesNotMatch(html, /!\[/, 'no image syntax may survive unrendered');
   assert.doesNotMatch(html, /&lt;!--/, 'comments must pass through as comments, not visible text');

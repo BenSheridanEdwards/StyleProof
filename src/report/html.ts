@@ -1,5 +1,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  decodeCapturedMeta,
+  decodeSectionMeta,
+  SECTION_END,
+  type CapturedMeta,
+  type SectionMeta,
+} from './section-meta.js';
 
 /**
  * Render report.md to a self-contained report.html — the in-browser review
@@ -225,33 +232,484 @@ function readCropDataUrl(src: string, outDir: string, maxBytes: number): string 
   return `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`;
 }
 
-export function renderReportHtml(markdown: string, options?: { outDir: string; maxBytes?: number }): string {
-  const maxBytes = options?.maxBytes ?? 2_000_000;
-  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
-  const body = renderBlocks(markdown.split('\n')).join('\n');
-  let page = `<!doctype html>
+// ---------------------------------------------------------------- the visual page
+
+const attr = (value: string | number) => escapeHtml(String(value));
+/** A crop reference the page may load: relative `crops/<file>.png` or http(s), never anything else. */
+const safeCrop = (src: string) => /^(?:crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s]+)$/.test(src) && isSafeUrl(src);
+
+const STATE_WORDS: Record<string, string> = {
+  hover: 'while hovered',
+  focus: 'while focused',
+  active: 'while pressed',
+  checked: 'while checked',
+  disabled: 'while disabled',
+  'placeholder-shown': 'while showing its placeholder',
+};
+const stateWords = (state: string) => (state === 'rest' ? '' : (STATE_WORDS[state] ?? `in :${state}`));
+
+/** Where-map ring padding, page pixels (the same as the PNG overview). */
+const RING_PAD = 8;
+
+/** The Where map as an SVG over the head (or base) page, or the PNG overview when the page is not available. */
+function whereFigure(meta: SectionMeta, index: number, alt: string, caption: string): string {
+  const where = meta.where[index];
+  const page = meta.pages.find((p) => p.state === 'rest');
+  const href = page ? (where.side === 'after' ? page.after : page.before) : '';
+  const figcaption = `<figcaption>${inline(caption)}</figcaption>`;
+  if (!href || !safeCrop(href)) {
+    return safeCrop(where.image)
+      ? `<figure class="where"><img class="map" src="${attr(where.image)}" alt="${attr(alt)}">${figcaption}</figure>`
+      : `<figure class="where">${figcaption}</figure>`;
+  }
+  const [pw, ph] = where.page;
+  const [vx, vy, vw, vh] = where.view;
+  const boxes = where.boxes.map(([x, y, w, h]) => ({
+    x: x - RING_PAD,
+    y: y - RING_PAD,
+    w: w + 2 * RING_PAD,
+    h: h + 2 * RING_PAD,
+  }));
+  const rect = (b: { x: number; y: number; w: number; h: number }, extra: string) =>
+    `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="6"${extra}/>`;
+  const mask = `mask-${attr(meta.id)}-${index}`;
+  return (
+    `<figure class="where"><svg viewBox="${vx} ${vy} ${vw} ${vh}" role="img" aria-label="${attr(alt)}" class="map" data-fallback="${attr(where.image)}">` +
+    `<defs><mask id="${mask}"><rect width="${pw}" height="${ph}" fill="#fff"/>${boxes.map((b) => rect(b, ' fill="#000"')).join('')}</mask></defs>` +
+    `<image href="${attr(href)}" width="${pw}" height="${ph}"/>` +
+    `<rect class="dim" width="${pw}" height="${ph}" mask="url(#${mask})"/>${boxes.map((b) => rect(b, ' class="ring"')).join('')}` +
+    `</svg>${figcaption}</figure>`
+  );
+}
+
+/** One before/after pair: two clean images side by side (stacked on narrow screens). */
+function pairBlock(
+  pair: { state: string; before: string; after: string; w: number; h: number; what?: string },
+  lazy = false,
+  label = stateWords(pair.state),
+) {
+  const words = label;
+  const tag = words ? `<span class="state">${escapeHtml(words)}</span>` : '';
+  const loading = lazy ? ' loading="lazy"' : '';
+  const side = (name: 'before' | 'after', src: string) =>
+    safeCrop(src)
+      ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
+        `<img class="shot ${name}" src="${attr(src)}" width="${pair.w}" height="${pair.h}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${pair.what ?? 'the whole page'}`)}"${loading}></figure>`
+      : '';
+  return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
+}
+
+const PAIR_ROW = /^\| (?:Before \| After|--- \| ---|<img [^|]*\| <img [^|]*) \|$/;
+const STATE_LABEL = /^\*\*While [^*]+\*\*$/;
+const PAGE_LINE = /^_On (.+)_$/;
+
+/** Split a section's Markdown body into its line, Where captions, notes and the CSS fold. */
+function sectionParts(body: string[]) {
+  const css: string[] = [];
+  const notes: string[] = [];
+  const wheres: Array<{ alt: string; caption: string }> = [];
+  let line = '';
+  let page = '';
+  let inCss = false;
+  body.forEach((text, i) => {
+    if (text === '<details>' && body[i + 1] === '<summary>Show the CSS</summary>') inCss = true;
+    if (inCss) {
+      css.push(text);
+      if (text === '</details>') inCss = false;
+      return;
+    }
+    const where = text.match(WHERE_LINE);
+    if (where) {
+      wheres.push({ alt: where[1].match(/ alt="([^"]*)"/)?.[1] ?? '', caption: where[2] });
+      return;
+    }
+    const pageLine = text.match(PAGE_LINE);
+    if (pageLine && !page) page = pageLine[1];
+    else if (
+      !line &&
+      text &&
+      !text.startsWith('<') &&
+      !text.startsWith('|') &&
+      !text.startsWith('_') &&
+      !STATE_LABEL.test(text)
+    )
+      line = text;
+    // A state label stays only when it heads a note (a pair with no images), not a pair table.
+    else if (
+      !PAIR_ROW.test(text) &&
+      !(
+        STATE_LABEL.test(text) &&
+        body
+          .slice(i + 1)
+          .find((l) => l)
+          ?.startsWith('| Before')
+      )
+    )
+      notes.push(text);
+  });
+  return { line, page, wheres, notes, css: css.slice(2, -1) };
+}
+
+const decodeEntities = (text: string) =>
+  text.replace(/&(amp|quot|lt|gt);/g, (_m, e: string) => ({ amp: '&', quot: '"', lt: '<', gt: '>' })[e]!);
+
+/** The CSS fold's table, as the preview draws it: a swatch beside each hex colour, currentColor followers muted. */
+function cssTableHtml(html: string): string {
+  return html
+    .replace(
+      /<td><code>(#[0-9a-f]{6})<\/code><\/td>/gi,
+      '<td><i class="sw" style="background:$1"></i><code>$1</code></td>',
+    )
+    .replace(/<tr>(<td><code>[^<]*<\/code> \(follows <code>color<\/code>\))/g, '<tr class="follower">$1');
+}
+
+/** One change section as a card: name and line beside the Where map, pairs, then the CSS and whole pages on demand. */
+function sectionCard(title: string, meta: SectionMeta, body: string[]): string {
+  const parts = sectionParts(body);
+  const figures = meta.where.map((_w, i) =>
+    whereFigure(
+      meta,
+      i,
+      decodeEntities(parts.wheres[i]?.alt ?? 'Where on the page'),
+      decodeEntities(parts.wheres[i]?.caption ?? ''),
+    ),
+  );
+  const page = parts.page && !figures.length ? `<p class="page">On ${inline(parts.page)}</p>` : '';
+  const [selector, ...cssRest] = (() => {
+    const first = parts.css.findIndex((l) => l.trim());
+    return first < 0 ? [''] : [parts.css[first], ...parts.css.slice(first + 1)];
+  })();
+  const paths = meta.paths.length
+    ? `<details class="paths"><summary>Element paths</summary><ol>${meta.paths.map((p) => `<li><code>${escapeHtml(p)}</code></li>`).join('')}${meta.more ? `<li>…and ${meta.more} more</li>` : ''}</ol></details>`
+    : '';
+  const css = parts.css.length
+    ? `<details class="more css"><summary>Show the CSS</summary><div class="more-body"><p class="selector">${inline(selector)}</p>${cssTableHtml(renderBlocks(cssRest).join('\n'))}${paths}</div></details>`
+    : '';
+  const pages = meta.pages.length
+    ? `<details class="more pages"><summary>Show the whole page</summary><div class="more-body">${meta.pages
+        .map((p) =>
+          pairBlock(
+            { ...p, what: `the whole page ${stateWords(p.state)}`.trim() },
+            true,
+            `whole page ${stateWords(p.state)}`.trim(),
+          ),
+        )
+        .join('')}</div></details>`
+    : '';
+  return [
+    `<section class="change" id="${attr(meta.id)}">`,
+    `<div class="head"><div><h2>${inline(title)}</h2><p class="line">${inline(parts.line)}</p>${page}</div>${figures.join('')}</div>`,
+    renderBlocks(parts.notes).join('\n'),
+    meta.pairs.map((pair) => pairBlock(pair)).join(''),
+    css,
+    pages,
+    '</section>',
+  ].join('\n');
+}
+
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const andList = (items: string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
+
+/** "What was captured": pages and widths, forced states, recipe states and the changed rules. */
+function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
+  const items = meta.pages.map((p) => {
+    const widths = p.widths.length ? ` at ${andList(p.widths.map(String))}px wide` : '';
+    const states = p.states.length
+      ? `, at rest and in ${plural(p.states.length, 'forced state')}: ${p.states.map((s) => `<code>:${escapeHtml(s)}</code>`).join(', ')}`
+      : ', at rest';
+    return `The <strong>${escapeHtml(p.base)}</strong> page${widths}${states}.`;
+  });
+  if (meta.recipes.length) {
+    items.push(
+      `Recipe states: ${meta.recipes.map((r) => `<code>${escapeHtml(r.state)}</code> (${escapeHtml(r.action)}) on <strong>${escapeHtml(r.surface)}</strong>`).join(', ')}.`,
+    );
+  }
+  const ruleLink = (r: CapturedMeta['rules'][number]) =>
+    r.section && sectionIds.has(r.section)
+      ? `<a href="#${attr(r.section)}"><code>${escapeHtml(r.key)}</code></a>`
+      : `<code>${escapeHtml(r.key)}</code>`;
+  const groups: Array<[string, string]> = [
+    ['reached', 'each matched by elements on a captured page'],
+    ['never-rendered', 'that no captured page matched'],
+    ['blind-channel', 'that computed styles cannot show'],
+    ['unmeasured', 'that could not be checked on compared elements'],
+  ];
+  for (const [status, words] of groups) {
+    const rules = meta.rules.filter((r) => r.status === status);
+    if (!rules.length) continue;
+    const sheets = [...new Set(rules.map((r) => r.sheet).filter(Boolean))];
+    const where = sheets.length === 1 ? ` in <code>${escapeHtml(sheets[0])}</code>` : '';
+    items.push(`${plural(rules.length, 'changed CSS rule')}${where}, ${words}: ${rules.map(ruleLink).join(', ')}.`);
+  }
+  if (!items.length) return '';
+  return `<section class="coverage" aria-labelledby="coverage-title"><h2 id="coverage-title">What was captured</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`;
+}
+
+const TITLE_LINE = /^## 🗺️ StyleProof report$/;
+
+const SUMMARY_LINE = /^(?:\*\*\d+ changes? to review\*\*|✓|⚠ UNVERIFIED|Computed-style scope)/;
+
+/** The lines above the first heading: the summary line goes to the header, the rest stay as notes. */
+function topBlock(lines: string[]) {
+  const titled = TITLE_LINE.test(lines[0] ?? '');
+  if (!titled) return { titled, summary: '', notes: [] as string[], next: 0 };
+  const end = lines.findIndex((l, n) => n > 0 && (/^#{2,3} /.test(l) || decodeCapturedMeta(l) !== null));
+  const top = lines.slice(1, end < 0 ? lines.length : end);
+  const at = top.findIndex((l) => SUMMARY_LINE.test(l));
+  return {
+    titled,
+    summary: at >= 0 ? inline(top[at]) : '',
+    notes: top.filter((_l, n) => n !== at),
+    next: 1 + top.length,
+  };
+}
+
+type PageBody = { html: string[]; cards: Array<{ id: string; title: string }>; captured: CapturedMeta | null };
+
+/** Walk the Markdown after the top block: section cards, the captured data, and everything else as written. */
+function pageBody(lines: string[], start: number, notes: string[]): PageBody {
+  const body: PageBody = { html: [], cards: [], captured: null };
+  let generic = [...notes];
+  const flush = () => {
+    if (generic.length) body.html.push(renderBlocks(generic).join('\n'));
+    generic = [];
+  };
+  for (let i = start; i < lines.length; i++) {
+    const text = lines[i];
+    const next = lines.slice(i + 1).find((l) => l.trim()) ?? '';
+    const meta = text.startsWith('### ') ? decodeSectionMeta(next) : null;
+    const captured = decodeCapturedMeta(text);
+    if (captured) body.captured = captured;
+    // The GitHub "Changes" heading is not repeated: the cards carry their own names.
+    else if (text === '## Changes') continue;
+    else if (!meta) generic.push(text);
+    else {
+      flush();
+      const end = lines.indexOf(SECTION_END, i);
+      const stop = end < 0 ? lines.length : end;
+      body.cards.push({ id: meta.id, title: text.slice(4) });
+      body.html.push(sectionCard(text.slice(4), meta, lines.slice(lines.indexOf(next, i) + 1, stop)));
+      i = stop;
+    }
+  }
+  flush();
+  return body;
+}
+
+const FOOTER =
+  '<footer>Made by StyleProof from the computed styles and screenshots it captured in a real browser. Every before/after image is an unedited crop of a capture; only the Where maps are marked.</footer>';
+
+/** The page body: header (title, theme switch, summary, jump links), top notes, sections, captured, footer. */
+function renderPage(lines: string[]): string {
+  const top = topBlock(lines);
+  const body = pageBody(lines, top.next, top.notes);
+  const toc = body.cards.length
+    ? `<nav class="toc" aria-label="Changes">${body.cards.map((c) => `<a href="#${attr(c.id)}">${inline(c.title)}</a>`).join('')}</nav>`
+    : '';
+  const summary = top.summary ? `<p class="summary">${top.summary}</p>` : '';
+  const header = top.titled
+    ? `<header class="top"><div class="topbar"><h1>StyleProof report</h1>${THEME_SWITCH}</div>${summary}${toc}</header>`
+    : '';
+  const captured = body.captured ? capturedSection(body.captured, new Set(body.cards.map((c) => c.id))) : '';
+  return [header, ...body.html, captured, FOOTER].filter(Boolean).join('\n');
+}
+
+const THEME_SWITCH =
+  '<div class="theme" role="group" aria-label="Colour theme">' +
+  ['auto', 'light', 'dark']
+    .map(
+      (t) =>
+        `<button type="button" data-set-theme="${t}" aria-pressed="false">${t[0].toUpperCase()}${t.slice(1)}</button>`,
+    )
+    .join('') +
+  '</div>';
+
+// Light is the default; dark applies by system preference unless light is forced, or whenever dark is forced.
+const LIGHT =
+  '--bg: #f6f7f9; --panel: #fff; --ink: #14171c; --muted: #535b67; --line: #d5dae1; --link: #0b57c2; --focus: #0b57c2; --before: #7a4f00; --before-bg: #fff3d6; --after: #0a6436; --after-bg: #dcf5e6; --ring: #e0119d; --dim: rgb(255 255 255 / .55); --code: rgb(127 127 127 / .14);';
+const DARK =
+  '--bg: #0f1216; --panel: #171b21; --ink: #e8ebef; --muted: #9aa3ae; --line: #2a3038; --link: #8ab4ff; --focus: #8ab4ff; --before-bg: #3a2b0a; --before: #f3c46b; --after-bg: #0e3320; --after: #74dba3; --ring: #e0119d; --dim: rgb(255 255 255 / .5); --code: rgb(127 127 127 / .22);';
+
+const STYLE = `
+:root { color-scheme: light; ${LIGHT} }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; ${DARK} } }
+:root[data-theme="dark"] { color-scheme: dark; ${DARK} }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--link); }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+.topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+header.top h1 { font-size: 1.25rem; margin: 0; }
+header.top p.summary { margin: 4px 0 0; color: var(--muted); }
+header.top p.summary strong { color: var(--ink); }
+.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.theme button { font: inherit; font-size: .85rem; padding: 4px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.theme button + button { border-left: 1px solid var(--line); }
+.theme button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.theme button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+nav.toc a { display: inline-block; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: inherit; text-decoration: none; background: var(--panel); font-size: .9rem; }
+nav.toc a:focus-visible, a:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+section.change, section.coverage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
+.head { display: grid; grid-template-columns: 1fr minmax(160px, 240px); gap: 16px; align-items: start; }
+.head h2, .coverage h2 { margin: 0 0 4px; font-size: 1.15rem; border: 0; padding: 0; }
+.head p.line { margin: 0; font-size: 1.05rem; }
+.head p.page { margin: 4px 0 0; color: var(--muted); font-size: .9rem; }
+.coverage ul { margin: 8px 0 0; padding-left: 20px; }
+.coverage li + li { margin-top: 4px; }
+figure { margin: 0; }
+.where figcaption { font-size: .8rem; color: var(--muted); margin-top: 4px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+.pair figcaption { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; }
+.side { font-weight: 700; font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; padding: 2px 10px; border-radius: 6px; }
+.side.before { background: var(--before-bg); color: var(--before); }
+.side.after { background: var(--after-bg); color: var(--after); }
+.state { font-size: .85rem; color: var(--muted); }
+.shot, .map { display: block; width: 100%; height: auto; border-radius: 8px; border: 2px solid var(--line); background: #fff; }
+.shot.before { border-color: color-mix(in srgb, var(--before) 45%, transparent); }
+.shot.after { border-color: color-mix(in srgb, var(--after) 45%, transparent); }
+.map { border-width: 1px; }
+.map .dim { fill: var(--dim); }
+.map .ring { fill: none; stroke: var(--ring); stroke-width: 3; vector-effect: non-scaling-stroke; }
+details.more { margin-top: 16px; border-top: 1px solid var(--line); padding-top: 12px; }
+details.more + details.more { margin-top: 0; border-top: 0; }
+details.more > summary { cursor: pointer; font-weight: 600; color: var(--muted); width: fit-content; }
+details.more > summary:hover { color: var(--ink); }
+summary:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+.more-body { margin-top: 12px; overflow-x: auto; }
+.selector { margin: 0 0 8px; color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+table { border-collapse: collapse; width: 100%; margin-bottom: 12px; font-size: .9rem; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { color: var(--muted); font-weight: 600; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: var(--code); padding: 1px 5px; border-radius: 4px; }
+.sw { display: inline-block; width: .9em; height: .9em; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 1px solid rgb(127 127 127 / .5); }
+tr.follower td { color: var(--muted); font-size: .85rem; }
+.paths summary { cursor: pointer; color: var(--muted); font-size: .85rem; }
+.paths ol { margin: 6px 0 0; padding-left: 20px; font-size: .8rem; overflow-wrap: anywhere; }
+main > h2, main > h3 { margin-top: 28px; }
+main > p img, main > p.shot img, td img { max-width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; }
+blockquote { border-left: 3px solid var(--line); margin: 8px 0; padding: 0 12px; color: var(--muted); }
+hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
+sub { color: var(--muted); }
+footer { margin-top: 32px; color: var(--muted); font-size: .85rem; }
+@media (max-width: 720px) {
+  .head { grid-template-columns: 1fr; }
+  .where { max-width: 320px; }
+  .pair { grid-template-columns: 1fr; gap: 12px; }
+  section.change, section.coverage { padding: 16px; }
+}`;
+
+// The theme switch: ?theme= or the saved choice, else the system setting; storage may be unavailable.
+const THEME_SCRIPT = `<script>
+(() => {
+  const root = document.documentElement;
+  const fromUrl = new URLSearchParams(location.search).get('theme');
+  let saved = null;
+  try { saved = localStorage.getItem('styleproof-report-theme'); } catch {}
+  const apply = (theme) => {
+    if (theme === 'light' || theme === 'dark') root.dataset.theme = theme; else delete root.dataset.theme;
+    document.querySelectorAll('[data-set-theme]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.setTheme === (theme || 'auto'))));
+  };
+  apply(fromUrl || saved || 'auto');
+  addEventListener('DOMContentLoaded', () => {
+    apply(root.dataset.theme || 'auto');
+    document.querySelectorAll('[data-set-theme]').forEach((b) => b.addEventListener('click', () => {
+      apply(b.dataset.setTheme);
+      try { localStorage.setItem('styleproof-report-theme', b.dataset.setTheme); } catch {}
+    }));
+  });
+})();
+</script>`;
+
+type ImageSlot = { match: string; src: string; alt: string; priority: number; fallback?: string };
+
+/** Embedding order: one-sided pages first, then pairs and other images, Where maps, whole pages last. */
+function imagePriority(tag: string, alt: string): number {
+  if (/new surface|removed surface/i.test(alt)) return 0;
+  if (tag.includes('loading="lazy"') && tag.includes('class="shot')) return 3;
+  return tag.includes('class="map"') ? 2 : 1;
+}
+
+const attrOf = (tag: string, name: string) => tag.match(new RegExp(` ${name}="([^"]*)"`))?.[1] ?? '';
+
+/** Every image in the page with its embedding priority; an SVG map carries its PNG fallback. */
+function imageSlots(page: string): ImageSlot[] {
+  const maps = [...page.matchAll(/<svg [^>]*class="map" data-fallback="([^"]*)"[^>]*>[\s\S]*?<\/svg>/g)].map((m) => {
+    const alt = attrOf(m[0], 'aria-label');
+    return {
+      match: m[0],
+      src: m[0].match(/<image href="([^"]*)"/)?.[1] ?? '',
+      alt,
+      priority: 2,
+      fallback: `<img class="map" src="${m[1]}" alt="${alt}">`,
+    };
+  });
+  const images = [...page.matchAll(/<img [^>]*>/g)].map((m) => {
+    const alt = attrOf(m[0], 'alt');
+    return { match: m[0], src: attrOf(m[0], 'src'), alt, priority: imagePriority(m[0], alt) };
+  });
+  return [...maps, ...images];
+}
+
+/** Embed images as data URLs by priority while the byte budget allows; the rest become short captions. */
+function embedImages(page: string, outDir: string, maxBytes: number): string {
+  const slots = imageSlots(page);
+  const caption = (slot: ImageSlot) => `<span>${slot.alt} (image omitted)</span>`;
+  let body = page;
+  slots.forEach((slot, i) => {
+    body = body.replace(slot.match, `<!-- image-${i} -->`);
+  });
+  const banner = (count: number) =>
+    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; use the original diff input for full findings.</p>`;
+  const rendered = slots.map(caption);
+  let remaining = maxBytes - Buffer.byteLength(body + banner(slots.length) + rendered.join(''));
+  let omitted = slots.length;
+  const order = slots.map((slot, i) => ({ slot, i })).sort((a, b) => a.slot.priority - b.slot.priority || a.i - b.i);
+  const embed = (tag: string, src: string, attrName: 'src' | 'href', i: number): boolean => {
+    const data = readCropDataUrl(decodeAttribute(src), outDir, remaining);
+    if (!data) return false;
+    const html = tag.replace(`${attrName}="${src}"`, `${attrName}="${data}"`);
+    const cost = Buffer.byteLength(html) - Buffer.byteLength(rendered[i]);
+    if (cost > remaining) return false;
+    rendered[i] = html;
+    remaining -= cost;
+    omitted -= 1;
+    return true;
+  };
+  for (const { slot, i } of order) {
+    if (slot.fallback) {
+      // The SVG map needs the whole page; without it, the PNG overview stands in.
+      if (!embed(slot.match, slot.src, 'href', i)) {
+        const fallbackSrc = slot.fallback.match(/ src="([^"]*)"/)?.[1] ?? '';
+        embed(slot.fallback, fallbackSrc, 'src', i);
+      }
+    } else embed(slot.match, slot.src, 'src', i);
+  }
+  body = body.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);
+  if (omitted) body = body.replace('<main>', `<main>${banner(omitted)}`);
+  return body;
+}
+
+/** Plain styles for a page too small a budget leaves no room for the full design. */
+const COMPACT_STYLE = `
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 15px/1.55 system-ui, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
+  img { max-width: 100%; height: auto; }
+  table { border-collapse: collapse; }
+  th, td { border: 1px solid #8888; padding: 4px 8px; text-align: left; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }`;
+
+function pageHtml(body: string, compact: boolean): string {
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>StyleProof report</title>
-<style>
-  :root { color-scheme: light; }
-  body { margin: 0; color: #1f2328; background: #fff;
-    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 64px; }
-  h2 { border-bottom: 1px solid #d1d9e0; padding-bottom: 6px; }
-  h3 { margin-top: 28px; }
-  img { max-width: 100%; height: auto; border: 1px solid #d1d9e0; border-radius: 6px; }
-  table { border-collapse: collapse; margin: 8px 0 16px; }
-  th, td { border: 1px solid #d1d9e0; padding: 6px 12px; text-align: left; }
-  th { background: #f6f8fa; }
-  code { background: #eff1f3; padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
-  details { margin: 8px 0; }
-  summary { cursor: pointer; color: #0969da; }
-  sub { color: #59636e; }
-  blockquote { border-left: 3px solid #d1d9e0; margin: 8px 0; padding: 0 12px; color: #59636e; }
-  hr { border: 0; border-top: 1px solid #d1d9e0; margin: 24px 0; }
+${compact ? '' : THEME_SCRIPT}
+<style>${compact ? COMPACT_STYLE : STYLE}
 </style>
 </head>
 <body>
@@ -261,43 +719,19 @@ ${body}
 </body>
 </html>
 `;
-  if (!options) return page;
-  const images = [
-    ...page.matchAll(/<img src="([^"]*)"((?: (?:width|height)="[0-9]+")?) alt="([^"]*)" loading="lazy">/g),
-  ];
-  const captions = images.map((image) => `<span>${image[3]} (image omitted)</span>`);
-  images.forEach((image, i) => {
-    page = page.replace(image[0], `<!-- image-${i} -->`);
-  });
-  const banner = (count: number) =>
-    `<p role="alert">${count} image${count === 1 ? '' : 's'} omitted; use the original diff input for full findings.</p>`;
-  let remaining = maxBytes - Buffer.byteLength(page + banner(images.length) + captions.join(''));
-  const rendered = [...captions];
-  let omitted = images.length;
-  // Reserve text first; new and removed surfaces have no paired evidence.
-  const priority = images
-    .map((image, i) => ({ image, i }))
-    .sort(
-      (a, b) =>
-        Number(/new surface|removed surface/i.test(b.image[3])) -
-        Number(/new surface|removed surface/i.test(a.image[3])),
-    );
-  for (const { image, i } of priority) {
-    const src = readCropDataUrl(decodeAttribute(image[1]), options.outDir, remaining);
-    if (!src) continue;
-    const tag = `<img src="${src}"${image[2]} alt="${image[3]}" loading="lazy">`;
-    const cost = Buffer.byteLength(tag) - Buffer.byteLength(captions[i]);
-    if (cost > remaining) continue;
-    rendered[i] = tag;
-    remaining -= cost;
-    omitted -= 1;
+}
+
+export function renderReportHtml(markdown: string, options?: { outDir: string; maxBytes?: number }): string {
+  const maxBytes = options?.maxBytes ?? 2_000_000;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
+  const body = renderPage(markdown.split('\n'));
+  if (!options) return pageHtml(body, false);
+  // The full design first; a budget too small for its styles still gets every word of the report.
+  for (const compact of [false, true]) {
+    const embedded = embedImages(pageHtml(body, compact), options.outDir, maxBytes);
+    if (Buffer.byteLength(embedded) <= maxBytes) return embedded;
   }
-  page = page.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);
-  if (omitted) page = page.replace('<main>', `<main>${banner(omitted)}`);
-  if (Buffer.byteLength(page) > maxBytes) {
-    throw new Error('HTML byte budget cannot fit report text');
-  }
-  return page;
+  throw new Error('HTML byte budget cannot fit report text');
 }
 
 /** Preserve receipts when their remaining budget cannot hold the HTML text. */
