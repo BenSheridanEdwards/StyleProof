@@ -7,6 +7,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { PNG } from 'pngjs';
 import { captureStyleMap, trackServedRules } from '../dist/index.js';
 import { captureStateLayerScreenshots } from '../dist/capture.js';
@@ -102,7 +103,7 @@ test('a shop pull request reads as three visual changes with clean crops and a t
     expect(origin, 'the after crop is a rectangle of the head capture').not.toBeNull();
 
     // The browser report: cards, Where maps, folds closed, theme switch, phone layout.
-    await page.goto(`file://${path.join(outDir, 'report.html')}`);
+    await page.goto(pathToFileURL(path.join(outDir, 'report.html')).href);
     await expect(page.locator('section.change')).toHaveCount(3);
     await expect(page.locator('section.change svg.map')).toHaveCount(3);
     await expect(page.locator('nav.toc a')).toHaveText(['Cards', 'Card titles', 'Add to basket buttons']);
