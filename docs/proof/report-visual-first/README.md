@@ -12,6 +12,8 @@ builds, with Change Reach), then `styleproof-report` on the two map directories.
 - `comment-text-only.md`: the same content as a private repository or artifact storage gets it,
   with no images.
 - `crops/`: the clean crops and Where maps those files reference, unedited.
+- `anonymous-blob-raw.txt`: an anonymous `curl -sIL` of a commit-bound `blob/<sha>/…?raw=1` image URL on this
+  public repository: 302, 302, then `200 image/png`. That is why a public repository's comment embeds images.
 
 Both comment files end with the report link; the Action also adds its marker, approval box,
 receipts and footer around them.

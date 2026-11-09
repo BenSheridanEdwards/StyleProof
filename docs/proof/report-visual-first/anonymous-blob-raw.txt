@@ -1,0 +1,11 @@
+# Anonymous fetch (no cookies, no token) of a commit-bound blob URL with ?raw=1 on this public repository,
+# the URL form the PR comment uses for images. Run on 2026-11-09.
+$ curl -sIL 'https://github.com/BenSheridanEdwards/StyleProof/blob/0854bc939303f81478477ce51d327aff80099611/docs/proof/report-state-headings/before-390.png?raw=1'
+HTTP/2 302 
+content-type: text/html; charset=utf-8
+location: https://github.com/BenSheridanEdwards/StyleProof/raw/0854bc939303f81478477ce51d327aff80099611/docs/proof/report-state-headings/before-390.png
+HTTP/2 302 
+content-type: text/html; charset=utf-8
+location: https://raw.githubusercontent.com/BenSheridanEdwards/StyleProof/0854bc939303f81478477ce51d327aff80099611/docs/proof/report-state-headings/before-390.png
+HTTP/2 200 
+content-type: image/png
