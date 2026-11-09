@@ -4,7 +4,7 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
-🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
+🧱 **2 visible element addition(s)/removal(s)** need review — approve them with the other changes.
 
 📝 _3 content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._
 
@@ -99,7 +99,7 @@ _The changed element is not visible in the captured page (it is outside the scre
 
 ## 📝 Content and structure changes
 
-_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
+_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check; approve them with the other changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 

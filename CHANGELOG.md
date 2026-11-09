@@ -43,14 +43,27 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   certify, when evidence fails, and when a changed CSS rule was never matched or cannot be seen in computed
   styles. `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
   has changes; an unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`.
-- **report.json:** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean crops) instead
-  of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`). Change sections
-  replace overlap-merged crop regions, so `regions` holds one entry per section. Whole-page captures for
-  report.html are written to `crops/` as `*-page-base.png` / `*-page-head.png` inside the crop budget, after
-  every crop.
+- **BREAKING (report.json):** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean
+  crops) instead of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`).
+  Change sections replace overlap-merged crop regions, so `regions` holds one entry per section, and a forced
+  state's region `paths` name the element that changed, not the element that owns the state. Whole-page
+  captures for report.html are written to `crops/` as `*-page-base.png` / `*-page-head.png` inside the crop
+  budget, after every crop. See Migration step 4.
 - `zoomBelow` is still accepted but has no effect (crops are never magnified). `foldDetailsAt` no longer
   changes change sections; their CSS is always collapsed.
-- The branch-storage PR comment link reads "Open the full visual report →".
+- A crop of a small element widens to its enclosing card or component (up to 640 × 480) so text is not cut in
+  half. The Where map still rings only the changed elements.
+- A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
+  otherwise it gives the hex value alone.
+- The PR comment carries every change section from report.md: its name, its line, the Where caption and the
+  CSS on demand, cut at 50,000 characters with a count of the sections left out. On a public repository with
+  `report-storage: branch` it also shows the Where map and the clean crops, from the report's commit-bound
+  `https://github.com/<owner>/<repo>/blob/<sha>/pr-<n>/crops/…?raw=1` URL. Private repositories and artifact
+  storage get the sections as text, because no image URL there works for every reader. The branch-storage link
+  reads "Open the full visual report →".
+- report.md, report.html and the PR comment no longer show internal gate codes such as
+  `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
+  in report.json, the Action's `trust-state` output and commit statuses.
 
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
@@ -218,6 +231,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    unapproved changes. Config `blocking: true` and `blocking: false` remain
    accepted but no longer affect the job conclusion; `'advisory'` keeps its meaning.
    Capture/setup failures and evidence gates still fail the job.
+
+4. **report.json regions follow change sections (visual-first report).** Update
+   consumers of `regions[]` in `styleproof-report` JSON:
+   - read the crops from `images.before` / `images.after` and
+     `stateImages[state].before` / `.after`; `composite`, `annotated` and `zoom`
+     are gone and nothing is drawn on the crops;
+   - read highlight boxes from the new `where[]` (`{ image, side, boxes }`,
+     `boxes` as `[x, y, width, height]` in page pixels) instead of the
+     annotated crop;
+   - expect one region per change section (elements that share a label and the
+     same change), not one per overlapping crop area, so counts can differ;
+   - for a forced state (`:checked`, `:hover` …) that restyles another element,
+     `paths` now names the restyled element; the element that owns the state
+     is named in report.md as the driver.
+
+   `zoomBelow` is accepted and ignored. The report's Markdown layout changed
+   too: tools that parse report.md should read report.json instead.
 
 ### Changed
 

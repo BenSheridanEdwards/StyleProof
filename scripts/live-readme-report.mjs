@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { captureStyleMap, generateStyleMapReport } from '../dist/index.js';
 import { captureStateLayerScreenshots } from '../dist/capture.js';
+import { reportCommentSummary } from '../dist/report-comment.js';
 import { writeCapture } from './fixture-util.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -89,12 +90,17 @@ function restingChangesFirst(markdown) {
 const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
 fs.writeFileSync(res.reportMdPath, report);
 const inlined = report.replaceAll('src="crops/', 'src="docs/readme/live-report/crops/');
+// The Action's comment content, as a public repository gets it (images kept). The crops
+// were repointed above, so they resolve from the README rather than the report branch.
+const summary = reportCommentSummary(inlined, { imageBase: 'https://github.com/BenSheridanEdwards/StyleProof/' });
 const comment = [
   '<!-- styleproof-report -->',
   '',
-  inlined.trim(),
+  summary,
   '',
   '- [ ] **Approve all changes**',
+  '',
+  '### 📊 [**Open the full visual report →**](docs/readme/live-report/report.md)',
   '',
   '---',
   '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._',
