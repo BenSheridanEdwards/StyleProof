@@ -68,12 +68,27 @@ test('report writes separate clean resting and hover crops with exact source pix
     assertPixels(path.join(outDir, images.before), sources[offset]);
     assertPixels(path.join(outDir, images.after), sources[offset + 1]);
   }
-  // Two clean pairs plus the Where map, the only image with boxes.
+  // Two clean pairs, the Where map (the only image with boxes), and the whole pages report.html shows on demand.
+  const names = fs.readdirSync(path.join(outDir, 'crops')).sort();
+  assert.equal(names.filter((n) => /-\d+-(before|after)\.png$/.test(n)).length, 4);
+  assert.equal(names.filter((n) => n.endsWith('-where.png')).length, 1);
   assert.deepEqual(
-    fs
-      .readdirSync(path.join(outDir, 'crops'))
-      .map((name) => name.replace(/^.*-(\d+-)?/, ''))
-      .sort(),
-    ['after.png', 'after.png', 'before.png', 'before.png', 'where.png'],
+    names.filter((n) => n.includes('-page')),
+    [
+      'index-600-page-base.png',
+      'index-600-page-head.png',
+      'index-600-page-hover-base.png',
+      'index-600-page-hover-head.png',
+    ],
   );
+  // The whole pages are the captures themselves, byte-for-byte in pixels.
+  for (const [name, source] of [
+    ['index-600-page-base.png', sources[0]],
+    ['index-600-page-head.png', sources[1]],
+    ['index-600-page-hover-base.png', sources[2]],
+    ['index-600-page-hover-head.png', sources[3]],
+  ]) {
+    const png = PNG.sync.read(fs.readFileSync(path.join(outDir, 'crops', name)));
+    assert.ok(png.data.equals(source.data), `${name} equals its capture`);
+  }
 });

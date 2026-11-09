@@ -69,7 +69,7 @@ function omittedCrop(ctx: RenderCtx) {
 export function renderCropPair(
   ctx: RenderCtx,
   spec: CropPairSpec,
-): { md: string[]; images: CropImages; omitted?: boolean } | null {
+): { md: string[]; images: CropImages; size?: { w: number; h: number }; omitted?: boolean } | null {
   const { box, pngA, pngB } = spec;
   const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
@@ -111,5 +111,5 @@ export function renderCropPair(
     '| --- | --- |',
     `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
-  return { md, images };
+  return { md, images, size: { w: before.png.width, h: before.png.height } };
 }

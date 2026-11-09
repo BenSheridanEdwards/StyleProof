@@ -135,7 +135,9 @@ test('base and hover folded rows stay with their element, each under its own sta
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
   assert.equal(sections.length, 1, 'one element, one change section');
-  assert.doesNotMatch(sections[0].split('\n')[2], /hovered/, 'the line describes the resting colour change');
+  const line = sections[0].split('\n').find((l, i) => i > 0 && l && !l.startsWith('<!--'));
+  assert.match(line, /changes text colour/, 'the line describes the resting colour change');
+  assert.doesNotMatch(line, /hovered/);
   assert.match(sections[0], /\| `color` \| `black` \| `red` \|/);
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
   assert.match(sections[0], /\| `:hover` \| `height` \| `80px` → `90px` \|/, 'the hover row keeps its state');

@@ -80,6 +80,8 @@ import {
   type BaselineInfo,
 } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
+import { finishSections } from './report/change-sections.js';
+import { createSectionRegistry } from './report/section-meta.js';
 import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
 import {
   ReportMarkdown,
@@ -225,6 +227,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     zoomBelow: opts.zoomBelow ?? 64,
     maxCrops: opts.maxCrops ?? 8,
     crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
+    sections: createSectionRegistry(),
     foldDetailsAt: opts.foldDetailsAt ?? 0,
     includeNoise: opts.includeLayoutNoise === true,
     requireStateIdentity: opts.requireStateIdentity === true,
@@ -604,6 +607,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reach,
     surfaceKeyOf,
   });
+  // Whole pages for report.html come last, so they never take the crop budget from evidence.
+  finishSections(ctx, md);
 
   if (ctx.crops.omitted > 0) {
     md.append([

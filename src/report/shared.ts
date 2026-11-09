@@ -11,6 +11,7 @@ import { isSameOrDescendant, rectToBox, screenshotRectOf, visible } from './geom
 import { readPng } from './png.js';
 import { codeValue } from '../code-span.js';
 import { createCropBudget, type CropBudget } from './crop-budget.js';
+import type { SectionRegistry } from './section-meta.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 
 /** Loads a surface's style map from a capture dir, cached for the run. */
@@ -49,6 +50,8 @@ export type RenderCtx = {
   zoomBelow: number;
   maxCrops: number;
   crops: CropBudget;
+  /** Change sections of this render (report.html data); absent for renders that draw no sections. */
+  sections?: SectionRegistry;
   foldDetailsAt: number;
   liveText: LiveTextAudit;
   includeNoise: boolean;

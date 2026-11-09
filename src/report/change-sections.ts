@@ -11,6 +11,19 @@ import { cellPair, renderCropChanges } from './markdown.js';
 import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
 import { spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { whereMapLine, whereReceipt, writeWhereMap, type WhereMap } from './where-map.js';
+import { writeBudgetedPng } from './crop-budget.js';
+import { cropStem } from './png.js';
+import type { ReportMarkdown } from './sections.js';
+import {
+  encodeSectionMeta,
+  SECTION_END,
+  sectionRef,
+  sectionRefIndex,
+  type SectionMeta,
+  type SectionMetaPage,
+  type SectionMetaPair,
+  type SectionRegistry,
+} from './section-meta.js';
 
 /**
  * Change sections: the elements in one change group that share a selector label and
@@ -315,7 +328,14 @@ type SectionInput = {
   cropsAllowed: boolean;
 };
 
-type SectionPairs = { md: string[]; note?: string; images: CropImages; stateImages: Record<string, CropImages> };
+type SectionPairs = {
+  md: string[];
+  note?: string;
+  images: CropImages;
+  stateImages: Record<string, CropImages>;
+  /** The written pairs, for report.html. */
+  meta: SectionMetaPair[];
+};
 
 const MAX_CROPS_NOTE = (max: number) =>
   `_Crop omitted: this change group reached the \`--max-crops\` limit (${max}). The change is still listed and counted._`;
@@ -326,7 +346,7 @@ const pairTargets = (section: ChangeSection, state: PairState): string[] =>
     ? section.paths
     : [...new Set(section.findings.filter((f) => f.kind === 'state' && f.state === state).map(subjectPath))];
 
-type StatePair = { md: string[]; note?: string; images?: CropImages };
+type StatePair = { md: string[]; note?: string; images?: CropImages; size?: { w: number; h: number } };
 
 /** One state's clean pair, or the reason it has none. */
 function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: string): StatePair {
@@ -350,12 +370,12 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
     ...(state === 'rest' ? {} : { state }),
     what: `${what}${stateWhat(state)}`,
   })!;
-  return { md: pair.md, images: pair.images };
+  return { md: pair.md, images: pair.images, ...(pair.size ? { size: pair.size } : {}) };
 }
 
 /** One clean before/after pair per state, or the reason a state has none. */
 function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): SectionPairs {
-  const out: SectionPairs = { md: [], images: {}, stateImages: {} };
+  const out: SectionPairs = { md: [], images: {}, stateImages: {}, meta: [] };
   if (!input.cropsAllowed) return { ...out, note: MAX_CROPS_NOTE(ctx.maxCrops) };
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state, what);
@@ -363,6 +383,15 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): Sectio
     if (pair.note) out.note = pair.note;
     if (state === 'rest' && pair.images) out.images = pair.images;
     else if (pair.images?.after) out.stateImages[state] = pair.images;
+    if (pair.images?.before && pair.images.after && pair.size) {
+      out.meta.push({
+        state,
+        before: pair.images.before,
+        after: pair.images.after,
+        ...pair.size,
+        what: `${what}${stateWhat(state)}`,
+      });
+    }
   }
   return out;
 }
@@ -403,15 +432,18 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput): Render
   const whereLines = where.length
     ? where.flatMap((map) => ['', whereMapLine(ctx, map, things, page)])
     : ['', `_On ${page}_`];
+  const ref = registerSection(ctx, section, surface, pairs.meta, where);
   const md = [
     '',
     `### ${section.title}`,
+    ...(ref ? ['', ref] : []),
     '',
     sectionLine(section, maps, input.folded),
     ...whereLines,
     ...(pairs.note ? ['', pairs.note] : []),
     ...pairs.md,
     ...cssDetailLines(section, input),
+    ...(ref ? ['', SECTION_END] : []),
   ];
   return { md, region: sectionRegion(ctx, input, pairs, where, shown), shown };
 }
@@ -441,4 +473,92 @@ function sectionWhereMaps(
         rects: rectsOf(gone, maps[0]),
       }),
   ].filter((m): m is WhereMap => !!m);
+}
+
+const MAX_META_PATHS = 20;
+
+/** A URL-safe id, unique in the report: "card-titles", "card-titles-2". */
+function sectionId(registry: SectionRegistry, title: string): string {
+  const base =
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'change';
+  const taken = new Set(registry.metas.map((m) => m.id));
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
+/** Record the section's report.html data and return its placeholder line (null when not collecting). */
+function registerSection(
+  ctx: RenderCtx,
+  section: ChangeSection,
+  surface: string,
+  pairs: SectionMetaPair[],
+  where: WhereMap[],
+): string | null {
+  const registry = ctx.sections;
+  if (!registry) return null;
+  const meta: SectionMeta = {
+    v: 1,
+    id: sectionId(registry, section.title),
+    paths: section.paths.slice(0, MAX_META_PATHS),
+    more: Math.max(0, section.paths.length - MAX_META_PATHS),
+    pairs,
+    where: where.map((map) => ({
+      image: map.image,
+      side: map.side,
+      page: [map.page.w, map.page.h],
+      view: [map.view.x, map.view.y, map.view.w, map.view.h],
+      boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
+    })),
+    pages: [],
+  };
+  registry.metas.push(meta);
+  for (const state of pairs.length ? ['rest', ...pairs.map((p) => p.state)] : []) {
+    if (!registry.pages.some((p) => p.surface === surface && p.state === state))
+      registry.pages.push({ surface, state });
+  }
+  pageOwners.set(meta, { surface, states: [...new Set(pairs.map((p) => p.state))] });
+  return sectionRef(registry.metas.length - 1);
+}
+
+/** Which surface and states each section's whole pages come from. */
+const pageOwners = new WeakMap<SectionMeta, { surface: string; states: string[] }>();
+
+/** Write each requested whole-page pair while the crop budget allows; keyed by surface and state. */
+function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string, SectionMetaPage> {
+  const written = new Map<string, SectionMetaPage>();
+  for (const { surface, state } of registry.pages) {
+    const [pngA, pngB] = screenshotPair(ctx, surface, state === 'rest' ? '' : `.${state}`);
+    if (!pngA || !pngB) continue;
+    const stem = cropStem(surface, state === 'rest' ? 'page' : `page-${state}`);
+    // `-base` / `-head`, never `-before` / `-after`: those names mean clean crops.
+    const page = { state, before: `${stem}-base.png`, after: `${stem}-head.png`, w: pngB.width, h: pngB.height };
+    // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
+    if (writeBudgetedPng(ctx, page.before, pngA) && writeBudgetedPng(ctx, page.after, pngB)) {
+      written.set(`${surface}\0${state}`, page);
+    }
+  }
+  return written;
+}
+
+/**
+ * After every crop: write the whole-page captures the sections asked for, while the crop
+ * budget allows, then put each section's final comment line in place of its placeholder.
+ */
+export function finishSections(ctx: RenderCtx, md: ReportMarkdown): void {
+  const registry = ctx.sections;
+  if (!registry) return;
+  const written = writeWholePages(ctx, registry);
+  for (const meta of registry.metas) {
+    const owner = pageOwners.get(meta);
+    const states = owner ? ['rest', ...owner.states.filter((state) => state !== 'rest')] : [];
+    meta.pages = states.flatMap((state) => written.get(`${owner!.surface}\0${state}`) ?? []);
+  }
+  md.mapQueued((line) => {
+    const index = sectionRefIndex(line);
+    return index === null ? line : encodeSectionMeta(registry.metas[index]);
+  });
 }

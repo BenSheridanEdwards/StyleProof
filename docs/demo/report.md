@@ -33,6 +33,8 @@ _No baseline to compare against. This is a reviewable first-adoption surface; ap
 
 ### Caret
 
+<!-- styleproof-section %7B%22v%22%3A1%2C%22id%22%3A%22caret%22%2C%22paths%22%3A%5B%22body%20%3E%20header%3Anth%2Dchild(1)%20%3E%20span%3Anth%2Dchild(1)%22%5D%2C%22more%22%3A0%2C%22pairs%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D900%2D2%2Dbefore.png%22%2C%22after%22%3A%22crops%2Fhome%2D900%2D2%2Dafter.png%22%2C%22w%22%3A320%2C%22h%22%3A180%2C%22what%22%3A%22the%20caret%22%7D%5D%2C%22where%22%3A%5B%7B%22image%22%3A%22crops%2Fhome%2D900%2D2%2Dwhere.png%22%2C%22side%22%3A%22after%22%2C%22page%22%3A%5B900%2C600%5D%2C%22view%22%3A%5B0%2C0%2C900%2C239%5D%2C%22boxes%22%3A%5B%5B150%2C40%2C12%2C16%5D%5D%7D%5D%2C%22pages%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D900%2Dpage%2Dbase.png%22%2C%22after%22%3A%22crops%2Fhome%2D900%2Dpage%2Dhead.png%22%2C%22w%22%3A900%2C%22h%22%3A600%7D%5D%7D -->
+
 The caret changes text colour from gray to blue.
 
 <img src="crops/home-900-2-where.png" width="320" alt="Where on home @ 900: 1 caret highlighted"><br><sub>Where: 1 caret on home @ 900</sub>
@@ -52,7 +54,11 @@ The caret changes text colour from gray to blue.
 
 </details>
 
+<!-- styleproof-section-end -->
+
 ### Cta
+
+<!-- styleproof-section %7B%22v%22%3A1%2C%22id%22%3A%22cta%22%2C%22paths%22%3A%5B%22body%20%3E%20main%3Anth%2Dchild(2)%20%3E%20button%3Anth%2Dchild(1)%22%5D%2C%22more%22%3A0%2C%22pairs%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D900%2D3%2Dbefore.png%22%2C%22after%22%3A%22crops%2Fhome%2D900%2D3%2Dafter.png%22%2C%22w%22%3A320%2C%22h%22%3A180%2C%22what%22%3A%22the%20cta%22%7D%5D%2C%22where%22%3A%5B%7B%22image%22%3A%22crops%2Fhome%2D900%2D3%2Dwhere.png%22%2C%22side%22%3A%22after%22%2C%22page%22%3A%5B900%2C600%5D%2C%22view%22%3A%5B0%2C17%2C900%2C239%5D%2C%22boxes%22%3A%5B%5B40%2C110%2C180%2C52%5D%5D%7D%5D%2C%22pages%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D900%2Dpage%2Dbase.png%22%2C%22after%22%3A%22crops%2Fhome%2D900%2Dpage%2Dhead.png%22%2C%22w%22%3A900%2C%22h%22%3A600%7D%5D%7D -->
 
 The cta changes background from blue to red.
 
@@ -73,7 +79,11 @@ The cta changes background from blue to red.
 
 </details>
 
+<!-- styleproof-section-end -->
+
 ### Off canvas status
+
+<!-- styleproof-section %7B%22v%22%3A1%2C%22id%22%3A%22off%2Dcanvas%2Dstatus%22%2C%22paths%22%3A%5B%22body%20%3E%20aside%3Anth%2Dchild(3)%22%5D%2C%22more%22%3A0%2C%22pairs%22%3A%5B%5D%2C%22where%22%3A%5B%5D%2C%22pages%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D900%2Dpage%2Dbase.png%22%2C%22after%22%3A%22crops%2Fhome%2D900%2Dpage%2Dhead.png%22%2C%22w%22%3A900%2C%22h%22%3A600%7D%5D%7D -->
 
 The off canvas status changes opacity from `0.85` to `1`.
 
@@ -91,6 +101,8 @@ _The changed element is not visible in the captured page (it is outside the scre
 | `opacity` | `0.85` | `1` |
 
 </details>
+
+<!-- styleproof-section-end -->
 
 ---
 
