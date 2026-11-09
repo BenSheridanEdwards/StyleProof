@@ -79,7 +79,7 @@ export function honestBaselineCompareAttribution(options: {
       named,
       summary:
         `these named surface(s) failed on the base SHA and were omitted from the baseline bundle: ${named}. ` +
-        `The base bundle was produced (\`base-capture-failed=false\`); ${NOT_RECAPTURE}. ` +
+        `The base bundle was produced; ${NOT_RECAPTURE}. ` +
         `Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.`,
     };
   }
@@ -95,8 +95,8 @@ export function honestBaselineCompareAttribution(options: {
     named,
     summary: named
       ? `compare/certification evidence is incomplete on ${named}. ` +
-        `This is not a base recapture failure (\`base-capture-failed=false\`). Repair the named evidence; reviewer approval cannot clear it.`
-      : 'compare/certification evidence is incomplete. This is not a base recapture failure (`base-capture-failed=false`).',
+        `This is not a base recapture failure. Repair the named evidence; reviewer approval cannot clear it.`
+      : 'compare/certification evidence is incomplete. This is not a base recapture failure.',
   };
 }
 
@@ -162,8 +162,8 @@ export function formatDegradedBaselineComment(baseCaptureFailed: boolean): strin
   return wrapActionComment(
     baseCaptureFailed
       ? `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary} Reviewer approval cannot clear this failure.`
-      : 'This is a head-only receipt rather than a comparison — not a base recapture failure ' +
-          '(`base-capture-failed=false`). Repair the missing baseline evidence and rerun; ' +
+      : 'This is a head-only receipt rather than a comparison — not a base recapture failure. ' +
+          'Repair the missing baseline evidence and rerun; ' +
           'reviewer approval cannot clear this failure.',
   );
 }

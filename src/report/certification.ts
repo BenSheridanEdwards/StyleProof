@@ -210,7 +210,7 @@ export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
     );
   return [
     '',
-    '⚠ **Live/age freeze violated** — fail closed (`CERTIFICATION_FAILED`). A freeze was declared but captured age/clock text still drifted. This is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
+    '⚠ **Live/age freeze violated** — StyleProof cannot certify this compare. A freeze was declared but captured age/clock text still drifted. This is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
     '',
     ...samples,
     '',

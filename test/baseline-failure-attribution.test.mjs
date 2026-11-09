@@ -104,7 +104,7 @@ test('honest attribution: base-capture-failed=false is never a recapture failure
   assert.equal(attribution.recaptureFailed, false);
   assert.match(attribution.summary, new RegExp(FAILED_SURFACE));
   assert.match(attribution.summary, new RegExp(BASE_SHA));
-  assert.match(attribution.summary, /base-capture-failed=false/);
+  assert.doesNotMatch(attribution.summary, /base-capture-failed/, 'the internal flag stays out of report text');
   assert.match(attribution.summary, /not a base recapture failure/i);
   assert.doesNotMatch(attribution.summary, FALSE_RECAPTURE_CLAIM);
 });
@@ -150,7 +150,7 @@ test('TDD fixture: base-capture-failed=false + baseline fault names surface+SHA 
     assert.match(md, new RegExp(FAILED_SURFACE));
     assert.match(md, new RegExp(BASE_SHA));
     assert.match(md, /not a base recapture failure/i);
-    assert.match(md, /base-capture-failed=false/);
+    assert.doesNotMatch(md, /base-capture-failed/, 'the internal flag stays out of report text');
     assert.doesNotMatch(md, FALSE_RECAPTURE_CLAIM);
   } finally {
     rmTmp(tmp);

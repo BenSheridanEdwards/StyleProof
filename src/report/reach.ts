@@ -349,7 +349,7 @@ export function reachSectionLines(reach: ReportReach): string[] {
     '',
     '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
       (reach.level === 'gate'
-        ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails (`CERTIFICATION_FAILED`); review-gate mode needs approval._"
+        ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails; review-gate mode needs approval._"
         : 'Reach findings do not change the verdict._'),
     '',
     ...ruleTable(never),

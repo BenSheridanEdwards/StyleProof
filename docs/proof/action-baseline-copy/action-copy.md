@@ -23,7 +23,7 @@ StyleProof: `pricing@1280` at `1e0a210cd0d46de0ff9378e818d6f793fadc921c` failed 
 Does **not** say the base capture failed:
 
 ```
-_This is a head-only receipt rather than a comparison — not a base recapture failure (`base-capture-failed=false`). Repair the missing baseline evidence and rerun; reviewer approval cannot clear this failure._
+_This is a head-only receipt rather than a comparison — not a base recapture failure. Repair the missing baseline evidence and rerun; reviewer approval cannot clear this failure._
 ```
 
 ## DEGRADED_BASELINE when `base-capture-failed=true`
