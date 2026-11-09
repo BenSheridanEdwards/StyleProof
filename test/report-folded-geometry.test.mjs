@@ -130,28 +130,25 @@ test('folded-only details retain the full count while capping element tables', (
   assert.equal((md.match(/\| `width`/g) ?? []).length, 40);
 });
 
-test('base and hover folded rows stay under their respective headings', (t) => {
+test('base and hover folded rows stay with their element, each under its own state', (t) => {
   const fixture = fixtureFor(t, hoverMap(false, 'black'), hoverMap(true, 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
-  assert.equal(sections.length, 2);
-  assert.doesNotMatch(sections[0].split('\n')[0], /:hover/);
+  assert.equal(sections.length, 1, 'one element, one change section');
+  assert.doesNotMatch(sections[0].split('\n')[2], /hovered/, 'the line describes the resting colour change');
+  assert.match(sections[0], /\| `color` \| `black` \| `red` \|/);
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
-  assert.doesNotMatch(sections[0], /`90px`/);
-  assert.match(sections[1].split('\n')[0], /:hover/);
-  assert.doesNotMatch(sections[1].split('\n')[0], /0 elements changed/);
-  assert.match(sections[1].split('\n')[0], /· size\/position rows folded/);
-  assert.match(sections[1], /`height` \| `80px` → `90px`/);
-  assert.doesNotMatch(sections[1], /`280px`/);
+  assert.match(sections[0], /\| `:hover` \| `height` \| `80px` → `90px` \|/, 'the hover row keeps its state');
+  assert.doesNotMatch(sections[0], /`:hover` \| `width`/);
 });
 
-test('a folded base width keeps a hover colour region state-only', (t) => {
+test('a folded base width keeps a hover colour change state-only, without claiming rest is unchanged', (t) => {
   const fixture = fixtureFor(t, hoverMap(false), hoverMap(true));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
   assert.equal(sections.length, 1);
-  assert.match(sections[0].split('\n')[0], /:hover/);
-  assert.doesNotMatch(sections[0].split('\n')[0], /size\/position only/);
+  assert.match(sections[0], /when hovered/);
+  assert.doesNotMatch(sections[0], /size\/position only|At rest/, 'the folded width moved at rest');
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
   assert.match(sections[0], /`height` \| `80px` → `90px`/);
 });

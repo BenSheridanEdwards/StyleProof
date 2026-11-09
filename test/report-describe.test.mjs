@@ -269,12 +269,8 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
   writeCapture(afterDir, 'agents@1440', map('295px 228px', 'rgb(255, 0, 0)'), solidPng(1440, 400));
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.equal(
-    (md.match(/^### (?:\*\*[^*]+\*\* )?`div\.netgrid`/gm) || []).length,
-    1,
-    'one grouped section, not one per width',
-  );
-  assert.match(md, /Identical across 2 surfaces/);
+  assert.equal((md.match(/^### /gm) || []).length, 1, 'one grouped section, not one per width');
+  assert.match(md, /`div\.netgrid` · 1 element restyled · the same on agents @ /);
   rmTmp(root);
 });
 
@@ -294,7 +290,10 @@ test('end-to-end: each crop shows clean before/after images and boxes only the W
     md,
     /\| <img src="crops\/[^"]+-before\.png" width="340" alt="Before: [^"]+"> \| <img src="crops\/[^"]+-after\.png"/,
   );
-  assert.match(md, /^<img src="crops\/[^"]+-where\.png" width="320" alt="Where on the page: [^"]+"><br><sub>Where: /m);
+  assert.match(
+    md,
+    /^<img src="crops\/[^"]+-where\.png" width="320" alt="Where on home @ 1280: [^"]+"><br><sub>Where: /m,
+  );
   assert.doesNotMatch(md, /Show highlight overlay|composite|annotated/, 'no overlay toggle or composite');
   const crops = fs.readdirSync(path.join(outDir, 'crops'));
   const read = (suffix) =>
@@ -380,7 +379,6 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   fs.writeFileSync(path.join(dirs.beforeDir, 'demo@900.hover.png'), solidPng(400, 200, [165, 243, 252]));
   fs.writeFileSync(path.join(dirs.afterDir, 'demo@900.hover.png'), solidPng(400, 200, [252, 165, 165]));
   const md = fs.readFileSync(generateStyleMapReport(dirs).reportMdPath, 'utf8');
-  assert.match(md, /Both sides are :hover/);
   assert.match(md, /\*\*While hovered\*\*/, 'the state lives in the markdown label, not in the image');
   const crops = fs.readdirSync(path.join(dirs.outDir, 'crops'));
   assert.equal(crops.filter((f) => /-(before|after)\.png$/.test(f)).length, 2, 'one hover pair, no rest pair');
@@ -502,8 +500,7 @@ test('property changes sit on one line above the crop, not only under the fold',
   const img = md.indexOf('| Before | After |');
   assert.ok(img > 0, 'report still has a crop');
   const above = md.slice(0, img);
-  assert.match(above, /`background-color`/, 'the property is readable before the picture');
-  assert.match(above, /→/, 'before → after is on the glance line');
+  assert.match(above, /background from black to red/, 'the change is readable before the picture');
   assert.ok(!above.includes('<details>'), 'glance is not inside the diamond fold');
   rmTmp(root);
 });
@@ -637,10 +634,12 @@ test('end-to-end: duplicate siblings that swap styles keep both annotation sides
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const { before: beforeHighlights, after: afterHighlights } = whereBoxesBySide(report.surfaces[0].regions[0]);
+  const { before: beforeHighlights, after: afterHighlights } = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }));
 
   assert.equal(report.counts.style, 2);
-  // Both items are restyled in place, so the head-page Where map boxes both; no base map is needed.
+  // Both items are restyled in place (one section each), so the head-page maps box both; no base map is needed.
   assert.equal(afterHighlights, 2, 'a real duplicate restyle boxes both items on the Where map');
   assert.equal(beforeHighlights, 0, 'nothing was removed, so there is no base-page map');
   rmTmp(root);
@@ -973,12 +972,13 @@ test('end-to-end: annotation boxes the changed CHILD, not its changed container'
     afterPng: solidPng(1280, 800),
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const region = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-  // The Where map boxes the 40px child, never the 400px container.
+  const regions = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces[0].regions;
+  // The child's own section boxes only the 40px child, never the 400px container around it.
+  const child = regions.find((region) => region.paths.includes('body > div:nth-child(1) > span:nth-child(1)'));
   assert.deepEqual(
-    region.where.flatMap((map) => map.boxes),
-    [{ x: 30, y: 30, w: 40, h: 40 }],
-    'only the child is boxed on the Where map',
+    child.where.flatMap((map) => map.boxes),
+    [[30, 30, 40, 40]],
+    'only the child is boxed on its Where map',
   );
   rmTmp(root);
 });

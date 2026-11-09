@@ -110,6 +110,13 @@ export function writeWhereMap(
   return { image, side: spec.side, page, view, boxes };
 }
 
+/** The compact report.json receipt for a Where map: its image, the capture it is drawn on, and the boxes. */
+export const whereReceipt = (map: WhereMap) => ({
+  image: map.image,
+  side: map.side,
+  boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
+});
+
 const escapeAttribute = (value: string): string =>
   value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 

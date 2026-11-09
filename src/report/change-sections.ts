@@ -1,0 +1,444 @@
+import type { PNG } from 'pngjs';
+import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
+import type { Finding, PropChange } from '../diff.js';
+import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../change-groups.js';
+import { isGeometryOnlyGroup } from '../findings-clean.js';
+import { codeValue } from '../code-span.js';
+import { changeLine, plural, sectionNoun, sectionTitle, type SectionSubject, type StateChange } from './change-line.js';
+import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
+import { paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
+import { cellPair, renderCropChanges } from './markdown.js';
+import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
+import { spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
+import { whereMapLine, whereReceipt, writeWhereMap, type WhereMap } from './where-map.js';
+
+/**
+ * Change sections: the elements in one change group that share a selector label and
+ * changed the same way. Each section is one reviewable change: a name, one plain line,
+ * a Where map, one clean before/after pair per changed state, and the CSS on demand.
+ */
+
+/** The resting state, or a forced state layer. */
+export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
+
+export type ChangeSection = {
+  title: string;
+  selector: string;
+  /** The changed elements (state targets, not their owners), top-to-bottom, left-to-right. */
+  paths: string[];
+  /** Elements on the captured page with the same selector label. */
+  sameSelectorCount: number;
+  /** Every shown finding about these elements. */
+  findings: Finding[];
+  /** Pairs to show: resting first when anything changed at rest, then each forced state. */
+  states: PairState[];
+  /** The element whose state restyles these (a checkbox restyling its label). */
+  driver?: { path: string; entry?: ElementEntry };
+};
+
+/** The element a finding changes: a state finding's target, otherwise its own path. */
+export const subjectPath = (f: Finding): string => (f.kind === 'state' ? f.sub.replace(/::[\w-]+$/, '') : f.path);
+
+const pseudoOf = (f: Finding): string | undefined =>
+  f.kind === 'style' ? (f.pseudo ?? undefined) : f.kind === 'state' ? /::[\w-]+$/.exec(f.sub)?.[0] : undefined;
+
+const propsOf = (f: Finding): PropChange[] => (f.kind === 'dom' ? [] : summarizeProps(f.props));
+
+/** What changed on one element, without its path: equal for elements that changed the same way. */
+function changeSignature(findings: Finding[]): string {
+  return JSON.stringify(
+    findings
+      .map((f) => [
+        f.kind,
+        f.kind === 'dom' ? f.change : f.kind === 'state' ? f.state : '',
+        pseudoOf(f) ?? '',
+        f.kind === 'state' && subjectPath(f) !== f.path ? 'driven' : '',
+        propsOf(f).map((p) => [p.prop, p.before, p.after]),
+      ])
+      .map((row) => JSON.stringify(row))
+      .sort(),
+  );
+}
+
+const entryOf = (maps: [StyleMap, StyleMap], p: string): ElementEntry | undefined =>
+  maps[1].elements[p] ?? maps[0].elements[p];
+
+/** Page order: top, then left; elements without a box keep the findings' (document) order. */
+function byPosition(maps: [StyleMap, StyleMap], order: string[]): (l: string, r: string) => number {
+  const at = (p: string) => screenshotRectOf(entryOf(maps, p)) ?? [Infinity, Infinity, 0, 0];
+  return (l, r) => at(l)[1] - at(r)[1] || at(l)[0] - at(r)[0] || order.indexOf(l) - order.indexOf(r);
+}
+
+/** Group a change group's shown findings into change sections, in page order. */
+export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleMap]): ChangeSection[] {
+  const bySubject = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const key = subjectPath(f);
+    bySubject.set(key, [...(bySubject.get(key) ?? []), f]);
+  }
+  const order = byPosition(maps, [...bySubject.keys()]);
+  const groups = new Map<string, string[]>();
+  for (const p of [...bySubject.keys()].sort(order)) {
+    const entry = entryOf(maps, p);
+    const owners = [
+      ...new Set(
+        bySubject
+          .get(p)!
+          .filter((f) => f.kind === 'state' && f.path !== p)
+          .map((f) => f.path),
+      ),
+    ];
+    const key = JSON.stringify([
+      prettyLabel(p, entry?.cls ?? ''),
+      owners.length ? 'driven' : '',
+      changeSignature(bySubject.get(p)!),
+    ]);
+    groups.set(key, [...(groups.get(key) ?? []), p]);
+  }
+  return [...groups.values()].map((paths) => {
+    const entry = entryOf(maps, paths[0]);
+    const selector = prettyLabel(paths[0], entry?.cls ?? '');
+    const own = paths.flatMap((p) => bySubject.get(p)!);
+    const drivers = [...new Set(own.filter((f) => f.kind === 'state' && f.path !== subjectPath(f)).map((f) => f.path))];
+    const page = maps[1].elements[paths[0]] ? maps[1] : maps[0];
+    const sameSelectorCount = Object.entries(page.elements).filter(
+      ([p, e]) => prettyLabel(p, e.cls) === selector,
+    ).length;
+    const subject: SectionSubject = {
+      tag: entry?.tag ?? '',
+      cls: entry?.cls ?? '',
+      path: paths[0],
+      texts: paths.map((p) => entryOf(maps, p)?.text ?? ''),
+      count: paths.length,
+      sameSelectorCount: Math.max(sameSelectorCount, paths.length),
+    };
+    const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
+    return {
+      title: sectionTitle(subject),
+      selector,
+      paths,
+      sameSelectorCount: subject.sameSelectorCount,
+      findings: own,
+      states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
+      ...(drivers.length === 1 ? { driver: { path: drivers[0], entry: entryOf(maps, drivers[0]) } } : {}),
+    };
+  });
+}
+
+/** The section's subject as the change line sees it. */
+function subjectOf(section: ChangeSection, maps: [StyleMap, StyleMap]): SectionSubject {
+  const entry = entryOf(maps, section.paths[0]);
+  return {
+    tag: entry?.tag ?? '',
+    cls: entry?.cls ?? '',
+    path: section.paths[0],
+    texts: section.paths.map((p) => entryOf(maps, p)?.text ?? ''),
+    count: section.paths.length,
+    sameSelectorCount: section.sameSelectorCount,
+  };
+}
+
+/** Every element's box grew or shrank by the same amount: the visible consequence of the change. */
+function sharedSizeChange(section: ChangeSection, maps: [StyleMap, StyleMap]): { dw: number; dh: number } | undefined {
+  const deltas = section.paths.map((p) => {
+    const a = screenshotRectOf(maps[0].elements[p]);
+    const b = screenshotRectOf(maps[1].elements[p]);
+    return a && b ? { dw: Math.round(b[2] - a[2]), dh: Math.round(b[3] - a[3]) } : null;
+  });
+  const [first] = deltas;
+  if (!first || deltas.some((d) => !d || d.dw !== first.dw || d.dh !== first.dh)) return undefined;
+  return first.dw || first.dh ? first : undefined;
+}
+
+/** Properties that size the element's own box; only these may explain a size change in its line. */
+const SIZING =
+  /^(padding|border(-(top|right|bottom|left|block|inline)(-(start|end))?)?-width|border-width|font-size|line-height|letter-spacing|width|height|(min|max)-(width|height)|inline-size|block-size|box-sizing|display|flex(-.*)?|grid(-.*)?|aspect-ratio|font-family|font-weight)/;
+
+/** The section's plain-English line, from its first element's findings (all elements changed alike). */
+export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], folded: Finding[] = []): string {
+  const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
+  const dom = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
+  const rest = first.flatMap((f) =>
+    f.kind === 'style' ? summarizeProps(f.props).map((p) => ({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) })) : [],
+  );
+  const states: StateChange[] = STATE_LAYER_NAMES.flatMap((state) => {
+    const props = first.flatMap((f) => (f.kind === 'state' && f.state === state ? summarizeProps(f.props) : []));
+    return props.length ? [{ state, props }] : [];
+  });
+  const driver = section.driver?.entry
+    ? {
+        subject: {
+          tag: section.driver.entry.tag,
+          cls: section.driver.entry.cls,
+          path: section.driver.path,
+          texts: [section.driver.entry.text ?? ''],
+        },
+      }
+    : undefined;
+  return changeLine({
+    subject: subjectOf(section, maps),
+    ...(isGeometryOnlyGroup(first) ? { geometryOnly: true } : {}),
+    ...(folded.some((f) => f.kind !== 'state') ? { restFolded: true } : {}),
+    rest,
+    states,
+    ...(driver ? { driver } : {}),
+    ...(dom ? { dom: dom.change } : {}),
+    ...(rest.some((p) => SIZING.test(p.prop)) && !dom ? { size: sharedSizeChange(section, maps) } : {}),
+  });
+}
+
+/** "(8 longhands)" when a shorthand row folds several captured longhands that moved alike. */
+function longhandNote(row: PropChange, raw: PropChange[]): string {
+  if (raw.some((p) => p.prop === row.prop)) return '';
+  const suffix = /-(color|width|style|radius)$/.exec(row.prop)?.[1];
+  const stem = suffix ? row.prop.slice(0, -suffix.length - 1) : row.prop;
+  const pattern = suffix ? new RegExp(`^${stem}-.+-${suffix}$`) : new RegExp(`^${stem}-`);
+  const n = raw.filter((p) => pattern.test(p.prop)).length;
+  return n > 1 ? ` (${n} longhands)` : '';
+}
+
+/** The CSS table rows for one element's findings: rest, pseudo-elements, then states; followers last. */
+export function cssRows(findings: Finding[]): string[][] {
+  const rows: string[][] = [];
+  const followers: string[][] = [];
+  const ordered = [
+    ...findings.filter((f) => f.kind === 'style' && !f.pseudo),
+    ...findings.filter((f) => f.kind === 'style' && f.pseudo),
+    ...STATE_LAYER_NAMES.flatMap((state) => findings.filter((f) => f.kind === 'state' && f.state === state)),
+  ];
+  for (const f of ordered) {
+    if (f.kind === 'dom') continue;
+    const prefix = [f.kind === 'state' ? `:${f.state}` : '', pseudoOf(f) ?? ''].filter(Boolean).join(' ');
+    const label = (prop: string) => codeValue(prefix ? `${prefix} ${prop}` : prop);
+    for (const row of summarizePropsWithFollowOns(f.props)) {
+      rows.push([`${label(row.prop)}${longhandNote(row, f.props)}`, ...cellPair(row.before, row.after)]);
+      for (const follower of row.followOns ?? []) {
+        followers.push([
+          `${label(follower.prop)} (follows ${codeValue('color')})`,
+          ...cellPair(follower.before, follower.after),
+        ]);
+      }
+    }
+  }
+  return [...rows, ...followers];
+}
+
+const counted = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** "Show the CSS": the meta line, the property table, then spacing and folded geometry. */
+function cssDetailLines(
+  section: ChangeSection,
+  extra: {
+    spacing: SiblingSpacingChange[];
+    folded: Finding[];
+    describe: Parameters<typeof renderCropChanges>[2];
+    surfaces?: string;
+  },
+): string[] {
+  const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
+  const across = extra.surfaces ? ` · the same on ${extra.surfaces}` : '';
+  const verb = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom')?.change ?? 'restyled';
+  const meta = `${codeValue(section.selector)} · ${counted(section.paths.length, 'element')} ${verb}${across}`;
+  const driver = section.driver
+    ? ` · when ${codeValue(prettyLabel(section.driver.path, section.driver.entry?.cls ?? ''))} is ${section.states
+        .filter((s) => s !== 'rest')
+        .map((s) => codeValue(`:${s}`))
+        .join(', ')}`
+    : '';
+  const hasDom = first.some((f) => f.kind === 'dom');
+  const rows = hasDom ? [] : cssRows(first);
+  const table = rows.length
+    ? ['| Property | Before | After |', '| --- | --- | --- |', ...rows.map((r) => `| ${r.join(' | ')} |`)]
+    : renderCropChanges(first, Infinity, extra.describe).filter((line, i) => i > 0 || line !== '');
+  const folded = extra.folded.length
+    ? ['', 'Folded size/position rows:', ...renderCropChanges(extra.folded, Infinity, extra.describe)]
+    : [];
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    `${meta}${driver}`,
+    '',
+    ...table,
+    ...spacingLines(extra.spacing),
+    ...folded,
+    '',
+    '</details>',
+  ];
+}
+
+/** The crop box for one element: its padded box on both sides, so size changes read directly. */
+function elementBox(ctx: RenderCtx, maps: [StyleMap, StyleMap], p: string): Box | null {
+  const a = paddedRect(maps[0].elements[p], ctx.padBy);
+  const b = paddedRect(maps[1].elements[p], ctx.padBy);
+  return visible(a) && visible(b) ? union(a, b) : visible(b) ? b : visible(a) ? a : null;
+}
+
+export type RenderedSection = {
+  md: string[];
+  region: Record<string, unknown>;
+  /** Whether any before/after pair was written. */
+  shown: boolean;
+};
+
+const stateWhat = (state: PairState): string =>
+  state === 'rest' ? '' : ` ${stateLabel(state)?.replace(/^While/, 'while') ?? `in :${state}`}`;
+
+/** Why a state has no pair: no screenshot for it, a zero-size box, or nothing changed is exposed in it. */
+function noPairNote(
+  ctx: RenderCtx,
+  maps: [StyleMap, StyleMap],
+  state: PairState,
+  targets: string[],
+  pngs: [PNG | null, PNG | null],
+): string {
+  if (state !== 'rest' && (!pngs[0] || !pngs[1])) {
+    return `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`;
+  }
+  // Never crop unrelated pixels: say which of the reasons applies instead.
+  const box = targets.map((p) => elementBox(ctx, maps, p)).find((b) => b);
+  return cropNote(box ?? null, pngs[0], pngs[1]) ?? '';
+}
+
+type SectionInput = {
+  section: ChangeSection;
+  surface: string;
+  /** Every surface in the change group, when there are several. */
+  surfaces?: string;
+  maps: [StyleMap, StyleMap];
+  pngs: [PNG | null, PNG | null];
+  seq: { crop: number };
+  spacing: SiblingSpacingChange[];
+  folded: Finding[];
+  describe: Parameters<typeof renderCropChanges>[2];
+  cropsAllowed: boolean;
+};
+
+type SectionPairs = { md: string[]; note?: string; images: CropImages; stateImages: Record<string, CropImages> };
+
+const MAX_CROPS_NOTE = (max: number) =>
+  `_Crop omitted: this change group reached the \`--max-crops\` limit (${max}). The change is still listed and counted._`;
+
+/** The elements a state's pair is about: every section element at rest, the state's targets otherwise. */
+const pairTargets = (section: ChangeSection, state: PairState): string[] =>
+  state === 'rest'
+    ? section.paths
+    : [...new Set(section.findings.filter((f) => f.kind === 'state' && f.state === state).map(subjectPath))];
+
+type StatePair = { md: string[]; note?: string; images?: CropImages };
+
+/** One state's clean pair, or the reason it has none. */
+function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: string): StatePair {
+  const { section, surface, maps, seq } = input;
+  const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, surface, `.${state}`);
+  const targets = pairTargets(section, state);
+  const target = targets.find((p) => hasExposedChangedEntry(maps[0], maps[1], [p], pngs) && elementBox(ctx, maps, p));
+  if (!target || !pngs[0] || !pngs[1]) {
+    const missing = noPairNote(ctx, maps, state, targets, pngs);
+    return state === 'rest'
+      ? { md: [], note: missing }
+      : { md: ['', `**${stateLabel(state) ?? `In :${state}`}**`, '', missing] };
+  }
+  seq.crop++;
+  const pair = renderCropPair(ctx, {
+    surface,
+    suffix: String(seq.crop),
+    box: elementBox(ctx, maps, target)!,
+    pngA: pngs[0],
+    pngB: pngs[1],
+    ...(state === 'rest' ? {} : { state }),
+    what: `${what}${stateWhat(state)}`,
+  })!;
+  return { md: pair.md, images: pair.images };
+}
+
+/** One clean before/after pair per state, or the reason a state has none. */
+function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): SectionPairs {
+  const out: SectionPairs = { md: [], images: {}, stateImages: {} };
+  if (!input.cropsAllowed) return { ...out, note: MAX_CROPS_NOTE(ctx.maxCrops) };
+  for (const state of input.section.states) {
+    const pair = statePair(ctx, input, state, what);
+    pair.md.forEach((line) => out.md.push(line));
+    if (pair.note) out.note = pair.note;
+    if (state === 'rest' && pair.images) out.images = pair.images;
+    else if (pair.images?.after) out.stateImages[state] = pair.images;
+  }
+  return out;
+}
+
+/** The section's report.json region: the same shape as before, with clean images and Where receipts. */
+function sectionRegion(ctx: RenderCtx, input: SectionInput, pairs: SectionPairs, where: WhereMap[], shown: boolean) {
+  const { section, maps } = input;
+  const boxes = (side: 0 | 1) =>
+    section.paths.reduce<Box | null>(
+      (acc, p) => unionVisibleBoxes(acc, paddedRect(maps[side].elements[p], ctx.padBy)),
+      null,
+    );
+  return {
+    paths: section.paths,
+    before: boxes(0),
+    after: boxes(1),
+    images: pairs.images,
+    ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
+    ...(where.length ? { where: where.map(whereReceipt) } : {}),
+    // Screenshots exist but no changed element is exposed in them: say so in the receipt too.
+    ...(!shown && input.pngs[0] && input.pngs[1]
+      ? { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON }
+      : {}),
+    ...(input.spacing.length ? { spacing: input.spacing } : {}),
+  };
+}
+
+/** One change section: heading, line, Where map, a clean pair per state, then the CSS. */
+export function renderChangeSection(ctx: RenderCtx, input: SectionInput): RenderedSection {
+  const { section, surface, maps } = input;
+  const noun = sectionNoun(subjectOf(section, maps));
+  const pairs = sectionPairs(ctx, input, section.paths.length > 1 ? `the first ${noun}` : `the ${noun}`);
+  const shown = Boolean(pairs.images.after || Object.keys(pairs.stateImages).length);
+  const where = shown ? sectionWhereMaps(ctx, surface, section, maps, input.pngs, input.seq) : [];
+  const things = section.paths.length > 1 ? `${section.paths.length} ${plural(noun)}` : `1 ${noun}`;
+  const page = formatSurfaceWithContext(surface, ...maps);
+  // The Where caption names the page; without a map, a short line does.
+  const whereLines = where.length
+    ? where.flatMap((map) => ['', whereMapLine(ctx, map, things, page)])
+    : ['', `_On ${page}_`];
+  const md = [
+    '',
+    `### ${section.title}`,
+    '',
+    sectionLine(section, maps, input.folded),
+    ...whereLines,
+    ...(pairs.note ? ['', pairs.note] : []),
+    ...pairs.md,
+    ...cssDetailLines(section, input),
+  ];
+  return { md, region: sectionRegion(ctx, input, pairs, where, shown), shown };
+}
+
+/** Where maps: every section element boxed on the resting head page, removals on the base page. */
+function sectionWhereMaps(
+  ctx: RenderCtx,
+  surface: string,
+  section: ChangeSection,
+  maps: [StyleMap, StyleMap],
+  [pngA, pngB]: [PNG | null, PNG | null],
+  seq: { crop: number },
+): WhereMap[] {
+  const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
+    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
+  const onHead = section.paths.filter((p) => maps[1].elements[p]);
+  const gone = section.paths.filter((p) => !maps[1].elements[p]);
+  const suffix = `${seq.crop}`;
+  return [
+    pngB && writeWhereMap(ctx, { surface, suffix, page: pngB, side: 'after', rects: rectsOf(onHead, maps[1]) }),
+    pngA &&
+      writeWhereMap(ctx, {
+        surface,
+        suffix: `${suffix}-before`,
+        page: pngA,
+        side: 'before',
+        rects: rectsOf(gone, maps[0]),
+      }),
+  ].filter((m): m is WhereMap => !!m);
+}

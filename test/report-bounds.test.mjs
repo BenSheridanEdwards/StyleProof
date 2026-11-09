@@ -931,7 +931,7 @@ test('findings exhaustiveness: 4-side padding aggregates in counts and Markdown,
   // Markdown should show the shorthand, not longhands
   assert.match(
     md,
-    /^\| `padding` \| `10px` \| `20px` \|$/m,
+    /^\| `padding` \(4 longhands\) \| `10px` \| `20px` \|$/m,
     'Markdown should list the padding shorthand with its values',
   );
   assert.doesNotMatch(md, /padding-(?:top|right|bottom|left)/, 'Markdown should not list the padding longhands');
@@ -1567,7 +1567,7 @@ test('a hostile element path key stays inside its code span in report.md and rep
     const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
     const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
     const headings = md.split('\n').filter((line) => line.includes('Approve here'));
-    assert.ok(headings.length >= 2, 'heading and summary bullet both render the label');
+    assert.ok(headings.length >= 1, 'the section meta line renders the label');
     for (const line of headings) {
       assert.match(line, /``p` \[Approve here\]\(javascript:alert%28document%2Edomain%29\) `\.lede``/);
     }
@@ -1615,10 +1615,15 @@ test('a hostile colour-token name or pseudo-element stays inside its code span i
     generateStyleMapReport({ beforeDir, afterDir, outDir });
     const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
     const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
-    assert.ok(md.includes('`` tok`[Approve](https://evil.example/approve)` ``'), 'token name keeps one code span');
+    // Token names are no longer printed in report.md; the pseudo-element still is, inside one code span.
+    assert.doesNotMatch(md, /\]\(https:\/\/evil\.example\/approve\)(?!`)/, 'token name never renders as a link');
     assert.ok(
-      md.includes('On `` ::before` [Pseudo link](https://evil.example/pseudo) ` ``:'),
-      'pseudo keeps one code span',
+      md.includes('| ``::before` [Pseudo link](https://evil.example/pseudo) ` color`` |'),
+      'pseudo keeps one code span in the CSS table',
+    );
+    assert.ok(
+      md.includes('`` ::before` [Pseudo link](https://evil.example/pseudo) ` `` text colour'),
+      'pseudo keeps one code span in the change line',
     );
     assert.doesNotMatch(html, /href="https:\/\/evil\.example/);
   } finally {

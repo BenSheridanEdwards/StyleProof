@@ -84,8 +84,9 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   assert.ok(md.indexOf('**1 change needs review**') < md.indexOf('## Changes'));
   assert.doesNotMatch(md.slice(0, md.indexOf('## Changes')), /\*\*Certification\*\*/);
 
-  // Human label before selector.
-  assert.match(md, /\*\*Page title\*\* `div\.page-title`/);
+  // Human name as the heading; the selector sits in the CSS fold.
+  assert.match(md, /^### Page title$/m);
+  assert.match(md, /`div\.page-title` · 1 element restyled/);
 
   // No mid-report glossary.
   assert.doesNotMatch(md, /Surface base.*=.*product UI state/);

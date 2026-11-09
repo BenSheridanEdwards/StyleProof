@@ -594,7 +594,7 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
         // Order: the Markdown lists the surfaces in the order the JSON does.
         const jsonOrder = json.surfaces.map((s) => s.representative);
         assert.deepEqual([...jsonOrder].sort(), Object.keys(after).sort());
-        const mdOrder = [...md.matchAll(/^_(\w+) @ (\d+)_$/gm)].map((m) => `${m[1]}@${m[2]}`);
+        const mdOrder = [...md.matchAll(/^_On (\w+) @ (\d+)_$/gm)].map((m) => `${m[1]}@${m[2]}`);
         assert.deepEqual(mdOrder, jsonOrder);
 
         // Nesting: each surface's own change sits under that surface, in both outputs.
@@ -604,9 +604,10 @@ describe('advisory content JSON/Markdown parity (#539)', () => {
             [[after[entry.representative]]],
           );
         }
-        const sections = md.split(/^_(?=\w+ @ \d+_$)/m).slice(1);
+        const sections = md.split(/^### /m).slice(1);
+        assert.equal(sections.length, mdOrder.length, 'one change section per surface');
         for (const [i, surface] of mdOrder.entries()) {
-          assert.match(sections[i], new RegExp(`→ \`${hex[surface]}\``));
+          assert.match(sections[i], new RegExp(`\\| \`${hex[surface]}\` \\|`));
           for (const other of mdOrder.filter((s) => s !== surface)) {
             assert.doesNotMatch(sections[i], new RegExp(hex[other]));
           }

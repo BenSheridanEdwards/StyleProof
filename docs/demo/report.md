@@ -31,26 +31,20 @@ _No baseline to compare against. This is a reviewable first-adoption surface; ap
 
 ## Changes
 
-### **Caret** `span.caret` · 1 element restyled
+### Caret
 
-_home @ 900_
+The caret changes text colour from gray to blue.
 
-<img src="crops/home-900-2-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
-
-`color` `#9ca3af` → `#2563eb`
+<img src="crops/home-900-2-where.png" width="320" alt="Where on home @ 900: 1 caret highlighted"><br><sub>Where: 1 caret on home @ 900</sub>
 
 | Before | After |
 | --- | --- |
-| <img src="crops/home-900-2-before.png" width="340" alt="Before: the span.caret element"> | <img src="crops/home-900-2-after.png" width="340" alt="After: the span.caret element"> |
-
-- **`span.caret`** — text gray (`#9ca3af`) → blue (`#2563eb`)
+| <img src="crops/home-900-2-before.png" width="340" alt="Before: the caret"> | <img src="crops/home-900-2-after.png" width="340" alt="After: the caret"> |
 
 <details>
-<summary>Show the property change</summary>
+<summary>Show the CSS</summary>
 
-**Caret** `span.caret`
-
-Style:
+`span.caret` · 1 element restyled
 
 | Property | Before | After |
 | --- | --- | --- |
@@ -58,26 +52,20 @@ Style:
 
 </details>
 
-### **Cta** `button.cta` · 1 element restyled
+### Cta
 
-_home @ 900_
+The cta changes background from blue to red.
 
-<img src="crops/home-900-3-where.png" width="320" alt="Where on the page: 1 changed element highlighted"><br><sub>Where: 1 changed element on the page</sub>
-
-`background-color` `#2563eb` → `#dc2626`
+<img src="crops/home-900-3-where.png" width="320" alt="Where on home @ 900: 1 cta highlighted"><br><sub>Where: 1 cta on home @ 900</sub>
 
 | Before | After |
 | --- | --- |
-| <img src="crops/home-900-3-before.png" width="340" alt="Before: the button.cta element"> | <img src="crops/home-900-3-after.png" width="340" alt="After: the button.cta element"> |
-
-- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
+| <img src="crops/home-900-3-before.png" width="340" alt="Before: the cta"> | <img src="crops/home-900-3-after.png" width="340" alt="After: the cta"> |
 
 <details>
-<summary>Show the property change</summary>
+<summary>Show the CSS</summary>
 
-**Cta** `button.cta`
-
-Style:
+`button.cta` · 1 element restyled
 
 | Property | Before | After |
 | --- | --- | --- |
@@ -85,22 +73,18 @@ Style:
 
 </details>
 
-### **Off canvas status** `aside.off-canvas-status` · 1 element restyled
+### Off canvas status
 
-_home @ 900_
+The off canvas status changes opacity from `0.85` to `1`.
 
-`opacity` `0.85` → `1`
+_On home @ 900_
 
 _The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
 
-- **`aside.off-canvas-status`** — opacity 0.85 → 1
-
 <details>
-<summary>Show the property change</summary>
+<summary>Show the CSS</summary>
 
-**Off canvas status** `aside.off-canvas-status`
-
-Style:
+`aside.off-canvas-status` · 1 element restyled
 
 | Property | Before | After |
 | --- | --- | --- |

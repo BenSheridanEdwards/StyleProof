@@ -85,7 +85,9 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     writeCapture(dirs.afterDir, `new-${surface}@1280`, surfaceMap(surface, 0), afterPng);
   }
 
-  const caps = { maxArtifactBytes: 90_000, maxJsonBytes: 18_000, maxReportBytes: 8_000 };
+  // The JSON cap trims findings, never the region skeleton: one region per change section, each with
+  // its Where receipt, so the cap must sit above that skeleton (about 20 KB here) and below the full 32 KB.
+  const caps = { maxArtifactBytes: 90_000, maxJsonBytes: 22_000, maxReportBytes: 8_000 };
   const full = report(dirs, 'full', unlimited);
   assert.ok(artifactBytes(full.outDir) > caps.maxArtifactBytes, 'fixture exceeds the combined artifact budget');
   assert.ok(fs.statSync(full.result.reportJsonPath).size > caps.maxJsonBytes, 'fixture exceeds the JSON budget');

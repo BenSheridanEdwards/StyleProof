@@ -217,7 +217,7 @@ test('end-to-end: a tiny change is located by the Where map, never magnified or 
 
   const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
   assert.deepEqual(Object.keys(region.images).sort(), ['after', 'before'], 'no zoom or annotated image');
-  assert.deepEqual(region.where[0].boxes, [{ x: 40, y: 40, w: 12, h: 16 }], 'the Where map boxes the caret');
+  assert.deepEqual(region.where[0].boxes, [[40, 40, 12, 16]], 'the Where map boxes the caret');
 
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   for (const imagePath of [...Object.values(region.images), region.where[0].image]) {
@@ -287,7 +287,8 @@ test('end-to-end: identical siblings in one region collapse to a single block x 
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /\*\*`li\.card`\*\* ×3/);
+  assert.match(md, /`li\.card` · 3 elements restyled/, 'identical siblings share one section');
+  assert.equal(md.match(/^### /gm)?.length, 1);
   rmTmp(root);
 });
 
@@ -311,11 +312,11 @@ test('an identical change across surfaces collapses into one grouped section', (
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
-  assert.match(md, /Identical across 2 surfaces/);
+  assert.match(md, /the same on s @ (?:390, 1280|1280, 390)/);
   assert.equal(
-    (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
+    (md.match(/`div\.box` · 1 element restyled/g) || []).length,
     1,
-    'the element bullet renders once, not once per surface',
+    'the section renders once, not once per surface',
   );
   assert.equal(
     fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-after.png')).length,
@@ -480,7 +481,7 @@ test('a group without an exposed changed element keeps audit details but omits m
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   assert.match(markdown, /before\/after crop would be misleading/);
   assert.match(markdown, /^### /m, 'the group keeps its heading (#952)');
-  assert.match(markdown, /^_page @ 1024_$/m, 'the group names its surface (#952)');
+  assert.match(markdown, /^_On page @ 1024_$/m, 'the group names its surface (#952)');
   assert.doesNotMatch(markdown, /!\[before/);
   assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
   assert.equal(
@@ -517,8 +518,9 @@ test('a change only on a display: none element keeps the PR comment verdict and 
   const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
   assert.match(summary, /\*\*1 change needs review\*\*/);
   assert.match(summary, /\*\*What changed\*\*/);
-  assert.match(lines[headEnd], /`nav\.drawer`/, 'the heading names the changed element');
-  assert.match(markdown, /^_settings @ 390_$/m, 'the group names its surface');
+  assert.match(lines[headEnd], /^### Drawer$/, 'the heading names the changed element');
+  assert.match(markdown, /`nav\.drawer` · 1 element restyled/);
+  assert.match(markdown, /^_On settings @ 390_$/m, 'the group names its surface');
   assert.match(markdown, /before\/after crop would be misleading/);
   assert.doesNotMatch(markdown, /!\[before/);
   assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
@@ -596,8 +598,10 @@ test('two far-apart changes become two crop sections, each holding only its own 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
   // One ### section per crop, each headed by the element it is anchored on.
-  assert.match(md, /### (?:\*\*[^*]+\*\* )?`a\.nav-cta` · 1 element restyled/);
-  assert.match(md, /### (?:\*\*[^*]+\*\* )?`div\.card` · 1 element restyled/);
+  assert.match(md, /^### Nav cta$/m);
+  assert.match(md, /^### Card$/m);
+  assert.match(md, /`a\.nav-cta` · 1 element restyled/);
+  assert.match(md, /`div\.card` · 1 element restyled/);
 
   // Split on the headings and assert each section carries ONLY its own property.
   const sections = md.split(/\n### /).slice(1);
@@ -687,7 +691,7 @@ test('new surface details render before existing-surface change groups', () => {
   rmTmp(root);
 });
 
-test('property tables fold under a <details> toggle with an essence line; foldDetailsAt keeps small changes inline', () => {
+test('the CSS sits in a collapsed Show the CSS fold, under a plain line, whatever foldDetailsAt says', () => {
   const map = (radius) =>
     makeMap({
       elements: {
@@ -703,23 +707,21 @@ test('property tables fold under a <details> toggle with an essence line; foldDe
     afterPng: solidPng(1280, 800),
   });
 
-  // Default (foldDetailsAt: 0) folds always: plain-English bullets above, then the
-  // table inside <details>. The blank lines around the table are mandatory or
-  // GitHub renders it as literal text — assert them explicitly.
-  const folded = fs.readFileSync(generateStyleMapReport({ ...f }).reportMdPath, 'utf8');
-  assert.match(folded, /corners fully rounded/, 'plain-English summary above the fold');
-  assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
-  assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
-
-  // foldDetailsAt: Infinity never folds the TABLES — they render inline, with no
-  // "Show … property changes" toggle. (The annotated-image toggle is separate and
-  // always present, so check the table fold specifically.)
-  const inline = fs.readFileSync(
-    generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
-    'utf8',
-  );
-  assert.ok(!inline.includes('<summary>Show the property'), 'foldDetailsAt: Infinity keeps the tables out of a fold');
-  assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
+  // The line says what changed in words; the table sits inside <details>. The blank lines
+  // around the table are mandatory or GitHub renders it as literal text.
+  for (const [outDir, foldDetailsAt] of [
+    [path.join(f.root, 'default'), undefined],
+    [path.join(f.root, 'inline'), Infinity],
+  ]) {
+    const md = fs.readFileSync(generateStyleMapReport({ ...f, outDir, foldDetailsAt }).reportMdPath, 'utf8');
+    assert.match(md, /corner radius from `8px` to `9999px`/, 'plain-English line above the fold');
+    assert.match(md, /<details>\n<summary>Show the CSS<\/summary>\n\n/, 'blank line after </summary>');
+    assert.match(
+      md,
+      /\| `border-radius` \| `8px` \| `9999px` \|\n\n<\/details>/,
+      'table, then a blank line before </details>',
+    );
+  }
   rmTmp(f.root);
 });
 
@@ -1422,7 +1424,7 @@ test('new surfaces render before ordinary element changes', () => {
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const newSurfaceIndex = md.indexOf('`pricing@1280` · new surface');
-  const changedElementIndex = md.search(/### \*\*.*\*\* `button|### `button/);
+  const changedElementIndex = md.search(/`button\.[\w-]+` · 1 element restyled/);
   assert.ok(newSurfaceIndex >= 0, 'new surface is present');
   assert.ok(changedElementIndex >= 0, 'ordinary changed element is present');
   assert.ok(newSurfaceIndex < changedElementIndex, 'the new page/surface is shown before lower-level element changes');
