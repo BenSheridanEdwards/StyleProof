@@ -6,6 +6,12 @@ export type ReportDelivery = Readonly<{
   access: 'public-github-view' | 'authenticated-github-view' | 'authenticated-artifact-download';
   url: string;
   markdown: string;
+  /**
+   * Absolute base for the report's images in the PR comment, or null. Only a public
+   * repository's commit-bound blob URL serves `?raw=1` images to anonymous readers
+   * (GitHub's image proxy); private repositories and artifacts get text-only sections.
+   */
+  imageBase: string | null;
 }>;
 
 export type BuildReportDeliveryOptions = {
@@ -42,6 +48,7 @@ export function buildReportDelivery(options: BuildReportDeliveryOptions): Report
     access: repositoryVisibility === 'private' ? 'authenticated-github-view' : 'public-github-view',
     url: canonicalUrl,
     markdown,
+    imageBase: repositoryVisibility === 'public' ? canonicalUrl.slice(0, -'report.md'.length) : null,
   });
 }
 
@@ -75,5 +82,6 @@ export function buildArtifactReportDelivery(options: BuildArtifactReportDelivery
     access: 'authenticated-artifact-download',
     url: reportUrl,
     markdown,
+    imageBase: null,
   });
 }

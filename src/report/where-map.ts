@@ -117,8 +117,13 @@ export const whereReceipt = (map: WhereMap) => ({
   boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
 });
 
+/** Escape for an attribute or caption; entities already in the text (escaped page text) stay single. */
 const escapeAttribute = (value: string): string =>
-  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  value
+    .replace(/&(?!(?:amp|lt|gt|quot);)/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 
 /**
  * The map's Markdown: one line, so GitHub keeps the image inline with its caption

@@ -57,8 +57,13 @@ to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
 Below the title, the comment carries the summary line: how many changes to review, on
-which pages and widths, and how many elements and changed CSS rules they cover. The
-report itself (linked from the comment) names each change in its own section.
+which pages and widths, and how many elements and changed CSS rules they cover. Each
+change follows in its own section: its name, one plain-English line, where it is, and
+the CSS on demand. On a public repository with `report-storage: branch` the sections
+also show the Where map and the clean before/after crops, served from the report's
+commit-bound URL. On a private repository, or with artifact storage, no image URL works
+for every reader, so the sections are text and the linked report holds the images. A
+very large report is cut at 50,000 characters with a line counting the sections left out.
 `report.json` records one row per one-sided surface and per change group under
 `digest`, as
 `{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase, count? }], more }`.
@@ -2127,19 +2132,19 @@ consumer-owned and are not rewritten; capture still enforces the refusal policy.
 
 `styleproof-report` only:
 
-| Flag                       | Default             | Purpose                                                                                                                                      |
-| -------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                            |
-| `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                        |
-| `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                  |
-| `--max-crops <n>`          | `8`                 | Max crop regions per surface before collapsing.                                                                                              |
-| `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted. |
-| `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                          |
+| Flag                       | Default             | Purpose                                                                                                                                                                                         |
+| -------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                                                                               |
+| `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                                                                           |
+| `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                                                                     |
+| `--max-crops <n>`          | `8`                 | Max crop regions per surface before collapsing.                                                                                                                                                 |
+| `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted.                                                    |
+| `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                                                                             |
 | `--fold-details-at <n>`    | `0`                 | Row count at which content-layer and folded-row tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds. Change sections always keep their CSS under **Show the CSS**. |
-| `--min-width <px>`         | `320`               | Minimum crop width, for context.                                                                                                             |
-| `--min-height <px>`        | `180`               | Minimum crop height, for context.                                                                                                            |
-| `--include-layout-noise`   | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain.    |
-| `--include-content`        | off                 | Render the advisory content layer; needs captures taken with `captureText` on (the default); never affects the check.                        |
+| `--min-width <px>`         | `320`               | Minimum crop width, for context.                                                                                                                                                                |
+| `--min-height <px>`        | `180`               | Minimum crop height, for context.                                                                                                                                                               |
+| `--include-layout-noise`   | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain.                                                       |
+| `--include-content`        | off                 | Render the advisory content layer; needs captures taken with `captureText` on (the default); never affects the check.                                                                           |
 
 `styleproof-report` exits `0` when there are no changes, `1` when a report was generated, and `2` on a usage error.
 

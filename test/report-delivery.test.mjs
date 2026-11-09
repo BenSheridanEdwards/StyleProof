@@ -85,6 +85,7 @@ async function executeActionComment({
   artifactDigest,
   created = [],
   thread = [],
+  reportMd,
 } = {}) {
   const outputs = new Map();
   const updated = [];
@@ -131,7 +132,11 @@ async function executeActionComment({
     warning: () => {},
   };
   const requireForScript = (specifier) => {
-    if (specifier === 'fs') return { existsSync: () => false };
+    if (specifier === 'fs') {
+      return reportMd === undefined
+        ? { existsSync: () => false }
+        : { existsSync: (file) => file === 'styleproof-report/report.md', readFileSync: () => reportMd };
+    }
     return nativeRequire(specifier);
   };
   const previousActionPath = process.env.GITHUB_ACTION_PATH;
@@ -178,6 +183,82 @@ test('public and private reports use one commit-bound linked-delivery contract',
   }
   assert.equal(publicDelivery.access, 'public-github-view');
   assert.equal(privateDelivery.access, 'authenticated-github-view');
+});
+
+test('only a public repository gets an absolute image base for the comment (QA1-01)', () => {
+  const delivery = (repositoryVisibility) =>
+    buildReportDelivery({ repository, publicationSha, prNumber, reportUrl, repositoryVisibility });
+  // GitHub serves /blob/<sha>/…?raw=1 to anonymous readers on a public repository only.
+  assert.equal(delivery('public').imageBase, `https://github.com/${repository}/blob/${publicationSha}/pr-42/`);
+  assert.equal(delivery('private').imageBase, null);
+  const artifact = buildArtifactReportDelivery({
+    repository,
+    reportUrl: `https://github.com/${repository}/actions/runs/9001/artifacts/4451`,
+  });
+  assert.equal(artifact.imageBase, null);
+});
+
+const SECTION_REPORT = [
+  '## 🗺️ StyleProof report',
+  '',
+  '**1 change to review** on `shop` at 1280px wide: 2 elements.',
+  '',
+  '## Changes',
+  '',
+  '### Card titles',
+  '<!-- styleproof-section %7B%7D -->',
+  '',
+  'Both card titles (Lamp, Chair) change text colour from dark indigo to dark red.',
+  '',
+  '<img src="crops/shop-1-where.png" alt="Where" width="520"><br><sub>Where: 2 card titles on shop @ 1280</sub>',
+  '',
+  '| Before | After |',
+  '| --- | --- |',
+  '| <img src="crops/shop-1-before.png" alt="Before" width="400"> | <img src="crops/shop-1-after.png" alt="After" width="400"> |',
+  '<!-- styleproof-section-end -->',
+  '',
+].join('\n');
+
+test('a public branch-storage comment shows each section with commit-bound images (QA1-01)', async () => {
+  const run = await executeActionComment({ repositoryPrivate: false, reportMd: SECTION_REPORT });
+  const body = run.created[0].body;
+  const base = `https://github.com/${repository}/blob/${publicationSha}/pr-42/`;
+  assert.match(body, /^### Card titles$/m);
+  assert.match(body, /^Both card titles \(Lamp, Chair\) change text colour from dark indigo to dark red\.$/m);
+  assert.ok(body.includes(`<img src="${base}crops/shop-1-before.png?raw=1"`));
+  assert.ok(body.includes(`<img src="${base}crops/shop-1-where.png?raw=1"`));
+  assert.doesNotMatch(body, /src="crops\/|raw\.githubusercontent|styleproof-section|^## Changes$/m);
+  // Marker first, one report link, approval box kept.
+  assert.ok(body.startsWith(`${MARKER}\n## 🗺️ StyleProof report`));
+  assert.equal(body.split(reportUrl).length - 1, 1);
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+});
+
+test('private and artifact-storage comments carry the sections as text, never a broken image (QA1-01)', async () => {
+  const privateRun = await executeActionComment({ repositoryPrivate: true, reportMd: SECTION_REPORT });
+  const artifactRun = await executeActionComment({
+    url: `https://github.com/${repository}/actions/runs/9001/artifacts/4451`,
+    reportStorage: 'artifact',
+    reportMd: SECTION_REPORT,
+  });
+  for (const body of [privateRun.created[0].body, artifactRun.created[0].body]) {
+    assert.match(body, /^### Card titles$/m);
+    assert.match(body, /^Both card titles \(Lamp, Chair\) change text colour/m);
+    assert.match(body, /^<sub>Where: 2 card titles on shop @ 1280<\/sub>$/m);
+    assert.doesNotMatch(body, /<img|crops\/|^\| Before \| After \|$/m);
+    assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+  }
+});
+
+test('a report with hundreds of sections still fits one GitHub comment (QA1-01)', async () => {
+  const [head, section] = SECTION_REPORT.split('\n## Changes\n');
+  const huge = [head, '## Changes', ...Array.from({ length: 2000 }, () => section)].join('\n');
+  const body = (await executeActionComment({ repositoryPrivate: false, reportMd: huge })).created[0].body;
+  assert.ok(body.length <= 65_536, `${body.length} characters`);
+  assert.ok(body.startsWith(MARKER));
+  assert.match(body, /^_…and \d+ more changes in the full report\._$/m);
+  assert.equal(body.split(reportUrl).length - 1, 1);
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
 });
 
 test('report delivery formatter remains Action-internal rather than a public package promise', () => {
