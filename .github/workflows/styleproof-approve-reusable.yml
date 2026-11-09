@@ -6,9 +6,8 @@
 # This workflow flips the `StyleProof` commit status when a write-access reviewer
 # who is NOT the pull request author ticks the single "Approve all changes" box
 # in the StyleProof report comment. Pair it with the Action's `require-approval: true`
-# input and either a branch-protection rule requiring the `StyleProof` status, or
-# `styleproof.config.json`'s `"blocking": true` to fail the job on unapproved
-# changes (the blocking option for repos without branch protection).
+# input and a branch-protection rule (or ruleset) requiring the `StyleProof` status.
+# That status is the only gate: the Action's job does not fail on unapproved changes.
 #
 # Visual rerun support: the workflow re-reads status from comment markers, does not
 # require a fresh capture artifact, and preserves existing approval if commit unchanged.
@@ -570,7 +569,7 @@ jobs:
             }
 
             // The status description is the source of truth for WHO approved, so a
-            // later report re-run (e.g. to clear a blocking check) can reconstruct
+            // later report re-run can reconstruct
             // "approved by @x" without this workflow having run again.
             await github.rest.repos.createCommitStatus({
               ...context.repo,
