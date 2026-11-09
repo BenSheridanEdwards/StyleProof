@@ -734,7 +734,7 @@ selector (except for `goto`). Driver URLs, field values, and original causes are
 
 ## Contributing
 
-Repository CI runs the full browser suite in four file-level shards alongside the
+Repository CI runs the full browser suite in seven file-level shards alongside the
 unit matrix on Node 22.13.0 (the supported floor), 22, and 24. The `e2e (node 22)`
 aggregate compares completed test IDs against a separately collected full
 inventory and requires the five-run determinism receipt. Missing, duplicated,
