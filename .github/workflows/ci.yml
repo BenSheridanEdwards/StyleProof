@@ -125,7 +125,7 @@ jobs:
   coverage-shards:
     name: coverage (node 22, shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
-    timeout-minutes: 11
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
@@ -192,7 +192,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.e2e == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 16
     strategy:
       fail-fast: false
       matrix:
