@@ -185,10 +185,10 @@ jobs:
   # Playwright hands each shard an equal COUNT of test groups in file order, so
   # the heavy parallel-mode files at the front of the alphabet (auth-*, capture-*,
   # cli-flow) all landed in shard 1 of 4: 241s of tests against 109-157s for the
-  # rest, and the longest leg of the whole pipeline. Six shards still left 569
-  # test-seconds in shard 1 (cli-flow alone is 312) against 54 in shard 5. Seven
-  # move that boundary: per-test durations from a six-shard run put the heaviest
-  # shard at 433 test-seconds, about 108s of wall time on four workers.
+  # rest, and the longest leg of the whole pipeline. At 1,218 tests, six shards
+  # left 942 test-seconds in shard 1 (cli-flow alone is 425), about 296s of wall
+  # time. Seven move that boundary: per-test durations from a six-shard run put
+  # the heaviest shard at 868 test-seconds, about 226s of tests on four workers.
   e2e:
     name: e2e (node 22, shard ${{ matrix.shard }}/7)
     needs: changes
@@ -256,7 +256,8 @@ jobs:
       # One shard generates the full test inventory so the evidence job can verify
       # completeness without installing Playwright again. If-condition ensures
       # only one shard produces the canonical inventory. The ~20s listing runs on
-      # shard 5, a light shard that still finishes before the slowest one.
+      # shard 5, the lightest of seven: script-join-round6 is one 352-test group
+      # that starts in shard 4 and covers shard 5's whole share of the count.
       - name: Collect test inventory
         if: matrix.shard == 5
         run: |
