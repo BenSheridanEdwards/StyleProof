@@ -1,6 +1,5 @@
 /** J2 gap detail shares the after-findings byte budget; reserved notices stay small. */
 import { scriptJoinGap, type ScriptJoinGap } from '../script-join.js';
-import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import type { ReachGap } from './reach.js';
 
 export type ScriptDetailBudget = { remaining: number };
@@ -81,40 +80,4 @@ function storeGapPaths(original: readonly string[], stored: string[], budget: Sc
     stored.push(file);
   }
   return stored.length;
-}
-
-/** Human detail has its own fixed cap and always names omitted records and paths. */
-export function scriptGapLines(gaps: readonly ReachGap[]): string[] {
-  const notice = (gap: ReachGap): boolean => /^J2 (?:gap paths|gaps|units) truncated:/.test(gap.reason);
-  const records = gaps.filter((gap) => !notice(gap));
-  const lines = gaps.filter(notice).map(gapLine);
-  let bytes = lines.reduce((sum, line) => sum + Buffer.byteLength(line) + 1, 0),
-    shownGaps = 0,
-    shownPaths = 0;
-  const append = (line: string): boolean => {
-    const cost = Buffer.byteLength(line) + 1;
-    if (bytes + cost > 63_000) return false;
-    lines.push(line);
-    bytes += cost;
-    return true;
-  };
-  for (const gap of records.slice(0, 100)) {
-    if (!append(gapLine(gap))) break;
-    shownGaps++;
-    for (const file of gap.paths ?? []) {
-      if (shownPaths === 100 || !append(`- ${codeValue(file)}`)) break;
-      shownPaths++;
-    }
-  }
-  if (shownGaps < records.length)
-    lines.push(`- J2 gaps truncated: ${records.length - shownGaps} more omitted from this report.`);
-  const hiddenPaths = scriptGapPathCount(gaps) - shownPaths;
-  if (hiddenPaths)
-    lines.push(`- J2 gap paths truncated: ${hiddenPaths} more omitted from this report; full path counts retained.`);
-  return lines;
-}
-
-function gapLine(gap: ReachGap): string {
-  const reason = `${gap.side ? `${gap.side}: ` : ''}${preview(gap.reason, 1000)}`;
-  return `- ${escapeInlineMarkdown(reason)} — ${escapeInlineMarkdown(preview(gap.remedy, 400))}`;
 }

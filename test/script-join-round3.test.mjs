@@ -9,7 +9,6 @@ import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import { classifyScriptReach, scriptJoinGap } from '../dist/script-join.js';
 import { assessReachMaps } from '../dist/report/reach.js';
 import { budgetScriptReach, reserveScriptNotice } from '../dist/report/script-units.js';
-import { scriptGapLines } from '../dist/report/script-gap-details.js';
 import { readScriptChanges } from '../dist/script-join-git.js';
 import { assertDeterministicScriptReach } from '../dist/runner/self-check.js';
 import { scriptProjectRootPrefix } from '../dist/capture/script-project-root.js';
@@ -324,9 +323,6 @@ test('thousands of separate J2 gaps reserve bounded metadata and name the first 
   const notice = reach.gaps.find((gap) => gap.reason.startsWith('J2 gaps truncated:'));
   assert.match(notice.reason, new RegExp(`first: gap ${String(listed.length).padStart(5, '0')}`));
   assert.ok(listed.length < 5000);
-  const markdown = scriptGapLines(reach.gaps.filter((gap) => gap.join === 'J2')).join('\n');
-  assert.ok(markdown.includes(notice.reason));
-  assert.ok(Buffer.byteLength(markdown) < 64_000);
 });
 
 test('long omitted gap previews cannot exceed the post-findings byte allowance', () => {

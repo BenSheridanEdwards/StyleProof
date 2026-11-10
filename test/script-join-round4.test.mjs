@@ -9,7 +9,6 @@ import { changedScriptRanges, readScriptChanges } from '../dist/script-join-git.
 import { classifyScriptReach, scriptJoinGap } from '../dist/script-join.js';
 import { assessReachMaps, reachSummaryLine } from '../dist/report/reach.js';
 import { budgetScriptReach, reserveScriptNotice } from '../dist/report/script-units.js';
-import { scriptGapLines } from '../dist/report/script-gap-details.js';
 import { makeMap } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
@@ -185,16 +184,6 @@ for (const ending of ['', '\r\n']) {
     assert.ok(units.every((u) => /line ending/.test(u.why)));
   });
 }
-
-test('human truncation says omitted details are absent from this report', () => {
-  const gaps = Array.from({ length: 101 }, (_, i) => ({
-    ...scriptJoinGap(`source gap ${i}`),
-    paths: [`file-${i}.mdx`],
-  }));
-  const lines = scriptGapLines(gaps).join('\n');
-  assert.match(lines, /J2 gaps truncated: 1 more omitted from this report/);
-  assert.match(lines, /J2 gap paths truncated: 1 more omitted from this report/);
-});
 
 test('presentation notices never replace the number of actual J2 evidence gaps', () => {
   const map = capture('const x = 1;', '1');

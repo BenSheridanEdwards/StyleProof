@@ -66,7 +66,6 @@ const res = generateStyleMapReport({
   foldDetailsAt: Infinity,
   minHeight: 72,
   minWidth: 240,
-  zoomBelow: 0,
 });
 fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
