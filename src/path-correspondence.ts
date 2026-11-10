@@ -17,7 +17,9 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      length and component on both sides pair k-th to k-th, only while the group
  *      is the same size on both sides (an nth-child shift, never an add/remove),
  *      no member was already placed, or shown in place, by own-text identity, and
- *      no pair has captured own text that differs.
+ *      no pair has captured own text that differs while the head still holds an
+ *      element of the same tag, class and component at the base path (a rename in
+ *      place, not a shift).
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -143,6 +145,17 @@ function ownTextDiffers(before: ElementEntry | undefined, after: ElementEntry | 
   return before?.text !== undefined && after?.text !== undefined && before.text !== after.text;
 }
 
+/** True when both entries exist and share tag, class and component: the same kind of element. */
+function sameElementShape(before: ElementEntry | undefined, after: ElementEntry | undefined): boolean {
+  return (
+    before !== undefined &&
+    after !== undefined &&
+    before.tag === after.tag &&
+    before.cls.trim() === after.cls.trim() &&
+    (before.component?.name ?? '') === (after.component?.name ?? '')
+  );
+}
+
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
 function correspondingPathsByContentSignature(
   before: StyleMap,
@@ -164,10 +177,16 @@ function correspondingPathsByContentSignature(
     );
     // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
-    // A shifted element keeps its own text. Captured text that differs shows two elements whose
-    // text only has the same length (two renamed labels), so the k-th pairing is a coincidence.
+    // Captured text that differs is explained by a rename in place when the head still holds an
+    // element of the same shape at the base path (two renamed labels of equal length): the k-th
+    // pairing is then a coincidence. A different occupant there means a sibling was inserted, so
+    // the shift is the only explanation and the pairing stays, renamed text and all.
     if (
-      moves.some(([beforePath, afterPath]) => ownTextDiffers(before.elements[beforePath], after.elements[afterPath]))
+      moves.some(
+        ([beforePath, afterPath]) =>
+          ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
+          sameElementShape(before.elements[beforePath], after.elements[beforePath]),
+      )
     ) {
       continue;
     }

@@ -10,7 +10,7 @@ import {
   remapBeforeStyleMap,
   sharedPathPrefix,
 } from '../dist/path-correspondence.js';
-import { diffStyleMaps, presentationDiffStyleMaps } from '../dist/diff.js';
+import { diffContentMaps, diffStyleMaps, presentationDiffStyleMaps } from '../dist/diff.js';
 import { makeMap } from './helpers.mjs';
 
 test('correspondenceSignature uses tag + x/y/width + ownTextLength (not height or text)', () => {
@@ -614,4 +614,32 @@ test('without captured own text, an equal-length pair still reads as an nth-chil
   const before = navItems(BASE_LABELS, false);
   const shifted = correspondContentShiftedPaths(before, navItems(HEAD_LABELS, false));
   assert.equal(shifted.elements[item(4)].ownTextLength, 'Settings'.length, 'length is the only evidence, as before');
+});
+
+// The mirror case: a sibling is inserted before a label, and the shifted label is also
+// renamed to text of the same length. The head no longer holds a label at the old path,
+// so only the shift explains the evidence and the label must still pair with itself.
+const toolbarSlot = (n) => `body > div:nth-child(1) > span:nth-child(${n})`;
+const toolbarEntry = (className, label) => ({
+  tag: 'span',
+  cls: className,
+  rect: [0, 0, 80, 20],
+  ownTextLength: label.length,
+  text: label,
+});
+
+test('a real nth-child shift whose label is renamed to the same length still pairs the label with itself', () => {
+  const before = makeMap({ elements: { [toolbarSlot(1)]: toolbarEntry('label', 'Save') } });
+  const after = makeMap({
+    elements: {
+      [toolbarSlot(1)]: toolbarEntry('notice', 'Help'),
+      [toolbarSlot(2)]: toolbarEntry('label', 'Send'),
+    },
+  });
+  const shifted = correspondContentShiftedPaths(before, after);
+  assert.deepEqual(Object.keys(shifted.elements), [toolbarSlot(2)], 'the label moves onto its shifted path');
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+  ]);
 });
