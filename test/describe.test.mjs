@@ -19,3 +19,14 @@ test('adding grid line names is not described as a column-count change', () => {
   ]);
   assert.deepEqual(describeChange([{ label: 'div.layout', props }]), []);
 });
+
+test('a low-signal property is named only when it is all that changed', () => {
+  const el = (props) => ({ label: 'p.lead', props });
+  const family = { prop: 'font-family', before: 'serif', after: 'sans-serif' };
+  assert.deepEqual(describeChange([el([family])]), ['**`p.lead`** — font-family serif → sans-serif']);
+  assert.deepEqual(
+    describeChange([el([family, { prop: 'line-height', before: '20px', after: '24px' }])]),
+    ['**`p.lead`** — line-height 20px → 24px'],
+    'beside a real change it stays in the table only',
+  );
+});

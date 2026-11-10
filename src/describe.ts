@@ -311,7 +311,9 @@ function phrasesFor(props: PropChange[], ctx: DescribeCtx, cap = 4): string[] {
   const mark = (...ps: string[]) => ps.forEach((p) => used.add(p));
   const phrases = RULES.flatMap((rule) => rule(m, mark, ctx));
   // No rule names these properties. Name the first one, so a bullet never reads as a bare "+N more".
-  const unnamed = [...m.values()].find((c) => !used.has(c.prop) && !LOW_SIGNAL.has(c.prop));
+  // A low-signal property is named only when it is all that changed: the summary must say something.
+  const unhandled = [...m.values()].filter((c) => !used.has(c.prop));
+  const unnamed = unhandled.find((c) => !LOW_SIGNAL.has(c.prop)) ?? unhandled[0];
 
   if (!phrases.length && unnamed) {
     mark(unnamed.prop);
