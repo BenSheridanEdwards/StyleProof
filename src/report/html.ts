@@ -291,7 +291,7 @@ function pairBlock(
   const side = (name: 'before' | 'after', src: string) =>
     safeCrop(src)
       ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
-        `<img class="shot ${name}" src="${attr(src)}" width="${pair.width}" height="${pair.height}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${pair.what ?? 'the whole page'}`)}"${loading}></figure>`
+        `<img class="shot ${name}" src="${attr(src)}" width="${pair.width}" height="${pair.height}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${(pair.what ?? 'the whole page').replace(/\\\|/g, '|')}`)}"${loading}></figure>`
       : '';
   return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
 }

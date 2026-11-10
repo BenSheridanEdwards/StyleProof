@@ -39,8 +39,11 @@ export function stateLabel(state: string): string | undefined {
   return STATE_WORDS[state] ? `While ${STATE_WORDS[state]}` : undefined;
 }
 
-/** Escape for an attribute in a table cell: the shared attribute escape, plus `|` so the row stays whole. */
-const escapeCellAttribute = (value: string): string => escapeHtmlAttribute(value).replace(/\|/g, '\\|');
+/**
+ * Escape for an attribute in a table cell: the shared attribute escape, plus `|` as `&#124;`, so the
+ * row stays whole and no `|` is left for the pair-row pattern to split on (RV15-03).
+ */
+const escapeCellAttribute = (value: string): string => escapeHtmlAttribute(value).replace(/\|/g, '&#124;');
 
 const MAX_CROP_W = 1280;
 const MAX_CROP_AREA = 1_024_000;
@@ -94,7 +97,8 @@ export function renderCropPair(
   images.before = beforeRel;
   images.after = afterRel;
   const image = (rel: string, side: string) =>
-    `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${spec.what}`)}">`;
+    // The alt is an HTML attribute, where Markdown's `\|` is not unescaped: write the plain `|`.
+    `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${spec.what.replace(/\\\|/g, '|')}`)}">`;
   const label = spec.state ? stateLabel(spec.state) : undefined;
   const md = [
     '',
