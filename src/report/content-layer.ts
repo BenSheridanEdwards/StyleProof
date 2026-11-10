@@ -125,7 +125,6 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
     return rect ? [rect] : [];
   };
   const captions = {
-    pair: surface,
     annotated: 'magenta boxes mark the changed content',
     zoom: (factor: number) => `magnified ${factor}×: content change too small to read at 1:1`,
   };
@@ -399,9 +398,7 @@ export function renderContentSection(
         `gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, ` +
         `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
-        `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
-        `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
-        `so it cannot be mistaken for a product style regression._`;
+        `computed-style certification and do not affect the check._`;
   const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
   for (const surface of surfaces) {

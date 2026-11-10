@@ -68,7 +68,9 @@ for (const c of CASES) {
       );
       expect(dialogs).toEqual([]);
       expect(await page.locator('img[src="x"]').count()).toBe(0);
-      // The payload is still shown to the reviewer — as text, not dropped.
+      // The payload is still shown to the reviewer — as text, not dropped. Exact values sit
+      // in the folded property table, so open every fold before reading the text.
+      await page.evaluate(() => document.querySelectorAll('details').forEach((fold) => (fold.open = true)));
       const text = await page.locator('main').innerText();
       expect(text).toContain(c.shown);
     } finally {

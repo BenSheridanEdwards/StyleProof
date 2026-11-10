@@ -4,18 +4,19 @@
 
 **1 distinct change** (2 computed-style difference(s) · 3 state-delta difference(s)) in 1 changed surface base with an existing baseline.
 
+**What changed**
+
+- `demo-button @ 900` — **`button.btn`** background teal (`#14b8a6`) → red (`#dc2626`), padding adjusted · **`a.link`** interaction states changed: `:hover`, `:focus`, `:active`
+
 ## Changes
 
-### **Btn** `button.btn` · 1 element restyled
+### `button.btn` · 1 element restyled
 
 _demo-button @ 900_
 
-`padding` `14px 28px` → `18px 32px`<br>
-`background-color` `#14b8a6` → `#dc2626`
-
 ![before ◀ │ ▶ after](crops/demo-button-900-4-composite.png)
 
-<sub>◀ before · after ▶ — demo-button @ 900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -30,22 +31,17 @@ _demo-button @ 900_
 
 Style:
 
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
-
-### **Link** `a.link` · 1 element restyled `:hover`
+| Property | Before | After |
+| --- | --- | --- |
+| `padding` | `14px 28px` | `18px 32px` |
+| `background-color` | `#14b8a6` | `#dc2626` |
+### `a.link` · 1 element restyled `:hover`
 
 _demo-button @ 900_
 
-_Both sides are :hover. Left is the old :hover. Right is the new :hover._
-
-`:hover` `color` `#a5f3fc` → `#fca5a5`
-
 ![base :hover ◀ │ ▶ head :hover](crops/demo-button-900-1-composite.png)
 
-<sub>◀ base :hover · head :hover ▶ — both sides are :hover</sub>
+<sub>◀ base :hover  ·  head :hover ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -60,29 +56,25 @@ _Both sides are :hover. Left is the old :hover. Right is the new :hover._
 
 Interactive-state changes:
 
-| State    | Property                                       | Before → After        |
-| -------- | ---------------------------------------------- | --------------------- |
-| `:hover` | `color`                                        | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
+| State | Property | Before → After |
+| --- | --- | --- |
+| `:hover` | `color` | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `caret-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `outline-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `column-rule-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `row-rule-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `text-decoration-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `text-emphasis-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:hover` | ↳ `-webkit-text-fill-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
 | `:hover` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
 
-### **Link** `a.link` · 1 element restyled `:focus`
+### `a.link` · 1 element restyled `:focus`
 
 _demo-button @ 900_
 
-_Both sides are :focus. Left is the old :focus. Right is the new :focus._
-
-`:focus` `outline-color` `#5eead4` → `#fca5a5`
-
 ![base :focus ◀ │ ▶ head :focus](crops/demo-button-900-2-composite.png)
 
-<sub>◀ base :focus · head :focus ▶ — both sides are :focus</sub>
+<sub>◀ base :focus  ·  head :focus ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -97,21 +89,17 @@ _Both sides are :focus. Left is the old :focus. Right is the new :focus._
 
 Interactive-state changes:
 
-| State    | Property        | Before → After        |
-| -------- | --------------- | --------------------- |
+| State | Property | Before → After |
+| --- | --- | --- |
 | `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
 
-### **Link** `a.link` · 1 element restyled `:active`
+### `a.link` · 1 element restyled `:active`
 
 _demo-button @ 900_
 
-_Both sides are :active. Left is the old :active. Right is the new :active._
-
-`:active` `color` `#2dd4bf` → `#f87171`
-
 ![base :active ◀ │ ▶ head :active](crops/demo-button-900-3-composite.png)
 
-<sub>◀ base :active · head :active ▶ — both sides are :active</sub>
+<sub>◀ base :active  ·  head :active ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -126,16 +114,17 @@ _Both sides are :active. Left is the old :active. Right is the new :active._
 
 Interactive-state changes:
 
-| State     | Property                                       | Before → After        |
-| --------- | ---------------------------------------------- | --------------------- |
-| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
+| State | Property | Before → After |
+| --- | --- | --- |
+| `:active` | `color` | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `caret-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `outline-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `column-rule-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `row-rule-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-decoration-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-emphasis-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
 | `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
+
 
 _Nothing else — no other element or inventory changes in this compare._

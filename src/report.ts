@@ -106,7 +106,6 @@ export {
 } from './change-groups.js';
 export type { SummarizedProp } from './change-groups.js';
 export type { ComparisonTruth } from './change-groups.js';
-export { propertyGlanceLine } from './report/markdown.js';
 export { MIGRATION_GALLERY_LABELS, type MigrationGallery } from './report/migration-gallery.js';
 
 /**
@@ -610,7 +609,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     md.append([
       '',
       `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
-        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB); every change is still counted; full findings remain in the original diff input (not included in the report artifact)._`,
+        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB, \`--max-crop-files\` / \`--max-crop-bytes\`); every change is still listed and counted; full findings remain in the original diff input (not included in the report artifact)._`,
     ]);
   }
 

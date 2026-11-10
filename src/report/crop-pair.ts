@@ -30,8 +30,8 @@ export type CropPairSpec = {
   rectsA: Rect[];
   rectsB: Rect[];
   labels?: { left: string; right: string };
-  /** Caption fragments: the pair context, the annotated suffix, the zoom suffix. */
-  captions: { pair: string; annotated: string; zoom: (factor: number) => string };
+  /** Caption fragments: the annotated suffix, the zoom suffix. */
+  captions: { annotated: string; zoom: (factor: number) => string };
   /** Skip (return null) when the crop renders identically on both sides. */
   skipIdentical?: boolean;
 };
@@ -110,7 +110,7 @@ export function renderCropPair(
     '',
     `![${left} ◀ │ ▶ ${right}](${ctx.img(images.composite!)})`,
     '',
-    `<sub>◀ ${left}  ·  ${right} ▶ — ${captions.pair}</sub>`,
+    `<sub>◀ ${left}  ·  ${right} ▶</sub>`,
   ];
 
   // One primary before/after. Annotated + zoom live under a single optional

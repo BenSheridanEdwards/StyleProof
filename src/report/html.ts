@@ -172,7 +172,7 @@ const blockReaders: BlockReader[] = [
   oneLine(IMAGE_LINE.test.bind(IMAGE_LINE), (line) => `<p class="shot">${inline(line)}</p>`),
   (lines, i) => {
     const { taken, next } = takeWhile(lines, i, (l) => !startsBlock(l));
-    // The generator's trailing `<br>` (glance and spacing lines) is a line break; an escaped `\<br>` stays text.
+    // The generator's trailing `<br>` (spacing lines) is a line break; an escaped `\<br>` stays text.
     const paragraph = taken.map((line) =>
       GENERATED_BREAK.test(line) ? `${inline(line.slice(0, -4))}<br>` : inline(line),
     );

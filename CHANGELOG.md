@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Each change section of the report says a fact once. The plain-English summary now sits above the
+  before/after crop, and the raw property list that repeated it is removed; exact values stay in
+  the folded table. A section heading is the selector and what happened, for example
+  "button.nav-item · 5 elements restyled". A crop caption only labels its two sides. A `Crop omitted` note is one
+  short sentence with the budget detail once at the end, and the advisory content blurb is one
+  sentence. `propertyGlanceLine` is no longer exported from `dist/report.js`.
 - The report writes screenshots for reviewable style changes before advisory content changes.
   Before, `--include-content` could spend the whole crop budget on advisory crops, and every
   style change then read `Crop omitted`.

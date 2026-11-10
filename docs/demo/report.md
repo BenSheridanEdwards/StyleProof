@@ -31,15 +31,15 @@ _No baseline to compare against. This is a reviewable first-adoption surface; ap
 
 ## Changes
 
-### **Caret** `span.caret` · 1 element restyled
+### `span.caret` · 1 element restyled
 
 _home @ 900_
 
-`color` `#9ca3af` → `#2563eb`
+- **`span.caret`** — text gray (`#9ca3af`) → blue (`#2563eb`)
 
 ![before ◀ │ ▶ after](crops/home-900-2-composite.png)
 
-<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -54,8 +54,6 @@ _home @ 900_
 
 </details>
 
-- **`span.caret`** — text gray (`#9ca3af`) → blue (`#2563eb`)
-
 <details>
 <summary>Show the property change</summary>
 
@@ -69,15 +67,15 @@ Style:
 
 </details>
 
-### **Cta** `button.cta` · 1 element restyled
+### `button.cta` · 1 element restyled
 
 _home @ 900_
 
-`background-color` `#2563eb` → `#dc2626`
+- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
 
 ![before ◀ │ ▶ after](crops/home-900-3-composite.png)
 
-<sub>◀ before  ·  after ▶ — home @ 900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -87,8 +85,6 @@ _home @ 900_
 <sub>🔍 magenta boxes mark each change — changed: `button.cta`</sub>
 
 </details>
-
-- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
 
 <details>
 <summary>Show the property change</summary>
@@ -103,15 +99,13 @@ Style:
 
 </details>
 
-### **Off canvas status** `aside.off-canvas-status` · 1 element restyled
+### `aside.off-canvas-status` · 1 element restyled
 
 _home @ 900_
 
-`opacity` `0.85` → `1`
+- **`aside.off-canvas-status`** — opacity 0.85 → 1
 
 _The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading._
-
-- **`aside.off-canvas-status`** — opacity 0.85 → 1
 
 <details>
 <summary>Show the property change</summary>
@@ -140,7 +134,7 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 
 ![before ◀ │ ▶ after](crops/duplicate-insertion-900-content-1-composite.png)
 
-<sub>◀ before  ·  after ▶ — duplicate-insertion@900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -160,7 +154,7 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 
 ![before ◀ │ ▶ after](crops/home-900-content-2-composite.png)
 
-<sub>◀ before  ·  after ▶ — home@900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
@@ -183,7 +177,7 @@ _3 content/structure change(s). **Visible element additions/removals (2) are rev
 
 ![before ◀ │ ▶ after](crops/sibling-insertion-900-content-3-composite.png)
 
-<sub>◀ before  ·  after ▶ — sibling-insertion@900</sub>
+<sub>◀ before  ·  after ▶</sub>
 
 <details>
 <summary>Show highlight overlay</summary>
