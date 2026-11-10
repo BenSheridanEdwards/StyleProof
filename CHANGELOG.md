@@ -40,7 +40,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   owner path whose state was forced (report.json `findings[].path`, the restyled element in `sub`). The change
   line names each owner, carrying only what it changed: "when hovered" for the element's own state, "when the
   opt is checked" for one control, "when the Save button is hovered" for a button or link named by its text, and
-  "when the matching opt is checked" when each grouped element has its own. Several owners of one element are
+  "when the matching opt is checked" when each grouped element has its own. An owner is named by its noun only
+  when no other owner of the element, a ×N clause's owners included, reads the same; otherwise by its selector,
+  as main heads it. Several owners of one element are
   said as main says them, one clause per owner path: "the text colour changes … when `input.opt` is checked, and
   the background changes … when `input.opt` is checked" (owners main cannot tell apart read alike, with nothing
   invented); owners of one selector that made the same change are one clause with main's ×N ("when `input.opt` ×3
@@ -64,8 +66,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   cannot certify, when evidence fails, when a changed CSS rule was never matched or cannot be seen in computed
   styles, and, in one "Change Reach could not check every changed CSS rule" line, when changed rules matched
   only uncompared elements or a ledger is missing, old or unreadable. ADR 0009 is amended to match (dated
-  2026-11-10). `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
-  has changes; an unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`.
+  2026-11-10). An unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`; any other unbound report opens,
+  as before, with "⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified", now followed by what to do (pass
+  `--expected-before-sha` and `--expected-after-sha`). report.html and the PR comment carry it too.
 - **BREAKING (report.json):** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean
   crops) instead of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`).
   Change sections replace overlap-merged crop regions, so `regions` holds one entry per section, and a forced
@@ -102,7 +105,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   otherwise it gives the hex value alone. "White", "black" and "gray" also need the matching lightness, so a
   light gray such as `#c8c8c8` reads as its hex value, not "white".
 - The PR comment carries every change section from report.md: its name, its line, the Where caption and the
-  CSS on demand, cut at 50,000 characters with a count of the sections left out. The cap covers the whole
+  CSS on demand, cut at 50,000 characters. Where it is cut, a note says so and what to do: "This comment
+  reached GitHub's size limit. N more changes are listed in the full report: open it from the link at the end
+  of this comment." That note is the one place a count stands in for named changes, and the full report it
+  links names every one. The cap covers the whole
   summary, so a report with no change section (a large Change Reach table, say) still posts one comment with
   its approval box; group tables and Evidence stay in the linked report. On a public repository with
   `report-storage: branch` it also shows the Where map and the clean crops, from the report's commit-bound

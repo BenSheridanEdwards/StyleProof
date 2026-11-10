@@ -264,16 +264,22 @@ on:
 
 ## What the PR gets
 
-On every PR, StyleProof posts a small summary comment that links to the committed
-full report. GitHub comments cannot carry the crops, so the link is a product
-limit, not a design choice. The README inlines that same report. The report
-groups each distinct visual change with:
+On every PR, StyleProof posts one comment that carries the report: its summary
+line, then each change section, the approval box (in review-gate mode) and a link
+to the committed full report. On a public repository with `report-storage: branch`
+the comment shows the Where maps and crops at the report's commit-bound URL; on a
+private repository or with artifact storage it carries the sections as text, and
+the images are in the linked report. A comment that would pass GitHub's size limit
+stops with a note that says how many more changes the full report lists and where
+the link is. The README inlines a real comment. Each change section has:
 
-- before/after crops from the same page rectangle;
-- highlighted crops that box the changed element;
-- a plain-English summary such as `columns: 2 -> 3` or
-  `background brand-cyan -> brand-amber`;
-- the exact computed CSS properties that changed.
+- a plain-English name and one sentence built from captured values, such as
+  "The cta changes background from blue to red.";
+- a small **Where** map that rings the changed elements on the page (the only
+  image StyleProof draws on);
+- an unedited before/after crop of the same page rectangle for each changed
+  state ("While hovered");
+- the exact computed CSS properties that changed, under **Show the CSS**.
 
 In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
 status green for that commit. Clean runs still leave a receipt: `No visual
@@ -317,17 +323,20 @@ new surface, two real restyles, an added element, and a structural insertion.
 With content comparison off, only the new surface and real restyles appear;
 `pnpm run demo:check` verifies that this default report matches current code.
 
-The report shown at the top of this README renders this exact entry:
+The demo report renders this section for the restyled call-to-action:
 
 ```text
-### `button.cta` · 1 element restyled
-_home @ 900_
+### Cta
 
-- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
+The cta changes background from blue to red.
 
-▾ Show the property change
-   | Property         | Before  | After   |
-   | background-color | #2563eb | #dc2626 |
+[Where map: 1 cta on home @ 900]
+| Before | After |   (an unedited crop of the cta on each side)
+
+▾ Show the CSS
+   `button.cta` · 1 element restyled
+   | Property         | Before    | After     |
+   | background-color | `#2563eb` | `#dc2626` |
 ```
 
 ## Coverage: what you own, what's discovered
@@ -1380,7 +1389,7 @@ For the GitHub Action, set the equivalent explicit input:
 The report then carries a separate **📝 Content and structure changes
 (advisory)** section. Element additions, removals, and retags are available from
 every capture; with `captureText` on (the default), before/after copy is included
-when `--include-content` is set. Each entry gets a side-by-side crop. The section
+when `--include-content` is set. Each entry gets a Where map and an unedited before/after crop pair. The section
 does **not** affect `changed`, the `StyleProof` status, or the diff exit code, by
 design. With `captureText: false`, structural evidence still renders but text
 values are never stored. Maps captured without text stay positional for pairing
