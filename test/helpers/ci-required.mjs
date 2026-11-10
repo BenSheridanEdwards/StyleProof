@@ -1,28 +1,22 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { load } from 'js-yaml';
 
 const ci = fs.readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
 
-export function requiredStep() {
-  const job = ci.match(/\n {2}required:\n[\s\S]*$/)?.[0];
+export function requiredStep(source = ci) {
+  const job = load(source).jobs.required;
   assert.ok(job, 'ci.yml has no required job');
-  const lines = job.split('\n');
-  const envStart = lines.findIndex((line) => line === '        env:');
-  const runStart = lines.findIndex((line) => line === '        run: |');
-  assert.ok(envStart > 0 && runStart > envStart, 'required step must declare env: then run: |');
+  const step = job.steps.find((candidate) => candidate.env?.E2E_DECISION);
+  assert.ok(step?.run, 'required step must declare env and run');
   const env = {};
-  for (const line of lines.slice(envStart + 1, runStart)) {
-    const match = line.match(/^ {10}([A-Z0-9_]+): \$\{\{ (needs\.[\w-]+\.(?:result|outputs\.[\w-]+)) \}\}$/);
-    assert.ok(match, `unexpected env line in required step: ${line}`);
-    env[match[1]] = match[2];
+  for (const [name, expression] of Object.entries(step.env)) {
+    const match = expression.match(/^\$\{\{\s*(needs\.[\w-]+\.(?:result|outputs\.[\w-]+))\s*\}\}$/);
+    assert.ok(match, `unexpected env expression in required step: ${expression}`);
+    env[name] = match[1];
   }
-  const body = [];
-  for (const line of lines.slice(runStart + 1)) {
-    if (line.trim() !== '' && !line.startsWith('          ')) break;
-    body.push(line.slice(10));
-  }
-  return { env, body: body.join('\n') };
+  return { env, body: step.run };
 }
 
 const step = requiredStep();

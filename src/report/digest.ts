@@ -8,7 +8,8 @@ import { presentationMaps, type ChangeGroup, type RenderCtx } from './shared.js'
 
 /** The "What changed" block: one row per one-sided surface and per change group, above the PR-comment cut. */
 
-export type DigestElement = { name: string; phrase: string };
+/** `count` is present when more than one element carries the same name and phrase. */
+export type DigestElement = { name: string; phrase: string; count?: number };
 export type DigestRow = {
   surface: string;
   status: OneSidedStatus | 'changed';
@@ -23,7 +24,7 @@ export type DigestRow = {
 };
 
 const MAX_ROWS = 10;
-const MAX_ELEMENTS = 3;
+const MAX_ELEMENTS = 5;
 // A hostile map can make a phrase arbitrarily long; past this it stops being a glance.
 const MAX_PHRASE = 240;
 // Real labels are `tag.class` idents and real states plain words; anything else is
@@ -45,13 +46,19 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
   const [mapA, mapB] = presentationMaps(ctx, sd.surface);
   const describeCtx = { tokensBefore: identTokens(mapA.tokens), tokensAfter: identTokens(mapB.tokens) };
   const els = buildElementChanges(findings);
-  const elements = els.slice(0, MAX_ELEMENTS).map((el) => {
-    const phrase = describeElement({ ...el, states: el.states?.map(safeState) }, describeCtx);
-    return {
-      name: safeName(el.label),
-      phrase: phrase.length > MAX_PHRASE ? 'restyled (too long to summarise here)' : phrase,
-    };
-  });
+  // Elements with the same name and phrase fold into one entry, so seven identical
+  // nav items take one slot and the row can name the other changes.
+  const folded: DigestElement[] = [];
+  for (const el of els) {
+    const described = describeElement({ ...el, states: el.states?.map(safeState) }, describeCtx);
+    const name = safeName(el.label);
+    const phrase = described.length > MAX_PHRASE ? 'restyled (too long to summarise here)' : described;
+    const same = folded.find((entry) => entry.name === name && entry.phrase === phrase);
+
+    if (same) same.count = (same.count ?? 1) + 1;
+    else folded.push({ name, phrase });
+  }
+  const elements = folded.slice(0, MAX_ELEMENTS);
 
   const row: DigestRow = {
     surface: sd.surface,
@@ -59,7 +66,7 @@ function changedRow(ctx: RenderCtx, cg: ChangeGroup, chrome: boolean): DigestRow
     ...(cg.surfaces.length > 1 ? { otherSurfaces: cg.surfaces.length - 1 } : {}),
     ...(chrome ? { chrome: true as const } : {}),
     elements,
-    more: els.length - elements.length,
+    more: els.length - elements.reduce((sum, entry) => sum + (entry.count ?? 1), 0),
   };
 
   const foldedRows = derivedLonghandCount(cg.rep.folded ?? []);
@@ -90,7 +97,7 @@ function rowLine(row: DigestRow): string {
     : row.otherSurfaces
       ? `${surface} +${row.otherSurfaces} more surface(s)`
       : surface;
-  const parts = row.elements.map((e) => `**${codeValue(e.name)}** ${e.phrase}`);
+  const parts = row.elements.map((e) => `**${codeValue(e.name)}**${e.count ? ` ×${e.count}` : ''} ${e.phrase}`);
   if (row.more > 0) parts.push(`+${row.more} more element(s)`);
 
   if (row.foldedRows) parts.push(`+${row.foldedRows} size/position row${row.foldedRows === 1 ? '' : 's'} folded`);
