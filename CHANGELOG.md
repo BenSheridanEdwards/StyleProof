@@ -77,6 +77,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `https://github.com/<owner>/<repo>/blob/<sha>/pr-<n>/crops/…?raw=1` URL. Private repositories and artifact
   storage get the sections as text, because no image URL there works for every reader. The branch-storage link
   reads "Open the full visual report →".
+- Each fact in the report and the PR comment is stated once, in plain words: a visible element added or removed
+  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface, a surface whose base
+  capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of the base was captured; repair that
+  surface on that commit and recapture."), a reach gate and a frozen-clock drift. Report content no longer tells
+  the reader to approve; the PR comment's footer gives the approval or certify guidance for its mode. The clean
+  footer gives only the check status, the comment points at "the full report" instead of sections it does not
+  carry, and the summary gives no changed-CSS-rule count when a served-CSS record is missing.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
   `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
   in report.json, the Action's `trust-state` output and commit statuses.
@@ -265,6 +272,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    - for a forced state (`:checked`, `:hover` …) that restyles another element,
      `paths` now names the restyled element; the element that owns the state
      is named in report.md as the driver.
+
+   - when a side's served-CSS record is missing, old or unreadable, `reach`
+     has no `counts`, and no `rules` when none could be listed (it keeps
+     `ledger`, `complete: false` and the named gap), so it never reads as zero
+     changed rules; the diff CLI's gate receipt keeps its counts.
 
    `zoomBelow` is accepted and ignored. The report's Markdown layout changed
    too: tools that parse report.md should read report.json instead.
