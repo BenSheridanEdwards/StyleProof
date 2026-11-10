@@ -9,7 +9,7 @@
 ## In progress
 
 - Visual-first report (branch `feat/report-visual-first`), round 17 done, rebasing onto 8e038b61 for a fresh QA and review. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). No pull request yet; it opens unmerged for Ben's crop check.
-- Add `tasks.md` and the task-tracking rule. This documentation pull request; the GitHub link will be added once it is open.
+- Add `tasks.md` and the task-tracking rule. [Pull request #1323](https://github.com/BenSheridanEdwards/StyleProof/pull/1323).
 
 ## Waiting
 
