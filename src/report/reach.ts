@@ -395,14 +395,22 @@ export function reachSectionLines(reach: ReportReach): string[] {
 export function reachSummaryLine(reach: PublishedReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
   const { counts } = publishedReach(reach);
-  // With a served-CSS record missing, the rule counts are not known: name the gaps, not zeros.
-  const ruleCounts = counts
-    ? `${counts['never-rendered']} rule(s), ${counts.unmeasured} unmeasured, ${counts['blind-channel']} blind-channel, `
-    : 'not every changed rule could be listed, ';
+  // The report's own words for each count, non-zero ones only (RV15-14). With a served-CSS record
+  // missing, the rule counts are not known: say so, not zeros.
+  const rules = (n: number, what: string) => (n ? [`${n} changed CSS rule${n === 1 ? '' : 's'} ${what}`] : []);
+  const parts = counts
+    ? [
+        ...rules(counts['never-rendered'], 'no captured state matched'),
+        ...rules(counts.unmeasured, 'matched only elements StyleProof does not compare'),
+        ...rules(counts['blind-channel'], 'in a channel computed styles cannot hold'),
+      ]
+    : ['not every changed rule could be listed'];
+  if (gaps) parts.push(`${gaps} ${gaps === 1 ? 'stylesheet record' : 'stylesheet records'} could not be checked`);
+  const ruleCounts = parts.join(', ');
 
   // The headline's gate line points here, so the one-liner names the rules it holds (RV11-15).
   const never = (reach.rules ?? []).filter((rule) => rule.status === 'never-rendered');
   const names = never.length ? `${namedRules(never)} — ` : '';
 
-  return `- Changed but never matched: ${names}${ruleCounts}${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
+  return `- Changed but never matched: ${names}${ruleCounts}; changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
 }

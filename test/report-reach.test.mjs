@@ -323,7 +323,7 @@ test('the collapsed reach summary names gaps, not zero counts, when a served-CSS
       },
     ],
   });
-  assert.match(line, /not every changed rule could be listed, 1 evidence gap/);
+  assert.match(line, /not every changed rule could be listed, 1 stylesheet record could not be checked;/);
   assert.doesNotMatch(line, /\b0 rule/);
 });
 
@@ -666,7 +666,7 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      "- Changed but never matched: `.fault-0`, `.fault-1`, `.fault-10`, `.fault-11`, `.fault-12` and 95 more — 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked (not held by `changeReach: 'gate'`); full list in report.json under `reach`",
+      "- Changed but never matched: `.fault-0`, `.fault-1`, `.fault-10`, `.fault-11`, `.fault-12` and 95 more — 100 changed CSS rules no captured state matched; changed stylesheets no capture served are not checked (not held by `changeReach: 'gate'`); full list in report.json under `reach`",
     ),
   );
   // QA3-01: the warn-only J2 counts stay machine output.
@@ -682,7 +682,13 @@ test('a bounded report retains the unmeasured count and full JSON evidence', (t)
   const side = (hash) =>
     map(...Array.from({ length: 100 }, (_, index) => rule(`.ignored-${index}`, hash, { outside: true })));
   const output = report(fixture(t, [side('h1')], [side('h2')]), { maxReportBytes: 5000, changeReach: 'gate' });
-  assert.match(output.md, /0 rule\(s\), 100 unmeasured, 0 blind-channel, 0 evidence gap\(s\)/);
+  assert.match(
+    output.md,
+    /Changed but never matched: 100 changed CSS rules matched only elements StyleProof does not compare;/,
+  );
+  // RV15-14: the cut report's one-liner uses the report's plain words, never reach's internal ones.
+  const oneLiner = output.md.split('\n').find((l) => l.startsWith('- Changed but never matched:')) ?? '';
+  assert.doesNotMatch(oneLiner, /blind-channel|\d+ unmeasured|evidence gap\(s\)|0 rule\(s\)/);
   assert.ok(Buffer.byteLength(output.md, 'utf8') <= 5000);
   assert.equal(output.json.reach.counts.unmeasured, 100);
   assert.equal(output.json.reach.rules.length, 100);
