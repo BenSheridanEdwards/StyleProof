@@ -183,7 +183,7 @@ function scopeText(keys: string[], base: (key: string) => string, elements: numb
   const wide =
     widths.length === 0
       ? ''
-      : widths.length <= 4
+      : widths.length <= 3
         ? ` at ${andList(widths.map(String))}px wide`
         : ` at ${widths.length} widths`;
   const rules = changedRules === undefined ? '' : `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}`;
