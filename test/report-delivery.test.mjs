@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import * as publicApi from '../dist/index.js';
 import { buildReportDelivery, buildArtifactReportDelivery } from '../dist/report-delivery.js';
+import { COMMENT_SUMMARY_MAX_CHARS } from '../dist/report-comment.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
@@ -594,12 +595,13 @@ test('Action metadata, generated comment, and README expose one linked-delivery 
     /--image-base-url/,
   );
 
-  // One comment shape for every repository: the summary and every section, then the link; only the
-  // images differ (QA19-03).
+  // One comment shape for every repository: the summary and every section up to the size cap, then
+  // the link; past the cap, the sections that fit and the cap note; only the images differ (QA19-03, RV19-03).
   assert.match(
     readme,
-    /PR comment carries the report itself: the summary line and every change section, then a link to the full report\./,
+    /PR comment carries the report itself: the summary line and every change section, up to 50,000 characters \(under GitHub's 65,536-character limit\), then a link to the full report\. A longer report shows the sections that fit, then a note saying what the full report has beyond them and that its link is at the end of the comment\./,
   );
+  assert.equal(COMMENT_SUMMARY_MAX_CHARS, 50_000, 'the README states the cap the comment uses');
   assert.match(
     readme,
     /on a private repository or with artifact storage the sections are text, and the images are in the linked report/,

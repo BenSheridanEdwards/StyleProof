@@ -107,9 +107,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The PR comment carries every change section from report.md: its name, its line, the Where caption and the
   CSS on demand, cut at 50,000 characters. Where it is cut, a note says so and what to do: "This comment
   reached GitHub's size limit. N more changes are listed in the full report: open it from the link at the end
-  of this comment." When the cut falls in the opening lines, before any change section, the note has no count:
-  "This comment reached GitHub's size limit. The rest is in the full report: open it from the link at the end of
-  this comment." That note is the one place a count stands in for named changes, and the full report it links
+  of this comment." The note has no count only for a report with no change section whose opening lines alone
+  pass the cap: "This comment reached GitHub's size limit. The rest is in the full report: open it from the link
+  at the end of this comment." Any other cut, even one in the opening lines, gives the count of changes left
+  out. That note is the one place a count stands in for named changes, and the full report it links
   names every one. The cap covers the whole
   summary, so a report with no change section (a large Change Reach table, say) still posts one comment with
   its approval box; group tables and Evidence stay in the linked report. On a public repository with

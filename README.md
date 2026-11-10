@@ -147,7 +147,7 @@ pass or fail decision runs on the exact values in the table. Surface-key vocabul
 variants) is in [docs/REFERENCE.md](docs/REFERENCE.md). Declare `mediaStates` to add dark-theme,
 print, or forced-colors captures; see [media environments](docs/REFERENCE.md#media-environments).
 
-**Where the report lives.** On a pull request, the PR comment carries the report itself: the summary line and every change section, then a link to the full report. On a public repository with `report-storage: branch` it also shows the Where maps and crops; on a private repository or with artifact storage the sections are text, and the images are in the linked report.
+**Where the report lives.** On a pull request, the PR comment carries the report itself: the summary line and every change section, up to 50,000 characters (under GitHub's 65,536-character limit), then a link to the full report. A longer report shows the sections that fit, then a note saying what the full report has beyond them and that its link is at the end of the comment. On a public repository with `report-storage: branch` it also shows the Where maps and crops; on a private repository or with artifact storage the sections are text, and the images are in the linked report.
 Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
 repository git history. Images travel inside the self-contained HTML.
 
