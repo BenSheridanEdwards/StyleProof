@@ -36,10 +36,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after. Each page
   image is inlined once and shared by every Where map and whole-page panel that draws it.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
-  under the label, with the checkbox named as the driver ("when the matching opt is checked" for a list of them),
-  and each control's state gets its own section. Each state names its own driver: a label's own `:hover` reads
-  "when hovered" even when a checkbox's `:checked` also restyles it ("when the opt is checked"), and the CSS line
-  names the checkbox for `:checked` only. A new or removed hover/focus style names the resting value
+  under the label. Which control drives a state comes only from the capture: each state finding records the
+  control whose state was forced (report.json `findings[].path`, the restyled element in `sub`), as main
+  renders it. Every state clause, CSS-line entry and property row names that control for that finding: "when
+  hovered" for the element's own state, "when the opt is checked" for one control, "when the matching opt is
+  checked" when each grouped element has its own control of that selector, and "when either of the 2 opts is
+  checked" when several controls of one selector produce one change. A label restyled by its own hover and two
+  controls names all three, and rows read `input.opt:checked color`. A new or removed hover/focus style names the resting value
   it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
@@ -83,6 +86,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   8000px, full screenshot `long@1280.png` in the head capture). A new or removed page shows at most 8 screen
   heights; open the full screenshot to review the rest." (When the crop budget cut it, the line says to raise
   `--max-crop-files` or `--max-crop-bytes` instead.)
+  A Where map the crop budget leaves out counts in that line too, and when a partly shown page and other
+  changes both hit the crop budget, only the ✂️ line gives the option to raise it.
 - A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
   otherwise it gives the hex value alone. "White", "black" and "gray" also need the matching lightness, so a
   light gray such as `#c8c8c8` reads as its hex value, not "white".
@@ -290,7 +295,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
      `stateImages[state].before` / `.after`; `composite`, `annotated` and `zoom`
      are gone and nothing is drawn on the crops;
    - a region whose crop a limit left out has `cropOmitted: 'budget'` (crop
-     file or byte budget, as before) or the new `cropOmitted: 'max-crops'`;
+     file or byte budget, as before, and also when the budget leaves out its
+     Where map) or the new `cropOmitted: 'max-crops'`;
      `visualEvidence: 'not-rendered'` now means only that the element is not
      visible in the capture;
    - read highlight boxes from the new `where[]` (`{ image, side, boxes }`,
