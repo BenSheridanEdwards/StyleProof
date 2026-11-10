@@ -104,7 +104,8 @@ test('honest attribution: base-capture-failed=false is never a recapture failure
   assert.equal(attribution.recaptureFailed, false);
   assert.match(attribution.summary, new RegExp(FAILED_SURFACE));
   assert.match(attribution.summary, new RegExp(BASE_SHA));
-  assert.doesNotMatch(attribution.summary, /base-capture-failed/, 'the internal flag stays out of report text');
+  // The styleproof-diff console and audit trail keep main's wording; report text never uses it (RV18-07).
+  assert.match(attribution.summary, /base-capture-failed=false/);
   assert.match(attribution.summary, /not a base recapture failure/i);
   assert.doesNotMatch(attribution.summary, FALSE_RECAPTURE_CLAIM);
 });
