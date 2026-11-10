@@ -230,7 +230,7 @@ function correspondingPathsByContentSignature(
     );
     // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
-    candidates.push(...moves);
+    for (const move of moves) candidates.push(move);
   }
   // Drop closed permutations across every group first, so dropping a move below cannot open one.
   const shifts = withoutClosedPermutations(new Map(candidates));
