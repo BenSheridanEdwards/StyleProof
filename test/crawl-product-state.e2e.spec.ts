@@ -122,6 +122,7 @@ test.describe.serial('crawl productState', () => {
     expect(capturesIn('head')).toEqual(keys);
     const { result, md } = report('head');
     expect(md).not.toContain('Product-state identity unproven');
+    expect(md).not.toContain('This compare cannot certify');
     expect(result.comparison.status).toBe('comparable');
     expect(receipts(result)).toEqual(every(keys, ['comparable', true]));
     expect(result.comparison.blocksCertification).toBe(false);
@@ -146,7 +147,11 @@ test.describe.serial('crawl productState', () => {
     expect(result.comparison.status).toBe('unproven');
     expect(receipts(result)).toEqual(every(capturesIn('base'), ['unproven', true]));
     expect(result.comparison.blocksCertification).toBe(true);
-    expect(md).toContain('Product-state identity unproven');
+    // The report states the block as one line (the visual-first report has no "identity unproven" label).
+    expect(md).toMatch(
+      /⛔ \*\*This compare cannot certify:\*\* \d+ paired capture\(s\) are not proven to show the same product state/,
+    );
+    expect(md).not.toContain('Product-state identity unproven');
   });
   test('a link the function leaves undeclared is not promoted to comparable', () => {
     const { result } = report('head-partial');
