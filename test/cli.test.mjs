@@ -2052,6 +2052,9 @@ test('report CLI opens a report with changes with the UNVERIFIED source-binding 
     /^> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified\. .*`--expected-before-sha` and `--expected-after-sha`/,
   );
   assert.match(pair.html, /UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  // The warning leads the page and the header still renders: title, theme switch and summary (RV19-01).
+  assert.match(pair.html, /<header class="top"><div class="topbar"><h1>StyleProof report<\/h1><div class="theme"/);
+  assert.match(pair.html, /<p class="summary"><strong>\d+ changes? to review<\/strong>/);
   assert.notEqual(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).sourceBinding.status, 'bound');
   assertHtmlRendersMd(pair);
   rmTmp(root);

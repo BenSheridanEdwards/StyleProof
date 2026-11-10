@@ -307,3 +307,27 @@ function markdownWithSection() {
     '<!-- styleproof-section-end -->',
   ].join('\n');
 }
+
+test('an unbound report keeps the header, theme switch and jump links, and opens with the warning (RV19-01)', () => {
+  // The note `styleproof-report` writes above the title when no --expected-*-sha was given (RV18-06).
+  const note =
+    '> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified. This report did not check that its captures ' +
+    'came from the base and head commits; run it with `--expected-before-sha` and `--expected-after-sha` to check them.';
+  const outDir = path.join(import.meta.dirname, '..', 'docs', 'demo');
+  const demo = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8').replace(/\n$/, '');
+  for (const [name, md] of [
+    ['bound', demo],
+    ['unbound', `${note}\n\n${demo}`],
+  ]) {
+    const html = renderReportHtml(md, { outDir });
+    assert.match(html, /<header class="top"><div class="topbar"><h1>StyleProof report<\/h1>/, name);
+    for (const theme of ['auto', 'light', 'dark']) assert.match(html, new RegExp(`data-set-theme="${theme}"`), name);
+    assert.match(html, /<nav class="toc" aria-label="Changes"><a href="#/, name);
+    assert.match(html, /<p class="summary"><strong>\d+ changes? to review<\/strong>/, name);
+  }
+  const unbound = renderReportHtml(`${note}\n\n${demo}`, { outDir });
+  const warning = unbound.indexOf('UNVERIFIED DIAGNOSTIC: source binding was not verified.');
+  assert.ok(warning > 0, 'the warning is on the page');
+  assert.match(unbound, /run it with <code>--expected-before-sha<\/code> and <code>--expected-after-sha<\/code>/);
+  assert.ok(warning < unbound.indexOf('<header class="top">'), 'the page opens with the warning, as report.md does');
+});

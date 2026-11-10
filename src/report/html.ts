@@ -444,18 +444,23 @@ const TITLE_LINE = /^## 🗺️ StyleProof report$/;
 
 const SUMMARY_LINE = /^(?:\*\*\d+ changes? to review\*\*|✓|⚠ UNVERIFIED|Computed-style scope)/;
 
-/** The lines above the first heading: the summary line goes to the header, the rest stay as notes. */
+/**
+ * The lines above the first heading: the summary line goes to the header, the rest stay as notes.
+ * A note written above the title (the unbound source-binding warning) leads the page, before the header.
+ */
 function topBlock(lines: string[]) {
-  const titled = TITLE_LINE.test(lines[0] ?? '');
-  if (!titled) return { titled, summary: '', notes: [] as string[], next: 0 };
-  const end = lines.findIndex((l, n) => n > 0 && (/^#{2,3} /.test(l) || decodeCapturedMeta(l) !== null));
-  const top = lines.slice(1, end < 0 ? lines.length : end);
+  const title = lines.findIndex((l) => /^#{1,3} /.test(l));
+  const titled = title >= 0 && TITLE_LINE.test(lines[title]);
+  if (!titled) return { titled, lead: [] as string[], summary: '', notes: [] as string[], next: 0 };
+  const end = lines.findIndex((l, n) => n > title && (/^#{2,3} /.test(l) || decodeCapturedMeta(l) !== null));
+  const top = lines.slice(title + 1, end < 0 ? lines.length : end);
   const at = top.findIndex((l) => SUMMARY_LINE.test(l));
   return {
     titled,
+    lead: lines.slice(0, title),
     summary: at >= 0 ? inline(top[at]) : '',
     notes: top.filter((_l, n) => n !== at),
-    next: 1 + top.length,
+    next: title + 1 + top.length,
   };
 }
 
@@ -494,7 +499,7 @@ function pageBody(lines: string[], start: number, notes: string[]): PageBody {
 const FOOTER =
   '<footer>Made by StyleProof from the computed styles and screenshots it captured in a real browser. Every before/after image is an unedited crop of a capture; only the Where maps are marked.</footer>';
 
-/** The page body: header (title, theme switch, summary, jump links), top notes, sections, captured, footer. */
+/** The page body: any lead note, header (title, theme switch, summary, jump links), top notes, sections, captured, footer. */
 function renderPage(lines: string[]): string {
   const top = topBlock(lines);
   const body = pageBody(lines, top.next, top.notes);
@@ -505,8 +510,9 @@ function renderPage(lines: string[]): string {
   const header = top.titled
     ? `<header class="top"><div class="topbar"><h1>StyleProof report</h1>${THEME_SWITCH}</div>${summary}${toc}</header>`
     : '';
+  const lead = top.lead.some((l) => l.trim()) ? renderBlocks(top.lead).join('\n') : '';
   const captured = body.captured ? capturedSection(body.captured, new Set(body.cards.map((c) => c.id))) : '';
-  return [header, ...body.html, captured, FOOTER].filter(Boolean).join('\n');
+  return [lead, header, ...body.html, captured, FOOTER].filter(Boolean).join('\n');
 }
 
 const THEME_SWITCH =
