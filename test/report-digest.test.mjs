@@ -231,7 +231,7 @@ test('identical elements share one entry, and a property with no rule is named',
   const heading = (color) => ({
     'body > h1:nth-child(4)': { tag: 'h1', cls: 'title', rect: [300, 100, 400, 60], style: { color } },
   });
-  const { slice, json } = report(
+  const { md, slice, json } = report(
     pairFixture({
       surface: 'home@900',
       before: pageMap({ extra: { ...items('42px'), ...heading('rgb(0, 0, 0)') } }),
@@ -243,6 +243,11 @@ test('identical elements share one entry, and a property with no rule is named',
     { name: 'button.nav-item', phrase: 'line-height 42px → 52px', count: 7 },
   ]);
   assert.equal(json.digest[0].more, 0);
-  assert.match(slice, /\*\*`h1\.title`\*\* text black .* · \*\*`button\.nav-item`\*\* ×7 line-height 42px → 52px$/m);
-  assert.doesNotMatch(slice, /more element/);
+  // The comment carries no What changed digest (report.json keeps it); each change is said once,
+  // in its own section: the seven identical nav items as one, with the unnamed property named.
+  assert.doesNotMatch(slice, /What changed|more element/);
+  const said = (title) => md.split('\n### ').find((s) => s.startsWith(`${title}\n`)) ?? '';
+  assert.match(said('Nav items'), /^All 7 nav items change line height from `42px` to `52px`\.$/m);
+  assert.match(said('Title'), /^The title changes text colour from black to red\.$/m);
+  assert.equal(md.match(/line height from `42px` to `52px`/g).length, 1, 'said once');
 });

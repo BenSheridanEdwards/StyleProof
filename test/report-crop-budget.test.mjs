@@ -256,13 +256,15 @@ test('advisory content crops do not take the crop budget from reviewable style c
   writeCapture(dirs.afterDir, 'home@1280', map('rgb(255, 0, 0)', 'Updated demo copy'), noisePng(400, 400, 2));
   const isContent = (file) => file.includes('content');
   const full = report(dirs, 'full', { includeContent: true, maxCropBytes: Number.MAX_SAFE_INTEGER });
-  const styleFiles = full.files.filter((file) => !isContent(file));
+  // Whole-page images are optional context written after every crop, never evidence.
+  const styleFiles = full.files.filter((file) => !isContent(file) && !file.includes('-page'));
   assert.ok(styleFiles.length > 0 && full.files.some(isContent), 'the fixture renders style and content crops');
   const styleBytes = styleFiles.reduce((sum, file) => sum + fs.statSync(path.join(full.outDir, 'crops', file)).size, 0);
 
   const capped = report(dirs, 'capped', { includeContent: true, maxCropBytes: styleBytes });
   assert.deepEqual(capped.files, styleFiles, 'the budget goes to the reviewable style change first');
-  assert.equal(capped.json.cropBudget.omitted, 1, 'the advisory content crop is the one left out');
+  // This report gives a content change a Where map too: its pair and its map are what is left out.
+  assert.equal(capped.json.cropBudget.omitted, 2, 'the advisory content crop and its Where map are left out');
   assert.match(capped.md, /Updated demo copy/, 'the content change is still listed');
 });
 
