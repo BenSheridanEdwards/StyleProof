@@ -63,15 +63,15 @@ const RINGED = 1;
 const INSIDE = 2;
 
 /**
- * Mark a box's pixels with `value`. A pixel x is in [start, end) when x >= start and x < end, so
- * it runs from ceil(start) to ceil(end) - 1, clipped to the map.
- */
-/**
  * The drawing's work, counted only when a caller passes it (tests): map pixels written, and mask
  * rows filled while marking boxes. One pass writes each pixel once; marking costs each box's rows.
  */
 export type WhereMapWork = { pixels: number; boxRows: number };
 
+/**
+ * Mark a box's pixels with `value`. A pixel x is in [start, end) when x >= start and x < end, so
+ * it runs from ceil(start) to ceil(end) - 1, clipped to the map.
+ */
 function markBox(
   mask: Uint8Array,
   width: number,

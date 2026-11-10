@@ -60,8 +60,6 @@ export type ChangeLineInput = {
   /** Summarized resting prop changes, `pseudo` set for `::before` / `::after` rows. */
   rest: Array<PropChange & { pseudo?: string }>;
   states: StateChange[];
-  /** A state owned by another element (a checkbox `:checked` restyling its label). */
-
   dom?: 'added' | 'removed' | 'retagged';
   /** Only size/position values moved: no styling property changed. */
   geometryOnly?: boolean;
@@ -317,7 +315,6 @@ function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
   return ` ${many ? 'Each is' : 'It is'} now ${parts.join(' and ')}.`;
 }
 
-/** The section's one plain-English line. */
 /** Added, removed, retagged or size-only elements: one fixed sentence each. */
 function structuralSentence(input: ChangeLineInput, who: string, many: boolean): string | null {
   const Who = capitalise(who);

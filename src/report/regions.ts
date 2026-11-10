@@ -13,16 +13,6 @@ import { andList } from './change-line.js';
 import type { StyleMap } from '../capture.js';
 import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT, type ChangeSection } from './change-sections.js';
 
-/** A change group's sections, built once for the summary line and the rendering. */
-const builtSections = new WeakMap<ChangeGroup, ChangeSection[]>();
-function groupSections(cg: ChangeGroup, maps: [StyleMap, StyleMap]): ChangeSection[] {
-  let sections = builtSections.get(cg);
-  if (!sections) {
-    sections = buildChangeSections(cg.rep.findings, maps);
-    builtSections.set(cg, sections);
-  }
-  return sections;
-}
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { isSameOrDescendant } from './geometry.js';
 import { MISLEADING_CROP_REASON } from './crop-pair.js';
@@ -39,7 +29,16 @@ import {
   type RenderCtx,
 } from './shared.js';
 
-/** A change group's change sections, rendered in page order. */
+/** A change group's sections, built once for the summary line and the rendering. */
+const builtSections = new WeakMap<ChangeGroup, ChangeSection[]>();
+function groupSections(cg: ChangeGroup, maps: [StyleMap, StyleMap]): ChangeSection[] {
+  let sections = builtSections.get(cg);
+  if (!sections) {
+    sections = buildChangeSections(cg.rep.findings, maps);
+    builtSections.set(cg, sections);
+  }
+  return sections;
+}
 
 type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
 
