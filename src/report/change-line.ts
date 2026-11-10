@@ -27,39 +27,25 @@ export type SectionSubject = {
 export type StateProp = PropChange & { pseudo?: string; painted?: true };
 
 /**
- * One owner group of a counted clause: the distinct changes these `count` owners all made (and no
- * other owner group says), `also` when they are some of an earlier group's owners.
- */
-export type OwnerGroup = { count: number; props: StateProp[]; also?: true };
-
-/**
- * One clause: a forced state's change(s); `driver` is the control that produced them, absent for the
- * element's own state. `ownToo`: the element's own state made the same change as the driver ("when
- * hovered or when the opt is hovered"). `groups`: a counted clause whose owners made different
- * changes, one group per owner (owners with the same change share one, with their `count`).
+ * One clause: a forced state's change(s); `driver` is the owner path(s) that made them, absent for
+ * the element's own state, which is always its own clause (the CPO's round-18 fallback).
  */
 export type StateChange = {
   state: string;
   props: StateProp[];
-  /** A counted clause's owner count, for its groups' words ("each", "the other"). */
-  owners?: number;
   driver?: StateDriver;
-  ownToo?: true;
-  groups?: OwnerGroup[];
 };
 /**
- * The owner(s) of one clause, as the capture records them (by owner path, never inferred):
- * - `owners`: how many owner paths made it (several only for one identical change: "either of the 2 opts");
- * - `counted`: owners of one selector the report cannot tell apart ("one of the 3 `input.chip` controls");
- * - `labels`: several selectors that made one identical change ("`input.pickr` or `select.pickr`");
- * - `matching`: each grouped element has its own owner; `name: 'label'`: named by selector, because
- *   another single owner's noun reads the same.
+ * The owner(s) of one clause, as the capture records them (by owner path, never inferred), named as
+ * main names them:
+ * - `owners`: how many owner paths of one selector stated the same changes ("`input.opt` ×3", main's
+ *   collapsed block);
+ * - `matching`: each grouped element has its own owner; `name: 'label'`: named by selector, as main
+ *   heads it, because another owner's noun reads the same or the capture has no entry for it.
  */
 export type StateDriver = {
   subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
   owners: number;
-  counted?: { label: string; total: number };
-  labels?: string[];
   matching?: true;
   name?: 'label';
 };
@@ -252,11 +238,13 @@ export function withoutColorEchoes<T extends StateProp>(props: T[]): T[] {
   );
 }
 
-/** Up to two fragments, then "and N more properties". */
+/**
+ * Every fragment, "a and b" or "a, b and c": a line names each change it states, with no "and N
+ * more" tail (the CPO's round-18 fallback, QA17-01). An accurate line beats a compact one.
+ */
 function fragmentList(fragments: string[]): string {
   if (fragments.length <= 2) return fragments.join(' and ');
-  const rest = fragments.length - 2;
-  return `${fragments.slice(0, 2).join(', ')} and ${rest} more ${rest === 1 ? 'property' : 'properties'}`;
+  return `${fragments.slice(0, -1).join(', ')} and ${fragments[fragments.length - 1]}`;
 }
 
 /** The one table of forced-state words: change lines, pair labels and report.html read it. */
@@ -279,44 +267,11 @@ const withVerb = (fragment: string): string =>
       ? fragment.replace(' from ', ' changes from ')
       : `${fragment} changes`;
 
-/** One clause; `grouped` clauses lead with their trigger and take no article. */
-type Clause = { text: string; grouped?: true };
-
 /** "background changes from blue to red when hovered" */
-function stateClause(change: StateChange, driver: string | null): Clause {
-  const word = stateWord(change.state);
-  const when = !driver
-    ? `when ${word}`
-    : change.ownToo
-      ? `when ${word} or when ${driver} ${word}`
-      : `when ${driver} ${word}`;
-  if (change.groups) return { text: `${when}, ${ownerGroups(change.groups, change.owners ?? 0)}`, grouped: true };
+function stateClause(change: StateChange, driver: string | null): string {
+  const when = driver ? `when ${driver} ${stateWord(change.state)}` : `when ${stateWord(change.state)}`;
   const [first, ...more] = withoutColorEchoes(change.props).map(propFragment);
-  return { text: `${fragmentList([withVerb(first), ...more])} ${when}` };
-}
-
-const MAX_GROUPS = 2;
-
-/**
- * A counted clause's owner groups (QA15-01, QA16-01): each distinct change is said once, under the
- * owners that made it, with their count: "each changes the text colour …, and one also changes
- * the border colour …", "one changes the text colour …, while the other changes the background …".
- * Each group is capped like any change line; past two groups, "and N more changes".
- */
-function ownerGroups(groups: OwnerGroup[], total: number): string {
-  const said = (g: OwnerGroup, who: string) =>
-    `${who} ${g.also ? 'also ' : ''}${g.count === 1 || g.count === total ? 'changes' : 'change'} ${fragmentList(g.props.map((p) => `the ${propFragment(p)}`))}`;
-  const who = (g: OwnerGroup) => (g.count === total ? 'each' : g.count === 1 ? 'one' : `${g.count} of them`);
-  const [first, second] = groups;
-  if (groups.length === 2 && !second.also && first.count + second.count === total) {
-    const other = second.count === 1 ? 'the other' : `the other ${second.count}`;
-    return `${said(first, who(first))}, while ${said(second, other)}`;
-  }
-  if (groups.length === 2) return `${said(first, who(first))}, and ${said(second, who(second))}`;
-  const shown = groups.slice(0, MAX_GROUPS).map((g) => said(g, who(g)));
-  const rest = groups.slice(MAX_GROUPS).reduce((sum, g) => sum + g.props.length, 0);
-  const tail = rest ? [`and ${rest} more ${rest === 1 ? 'change' : 'changes'}`] : [];
-  return [...shown, ...tail].join('; ');
+  return `${fragmentList([withVerb(first), ...more])} ${when}`;
 }
 
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
@@ -358,26 +313,17 @@ function stateSentences(input: ChangeLineInput, who: string, many: boolean): str
     const label = codeValue(prettyLabel(driver.subject.path, driver.subject.cls));
     const noun = sectionNoun(driver.subject);
     const matching = driver.matching ? 'matching ' : '';
-    if (driver.counted) return `one of the ${driver.counted.total} ${codeValue(driver.counted.label)} controls is`;
-    if (driver.labels) return `${driver.labels.map(codeValue).join(' or ')} is`;
-    if (driver.owners > 1)
-      return `${driver.owners === 2 ? 'either' : 'any'} of the ${driver.owners} ${matching}${plural(noun)} is`;
+    // Owners of one selector that stated the same changes: main's collapsed block, "`input.opt` ×3".
+    if (driver.owners > 1) return `${label} ×${driver.owners} is`;
     if (driver.name === 'label') return `${label} is`;
     return `the ${matching}${noun} is`;
   };
 
-  // A grouped (counted) clause says its owners after its trigger, so it comes last.
-  const all = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
-  const clauses = [...all.filter((c) => !c.grouped), ...all.filter((c) => c.grouped)];
+  const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
   if (!clauses.length) return [];
+  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
   const rest = input.restFolded ? [] : [many ? 'At rest they look the same.' : 'At rest it looks the same.'];
-  if (input.rest.length) {
-    const [first, ...more] = clauses;
-    const lead = first.grouped ? capitalise(first.text) : `${many ? 'Their' : 'Its'} ${first.text}`;
-    return [`${listClauses([lead, ...more.map((c) => c.text)], '')}.`];
-  }
-  const texts = clauses.map((c) => (c.grouped ? c.text : `the ${c.text}`));
-  return [`On ${who}, ${listClauses(texts, '')}.`, ...rest];
+  return [`On ${who}, the ${listClauses(clauses, 'the ')}.`, ...rest];
 }
 
 /** The section's one plain-English line. */

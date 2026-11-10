@@ -14,7 +14,6 @@ import {
   type StateChange,
   type StateDriver,
   type StateProp,
-  type OwnerGroup,
   withoutColorEchoes,
 } from './change-line.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
@@ -60,24 +59,20 @@ export type ChangeSection = {
 };
 
 /**
- * One clause of a section's change line: a forced-state change and the sources that produced it,
- * as the capture records them (#1299). Attribution is by owner path (`f.path`), never inferred:
- * - owners (and the element's own state) that made one identical change share it, whatever their
- *   selectors (QA14-06): "when `input.pickr` or `select.pickr` is focused";
- * - owners of one selector label that the report cannot tell apart (main heads them identically)
- *   are one counted clause per state, never named "one … another" (QA14-01): "when one of the 3
- *   `input.chip` controls is checked, the text colour … or the background … changes".
+ * One clause of a section's change line: a forced-state change and the owner path(s) that made it,
+ * as the capture records them (#1299), in main's own per-owner wording (the CPO's round-18
+ * fallback): one clause per owner path; owners of one selector that stated the same changes are one
+ * clause, as main collapses identical blocks to ×N ("when `input.opt` ×3 is checked"); the
+ * element's own state is always its own clause. Nothing is counted across owners.
  */
 export type StateSource = {
   state: Exclude<PairState, 'rest'>;
   /** The element's own state made this change. */
   own: boolean;
-  /** The owner paths that made it (none for a change only the element's own state made). */
+  /** The owner paths that made it (none for the element's own state). */
   owners: string[];
-  /** Each distinct change in the clause: one, or several in a counted clause. */
+  /** The changes (the first owner's; every owner of a ×N clause stated the same). */
   changes: StateFinding[];
-  /** The owners share a selector the report cannot tell apart: all `total` owners of `label` here. */
-  counted?: { label: string; total: number };
 };
 
 type StateFinding = Extract<Finding, { kind: 'state' }>;
@@ -88,104 +83,53 @@ const ownerLabel = (f: StateFinding): string => prettyLabel(f.path, f.cls ?? '')
 const changeKey = (f: StateFinding): string =>
   JSON.stringify([f.state, pseudoOf(f) ?? '', f.props.map((p) => [p.prop, p.before, p.after])]);
 
-/** How the report names an owner path: its noun ("Save button", "opt"), from the captured entry. */
-type OwnerName = (finding: StateFinding) => string;
+/** One owner's changes as the line states them, for telling identical owner blocks apart. */
+type StatedKey = (changes: StateFinding[]) => string;
 
 /**
- * Selector labels with more than one owner path on this element that the report cannot tell apart:
- * their names read the same (two `input.opt`), as main heads them. Owners whose names differ ("the
- * Save button", "the Cancel button") keep their own clauses (QA14-01).
+ * One element's clauses, in state order: one per owner path (its several changes together), the
+ * element's own state on its own, and owners of one selector that stated the same changes as one ×N
+ * clause, as main collapses identical blocks.
  */
-function sharedLabels(findings: StateFinding[], nameOf: OwnerName): Map<string, number> {
-  const paths = new Map<string, Map<string, string>>();
-  for (const f of findings.filter((x) => !ownState(x)))
-    paths.set(ownerLabel(f), new Map([...(paths.get(ownerLabel(f)) ?? []), [f.path, nameOf(f)]]));
-  return new Map(
-    [...paths]
-      .filter(([, names]) => names.size > 1 && new Set(names.values()).size < names.size)
-      .map(([label, names]) => [label, names.size]),
-  );
-}
-
-/** Identical changes share a source: same state, pseudo and props, whichever owners made them. */
-function identicalSources(findings: StateFinding[], state: StateSource['state']): StateSource[] {
-  const identical = new Map<string, StateSource>();
-  for (const f of findings.filter((finding) => finding.state === state)) {
-    const source = identical.get(changeKey(f)) ?? { state, own: false, owners: [], changes: [f] };
-    if (ownState(f)) source.own = true;
-    else source.owners.push(f.path);
-    identical.set(changeKey(f), source);
-  }
-  return [...identical.values()];
-}
-
-/** One owner's (or the element's own) several changes in one state are one clause: "a and the b when …". */
-function byOwnerSet(sources: StateSource[]): StateSource[] {
-  const merged = new Map<string, StateSource>();
-  for (const source of sources) {
-    const key = JSON.stringify([source.own, source.owners]);
-    const seen = merged.get(key);
-    if (seen) source.changes.forEach((change) => seen.changes.push(change));
-    else merged.set(key, { ...source, changes: [...source.changes] });
-  }
-  return [...merged.values()];
-}
-
-/** One element's clauses, in state order: identical changes merged, shared selectors counted. */
-function elementSources(findings: StateFinding[], nameOf: OwnerName): StateSource[] {
-  const shared = sharedLabels(findings, nameOf);
-  return STATE_LAYER_NAMES.flatMap((state) =>
-    countShared(byOwnerSet(identicalSources(findings, state)), shared, findings),
-  );
-}
-
-/**
- * Sources whose owners share a selector the report cannot tell apart become one counted clause,
- * unless one identical change came from every owner of that selector ("either of the 2 opts").
- */
-function countShared(sources: StateSource[], shared: Map<string, number>, findings: StateFinding[]): StateSource[] {
-  const labelOf = (path: string) => ownerLabel(findings.find((f) => f.path === path)!);
-  const out: StateSource[] = [];
-  for (const source of sources) {
-    const label = source.owners.map(labelOf).find((l) => shared.has(l));
-    if (!label) {
-      out.push(source);
-      continue;
+function elementSources(findings: StateFinding[], keyOf: StatedKey): StateSource[] {
+  return STATE_LAYER_NAMES.flatMap((state) => {
+    const byOwner = new Map<string, StateFinding[]>();
+    for (const f of findings.filter((finding) => finding.state === state)) {
+      const owner = ownState(f) ? '' : f.path;
+      byOwner.set(owner, [...(byOwner.get(owner) ?? []), f]);
     }
-    // The element's own state keeps its own clause, never one of the counted owners (QA16-02).
-    if (source.own) out.push({ state: source.state, own: true, owners: [], changes: [...source.changes] });
-    const group = out.find((other) => other.counted?.label === label);
-    if (group) {
-      source.owners.forEach((owner) => group.owners.push(owner));
-      source.changes.forEach((change) => group.changes.push(change));
-    } else
-      out.push({
-        state: source.state,
-        own: false,
-        owners: [...source.owners],
-        changes: [...source.changes],
-        counted: { label, total: shared.get(label)! },
-      });
-  }
-  // A counted clause holding one identical change from all of its selector's owners reads "either of".
-  return out.map((source) =>
-    source.counted && source.changes.length === 1 && source.owners.length === source.counted.total
-      ? { state: source.state, own: source.own, owners: source.owners, changes: source.changes }
-      : source,
-  );
+    const out: Array<StateSource & { key?: string }> = [];
+    for (const [owner, changes] of byOwner) {
+      if (!owner) {
+        out.push({ state, own: true, owners: [], changes });
+        continue;
+      }
+      const key = JSON.stringify([ownerLabel(changes[0]), keyOf(changes)]);
+      const seen = out.find((source) => source.key === key);
+      if (seen) seen.owners.push(owner);
+      else out.push({ state, own: false, owners: [owner], changes, key });
+    }
+    // The element's own state comes first in its state, whatever order the capture recorded.
+    return [...out.filter((source) => source.own), ...out.filter((source) => !source.own)].map(
+      ({ state: at, own, owners, changes }) => ({ state: at, own, owners, changes }),
+    );
+  });
 }
 
-/** How the report names each owner: the noun its captured entry gives. */
-const ownerNameIn =
-  (maps: [StyleMap, StyleMap]): OwnerName =>
-  (finding) =>
-    sectionNoun(ownerSubject(maps, finding));
+/** An element's owner changes as its line states them (drawn colours kept, echoes pruned). */
+const statedKeyIn =
+  (maps: [StyleMap, StyleMap], target: string): StatedKey =>
+  (changes) =>
+    JSON.stringify(
+      withoutColorEchoes(statedProps(maps, target, changes)).map((p) => [p.prop, p.pseudo ?? '', p.before, p.after]),
+    );
 
 /** The section's first element's clauses: what its change line says, one each. */
 export function stateSources(section: ChangeSection, maps: [StyleMap, StyleMap]): StateSource[] {
+  const target = section.paths[0];
   return elementSources(
-    section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === section.paths[0]),
-    ownerNameIn(maps),
+    section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === target),
+    statedKeyIn(maps, target),
   );
 }
 
@@ -195,7 +139,6 @@ const sourceShape = (source: StateSource, findings: StateFinding[]): string =>
     source.state,
     source.own,
     source.owners.map((p) => ownerLabel(findings.find((f) => f.path === p)!)).sort(),
-    source.counted?.total ?? 0,
     source.changes.map(changeKey).sort(),
   ]);
 
@@ -262,9 +205,11 @@ function byPosition(maps: [StyleMap, StyleMap], order: string[]): (l: string, r:
  * owner(s) ("when the opt is checked"), or each by its own ("when the matching opt is checked").
  * A group that is neither is split, so the line never generalises past the capture.
  */
-function byOwnerSharing(paths: string[], bySubject: Map<string, Finding[]>, nameOf: OwnerName): string[][] {
+function byOwnerSharing(paths: string[], bySubject: Map<string, Finding[]>, maps: [StyleMap, StyleMap]): string[][] {
   const ownersOf = (p: string) =>
-    elementSources(bySubject.get(p)!.filter(isStateFinding), nameOf).map((source) => source.owners.join('\0'));
+    elementSources(bySubject.get(p)!.filter(isStateFinding), statedKeyIn(maps, p)).map((source) =>
+      source.owners.join('\0'),
+    );
   const tuples = paths.map(ownersOf);
   const shared = tuples.every((t) => JSON.stringify(t) === JSON.stringify(tuples[0]));
   const distinct = tuples[0].every((_, i) => new Set(tuples.map((t) => t[i])).size === tuples.length || !tuples[0][i]);
@@ -282,21 +227,20 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
     bySubject.set(key, [...(bySubject.get(key) ?? []), f]);
   }
   const order = byPosition(maps, [...bySubject.keys()]);
-  const nameOf = ownerNameIn(maps);
   const groups = new Map<string, string[]>();
   for (const p of [...bySubject.keys()].sort(order)) {
     const entry = entryOf(maps, p);
     // Elements group only when their state sources have the same shape (own or owner label, owner
     // count, props), so a line drawn from the first element is true of every element.
     const states = bySubject.get(p)!.filter(isStateFinding);
-    const shapes = elementSources(states, nameOf)
+    const shapes = elementSources(states, statedKeyIn(maps, p))
       .map((source) => sourceShape(source, states))
       .sort();
     const key = JSON.stringify([prettyLabel(p, entry?.cls ?? ''), shapes, changeSignature(bySubject.get(p)!)]);
     groups.set(key, [...(groups.get(key) ?? []), p]);
   }
   return [...groups.values()]
-    .flatMap((paths) => byOwnerSharing(paths, bySubject, nameOf))
+    .flatMap((paths) => byOwnerSharing(paths, bySubject, maps))
     .map((paths) => {
       const entry = entryOf(maps, paths[0]);
       const selector = prettyLabel(paths[0], entry?.cls ?? '');
@@ -358,12 +302,12 @@ const SIZING =
  * "The matching opt": every grouped element has this source from its own owner path(s), a fact read
  * from paths (byOwnerSharing guarantees the elements share them all or none).
  */
-function eachHasOwn(section: ChangeSection, source: StateSource, nameOf: OwnerName): boolean {
-  if (section.paths.length < 2 || !source.owners.length || source.counted) return false;
+function eachHasOwn(section: ChangeSection, source: StateSource, maps: [StyleMap, StyleMap]): boolean {
+  if (section.paths.length < 2 || source.owners.length !== 1) return false;
   const statesOf = (p: string) => section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === p);
   const shape = sourceShape(source, statesOf(section.paths[0]));
   const ownersFor = (p: string) =>
-    elementSources(statesOf(p), nameOf)
+    elementSources(statesOf(p), statedKeyIn(maps, p))
       .find((other) => sourceShape(other, statesOf(p)) === shape)
       ?.owners.join('\0');
   return new Set(section.paths.map(ownersFor)).size === section.paths.length;
@@ -385,8 +329,8 @@ function ownerSubject(maps: [StyleMap, StyleMap], finding: StateFinding): Sectio
 
 /**
  * Single owners whose clauses would read alike (one noun, different selectors: `input.pickr` and
- * `select.pickr`) are named by their selector labels (QA13-02). Owners of one selector never need
- * this: they are a counted clause.
+ * `select.pickr`) are named by their selector labels (QA13-02); so are owners of one selector,
+ * as main heads them.
  */
 function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [StyleMap, StyleMap]): Set<StateSource> {
   const byNoun = new Map<string, Set<string>>();
@@ -397,68 +341,54 @@ function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [Sty
         findings.find((f) => f.path === source.owners[0])!,
       ),
     );
-  const single = sources.filter((s) => s.owners.length === 1 && !s.counted);
+  const single = sources.filter((s) => s.owners.length === 1);
   for (const source of single)
     byNoun.set(nounOf(source), new Set([...(byNoun.get(nounOf(source)) ?? []), source.owners[0]]));
   return new Set(single.filter((source) => byNoun.get(nounOf(source))!.size > 1));
 }
 
+/** Colour properties that follow `color` when unset; drawn ones are kept apart before summarising. */
+const DRAWN_FOLLOWERS = new Set(['outline-color', 'column-rule-color', '-webkit-text-stroke-color']);
+
 /**
- * A counted clause's owner groups (QA15-01, QA16-01): each distinct change the line states (echoes
- * pruned, drawn borders kept) is said once, under the set of owners that made it. Owners whose
- * stated changes are identical share one group with their count; a group whose owners are some of
- * an earlier group's is said with "also". Largest groups first.
+ * Whether the element (or its pseudo-element) draws `prop`'s colour: a border, outline, column rule
+ * or text stroke with a style and a width. Its colour shows in the crop even when it moves like the
+ * text colour, so it is stated, never pruned as an echo (QA16-01, QA17-03).
  */
-function ownerGroups(source: StateSource, firstStates: StateFinding[], propsOf: PropsOf): OwnerGroup[] {
-  const owners = new Map<string, { owners: Set<string>; prop: StateProp }>();
-  for (const owner of source.owners)
-    for (const prop of withoutColorEchoes(
-      propsOf(firstStates.filter((f) => f.path === owner && f.state === source.state)),
-    )) {
-      const key = JSON.stringify([prop.prop, prop.pseudo ?? '', prop.before, prop.after]);
-      const seen = owners.get(key) ?? { owners: new Set<string>(), prop };
-      seen.owners.add(owner);
-      owners.set(key, seen);
-    }
-  const groups = new Map<string, { owners: Set<string>; props: StateProp[] }>();
-  for (const { owners: set, prop } of owners.values()) {
-    const key = [...set].sort().join('\0');
-    const group = groups.get(key) ?? { owners: set, props: [] };
-    group.props.push(prop);
-    groups.set(key, group);
-  }
-  const ordered = [...groups.values()].sort((a, b) => b.owners.size - a.owners.size);
-  return ordered.map((g, i) => ({
-    count: g.owners.size,
-    props: g.props,
-    ...(ordered.slice(0, i).some((earlier) => [...g.owners].every((o) => earlier.owners.has(o)))
-      ? { also: true as const }
-      : {}),
-  }));
+function drawsColor(maps: [StyleMap, StyleMap], target: string, pseudo: string | undefined, prop: string): boolean {
+  const drawn = (style: Record<string, string>, part: string) =>
+    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
+  return maps.some((map) => {
+    const entry = map.elements[target];
+    const style = (pseudo ? entry?.pseudo?.[pseudo] : entry?.style) ?? {};
+    if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop))
+      return ['top', 'right', 'bottom', 'left'].some((side) => drawn(style, `border-${side}`));
+    if (prop === 'outline-color') return drawn(style, 'outline');
+    if (prop === 'column-rule-color') return drawn(style, 'column-rule');
+    if (prop === '-webkit-text-stroke-color') return !['0px', undefined].includes(style['-webkit-text-stroke-width']);
+    return false;
+  });
 }
 
-/** A change's props with the element's drawn colours marked (`painted`), so they are never pruned as echoes. */
-type PropsOf = (changes: StateFinding[]) => StateProp[];
-
 /**
- * The colours the element draws: a border, outline, column rule or text stroke with a style and a
- * width. Their colour shows in the crop even when it moves like the text colour (QA16-01).
+ * One finding's props as a change line says them: summarised (longhands folded), with a drawn
+ * outline, column rule or text stroke taken out before the summary nests it under `color` as a
+ * follower (QA17-03), and every drawn colour marked `painted` so echo pruning keeps it.
  */
-function paintedColors(maps: [StyleMap, StyleMap], target: string): <T extends StateProp>(p: T) => T {
-  const drawn = (style: Record<string, string> = {}, part: string) =>
-    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
-  const draws = (pseudo: string | undefined, prop: string): boolean =>
-    maps.some((map) => {
-      const entry = map.elements[target];
-      const style = (pseudo ? entry?.pseudo?.[pseudo] : entry?.style) ?? {};
-      if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop))
-        return ['top', 'right', 'bottom', 'left'].some((side) => drawn(style, `border-${side}`));
-      if (prop === 'outline-color') return drawn(style, 'outline');
-      if (prop === 'column-rule-color') return drawn(style, 'column-rule');
-      if (prop === '-webkit-text-stroke-color') return !['0px', undefined].includes(style['-webkit-text-stroke-width']);
-      return false;
-    });
-  return (p) => (draws(p.pseudo, p.prop) ? { ...p, painted: true as const } : p);
+function statedProps(
+  maps: [StyleMap, StyleMap],
+  target: string,
+  changes: Array<{ props: PropChange[]; pseudo?: string }>,
+): StateProp[] {
+  return changes.flatMap(({ props, pseudo }) => {
+    const draws = (prop: string) => drawsColor(maps, target, pseudo, prop);
+    const drawn = props.filter((p) => DRAWN_FOLLOWERS.has(p.prop) && draws(p.prop));
+    return [...summarizeProps(props.filter((p) => !drawn.includes(p))), ...drawn].map((p) => ({
+      ...p,
+      ...(pseudo ? { pseudo } : {}),
+      ...(draws(p.prop) ? { painted: true as const } : {}),
+    }));
+  });
 }
 
 /** The owner(s) a clause names, or none for the element's own state, as the capture records them. */
@@ -470,16 +400,15 @@ function sourceDriver(
 ): StateDriver | undefined {
   if (!source.owners.length) return undefined;
   const ownerOf = (path: string) => firstStates.find((f) => f.path === path)!;
-  const labels = [...new Set(source.owners.map((path) => ownerLabel(ownerOf(path))))];
   return {
     subject: ownerSubject(maps, ownerOf(source.owners[0])),
     owners: source.owners.length,
-    ...(source.counted ? { counted: source.counted } : {}),
-    ...(!source.counted && labels.length > 1 ? { labels } : {}),
-    ...(eachHasOwn(section, source, ownerNameIn(maps)) ? { matching: true as const } : {}),
-    // Named by selector when another single owner's noun reads the same, or when the capture has no
-    // entry for the owner, as main heads it (QA14-04).
-    ...(named.has(source) || !entryOf(maps, source.owners[0]) ? { name: 'label' as const } : {}),
+    ...(eachHasOwn(section, source, maps) ? { matching: true as const } : {}),
+    // Named by selector, as main heads it: when another single owner's noun reads the same, when the
+    // capture has no entry for the owner (QA14-04), and for a ×N clause.
+    ...(named.has(source) || source.owners.length > 1 || !entryOf(maps, source.owners[0])
+      ? { name: 'label' as const }
+      : {}),
   };
 }
 
@@ -489,11 +418,10 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
   const dom = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
   const target = section.paths[0];
-  const painted = paintedColors(maps, target);
-  const rest = first.flatMap((f) =>
-    f.kind === 'style'
-      ? summarizeProps(f.props).map((p) => painted({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) }))
-      : [],
+  const rest = statedProps(
+    maps,
+    target,
+    first.flatMap((f) => (f.kind === 'style' ? [{ props: f.props, ...(f.pseudo ? { pseudo: f.pseudo } : {}) }] : [])),
   );
   // A side the state leaves alone renders the resting value: say that value, not "none". A change on
   // `::before`/`::after` rests at the pseudo-element's own value, not the element's (RV15-02).
@@ -502,41 +430,26 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
     const entry = maps[side].elements[target];
     return (pseudo ? entry?.pseudo?.[pseudo]?.[prop] : entry?.style?.[prop]) ?? value;
   };
-  // One clause per source, each naming the owner path(s) the capture recorded (#1299). Resolve on
-  // the longhands, before they fold into a shorthand (four border sides → one colour).
+  // One clause per owner path (#1299, the CPO's round-18 fallback). Resolve on the longhands, before
+  // they fold into a shorthand (four border sides → one colour); a pseudo-element keeps its pseudo.
   const sources = stateSources(section, maps);
   const firstStates = first.filter(isStateFinding);
   const named = ownerNames(sources, firstStates, maps);
-  // A change on a pseudo-element keeps its pseudo (QA14-05).
-  const propsOf = (changes: StateFinding[]): StateProp[] =>
-    changes.flatMap((f) =>
-      summarizeProps(
-        f.props.map((p) => ({
+  const states: StateChange[] = sources.flatMap((source) => {
+    const props = statedProps(
+      maps,
+      target,
+      source.changes.map((f) => ({
+        props: f.props.map((p) => ({
           ...p,
           before: resting(0, p.prop, p.before, pseudoOf(f)),
           after: resting(1, p.prop, p.after, pseudoOf(f)),
         })),
-      ).map((p) => painted({ ...p, ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}) })),
+        ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}),
+      })),
     );
-  const states: StateChange[] = sources.flatMap((source) => {
-    const groups = source.counted ? ownerGroups(source, firstStates, propsOf) : [];
-    // Every owner of the selector stated the same changes: one identical change, "either of the 2 opts".
-    const same =
-      groups.length === 1 && groups[0].count === source.owners.length && source.owners.length === source.counted?.total;
-    const said = same ? { ...source, counted: undefined } : source;
-    const props = same ? groups[0].props : propsOf(source.changes);
-    const driver = sourceDriver(section, maps, said, { firstStates, named });
-    return props.length
-      ? [
-          {
-            state: source.state,
-            props,
-            ...(driver ? { driver } : {}),
-            ...(driver && source.own ? { ownToo: true } : {}),
-            ...(groups.length > 1 ? { groups, owners: source.owners.length } : {}),
-          },
-        ]
-      : [];
+    const driver = sourceDriver(section, maps, source, { firstStates, named });
+    return props.length ? [{ state: source.state, props, ...(driver ? { driver } : {}) }] : [];
   });
   return changeLine({
     subject: subjectOf(section, maps),
