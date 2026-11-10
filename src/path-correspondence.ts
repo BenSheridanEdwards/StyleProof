@@ -17,9 +17,10 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      length and component on both sides pair k-th to k-th, only while the group
  *      is the same size on both sides (an nth-child shift, never an add/remove),
  *      no member was already placed, or shown in place, by own-text identity, and
- *      no pair has captured own text that differs while the head still holds an
- *      element of the same tag, class and component at the base path that no other
- *      move in the group shifted there (a rename in place, not a shift).
+ *      no pair reads as a rename in place: captured own text that differs, both of
+ *      its paths holding an element of the same tag, class and component on both
+ *      sides, and no move (own-text identity or any group) shifting an element
+ *      onto its base path or away from its head path.
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -156,6 +157,31 @@ function sameElementShape(before: ElementEntry | undefined, after: ElementEntry 
   );
 }
 
+type PathMove = readonly [beforePath: string, afterPath: string];
+
+/**
+ * True when a text-differing move is better explained by two elements renamed in place (two
+ * sibling labels renamed to texts of equal length) than by a shift. Both paths must hold an
+ * element of the same shape on both sides, and no move may account for either occupant: an
+ * element shifted onto the base path, or the base element at the head path shifted away, means
+ * a sibling was inserted or removed and the shift is the explanation.
+ */
+function isRenameInPlace(
+  before: StyleMap,
+  after: StyleMap,
+  [beforePath, afterPath]: PathMove,
+  shiftedOnto: Set<string>,
+  shiftedAway: Set<string>,
+): boolean {
+  return (
+    ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
+    sameElementShape(before.elements[beforePath], after.elements[beforePath]) &&
+    sameElementShape(before.elements[afterPath], after.elements[afterPath]) &&
+    !shiftedOnto.has(beforePath) &&
+    !shiftedAway.has(afterPath)
+  );
+}
+
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
 function correspondingPathsByContentSignature(
   before: StyleMap,
@@ -165,35 +191,28 @@ function correspondingPathsByContentSignature(
 ): Map<string, string> {
   const bySignatureAfter = pathsByContentSignature(after);
   const identifiedTargets = new Set(identified.values());
-  const beforeToAfter = new Map<string, string>();
+  const candidateGroups: PathMove[][] = [];
   for (const [signature, beforePaths] of pathsByContentSignature(before)) {
     const afterPaths = bySignatureAfter.get(signature) ?? [];
     // A size change means a real add/remove somewhere in the group: stay concrete.
     if (afterPaths.length !== beforePaths.length) continue;
     // Own-text identity already placed part of this group; k-th pairing could contradict it.
     if (beforePaths.some((p) => identified.has(p)) || afterPaths.some((p) => identifiedTargets.has(p))) continue;
-    const moves = beforePaths.flatMap((beforePath, i) =>
-      afterPaths[i] !== beforePath ? [[beforePath, afterPaths[i]!] as const] : [],
+    const moves = beforePaths.flatMap((beforePath, i): PathMove[] =>
+      afterPaths[i] !== beforePath ? [[beforePath, afterPaths[i]!]] : [],
     );
     // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
-    // Captured text that differs is explained by a rename in place when the head still holds an
-    // element of the same shape at the base path (two renamed labels of equal length): the k-th
-    // pairing is then a coincidence. A different occupant there means a sibling was inserted, so
-    // the shift is the only explanation and the pairing stays, renamed text and all. Further down
-    // a shift chain the occupant is the previous sibling, shifted there by another move: that is
-    // the shift too, not a rename in place.
-    const shiftedOnto = new Set(moves.map(([, afterPath]) => afterPath));
-    if (
-      moves.some(
-        ([beforePath, afterPath]) =>
-          ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
-          !shiftedOnto.has(beforePath) &&
-          sameElementShape(before.elements[beforePath], after.elements[beforePath]),
-      )
-    ) {
-      continue;
-    }
+    candidateGroups.push(moves);
+  }
+  // A shift chain can span groups and own-text identity, so judge each occupant against every move.
+  const everyMove: PathMove[] = [...identified, ...candidateGroups.flat()];
+  const shiftedOnto = new Set(everyMove.map(([, afterPath]) => afterPath));
+  const shiftedAway = new Set(everyMove.map(([beforePath]) => beforePath));
+  const beforeToAfter = new Map<string, string>();
+  for (const moves of candidateGroups) {
+    // A rename in place makes the k-th pairing a coincidence of length: keep the group on its paths.
+    if (moves.some((move) => isRenameInPlace(before, after, move, shiftedOnto, shiftedAway))) continue;
     for (const [beforePath, afterPath] of moves) beforeToAfter.set(beforePath, afterPath);
   }
   return withoutClosedPermutations(beforeToAfter);

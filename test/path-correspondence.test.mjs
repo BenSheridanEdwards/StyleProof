@@ -699,3 +699,53 @@ test('a shift chain with duplicate labels and a later same-length rename still p
   ]);
   assert.deepEqual(diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }), []);
 });
+
+// A shift chain can span labels of different text lengths, so the element shifted onto a
+// label's old path can come from another signature group or from own-text identity.
+const RESTYLED_LABEL_STYLE = { color: 'rgb(200, 0, 0)', 'background-color': 'rgb(255, 255, 255)' };
+
+test('a shift chain across text lengths still pairs a renamed label and certifies its restyle', () => {
+  const before = toolbar([
+    ['label', 'Save'],
+    ['label', 'Close'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Notice'],
+    ['label', 'Save'],
+    ['label', 'Clear'],
+  ]);
+  after.elements[toolbarSlot(3)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(3), cls: 'label', before: 'Close', after: 'Clear' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+      finding.path,
+      finding.props.map((property) => property.prop),
+    ]),
+    [[toolbarSlot(3), ['color']]],
+    'the restyle of the shifted label is certified',
+  );
+});
+
+test('a same-shape sibling of another text length inserted before a renamed label reads as a shift', () => {
+  const before = toolbar([['label', 'Save']]);
+  const after = toolbar([
+    ['label', 'Hi'],
+    ['label', 'Send'],
+  ]);
+  after.elements[toolbarSlot(2)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'label', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+      finding.path,
+      finding.props.map((property) => property.prop),
+    ]),
+    [[toolbarSlot(2), ['color']]],
+    'the restyle of the shifted label is certified',
+  );
+});
