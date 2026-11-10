@@ -204,14 +204,20 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared, so StyleProof cannot certify this compare; not a style review.',
     ];
   }
-  if (input.reachBlocking > 0) {
-    return [
-      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails; review-gate mode needs approval.`,
-    ];
-  }
+  if (input.reachBlocking > 0) return [reachGateLine(input.reachBlocking, false)];
   const elevated = elevatedStructureSummary(input);
   if (elevated) return elevated;
   return cleanScopeSummary(input);
+}
+
+/** The one line that says `changeReach: 'gate'` holds the check, with or without style changes. */
+export function reachGateLine(blocking: number, hasChanges: boolean): string {
+  return (
+    `✗ **Reach gate** — ${blocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). ` +
+    (hasChanges
+      ? 'They hold the check: certify mode fails; review-gate mode needs approval.'
+      : 'Not a clean no-change: certify mode fails; review-gate mode needs approval.')
+  );
 }
 
 function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {

@@ -46,8 +46,6 @@ export type RenderCtx = {
   minWidth: number;
   minHeight: number;
   maxHeight: number;
-  /** Accepted for backward compatibility; no longer has an effect. */
-  zoomBelow: number;
   maxCrops: number;
   crops: CropBudget;
   /** Change sections of this render (report.html data); absent for renders that draw no sections. */
@@ -187,7 +185,6 @@ export function structureGateRenderCtx(beforeDir: string, afterDir: string): Ren
     minWidth: 0,
     minHeight: 0,
     maxHeight: 10_000,
-    zoomBelow: 0,
     maxCrops: 0,
     crops: createCropBudget(0, 0),
     foldDetailsAt: 0,

@@ -19,6 +19,7 @@ import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import type { ChangeReachLevel } from '../config.js';
 import { classifyRuleReach, type RuleReach, type RuleReachResult, type RuleReachStatus } from '../rule-reach.js';
 import { createMapLoader, type RenderCtx } from './shared.js';
+import { reachGateLine } from './headline.js';
 
 export type ReachGap =
   | ScriptJoinGap
@@ -233,13 +234,13 @@ function namedRules(rules: RuleReach[]): string {
 
 /**
  * What report.md says about Change Reach under the headline. When the opt-in gate holds
- * findings, nothing: the headline's "Reach gate" line already says so, and the findings are
- * listed under **Changed but never matched**. Otherwise only what a reviewer must act on, in
+ * findings, the one "Reach gate" line (the findings are listed under **Changed but never
+ * matched**); a run with no change shows that line as its headline instead. Otherwise only what a reviewer must act on, in
  * plain words: changed rules no captured page matched, and changed rules computed styles cannot
  * show. Join gaps, unmeasured rules and the warn-only J2/J3 detail stay in report.json (`reach`).
  */
 export function reachHeadlineLines(reach: ReportReach): string[] {
-  if (reach.blocking > 0) return [];
+  if (reach.blocking > 0) return ['', reachGateLine(reach.blocking, true)];
   const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const lines: string[] = [];
@@ -257,7 +258,27 @@ export function reachHeadlineLines(reach: ReportReach): string[] {
       `⚠️ **${blind.length} changed CSS rule${blind.length === 1 ? '' : 's'} computed styles cannot show:** ${namedRules(blind)}. Review ${blind.length === 1 ? 'it' : 'them'} in the diff.`,
     );
   }
+  const unchecked = uncheckedLine(reach);
+  if (unchecked) lines.push('', unchecked);
   return lines;
+}
+
+/**
+ * The CSS reach could not check at warn level, so it is never silent (ADR 0009): changed rules
+ * that matched only elements StyleProof does not compare, and ledger gaps (missing or old
+ * ledgers, unreadable sheets, a side with no captures). One line; detail stays in report.json.
+ */
+function uncheckedLine(reach: ReportReach): string | null {
+  const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
+  const parts = [
+    ...(unmeasured.length
+      ? [
+          `${unmeasured.length} changed CSS rule${unmeasured.length === 1 ? '' : 's'} matched only elements StyleProof does not compare (${namedRules(unmeasured)})`,
+        ]
+      : []),
+    ...reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => `${gapReason(gap)} — ${gap.remedy}`),
+  ];
+  return parts.length ? `⚠️ **Change Reach could not check every changed CSS rule:** ${parts.join(' · ')}.` : null;
 }
 
 function ruleTable(rules: RuleReach[]): string[] {

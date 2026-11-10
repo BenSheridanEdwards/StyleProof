@@ -158,6 +158,75 @@ test('gate mode shows the Reach gate line and the never-matched table, never war
   assert.ok(output.json.reach.gaps.some((gap) => gap.join === 'J2'));
 });
 
+test('a gate holding a rule on a run with style changes says so above the changes (RV5-01)', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  for (const [dir, hash, color] of [
+    [dirs.beforeDir, 'h1', 'rgb(0, 0, 0)'],
+    [dirs.afterDir, 'h2', 'rgb(200, 0, 0)'],
+  ]) {
+    const capture = {
+      ...makeMap({
+        elements: { 'body > p': { tag: 'p', cls: 'title', text: 'Hello', rect: [20, 20, 300, 40], style: { color } } },
+      }),
+      reach: {
+        version: 2,
+        scope: 'compared',
+        sheets: ['/app.css'],
+        rules: [rule('.title', hash, { used: true }), rule('.unopened', hash)],
+      },
+    };
+    writeCapture(dir, 'home@1280', capture, solidPng(1280, 400));
+  }
+  const output = report(dirs, { changeReach: 'gate' });
+  assert.equal(output.json.reach.blocking, 1);
+  const md = visible(output.md);
+  const opening = md.slice(0, md.indexOf('\n### '));
+  const gate = /✗ \*\*Reach gate\*\* — 1 changed CSS rule\(s\) or reach evidence gap\(s\) were never matched/;
+  assert.match(opening, /\*\*1 change to review\*\*/);
+  assert.match(opening, gate, 'the held finding is named above the changes');
+  assert.doesNotMatch(opening, /Not a clean no-change/, 'the run has changes');
+  assert.equal(md.match(/Reach gate/g)?.length, 1);
+  assert.match(reportCommentSummary(output.md), gate);
+  assert.match(output.html.replace(/<[^>]+>/g, ''), /✗ Reach gate — 1 changed CSS rule/);
+});
+
+test('at warn, unmeasured rules and missing or unreadable ledgers get one plain line, never silence (RV5-02)', (t) => {
+  const unreadable = map(rule('.fault', 'h2', { used: true }));
+  unreadable.reach.unreadable = 2;
+  for (const [name, base, head, expected] of [
+    [
+      'unmeasured',
+      map(rule('.ignored', 'h1', { outside: true })),
+      map(rule('.ignored', 'h2', { outside: true })),
+      /1 changed CSS rule matched only elements StyleProof does not compare \(`\.ignored`\)/,
+    ],
+    [
+      'missing base ledger',
+      withoutReach(map()),
+      map(rule('.fault', 'h2')),
+      /base: missing base ledger on 1 capture\(s\)/,
+    ],
+    [
+      'unreadable sheets',
+      map(rule('.fault', 'h1', { used: true })),
+      unreadable,
+      /head: 2 unreadable stylesheet\(s\) on head/,
+    ],
+  ]) {
+    const md = visible(report(fixture(t, [base], [head])).md);
+    const lines = md.split('\n').filter((line) => line.includes('Change Reach could not check every changed CSS rule'));
+    assert.equal(lines.length, 1, `${name}: one line`);
+    assert.match(lines[0], /^⚠️ \*\*Change Reach could not check every changed CSS rule:\*\* /, name);
+    assert.match(lines[0], expected, name);
+    assert.doesNotMatch(md, /J2|J3|Reach incomplete|Reach gate/, `${name}: nothing internal or repeated`);
+  }
+  const reached = visible(
+    report(fixture(t, [map(rule('.ok', 'h1', { used: true }))], [map(rule('.ok', 'h2', { used: true }))])).md,
+  );
+  assert.doesNotMatch(reached, /Change Reach could not/, 'every changed rule matched: no line');
+});
+
 test('outside-only changes stay unmeasured in reports and block only the opt-in gate', (t) => {
   const side = (hash) => map(rule('.ignored', hash, { outside: true }));
   for (const [base, head, change] of [
@@ -327,8 +396,12 @@ test('missing and pre-version-2 ledgers name the affected side and the recapture
   const old = map(rule('.fault', 'h1'));
   delete old.reach.version;
   const output = report(fixture(t, [withoutReach(map()), old], [map(rule('.fault', 'h2')), map()]));
-  // Ledger gaps are machine output at warn level; the gate prints them (see the gate tests).
-  assert.doesNotMatch(output.md, /missing base ledger|Reach evidence gaps/);
+  // RV5-02: at warn, a ledger gap gets the one plain line (never silence); the gate's section lists it in full.
+  assert.match(
+    output.md,
+    /Change Reach could not check every changed CSS rule:\*\* base: missing base ledger on 2 capture\(s\)/,
+  );
+  assert.doesNotMatch(output.md, /Reach evidence gaps/);
   assert.equal(output.json.reach.ledger, 'missing');
   assert.deepEqual(output.json.reach.rules, []);
   assert.equal(output.json.reach.complete, false);
@@ -363,7 +436,11 @@ test('missing captures produce an explicit reach gap and an empty head still ref
       assert.equal(fs.existsSync(path.join(dirs.outDir, 'report.md')), false);
     } else {
       const output = report(dirs);
-      assert.doesNotMatch(output.md, /no base captures/, 'the gap is machine output at warn level');
+      assert.match(
+        output.md,
+        /base: no base captures; changed rules cannot be listed — capture both sides/,
+        'never silent (RV5-02)',
+      );
       assert.deepEqual(output.json.reach, reach);
     }
   }

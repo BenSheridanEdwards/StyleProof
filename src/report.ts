@@ -73,6 +73,7 @@ import { buildDigest } from './report/digest.js';
 import {
   baselineFailureDetailLines,
   oneSidedStatus,
+  reachGateLine,
   readBaselineInfo,
   reportHeadline,
   type BaselineInfo,
@@ -228,7 +229,6 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     minWidth: opts.minWidth ?? 320,
     minHeight: opts.minHeight ?? 180,
     maxHeight: opts.maxHeight ?? 1600,
-    zoomBelow: opts.zoomBelow ?? 64,
     maxCrops: opts.maxCrops ?? 8,
     crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
     sections: createSectionRegistry(),
@@ -585,7 +585,9 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   });
-  const reachStrip = reach ? reachHeadlineLines(reach) : [];
+  // A run with no change already leads with the gate line; say it once.
+  const gateInHeadline = Boolean(reach?.blocking) && headline.includes(reachGateLine(reach!.blocking, false));
+  const reachStrip = reach && !gateInHeadline ? reachHeadlineLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
   productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
   headline.forEach((appended) => md.lines.push(appended));
@@ -677,11 +679,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     if (reachBlock) {
       reachBlock.full = reachSectionLines(reach);
       reachBlock.summary = reachSummaryLine(reach);
-    }
-    const updatedStrip = reachHeadlineLines(reach);
-    for (const [index, line] of reachStrip.entries()) {
-      const position = md.lines.indexOf(line);
-      if (position >= 0 && line) md.lines[position] = updatedStrip[index];
     }
   }
 
