@@ -9,7 +9,7 @@
 
 ## In progress
 
-- Visual-first report (branch `feat/report-visual-first`), round 19 done: review round 18 fixes (a lone owner named as main heads it beside a ×N clause, REFERENCE text, the comment-cap note, the source-binding warning, #1321's two assertions), rebased onto bcdc4c81; a fresh QA and review next. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). Follow-up: [issue #1324](https://github.com/BenSheridanEdwards/StyleProof/issues/1324). When #1322 lands on main, the visual-first rebase updates `test/content.test.mjs:370` to #1322's behaviour, not the other way round. No pull request yet; it opens unmerged for Ben's crop check.
+- Visual-first report (branch `feat/report-visual-first`), round 20 in progress (review round 19 send-back: the unbound report keeps its header, the cap-note and README comment wording, commit-pinned proof images); round 19 done: review round 18 fixes (a lone owner named as main heads it beside a ×N clause, REFERENCE text, the comment-cap note, the source-binding warning, #1321's two assertions), rebased onto bcdc4c81; a fresh QA and review next. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). Follow-up: [issue #1324](https://github.com/BenSheridanEdwards/StyleProof/issues/1324). When #1322 lands on main, the visual-first rebase updates `test/content.test.mjs:370` to #1322's behaviour, not the other way round. No pull request yet; it opens unmerged for Ben's crop check.
 - Narrower veto fix for label-rename pairing. Mini thread 0dffec52 (`thread:project:cdcc779a-c17f-4d69-996f-c3904aff19ff:0dffec52-7358-410f-b7e5-b93d80033603`). [Pull request #1322](https://github.com/BenSheridanEdwards/StyleProof/pull/1322).
 
 ## Waiting
