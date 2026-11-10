@@ -1,6 +1,5 @@
 /** J3 presentation shares the after-findings detail budget with J2. */
 import { classJoinGap, type ClassUnit } from '../class-join.js';
-import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { jsonBytes, takeScriptDetail, type ScriptDetailBudget } from './script-gap-details.js';
 import type { ReportReach, ReachGap } from './reach.js';
 
@@ -42,43 +41,4 @@ export function budgetClassReach(original: ReportReach, reserved: ReportReach, b
     },
     omitted: unitsOmitted + gapsOmitted,
   };
-}
-
-export function classSummary(reach: ReportReach): string {
-  const counts = reach.classCounts ?? { reached: 0, 'never-rendered': 0, unknown: 0, unmeasured: 0 };
-  return `; J3: ${Object.entries(counts)
-    .map(([status, count]) => `${count} ${status}`)
-    .join(
-      ', ',
-    )}, ${reach.classGapCount ?? reach.gaps.filter((gap) => gap.join === 'J3').length} run-level gap(s) (warn-only)`;
-}
-export function classSectionLines(reach: ReportReach): string[] {
-  const units = reach.classes ?? [],
-    gaps = reach.gaps.filter((gap) => gap.join === 'J3');
-  if (!units.length && !gaps.length) return [];
-  return [
-    '',
-    '## Class change reach (J3)',
-    '',
-    '_Warn-only under both changeReach levels. No per-occurrence render provenance is recorded. Token-name deltas never prove reach; J3 never upgrades J2._',
-    '',
-    '| Source | Side | Token | Status | Why |',
-    '| --- | --- | --- | --- | --- |',
-    ...units
-      .slice(0, 100)
-      .map(
-        (unit) =>
-          `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}`)} | ${unit.side} | ${codeValue(unit.token)} | ${unit.status} | ${escapeInlineMarkdown(unit.why)} |`,
-      ),
-    ...(units.length > 100
-      ? [`+${units.length - 100} more class unit(s); report.json retains bounded detail and full counts.`]
-      : []),
-    ...gaps
-      .slice(0, 100)
-      .map(
-        (gap) =>
-          `- ${escapeInlineMarkdown(`${gap.side ? `${gap.side}: ` : ''}${gap.reason.slice(0, 1000)}`)} — ${escapeInlineMarkdown(gap.remedy.slice(0, 400))}`,
-      ),
-    ...(gaps.length > 100 ? [`- J3 gaps truncated: ${gaps.length - 100} more; full count retained.`] : []),
-  ];
 }

@@ -164,7 +164,7 @@ test('JSON truncation says details are omitted from the artifact and preserves t
   const notices = reach.gaps.filter((g) => g.join === 'J2');
   assert.equal(notices.length, 3);
   assert.ok(notices.every((g) => /more omitted from report.json/.test(g.reason)));
-  assert.match(reachSummaryLine(reach), /2 run-level gap\(s\)/);
+  assert.equal(reach.scriptGapCount, 2, 'report.json keeps the real gap count');
 });
 
 for (const ending of ['', '\r\n']) {
@@ -203,5 +203,6 @@ test('presentation notices never replace the number of actual J2 evidence gaps',
     gaps: [scriptJoinGap('gap A'), scriptJoinGap('gap B')],
   });
   const { reach } = budgetScriptReach(original, reserveScriptNotice(original), 0);
-  assert.match(reachSummaryLine(reach), /2 run-level gap\(s\)/);
+  assert.equal(reach.scriptGapCount, 2);
+  assert.doesNotMatch(reachSummaryLine(reach), /J2/, 'warn-only J2 counts stay out of report.md (QA3-01)');
 });

@@ -6,9 +6,6 @@ import {
   type ClassJoinGap,
   type ClassMapPair,
 } from '../class-join.js';
-import { classSectionLines, classSummary } from './class-units.js';
-import { scriptUnitRanges } from './script-units.js';
-import { scriptGapLines } from './script-gap-details.js';
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
 import {
   classifyScriptReach,
@@ -227,67 +224,6 @@ export function assessReachDirs(beforeDir: string, afterDir: string, level: Chan
 
 const gapReason = (gap: ReachGap): string => `${gap.side ? `${gap.side}: ` : ''}${gap.reason}`;
 
-/** Fixed copy and counts only; CSS evidence is escaped in the detail tables below. */
-export function reachStripLines(reach: ReportReach): string[] {
-  if (
-    reach.complete &&
-    reach.ledger === 'complete' &&
-    reach.gaps.length === 0 &&
-    reach.rules.every((rule) => rule.status === 'reached') &&
-    (reach.scripts ?? []).every((unit) => unit.status === 'reached') &&
-    (reach.classes ?? []).every((unit) => unit.status === 'reached')
-  ) {
-    return ['', '**Reach complete** — every changed rule matched a captured element in a captured state.'];
-  }
-
-  const scriptStrip = [
-    ...scriptStripLines(reach),
-    '',
-    `**J3 class reach (warn-only)**${classSummary(reach).replace('; J3:', ' —')}. No per-occurrence render provenance is recorded.`,
-  ];
-
-  const unchecked =
-    "Not checked: changed stylesheets no capture served (for example a lazy route's or code-split chunk's CSS)." +
-    (reach.gaps.some((gap) => gap.join === 'J3')
-      ? ' Class-list deltas are not checked where J3 source, vocabulary or pairing evidence is unavailable; see J3 gaps.'
-      : '') +
-    (reach.level === 'gate' ? " These are not held by `changeReach: 'gate'`." : '');
-  const never = reach.counts['never-rendered'];
-  const unmeasured = reach.counts.unmeasured;
-  const blind = reach.counts['blind-channel'];
-  const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  if (!never && !unmeasured && !blind && ledger.length === 0) {
-    return [
-      '',
-      `**Reach incomplete** — ${reach.rules.length ? `${reach.rules.length} changed CSS rule(s) in served stylesheets matched a captured element` : 'no changed CSS rule in any served stylesheet'}. ${unchecked}`,
-      ...scriptStrip,
-    ];
-  }
-  const parts: string[] = [];
-  const remedies: string[] = [];
-  if (never) {
-    parts.push(`${never} changed CSS rule(s) never matched`);
-    remedies.push('add a surface or state that matches each rule under **Changed but never matched**');
-  }
-  if (unmeasured) {
-    parts.push(`${unmeasured} changed CSS rule(s) unmeasured`);
-    remedies.push(
-      'review the changes under **Changed but unmeasured** and capture them on compared elements where possible',
-    );
-  }
-  if (blind) {
-    parts.push(`${blind} changed in a channel computed styles cannot hold`);
-    remedies.push('review the changes under **Changed in a channel computed styles cannot hold**');
-  }
-  ledger.map(gapReason).forEach((appended) => parts.push(appended));
-  ledger.map((gap) => gap.remedy).forEach((appended) => remedies.push(appended));
-  return [
-    '',
-    `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
-    ...scriptStrip,
-  ];
-}
-
 const MAX_NAMED_RULES = 5;
 
 function namedRules(rules: RuleReach[]): string {
@@ -296,13 +232,14 @@ function namedRules(rules: RuleReach[]): string {
 }
 
 /**
- * What report.md says about Change Reach: the full strip when the opt-in gate holds findings;
- * otherwise only what a reviewer must act on, in plain words: changed rules no captured page
- * matched, and changed rules computed styles cannot show. Join gaps and unmeasured rules stay
- * in report.json (`reach`).
+ * What report.md says about Change Reach under the headline. When the opt-in gate holds
+ * findings, nothing: the headline's "Reach gate" line already says so, and the findings are
+ * listed under **Changed but never matched**. Otherwise only what a reviewer must act on, in
+ * plain words: changed rules no captured page matched, and changed rules computed styles cannot
+ * show. Join gaps, unmeasured rules and the warn-only J2/J3 detail stay in report.json (`reach`).
  */
 export function reachHeadlineLines(reach: ReportReach): string[] {
-  if (reach.blocking > 0) return reachStripLines(reach);
+  if (reach.blocking > 0) return [];
   const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const lines: string[] = [];
@@ -339,9 +276,8 @@ export function reachSectionLines(reach: ReportReach): string[] {
   const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  const scriptLines = [...scriptSectionLines(reach), ...classSectionLines(reach)];
-
-  if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return scriptLines;
+  // The warn-only J2/J3 detail never holds the gate, so it stays in report.json.
+  if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return [];
 
   return [
     '',
@@ -383,77 +319,11 @@ export function reachSectionLines(reach: ReportReach): string[] {
     ...reach.gaps
       .filter((gap) => gap.kind === 'not-built' && gap.join === 'J1')
       .map((gap) => `- ${gap.reason} — ${gap.remedy}`),
-    ...scriptLines,
   ];
 }
 
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
 
-  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\`${scriptSummary(reach)}${classSummary(reach)}`;
-}
-
-function scriptSummary(reach: ReportReach): string {
-  const scripts = reach.scripts ?? [];
-  const gaps =
-    reach.scriptGapCount ??
-    reach.gaps.reduce((count, gap) => {
-      if (gap.join !== 'J2') return count;
-      const omitted = gap.reason.match(/^J2 gaps truncated: (\d+)\b/);
-      if (omitted) return count + Number(omitted[1]);
-      return count + (/^J2 (?:gap paths|gaps|units) truncated:/.test(gap.reason) ? 0 : 1);
-    }, 0);
-  const statuses = ['reached', 'never-rendered', 'unmeasured', 'unknown'] as const;
-
-  return `; J2: ${statuses.map((status) => `${reach.scriptCounts?.[status] ?? scripts.filter((unit) => unit.status === status).reduce((sum, unit) => sum + (unit.count ?? 1), 0)} ${status}`).join(', ')}, ${gaps} run-level gap(s) (warn-only)`;
-}
-
-function scriptStripLines(reach: ReportReach): string[] {
-  return [
-    '',
-    `**J2 script reach (warn-only)**${scriptSummary(reach).replace('; J2:', ' —')}. Navigation-window execution includes transient loading code; running a value does not prove rendering.`,
-  ];
-}
-
-function scriptSectionLines(reach: ReportReach): string[] {
-  const units = reach.scripts ?? [];
-  const gaps = reach.gaps.filter((gap) => gap.join === 'J2');
-
-  if (!units.length && !gaps.length) return [];
-
-  const lines = [
-    '',
-    '## Script change reach (J2)',
-    '',
-    '_Warn-only under both changeReach levels. Execution is navigation-window block entry, including transient loading code; value rendering requires exact-range J1/J3 corroboration._',
-  ];
-
-  let budget = 100;
-  for (const status of ['never-rendered', 'unmeasured', 'unknown', 'reached'] as const) {
-    const ranges = scriptUnitRanges(units.filter((unit) => unit.status === status));
-    const group = ranges.slice(0, budget);
-    budget -= group.length;
-    const hidden = ranges.slice(group.length);
-
-    if (!ranges.length) continue;
-    lines.push('', `**${status}**`, '', '| Source | Side | Execution | Why |', '| --- | --- | --- | --- |');
-    group
-      .map(
-        (unit) =>
-          `| ${codeValue(`${unit.sourceKey}:${unit.range.start.line}:${unit.range.start.column}-${unit.range.end.line}:${unit.range.end.column}${unit.count > 1 ? ` (${unit.count} units)` : ''}`)} | ${unit.side} | ${unit.execution} | ${escapeInlineMarkdown(unit.why)} |`,
-      )
-      .forEach((appended) => lines.push(appended));
-    if (hidden.length)
-      lines.push(
-        '',
-        `+${hidden.length} more changed range(s), ${hidden.reduce((sum, range) => sum + range.count, 0)} unit(s); report.json retains bounded J2 detail and full status counts.`,
-      );
-  }
-
-  if (gaps.length) {
-    lines.push('', '**J2 run-level gaps (unmeasured)**', '');
-    scriptGapLines(gaps).forEach((appended) => lines.push(appended));
-  }
-
-  return lines;
+  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
 }
