@@ -459,8 +459,15 @@ export function capNoteProblems(comment, reportMd) {
     );
   const shown = heads(comment);
   const all = sectionHeads(reportMd);
+  // The count-free note is right only when the full report has no change section to count (RV19-09).
+  const rest =
+    /This comment reached GitHub's size limit\. The rest is in the full report: open it from the link at the end of this comment\./.test(
+      comment,
+    );
   if (!note) {
-    if (/size limit/.test(comment)) out.push('a size-limit note without a count of the changes left out');
+    if (rest && all.length > 0)
+      out.push(`a size-limit note with no count, though the full report has ${all.length} sections`);
+    else if (/size limit/.test(comment) && !rest) out.push('a size-limit note without a count of the changes left out');
     else if (shown.length !== all.length)
       out.push(`the comment shows ${shown.length} of ${all.length} sections with no note`);
     return out;

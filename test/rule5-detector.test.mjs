@@ -227,4 +227,17 @@ test('the size-cap note must say what to do and count the changes the full repor
     capNoteProblems(['## Report', '', '### Z', '', 'z', '', note(2)].join('\n'), report).some((p) => /"Z"/.test(p)),
     'a cut change missing from the full report',
   );
+  // RV19-09: the count-free note is valid only for a report with no change section.
+  const rest =
+    "_This comment reached GitHub's size limit. The rest is in the full report: open it from the link at the end of this comment._";
+  const noSections = ['## Report', '', '**0 changes to review**', '', '- a long opening line'].join('\n');
+  assert.deepEqual(capNoteProblems(['## Report', '', rest].join('\n'), noSections), [], 'no change section, no count');
+  assert.ok(
+    capNoteProblems(['## Report', '', rest].join('\n'), report).length > 0,
+    'a count-free note where the full report has change sections',
+  );
+  assert.ok(
+    capNoteProblems(['## Report', '', "_This comment reached GitHub's size limit._"].join('\n'), noSections).length > 0,
+    'a size-limit note that says neither the count nor where the rest is',
+  );
 });
