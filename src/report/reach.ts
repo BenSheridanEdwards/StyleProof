@@ -105,7 +105,7 @@ function plainLedgerGap(gap: ReachGap): string {
     return `there are no ${m[1]} captures — capture both sides with \`captureReach\``;
   if ((m = reason.match(/^missing (base|head) ledger on (\d+) capture\(s\);/))) {
     const n = Number(m[2]);
-    return `${many(n, `${m[1]} capture`)} ${n === 1 ? 'has no record of the CSS it' : 'have no record of the CSS they'} served — recapture with \`captureReach\``;
+    return `${many(n, `${m[1]} capture`)} ${n === 1 ? 'has a missing or out-of-date record of the CSS it' : 'have missing or out-of-date records of the CSS they'} served — recapture with \`captureReach\``;
   }
   if ((m = reason.match(/^served CSS reach is unknown on (\d+) (base|head) capture\(s\): (.*)$/))) {
     return `StyleProof could not read the CSS served on ${many(Number(m[1]), `${m[2]} capture`)} (${m[3]}) — simplify or remove that CSS, then recapture`;

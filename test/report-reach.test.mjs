@@ -205,7 +205,7 @@ test('at warn, unmeasured rules and missing or unreadable ledgers get one plain 
       'missing base ledger',
       withoutReach(map()),
       map(rule('.fault', 'h2')),
-      /1 base capture has no record of the CSS it served — recapture/,
+      /1 base capture has a missing or out-of-date record of the CSS it served — recapture/,
     ],
     [
       'unreadable sheets',
@@ -238,7 +238,7 @@ test('the warn line names each served-CSS gap in plain words, side once, no "(s)
   assert.equal(
     line,
     '⚠️ **Change Reach could not check every changed CSS rule:** ' +
-      '1 head capture has no record of the CSS it served — recapture with `captureReach`; ' +
+      '1 head capture has a missing or out-of-date record of the CSS it served — recapture with `captureReach`; ' +
       'StyleProof could not read the CSS served on 1 head capture (unsupported var() reference) — simplify or remove that CSS, then recapture; ' +
       '3 stylesheets on head could not be read — make them readable (same-origin or CORS), then recapture.',
   );
@@ -247,6 +247,16 @@ test('the warn line names each served-CSS gap in plain words, side once, no "(s)
     output.json.reach.gaps.some(
       (gap) => gap.reason === 'missing head ledger on 1 capture(s); changed rules cannot be listed',
     ),
+  );
+});
+
+test('an old served-CSS record reads missing or out of date, not absent (QA7-02)', (t) => {
+  const old = map(rule('.fault', 'h1'));
+  delete old.reach.version;
+  const md = visible(report(fixture(t, [old], [map(rule('.fault', 'h2'))])).md);
+  assert.match(
+    md,
+    /1 base capture has a missing or out-of-date record of the CSS it served — recapture with `captureReach`/,
   );
 });
 
@@ -422,7 +432,7 @@ test('missing and pre-version-2 ledgers name the affected side and the recapture
   // RV5-02: at warn, a ledger gap gets the one plain line (never silence); the gate's section lists it in full.
   assert.match(
     output.md,
-    /Change Reach could not check every changed CSS rule:\*\* 2 base captures have no record of the CSS they served/,
+    /Change Reach could not check every changed CSS rule:\*\* 2 base captures have missing or out-of-date records of the CSS they served/,
   );
   assert.doesNotMatch(output.md, /Reach evidence gaps/);
   assert.equal(output.json.reach.ledger, 'missing');
