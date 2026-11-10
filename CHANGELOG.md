@@ -40,16 +40,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   owner path whose state was forced (report.json `findings[].path`, the restyled element in `sub`). The change
   line names each owner, carrying only what it changed: "when hovered" for the element's own state, "when the
   opt is checked" for one control, "when the Save button is hovered" for a button or link named by its text, and
-  "when the matching opt is checked" when each grouped element has its own. One identical change is said once,
-  whoever made it: "when `input.pickr` or `select.pickr` is focused", "when hovered or when the opt is
-  hovered", "when either of the 2 opts is checked". Owners of one selector that the report cannot tell apart
-  (main heads them alike) are one counted clause that names the count once, then says each distinct change once under the owners that
-  made it, with their count, never named apart by invented words: "when one of the 2 `input.opt` controls is
-  checked, one changes the text colour …, while the other changes the background …"; "… each changes the text
-  colour …, and one also changes the border colour …". In every change line, colour echoes are pruned, but a border,
-  outline, column rule or text stroke the element draws is said. Each owner group is capped at two phrases, and past two owner
-  groups the line ends "… and N more changes". The element's own state keeps its own clause beside a counted
-  one ("the text colour changes … when hovered, and when one of the 2 `input.pick` controls is hovered, …"). Owners whose nouns collide
+  "when the matching opt is checked" when each grouped element has its own. Several owners of one element are
+  said as main says them, one clause per owner path: "the text colour changes … when `input.opt` is checked, and
+  the background changes … when `input.opt` is checked" (owners main cannot tell apart read alike, with nothing
+  invented); owners of one selector that made the same change are one clause with main's ×N ("when `input.opt` ×3
+  is checked"). The element's own state is always its own clause, said first ("the background changes … when
+  hovered, and the background changes … when `input.twin` ×2 is hovered"). No line counts owners or ends with
+  "and N more": every change is named in its owner's clause, so a line with several owners is longer. Colour
+  echoes are pruned, but a border, outline, column rule or text stroke the element draws is said. Owners whose nouns collide
   across selectors are named by selector ("when `input.pickr` is focused … when `select.pickr` is focused"),
   and an owner the capture has no element entry for is named by its selector, as main heads it. **Show the
   CSS** heads each owner path's state changes with that owner, as main does, then the preview's
