@@ -81,8 +81,8 @@ function restingChangesFirst(markdown) {
   const body = markdown.slice(bodyStart, bodyEnd);
   const trail = markdown.slice(bodyEnd);
   const blocks = body.split(/(?=^### )/m).filter(Boolean);
-  // A state section's CSS fold has `:hover` (or `:focus`, `:active`) in its State column.
-  const resting = blocks.filter((block) => block.startsWith('### ') && !/`:(hover|focus|active)`/.test(block));
+  // A state section's CSS fold has rows for `:hover` (or `:focus`, `:active`): "`:hover color`".
+  const resting = blocks.filter((block) => block.startsWith('### ') && !/`:(hover|focus|active)[` ]/.test(block));
   const states = blocks.filter((block) => !resting.includes(block));
   return markdown.slice(0, bodyStart) + [...resting, ...states].join('') + trail;
 }
