@@ -7,7 +7,7 @@ import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js'
 import type { ReportOptions, ReportResult } from '../report.js';
 import { chromeSpanLabel, safeKey } from '../change-groups.js';
 import { cropPng, cropStem, readPng } from './png.js';
-import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
+import { cropGapReason, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
@@ -31,12 +31,14 @@ const ONE_SIDED: Record<OneSidedStatus, OneSidedText> = {
   removed: {
     heading: (key) => `### \`${key}\` · REMOVED surface 🗑️`,
     alt: 'removed surface',
-    note: () => `_In the baseline, not captured on head._`,
+    // The heading and the summary's 🗑️ line say it; the tile adds nothing (rule 5).
+    note: () => '',
   },
   new: {
     heading: (key) => `### \`${key}\` · new surface ${NEW_SURFACE_MARKER}`,
     alt: 'new surface',
-    note: () => `_No baseline to compare against._`,
+    // The heading and the summary's 🆕 line say it; the tile adds nothing (rule 5).
+    note: () => '',
   },
   'capture-failed': {
     heading: (key) => `### \`${key}\` · baseline repair needed ⚠️`,
@@ -82,15 +84,7 @@ function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number
         : '';
     md.push('', `![${alt}](${ctx.img(`${t.stem}.png`)})`, '', `<sub>${caption}${part}</sub>`);
   });
-  const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
-  const omittedPosition = tiles[0].top === 0 && shown === tiles[tiles.length - 1].bottom ? ' below' : '';
-  if (shown < capturedHeight) {
-    md.push(
-      '',
-      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px${omittedPosition} are ` +
-        `not shown in this report, so approving this surface accepts content not reviewed here._`,
-    );
-  }
+  // How much of the page is shown is said once, in the report's opening (rule 5).
   return md;
 }
 
@@ -129,10 +123,12 @@ function renderOneSided(
       json.image = `${tiles[0].stem}.png`;
       // Additive (#756): every tile, and how much of the captured height they show.
       json.images = tiles.map((t) => `${t.stem}.png`);
-      json.shownHeight = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+      const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+      json.shownHeight = shown;
       json.capturedHeight = png.height;
+      if (shown < png.height) ctx.partialPages?.push({ surface: p.sd.surface, shown, captured: png.height });
     } else {
-      md.push('', cropBudgetNote(ctx.crops));
+      ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: p.sd.surface });
     }
   } else {
     md.push(

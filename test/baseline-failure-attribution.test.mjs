@@ -185,7 +185,7 @@ test('published Action-copy proof stays in lockstep with the formatters', () => 
     fs.readFileSync(path.join(here, '../docs/proof/honest-baseline-attribution/baseline-failures.json'), 'utf8'),
   );
   const proof = fs.readFileSync(path.join(here, '../docs/proof/action-baseline-copy/action-copy.md'), 'utf8');
-  const comment = formatPartialBaselineComment(fixture.baselineFailures);
+  const comment = formatPartialBaselineComment();
   const status = formatPartialBaselineStatusDescription(fixture.baselineFailures);
   const failEcho = formatPartialBaselineFailEcho(fixture.baselineFailures);
   assert.match(proof, new RegExp(escapeRegExp(comment)));
@@ -202,7 +202,7 @@ function escapeRegExp(value) {
 
 test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => {
   const receipts = baselineFailureReceipts([{ key: FAILED_SURFACE, reason: 'timeout' }], BASE_SHA);
-  const comment = formatPartialBaselineComment(receipts);
+  const comment = formatPartialBaselineComment();
   const status = formatPartialBaselineStatusDescription(receipts);
   const failEcho = formatPartialBaselineFailEcho(receipts);
 
@@ -229,7 +229,8 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
   assert.ok(commentStep, 'PR comment step present');
   assert.ok(statusStep, 'commit-status step present');
   assert.ok(partialGate, 'partial-baseline fail step present');
-  assert.match(commentStep[0], /formatPartialBaselineComment\(baselineFailures\)/);
+  // The footer names no surfaces (QA9-02), so the step passes it nothing to name (QA10-04).
+  assert.match(commentStep[0], /formatPartialBaselineComment\(useReviewGate\)/);
   assert.match(statusStep[0], /formatPartialBaselineStatusDescription\(baselineFailures\)/);
   assert.match(partialGate[0], /formatPartialBaselineFailEcho/);
   assert.match(partialGate[0], /report\.baselineFailures/);
@@ -256,7 +257,7 @@ test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the f
   }
 
   const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
-  assert.match(actionYml, /formatDegradedBaselineComment\(baseCaptureFailed\)/);
+  assert.match(actionYml, /formatDegradedBaselineComment\(baseCaptureFailed, useReviewGate\)/);
   assert.match(actionYml, /formatDegradedBaselineStatusDescription\(baseCaptureFailed\)/);
   const commentStep = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n\s{4}# Review-gate)/);
   const statusStep = actionYml.match(/- name: Set review status[\s\S]*?(?=\n\s{4}# A failed base capture)/);
@@ -279,12 +280,13 @@ test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recaptu
   assert.match(actionYml, /formatDegradedBaselineComment/);
 
   // Read complete literals, including escaped quotes, and check the displayed copy.
-  const certificationCopy = [...actionYml.matchAll(/CERTIFICATION_FAILED: ('(?:[^'\\]|\\.)*')/g)].map((match) =>
-    runInNewContext(match[1]),
+  const certificationCopy = [...actionYml.matchAll(/CERTIFICATION_FAILED: (?:cannotClear\()?('(?:[^'\\]|\\.)*')/g)].map(
+    (match) => runInNewContext(match[1]),
   );
   assert.equal(certificationCopy.length, 2);
   assert.match(certificationCopy[0], /Change Reach \(`changeReach: 'gate'`\)/);
-  assert.match(certificationCopy[0], /reviewer approval cannot clear this failure/i);
+  // Where approval is the action, the comment adds that it cannot clear the failure (QA10-01).
+  assert.match(actionYml, /useReviewGate \? '; reviewer approval cannot clear this failure' : ''/);
   for (const copy of certificationCopy) {
     assert.match(copy, /not a base recapture failure/i);
     assert.doesNotMatch(copy, FALSE_RECAPTURE_CLAIM);
@@ -295,7 +297,7 @@ test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recaptu
   );
   assert.equal(receipts[0]?.key, FAILED_SURFACE);
   assert.equal(receipts[0]?.sha, BASE_SHA);
-  assert.doesNotMatch(formatPartialBaselineComment(receipts), FALSE_RECAPTURE_CLAIM);
+  assert.doesNotMatch(formatPartialBaselineComment(), FALSE_RECAPTURE_CLAIM);
   assert.doesNotMatch(formatDegradedBaselineComment(false), FALSE_RECAPTURE_CLAIM);
 });
 
@@ -401,4 +403,31 @@ test('verdict: base-capture-failed=false + incomplete evidence is CERTIFICATION_
   assert.equal(attribution.failureClass, 'compare');
   assert.equal(attribution.recaptureFailed, false);
   assert.doesNotMatch(attribution.summary, FALSE_RECAPTURE_CLAIM);
+});
+
+test('certify and advisory footers never talk about approving (QA10-01)', () => {
+  for (const text of [
+    formatPartialBaselineComment(false),
+    formatDegradedBaselineComment(false, false),
+    formatDegradedBaselineComment(true, false),
+  ]) {
+    assert.doesNotMatch(text, /approv/i);
+  }
+  assert.match(
+    formatPartialBaselineComment(false),
+    /check fails until the missing baseline surfaces named above are captured/,
+  );
+  assert.match(formatDegradedBaselineComment(true, false), /base capture failed/i);
+  assert.match(formatPartialBaselineComment(true), /approval cannot clear/);
+});
+
+test('the copy proof shows the certify and advisory footers too', () => {
+  const proof = fs.readFileSync(path.join(here, '../docs/proof/action-baseline-copy/action-copy.md'), 'utf8');
+  for (const text of [
+    formatPartialBaselineComment(false),
+    formatDegradedBaselineComment(false, false),
+    formatDegradedBaselineComment(true, false),
+  ]) {
+    assert.match(proof, new RegExp(escapeRegExp(text)));
+  }
 });

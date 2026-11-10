@@ -37,7 +37,23 @@ Recapture language stays, because that flag is actually set:
 _The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun. Reviewer approval cannot clear this failure._
 ```
 
+## Certify and advisory modes
+
+Approval is not the action there, so the footers say no approval wording:
+
+```
+_The check fails until the missing baseline surfaces named above are captured._
+```
+
+```
+_This is a head-only receipt rather than a comparison — not a base recapture failure. Repair the missing baseline evidence and rerun._
+```
+
+```
+_The base capture failed, so this is a head-only receipt rather than a comparison — repair the base capture and rerun._
+```
+
 Verdict classification is unchanged: `DEGRADED_BASELINE` is still only assigned
 when `base-capture-failed=true`. Copy is flag-driven so a head-only path with
 the flag false cannot claim a recapture failure. Approval still cannot clear
-either state.
+either state; the comment says so only in a mode where approval is the action.

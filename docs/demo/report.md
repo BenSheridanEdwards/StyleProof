@@ -18,8 +18,6 @@ _pricing @ 900_
 
 <sub>after · pricing @ 900</sub>
 
-_No baseline to compare against._
-
 ## Changes
 
 ### Caret

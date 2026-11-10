@@ -495,9 +495,6 @@ type SectionPairs = {
   omitted?: 'budget' | 'max-crops';
 };
 
-const MAX_CROPS_NOTE = (max: number) =>
-  `_Crop omitted: this change group reached the \`--max-crops\` limit (${max}). The change is still listed and counted._`;
-
 /** The elements a state's pair is about: every section element at rest, the state's targets otherwise. */
 const pairTargets = (section: ChangeSection, state: PairState): string[] =>
   state === 'rest'
@@ -545,7 +542,11 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
 /** One clean before/after pair per state, or the reason a state has none. */
 function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): SectionPairs {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, meta: [] };
-  if (!input.cropsAllowed) return { ...out, note: MAX_CROPS_NOTE(ctx.maxCrops), omitted: 'max-crops' };
+  // Past `--max-crops`: no pair and no note here; the report's opening says it once (rule 5).
+  if (!input.cropsAllowed) {
+    ctx.cropGaps?.push({ reason: 'max-crops', where: input.surface });
+    return { ...out, omitted: 'max-crops' };
+  }
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state, what);
     pair.md.forEach((line) => out.md.push(line));

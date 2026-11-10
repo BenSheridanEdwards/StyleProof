@@ -144,7 +144,12 @@ test('runs that never fail on a diff keep the advisory footer', async () => {
 
 test('a certify evidence failure keeps its own trust guidance', async () => {
   const body = await commentBody({ changed: true, trustState: 'CERTIFICATION_FAILED' });
-  assert.match(body, /reviewer approval cannot clear this failure/);
+  assert.match(
+    body,
+    /evidence is incomplete — this is not a base recapture failure\. Repair the named evidence in the report\._/,
+  );
+  // QA10-01: certify mode has no approval, so its comment never talks about approving.
+  assert.doesNotMatch(body, /approv/i);
   assert.doesNotMatch(body, /certify gate/);
 });
 

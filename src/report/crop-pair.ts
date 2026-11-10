@@ -2,7 +2,7 @@ import type { PNG } from 'pngjs';
 import { STATE_WORDS } from './change-line.js';
 import type { Box } from './geometry.js';
 import { cropPng, cropStem } from './png.js';
-import { cropBudgetNote, cropBudgetOpen, writeBudgetedPair } from './crop-budget.js';
+import { cropBudgetOpen, cropGapReason, writeBudgetedPair } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
@@ -50,10 +50,12 @@ const escapeCellAttribute = (value: string): string =>
 const MAX_CROP_W = 1280;
 const MAX_CROP_AREA = 1_024_000;
 
-function omittedCrop(ctx: RenderCtx) {
+/** No note here: the report's opening counts every omitted crop once, by cause and surface. */
+function omittedCrop(ctx: RenderCtx, surface: string) {
   ctx.crops.omitted++;
+  ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: surface });
 
-  return { md: ['', cropBudgetNote(ctx.crops)], images: {}, omitted: true };
+  return { md: [], images: {}, omitted: true };
 }
 
 /**
@@ -86,12 +88,12 @@ export function renderCropPair(
   const after = cropPng(pngB, inCommon ? aligned : box, w, h);
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
 
-  if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx);
+  if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx, spec.surface);
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = {};
   const beforeRel = `${stem}-before.png`;
   const afterRel = `${stem}-after.png`;
-  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx);
+  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx, spec.surface);
   images.before = beforeRel;
   images.after = afterRel;
   const image = (rel: string, side: string) =>

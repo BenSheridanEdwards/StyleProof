@@ -517,7 +517,9 @@ test('maxCrops bounds advisory content image sets without hiding textual finding
   assert.match(md, /Old two/);
   assert.match(md, /Old three/);
   // #971: the two uncropped entries say why they have no crop.
-  assert.equal(md.split('_Crop omitted: this surface reached the `--max-crops` limit (1).').length - 1, 2);
+  // #971 + rule 5: the two uncropped entries are counted once, in the opening, with the option.
+  assert.match(md, /✂️ \*\*2 changes have no crop\*\*, past the `--max-crops` limit of 1 per surface \(2 on `[^`]+`\)/);
+  assert.equal(md.split('--max-crops').length - 1, 2, 'the note is said once');
   rmTmp(dirs.root);
 });
 
@@ -562,12 +564,16 @@ test('#971: a content change past the per-surface crop cap carries an omission n
   const full = twoSurfaceAdditions();
   const capped = twoSurfaceAdditions({ maxCrops: 3 });
   assert.equal(capped.composites.length, 6, '3 crops on each surface');
-  const note =
-    '_Crop omitted: this surface reached the `--max-crops` limit (3). The change is still listed and counted._';
+  // Rule 5: one opening line counts both uncropped additions on each surface; no entry repeats it.
+  assert.match(
+    capped.md,
+    /✂️ \*\*4 changes have no crop\*\*, past the `--max-crops` limit of 3 per surface \(2 on `first @ 500`, 2 on `second @ 500`\)\. Each is still listed and counted; raise `--max-crops` to show their crops\./,
+  );
+  assert.equal(capped.md.split('--max-crops').length - 1, 2, 'the note is said once');
   for (const surface of ['first@500', 'second@500']) {
     const section = capped.md.split(`### \`${surface}\``)[1].split('\n### ')[0];
     assert.equal(section.split('element added').length - 1, 5, `${surface} still lists all 5 additions`);
-    assert.equal(section.split(note).length - 1, 2, `${surface} names both uncropped additions`);
+    assert.doesNotMatch(section, /max-crops/, `${surface} carries no per-entry note`);
   }
   assert.deepEqual(capped.result.comparison.reviewableCounts, full.result.comparison.reviewableCounts);
   assert.equal(capped.result.comparison.hasReviewableEvidence, true);

@@ -69,7 +69,9 @@ test('report discloses explicit product-state mismatch and withholds approvable 
     md,
     /⛔ \*\*This compare cannot certify:\*\* 1 paired capture\(s\) declare a different product state on base and head/,
   );
-  assert.match(md, /not shown as changes to approve/);
+  // QA10-01: say the fact without approval wording; certify and advisory runs have nothing to approve.
+  assert.match(md, /so their differences are not compared\./);
+  assert.doesNotMatch(md, /approv/i);
   assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   assert.doesNotMatch(md, /private-selector/, 'suppressed raw paths must not appear as report evidence');
   rmTmp(dirs.root);

@@ -135,11 +135,14 @@ const wrapActionComment = (body: string): string => `_${body}_`;
 
 /**
  * PR-comment footer for PARTIAL_BASELINE. The report summary above it already names each failed
- * surface, its commit and the fix, so the footer only says what approval cannot do (rule 5).
+ * surface, its commit and the fix, so the footer only says what approval cannot do (rule 5), and
+ * only in a mode where approval is the action; elsewhere it gives the check status.
  */
-export function formatPartialBaselineComment(): string {
+export function formatPartialBaselineComment(approvalMode = true): string {
   return wrapActionComment(
-    'Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun.',
+    approvalMode
+      ? 'Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun.'
+      : 'The check fails until the missing baseline surfaces named above are captured.',
   );
 }
 
@@ -159,14 +162,18 @@ export function formatPartialBaselineFailEcho(receipts: unknown): string {
   );
 }
 
-/** PR-comment footer for DEGRADED_BASELINE / head-only evidence; recapture language only when true. */
-export function formatDegradedBaselineComment(baseCaptureFailed: boolean): string {
+/**
+ * PR-comment footer for DEGRADED_BASELINE / head-only evidence; recapture language only when true,
+ * approval language only in a mode where approval is the action.
+ */
+export function formatDegradedBaselineComment(baseCaptureFailed: boolean, approvalMode = true): string {
   return wrapActionComment(
     baseCaptureFailed
-      ? `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary} Reviewer approval cannot clear this failure.`
+      ? `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary}${approvalMode ? ' Reviewer approval cannot clear this failure.' : ''}`
       : 'This is a head-only receipt rather than a comparison — not a base recapture failure. ' +
-          'Repair the missing baseline evidence and rerun; ' +
-          'reviewer approval cannot clear this failure.',
+          (approvalMode
+            ? 'Repair the missing baseline evidence and rerun; reviewer approval cannot clear this failure.'
+            : 'Repair the missing baseline evidence and rerun.'),
   );
 }
 

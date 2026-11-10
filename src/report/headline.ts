@@ -10,7 +10,8 @@ import {
   type SurfaceCaptureFailure,
 } from '../map-store.js';
 import { formatSurfaceList, safeKey, surfaceBase } from '../change-groups.js';
-import type { ChangeGroup, PreparedSurface, ReportConsistency } from './shared.js';
+import { sizeLimitName } from './crop-budget.js';
+import type { ChangeGroup, CropGap, PartialPage, PreparedSurface, ReportConsistency } from './shared.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
@@ -260,6 +261,64 @@ function oneSidedVolatileLines(regions: NonNullable<HeadlineInput['headOnlyVolat
   ];
 }
 
+const where = (key: string): string => (key === 'Global chrome' ? key : `\`${formatSurfaceList([key])}\``);
+
+/** "2 on `home @ 1280`, 1 on Global chrome", in first-seen order. */
+function countsByPlace(gaps: CropGap[]): string {
+  const counts = new Map<string, number>();
+  for (const gap of gaps) counts.set(gap.where, (counts.get(gap.where) ?? 0) + 1);
+  return [...counts].map(([key, n]) => `${n} on ${where(key)}`).join(', ');
+}
+
+/**
+ * Every change with no crop, said once for the whole report: the true total, each cause with the
+ * places it hit, and the option that shows them. Sections and entries carry no note of their own.
+ */
+export function cropGapLines(
+  gaps: CropGap[],
+  limits: { maxCrops: number; maxFiles: number; maxBytes: number },
+): string[] {
+  if (gaps.length === 0) return [];
+  const of = (reason: CropGap['reason']) => gaps.filter((gap) => gap.reason === reason);
+  const causes = [
+    [of('max-crops'), `past the \`--max-crops\` limit of ${limits.maxCrops} per surface`],
+    [of('budget'), `past the report's crop budget (${limits.maxFiles} files / ${limits.maxBytes / 1_000_000} MB)`],
+    [of('size'), `too large to fit the ${sizeLimitName(limits.maxBytes)} after downscaling`],
+  ] as const;
+  const hits = causes.filter(([hit]) => hit.length > 0);
+  // One cause: the total already counts it. Several: each says how many it left out.
+  const parts = hits.map(([hit, why]) => `${hits.length > 1 ? `${hit.length} ` : ''}${why} (${countsByPlace(hit)})`);
+  const options = [
+    of('max-crops').length ? 'raise `--max-crops`' : '',
+    of('budget').length ? 'raise `--max-crop-files` or `--max-crop-bytes`' : '',
+    of('size').length && !of('budget').length && sizeLimitName(limits.maxBytes) === 'report byte limit'
+      ? 'raise `--max-crop-bytes`'
+      : '',
+  ].filter(Boolean);
+  const n = gaps.length;
+  return [
+    '',
+    `✂️ **${n === 1 ? '1 change has' : `${n} changes have`} no crop**${hits.length > 1 ? ':' : ','} ${parts.join('; ')}. ` +
+      `${n === 1 ? 'It is' : 'Each is'} still listed and counted` +
+      (options.length ? `; ${options.join(', or ')} to show ${n === 1 ? 'its crop' : 'their crops'}.` : '.'),
+  ];
+}
+
+/**
+ * One-sided pages shown only in part, said once: how many, why, and what to do. The 🆕/🗑️ line
+ * names each page and its last tile caption says how much of it is shown.
+ */
+export function partialPageLines(pages: PartialPage[]): string[] {
+  if (pages.length === 0) return [];
+  const one = pages.length === 1;
+  return [
+    '',
+    `📏 **${one ? '1 page' : `${pages.length} pages`} with nothing to compare against ${one ? 'is' : 'are'} only partly shown.** ` +
+      `Such a page shows at most 8 screen heights, within the crop budget, and the tile captions say how much; ` +
+      `the rest is not reviewed in this report. Open the full screenshot in the capture to review it.`,
+  ];
+}
+
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
@@ -285,7 +344,10 @@ export function reportHeadline(input: HeadlineInput): string[] {
     `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there, or fixture the base-side churn so the next baseline compares it.`,
   ).forEach((appended) => md.push(appended));
   // A structure-only report leads with the visible-structure line; the notes below never repeat it.
-  return [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
+  const lines = [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
+  // With no summary paragraph (a volatile-only report), the first block opens without a blank line.
+  const first = lines.findIndex((line) => line !== '');
+  return first < 0 ? [] : lines.slice(first);
 }
 
 /** The shared-chrome note (#754); its verdict clause is left out when the headline already said it. */

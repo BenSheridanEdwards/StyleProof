@@ -28,12 +28,10 @@ function noStructureCropNote(change: 'added' | 'removed'): string {
 /** Each "no crop" note once per content section: later elements of the same kind need not repeat it. */
 const ONCE_NOTES = new Set([NO_PIXEL_DIFFERENCE_NOTE, noStructureCropNote('added'), noStructureCropNote('removed')]);
 
-/** An entry past the `--max-crops` cap names the cap instead of silently showing no crop (#971). */
-function cropCapNote(scope: string, maxCrops: number): string[] {
-  return [
-    '',
-    `_Crop omitted: ${scope} reached the \`--max-crops\` limit (${maxCrops}). The change is still listed and counted._`,
-  ];
+/** An entry past `--max-crops` gets no crop and no note here; the report's opening counts it once. */
+function countUncropped(ctx: RenderCtx, where: string): string[] {
+  ctx.cropGaps?.push({ reason: 'max-crops', where });
+  return [];
 }
 
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
@@ -316,7 +314,7 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
     ? []
     : seq < ctx.maxCrops
       ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`)
-      : cropCapNote('Global chrome', ctx.maxCrops);
+      : countUncropped(ctx, 'Global chrome');
   return [
     '',
     `**${codeValue(prettyLabel(c.path, c.cls))}** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
@@ -351,7 +349,7 @@ export function renderChromeStructureSection(
     `## 🧱 Global chrome — ${n} element ${n === 1 ? 'change' : 'changes'} on every surface base that renders its container`,
     '',
     // The heading names the scope; the intro adds that the change is identical and why it is listed once.
-    `_Each was added or removed identically wherever its container renders, so it is listed once here instead of once per surface${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' (inside a nav, header or footer)' : ''}. ${verdictBlurb}_`,
+    `_Each element${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' inside a nav, header or footer' : ''} was added or removed identically wherever its container renders, so it is listed once here instead of once per surface. ${verdictBlurb}_`,
     ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
   ];
 }
@@ -386,7 +384,7 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
       ? []
       : seq - firstSeq < ctx.maxCrops
         ? contentCropLines(sides, surface, c, `content-${seq + 1}`)
-        : cropCapNote('this surface', ctx.maxCrops);
+        : countUncropped(ctx, surface);
     if (cropLines.some((line) => line.startsWith('| <img '))) seq++;
     md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '');
     changeLines(ctx, c).forEach((appended) => md.push(appended));

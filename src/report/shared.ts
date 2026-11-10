@@ -47,6 +47,10 @@ export type RenderCtx = {
   minHeight: number;
   maxHeight: number;
   maxCrops: number;
+  /** Every change that got no crop, and why; the report's opening says it once (rule 5). */
+  cropGaps?: CropGap[];
+  /** One-sided pages shown only in part (the tile cap or the crop budget). */
+  partialPages?: PartialPage[];
   crops: CropBudget;
   /** Change sections of this render (report.html data); absent for renders that draw no sections. */
   sections?: SectionRegistry;
@@ -55,6 +59,10 @@ export type RenderCtx = {
   includeNoise: boolean;
   requireStateIdentity: boolean;
 };
+
+/** A change with no crop: past `--max-crops`, past the crop budget, or too large after downscaling. */
+export type CropGap = { reason: 'max-crops' | 'budget' | 'size'; where: string };
+export type PartialPage = { surface: string; shown: number; captured: number };
 
 /** The current surface's decoded screenshots, per render ctx: rendering visits one surface at a time. */
 const surfacePngs = new WeakMap<RenderCtx, { surface: string; files: Map<string, PNG | null> }>();

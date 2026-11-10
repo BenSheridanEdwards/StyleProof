@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { PNG } from 'pngjs';
-import { createCropBudget, cropBudgetNote, writeBudgetedPng } from '../dist/report/crop-budget.js';
+import { createCropBudget, cropGapReason, writeBudgetedPng } from '../dist/report/crop-budget.js';
+import { cropGapLines } from '../dist/report/headline.js';
 import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
 import { tmpDirs, makeMap, writeCapture, solidPng, rmTmp } from './helpers.mjs';
 
@@ -83,9 +84,17 @@ test('whole-report crop budget preserves findings and certification', async (t) 
     const capped = report(dirs, 'files', { maxCropFiles: 5 });
     assert.ok(capped.files.length <= 5, `wrote ${capped.files.length} crop files`);
     assert.ok(capped.json.cropBudget.omitted > 0);
-    assert.equal(
-      (capped.md.match(/Crop omitted: the report reached its crop budget/g) ?? []).length,
-      capped.json.cropBudget.omitted,
+    // Rule 5: one opening line states every crop left out, with the true total and the option.
+    assert.equal((capped.md.match(/no crop\*\*/g) ?? []).length, 1);
+    const line = capped.md.match(/\*\*(\d+) changes? ha(?:s|ve) no crop\*\*[^\n]*/);
+    const sectionsOmitted = capped.json.surfaces
+      .flatMap((s) => s.regions ?? [])
+      .filter((r) => r.cropOmitted === 'budget').length;
+    const pagesOmitted = capped.json.surfaces.filter((s) => (s.isNew || s.isRemoved) && !s.image).length;
+    assert.equal(Number(line[1]), sectionsOmitted + pagesOmitted);
+    assert.match(
+      line[0],
+      /past the report's crop budget \(5 files \/ 0\.9 MB\)[^\n]*raise `--max-crop-files` or `--max-crop-bytes`/,
     );
     assert.equal(capped.json.cropBudget.files, capped.files.length);
     assert.equal(capped.json.cropBudget.bytes, capped.bytes);
@@ -117,7 +126,7 @@ test('whole-report crop budget preserves findings and certification', async (t) 
   await t.test('zero bytes disables crops and preserves findings', () => {
     const capped = report(dirs, 'zero-bytes', { maxCropBytes: 0 });
     assert.deepEqual(capped.files, []);
-    assert.match(capped.md, /Crop omitted: the report reached its crop budget/);
+    assert.match(capped.md, /no crop\*\*[^\n]*past the report's crop budget/);
     sameFindings(capped, full);
   });
 
@@ -129,7 +138,7 @@ test('whole-report crop budget preserves findings and certification', async (t) 
       Object.keys(added).sort(),
       ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'classification'].sort(),
     );
-    assert.match(capped.md, /Crop omitted: the report reached its crop budget/);
+    assert.match(capped.md, /no crop\*\*[^\n]*past the report's crop budget/);
     assert.doesNotMatch(capped.md, /no screenshot saved/);
     sameFindings(capped, full);
   });
@@ -148,7 +157,8 @@ test('one-sided pages retain partial tiles and the page-capped warning', (t) => 
   assert.equal(added.shownHeight, 1600);
   assert.equal(added.capturedHeight, 4000);
   assert.ok(added.shownHeight < added.capturedHeight);
-  assert.match(capped.md, /Page capped: showing 1600 of 4000px/);
+  assert.match(capped.md, /part 2 of 2 · 800–1600 of 4000px/);
+  assert.match(capped.md, /📏 \*\*1 page with nothing to compare against is only partly shown\.\*\*/);
 });
 
 test('a tall changed element has clean crops clipped to the pixel cap', (t) => {
@@ -193,7 +203,7 @@ test('an oversized one-sided tile does not block a later small tile', (t) => {
   const capped = report(dirs, 'partial', { maxCropBytes: 100 });
   assert.equal(capped.files.length, 1);
   assert.match(capped.files[0], /new-2/);
-  assert.doesNotMatch(capped.md, /the report reached its crop budget/);
+  assert.doesNotMatch(capped.md, /crop budget \(/);
 });
 
 test('a crop rejected after downscaling names the report byte limit and leaves room for smaller crops', (t) => {
@@ -203,8 +213,14 @@ test('a crop rejected after downscaling names the report byte limit and leaves r
   const ctx = { outDir: dirs.root, crops };
   assert.equal(writeBudgetedPng(ctx, 'large.png', PNG.sync.read(noisePng(400, 400, 1))), false);
   assert.equal(crops.exhausted, false);
-  assert.match(cropBudgetNote(crops), /report byte limit after downscaling/);
-  assert.doesNotMatch(cropBudgetNote(crops), /reached its crop budget/);
+  assert.equal(cropGapReason(crops), 'size');
+  const [, line] = cropGapLines([{ reason: cropGapReason(crops), where: 'home@1280' }], {
+    maxCrops: 8,
+    maxFiles: crops.maxFiles,
+    maxBytes: crops.maxBytes,
+  });
+  assert.match(line, /report byte limit after downscaling/);
+  assert.doesNotMatch(line, /crop budget/);
   assert.equal(writeBudgetedPng(ctx, 'small.png', PNG.sync.read(solidPng(1, 1))), true);
 });
 
@@ -219,7 +235,7 @@ test('zero crop bytes skips encoding and reports an exhausted budget', () => {
 
   assert.equal(writeBudgetedPng({ crops }, 'disabled.png', png), false);
   assert.equal(crops.exhausted, true);
-  assert.match(cropBudgetNote(crops), /reached its crop budget/);
+  assert.equal(cropGapReason(crops), 'budget');
 });
 
 test('advisory content crops do not take the crop budget from reviewable style crops', (t) => {

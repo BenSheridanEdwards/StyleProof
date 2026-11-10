@@ -79,10 +79,12 @@ test('#971: Global chrome entries past maxCrops carry an omission note, verdict 
     .readdirSync(`${capped.dirs.outDir}/crops`)
     .filter((name) => /-chrome-\d+-after\.png$/.test(name));
   assert.equal(composites.length, 1);
+  // Rule 5: the opening says once how many entries have no crop, where, and the option.
   const note =
-    '_Crop omitted: Global chrome reached the `--max-crops` limit (1). The change is still listed and counted._';
-  assert.equal(occurrences(capped.md, note), 1, 'the uncropped second entry says why it has no crop');
-  assert.equal(occurrences(full.md, 'Crop omitted'), 0);
+    '✂️ **1 change has no crop**, past the `--max-crops` limit of 1 per surface (1 on Global chrome). It is still listed and counted; raise `--max-crops` to show its crop.';
+  assert.equal(occurrences(capped.md, note), 1, 'the uncropped second entry is counted once, with why');
+  assert.equal(occurrences(capped.md, '--max-crops'), 2, 'only that line names the limit; no entry repeats it');
+  assert.equal(occurrences(full.md, 'no crop**'), 0);
   assert.deepEqual(capped.result.comparison.reviewableCounts, full.result.comparison.reviewableCounts);
   rmTmp(full.dirs.root);
   rmTmp(capped.dirs.root);

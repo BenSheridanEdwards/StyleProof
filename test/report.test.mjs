@@ -1516,7 +1516,12 @@ test('a new surface taller than the tile cap says exactly how much is shown (#75
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(oneSidedImages(md, 'new surface').length, 8);
-  assert.match(md, /showing 800 of 1234px — the remaining 434px below are not shown in this report/);
+  // The last tile caption says how much is shown; the opening says once that the rest is not reviewed.
+  assert.match(md, /part 8 of 8 · 700–800 of 1234px/);
+  assert.match(
+    md,
+    /📏 \*\*1 page with nothing to compare against is only partly shown\.\*\*[^\n]*not reviewed in this report/,
+  );
   const entry = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces.find(
     (s) => s.surface === 'pricing@320',
   );

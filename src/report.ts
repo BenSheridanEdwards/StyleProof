@@ -72,6 +72,8 @@ import {
 import { buildDigest } from './report/digest.js';
 import {
   oneSidedStatus,
+  cropGapLines,
+  partialPageLines,
   reachGateLine,
   readBaselineInfo,
   reportHeadline,
@@ -114,6 +116,7 @@ export {
 } from './change-groups.js';
 export type { SummarizedProp } from './change-groups.js';
 export type { ComparisonTruth } from './change-groups.js';
+export { propertyGlanceLine } from './report/markdown.js';
 export { MIGRATION_GALLERY_LABELS, type MigrationGallery } from './report/migration-gallery.js';
 
 /**
@@ -231,6 +234,8 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     minHeight: opts.minHeight ?? 180,
     maxHeight: opts.maxHeight ?? 1600,
     maxCrops: opts.maxCrops ?? 8,
+    cropGaps: [],
+    partialPages: [],
     crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
     sections: createSectionRegistry(),
     foldDetailsAt: opts.foldDetailsAt ?? 0,
@@ -559,16 +564,18 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 3. Render report.md: verdict first (above the fold), then the product-state warning when it
   // fires — never the certification checklist first, and never a green product-state peer card.
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
+  const summary = sectionSummary(
+    ctx,
+    view.changeGroups,
+    // A changed-rule count is only true when both sides recorded the CSS they served.
+    reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
+    surfaceKeyOf,
+  );
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
     missing: view.missing,
-    // A changed-rule count is only true when both sides recorded the CSS they served.
-    ...sectionSummary(
-      ctx,
-      view.changeGroups,
-      reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
-      surfaceKeyOf,
-    ),
+    sectionCount: summary.sectionCount,
+    scope: summary.scope,
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -595,6 +602,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   headline.forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
+  // Crop limits are known only once the sections are written; their one line joins the opening here.
+  const openingEnd = md.lines.length;
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
   if (reachStrip.length && !md.lines.includes(reachStrip[1])) {
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
@@ -613,13 +622,18 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Whole pages for report.html come last, so they never take the crop budget from evidence.
   finishSections(ctx, md);
 
-  if (ctx.crops.omitted > 0) {
-    md.append([
-      '',
-      `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
-        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB, \`--max-crop-files\` / \`--max-crop-bytes\`); every change is still listed and counted; full findings remain in the original diff input (not included in the report artifact)._`,
-    ]);
-  }
+  // Every crop left out and every partly shown page, said once in the opening (rule 5).
+  const limits = [
+    ...partialPageLines(ctx.partialPages ?? []),
+    ...cropGapLines(ctx.cropGaps ?? [], {
+      maxCrops: ctx.maxCrops,
+      maxFiles: ctx.crops.maxFiles,
+      maxBytes: ctx.crops.maxBytes,
+    }),
+  ];
+  const rest = md.lines.splice(openingEnd);
+  limits.forEach((line) => md.lines.push(line));
+  rest.forEach((line) => md.lines.push(line));
 
   if (ctx.crops.downscaled > 0) {
     md.append([

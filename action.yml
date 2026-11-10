@@ -947,11 +947,8 @@ runs:
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/comment-supersession.js`);
           const { buildReportDelivery, buildArtifactReportDelivery } =
             await import(`${process.env.GITHUB_ACTION_PATH}/dist/report-delivery.js`);
-          const {
-            formatPartialBaselineComment,
-            formatDegradedBaselineComment,
-            parseBaselineFailureReceipts,
-          } = await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
+          const { formatPartialBaselineComment, formatDegradedBaselineComment } =
+            await import(`${process.env.GITHUB_ACTION_PATH}/dist/map-store.js`);
           const prNumber = Number('${{ steps.context.outputs.pr-number }}');
           const marker = ${{ toJSON(inputs.comment-marker) }};
           if (typeof marker !== 'string' || !/^<!-- [A-Za-z0-9 _.:-]{1,80} -->$/.test(marker)) {
@@ -1056,17 +1053,17 @@ runs:
             const box = (useReviewGate && trustState === 'STYLE_REVIEW_REQUIRED') || untrustedReview
               ? ['', formatReviewApprovalLine({ approved, approver })]
               : [];
-            const reportJson = fs.existsSync('styleproof-report/report.json')
-              ? JSON.parse(fs.readFileSync('styleproof-report/report.json', 'utf8'))
-              : {};
-            const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
             const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
+            // Approval wording only where approval is the action (review-gate, migration, require-approval):
+            // a certify or advisory comment never talks about approving.
+            const cannotClear = (copy) =>
+              `_${copy}${useReviewGate ? '; reviewer approval cannot clear this failure' : ''}._`;
             const trustGuidance = {
-              DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
-              INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-              CERTIFICATION_FAILED: '_Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
-              PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
-              DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
+              DATA_RESIDUE_UNACKNOWLEDGED: cannotClear('Captured data fallbacks are unacknowledged — fix or fixture the endpoints'),
+              INVENTORY_REMOVAL_UNACKNOWLEDGED: cannotClear('A navigable affordance was removed without acknowledgement — repair or acknowledge it'),
+              CERTIFICATION_FAILED: cannotClear('Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report'),
+              PARTIAL_BASELINE: formatPartialBaselineComment(useReviewGate),
+              DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed, useReviewGate),
             }[trustState];
             const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
             const contentChanges = Number('${{ steps.report.outputs.content-changes }}');

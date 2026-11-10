@@ -90,7 +90,10 @@ export function writeBudgetedPair(
   return true;
 }
 
-export const cropBudgetNote = (b: CropBudget): string =>
-  !b.exhausted && b.files < b.maxFiles
-    ? `_Crop omitted: the image could not fit the ${b.maxBytes < MAX_CROP_FILE_BYTES ? 'report byte limit' : 'per-file size limit'} after downscaling._`
-    : '_Crop omitted: the report reached its crop budget._';
+/** Why a crop was just left out: the budget ran out, or this image could not fit the per-file limit. */
+export const cropGapReason = (b: CropBudget): 'budget' | 'size' =>
+  !b.exhausted && b.files < b.maxFiles ? 'size' : 'budget';
+
+/** The limit a too-large crop could not fit: the report's own byte limit when it is the smaller one. */
+export const sizeLimitName = (maxBytes: number): string =>
+  maxBytes < MAX_CROP_FILE_BYTES ? 'report byte limit' : 'per-file size limit';

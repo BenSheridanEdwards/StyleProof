@@ -1108,7 +1108,7 @@ test('styleproof-report marks only a matching failed baseline surface as repair 
   assert.equal(genuinelyNew.isNew, true);
   assert.equal(genuinelyNew.baselineStatus, 'new');
   assert.match(md, /failed@1280.*baseline repair needed/is);
-  assert.match(md, /genuinely-new@1280.*No baseline to compare against/is);
+  assert.match(md, /### `genuinely-new@1280` · new surface/);
   assert.doesNotMatch(md, /private viewport exception/i);
   rmTmp(root);
 });

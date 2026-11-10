@@ -260,7 +260,7 @@ export function productStateWarningLines(comparison: ComparabilitySummary, legac
     'Declare `productState {id, revision}` on both sides, or record it in `styleproof.product-state.json`.';
   const lines = [
     incomparable
-      ? `${incomparable} paired capture(s) declare a different product state on base and head, so their differences are not shown as changes to approve.`
+      ? `${incomparable} paired capture(s) declare a different product state on base and head, so their differences are not compared.`
       : '',
     requiredUnproven + globalRequiredUnproven || undeclared
       ? `${requiredUnproven + globalRequiredUnproven || undeclared || unproven} paired capture(s) are not proven to show the same product state on both sides. ${declare}`
