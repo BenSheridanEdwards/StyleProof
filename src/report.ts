@@ -116,7 +116,6 @@ export {
 } from './change-groups.js';
 export type { SummarizedProp } from './change-groups.js';
 export type { ComparisonTruth } from './change-groups.js';
-export { propertyGlanceLine } from './report/markdown.js';
 export { MIGRATION_GALLERY_LABELS, type MigrationGallery } from './report/migration-gallery.js';
 
 /**

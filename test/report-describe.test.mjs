@@ -9,7 +9,6 @@ import {
   colorName,
   tokenIndex,
   toHex,
-  propertyGlanceLine,
 } from '../dist/report.js';
 import {
   makeMap,
@@ -314,45 +313,6 @@ test('end-to-end: each crop shows clean before/after images and boxes only the W
   rmTmp(root);
 });
 
-test('propertyGlanceLine is one line per property, no bullets, no blank lines', () => {
-  const line = propertyGlanceLine([
-    {
-      kind: 'style',
-      path: 'button',
-      cls: 'btn',
-      pseudo: null,
-      props: [
-        { prop: 'background-color', before: 'rgb(20, 184, 166)', after: 'rgb(220, 38, 38)' },
-        { prop: 'font-size', before: '13px', after: '16px' },
-      ],
-    },
-    {
-      kind: 'state',
-      path: 'button',
-      cls: 'btn',
-      state: 'hover',
-      sub: '',
-      props: [{ prop: 'color', before: 'rgb(94, 234, 212)', after: 'rgb(254, 202, 202)' }],
-    },
-  ]);
-  const rows = line.split('\n');
-  assert.equal(rows.length, 3);
-  assert.ok(
-    rows.every((r) => r.length > 0),
-    'no blank lines between properties',
-  );
-  assert.ok(
-    rows[0].endsWith('<br>') && rows[1].endsWith('<br>'),
-    'GitHub hard-breaks so they do not wrap into one paragraph',
-  );
-  assert.ok(!rows[2].includes('<br>'), 'last property has no trailing break');
-  assert.ok(!line.includes(' · '), 'not smashed onto one middot line');
-  assert.ok(!line.includes('- '), 'no bullets');
-  assert.match(rows[0], /`background-color`/);
-  assert.match(rows[1], /`font-size`/);
-  assert.match(rows[2], /`:hover` `color`/);
-});
-
 test('state-only change crops hover vs hover, not rest vs rest', () => {
   const link = (hoverColor) =>
     makeMap({
@@ -488,7 +448,7 @@ test('state-only change without layer screenshots does not pretend rest is hover
   rmTmp(dirs.root);
 });
 
-test('property changes sit on one line above the crop, not only under the fold', () => {
+test('the change reads in plain English above the crop, not only under the fold', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),

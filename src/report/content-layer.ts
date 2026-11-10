@@ -445,9 +445,7 @@ export function renderContentSection(
       ? `_${count} content/structure change(s). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock ` +
         `text stay advisory and do not alone change the verdict; the visible additions/removals are named at the top._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
-        `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
-        `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +
-        `so it cannot be mistaken for a product style regression._`;
+        `computed-style certification and do not affect the check._`;
   const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
   const said = new Set<string>();
