@@ -62,7 +62,7 @@ test('#770: new surface + one style change keeps the verdict as the reviewable s
   const joined = lines.join('\n');
   // 1 new + 1 style change = 2 reviewable (matches dogfood verdict shape).
   assert.match(joined, /^\*\*2 changes to review\*\* on `home` at 900px wide: 1 element\.$/m);
-  assert.match(joined, /🆕 \*\*1 new surface\(s\)\*\*/);
+  assert.match(joined, /🆕 \*\*1 new surface\*\*/);
 });
 
 test('elevated structure headline counts visible and navigable-chrome elevations together', () => {

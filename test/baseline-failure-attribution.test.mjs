@@ -149,7 +149,8 @@ test('TDD fixture: base-capture-failed=false + baseline fault names surface+SHA 
 
     assert.match(md, new RegExp(FAILED_SURFACE));
     assert.match(md, new RegExp(BASE_SHA));
-    assert.match(md, /not a base recapture failure/i);
+    // Rule 5 (QA8-01): said once, plainly — the rest of the base was captured, so no recapture failed.
+    assert.match(md, /The rest of the base was captured/);
     assert.doesNotMatch(md, /base-capture-failed/, 'the internal flag stays out of report text');
     assert.doesNotMatch(md, FALSE_RECAPTURE_CLAIM);
   } finally {

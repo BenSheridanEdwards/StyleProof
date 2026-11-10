@@ -176,8 +176,8 @@ test('every changed element and every one-sided surface is named or counted, nev
   assert.equal(json.digest.length, 13);
   for (const row of json.digest) assert.ok(row.more >= 0);
   // The comment slice names every one-sided surface; element detail lives in the sections and report.json.
-  assert.match(slice, /REMOVED surface\(s\)\*\* — present in the baseline, not captured on head: `legacy @ 900`/);
-  assert.match(slice, /new surface\(s\)\*\* captured with no baseline to compare: `pricing @ 900`/);
+  assert.match(slice, /removed surface\*\* — in the baseline, not captured on head: `legacy @ 900`/);
+  assert.match(slice, /new surface\*\* with no baseline to compare: `pricing @ 900`/);
 });
 
 test('a global chrome row keeps the every-surface-that-renders-it qualifier', () => {

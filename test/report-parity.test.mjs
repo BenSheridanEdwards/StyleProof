@@ -47,7 +47,7 @@ const writeMinimalManifest = (dir, surfaceCaptureFailures = []) => {
 };
 
 function extractMdCounts(md) {
-  const baselineFailureMatch = md.match(/(\d+)\s*baseline capture failure/i);
+  const baselineFailureMatch = md.match(/(\d+) surfaces? failed to capture on the base/);
   const changedMatch = md.match(/(\d+)\s*changed/i) || md.match(/changes.*?(\d+)/i);
   const newSurfaceMatch = md.match(/(\d+)\s*new surface/i) || md.match(/new.*?(\d+)/i);
   const identicalMatch = md.match(/identical/i);

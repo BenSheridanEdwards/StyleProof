@@ -40,7 +40,7 @@ function structureOnly(t, options = {}) {
   };
 }
 
-const LINE = '🧱 **1 visible element was added or removed** — it needs review; approve it with the other changes.';
+const LINE = '🧱 **1 visible element was added or removed** — it needs review.';
 
 for (const [name, options] of [
   ['a structure-only report', {}],

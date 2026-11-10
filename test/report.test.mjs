@@ -642,7 +642,7 @@ test('new surfaces are named in the summary that the PR comment slices', () => {
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
-  assert.match(commentSummary, /🆕 \*\*2 new surface\(s\)\*\*/);
+  assert.match(commentSummary, /🆕 \*\*2 new surfaces\*\*/);
   assert.match(commentSummary, /`workspace @ 1280, 390`/);
   assert.doesNotMatch(commentSummary, /shown below for review/);
   rmTmp(root);
@@ -685,7 +685,7 @@ test('new surface details render before existing-surface change groups', () => {
   assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
   assert.ok(
-    commentSummary.indexOf('**2 changes to review**') < commentSummary.indexOf('🆕 **1 new surface(s)**'),
+    commentSummary.indexOf('**2 changes to review**') < commentSummary.indexOf('🆕 **1 new surface**'),
     'the comment summary states the total, then names the new surface',
   );
   assert.match(commentSummary, /`workspace @ 900`/);
@@ -1206,7 +1206,7 @@ test('correspondence: nesting reparent elevates visible structure rather than re
   assert.equal(res.comparison.hasReviewableEvidence, true);
   assert.ok((res.comparison.reviewableCounts?.dom ?? 0) >= 1);
   assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
-  assert.match(md, /visible element addition|needs review|STYLE_REVIEW_REQUIRED/i);
+  assert.match(md, /visible elements? (?:was|were) added or removed\*\* — (?:it needs|they need) review/);
   assert.doesNotMatch(md, /✓ All surfaces identical/);
   assert.doesNotMatch(md, /Report consistency failure/);
   rmTmp(root);
@@ -1352,11 +1352,11 @@ test('end-to-end: a surface missing on one side renders by DIRECTION — head-on
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Head-only: a NEW surface, carrying the marker + approve-forward guidance.
   assert.match(md, /### `launch@1280` · new surface <!-- styleproof-new -->/);
-  assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
+  assert.match(md, /🆕 \*\*1 new surface\*\*/);
   // Base-only: a REMOVAL — previously mislabelled "new", inviting reviewers to
   // approve a disappearing feature as an addition.
   assert.match(md, /### `about@1280` · REMOVED surface 🗑️/);
-  assert.match(md, /1 REMOVED surface\(s\)/);
+  assert.match(md, /1 removed surface\*\*/);
   assert.doesNotMatch(md, /about@1280` · new surface/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
   rmTmp(root);

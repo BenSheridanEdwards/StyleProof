@@ -79,10 +79,19 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
   return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
 }
 
+const MAX_NAMED_FAILURES = 10;
+
 export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
   if (failures.length === 0) return [];
-  const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: failures });
-  return [`⚠️ **${failures.length} baseline capture failure(s)**: ${attribution.summary}`];
+  const shown = failures.slice(0, MAX_NAMED_FAILURES);
+  const { named } = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: shown });
+  const more = failures.length - shown.length;
+  const list = more ? `${named} and ${more} more, all listed in report.json` : named;
+  const one = failures.length === 1;
+  return [
+    `⚠️ **${one ? '1 surface' : `${failures.length} surfaces`} failed to capture on the base:** ${list}. ` +
+      `The rest of the base was captured; repair ${one ? 'that surface' : 'those surfaces'} on that commit and recapture.`,
+  ];
 }
 
 /** Disclose base capture attempts that were not counted as baseline failures. */
@@ -95,19 +104,6 @@ export function undeclaredOnBaseLines(keys: readonly string[], sha?: string): st
   ];
 }
 
-export function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): string[] {
-  if (failures.length === 0) return [];
-  return [
-    '',
-    '### Baseline capture failure receipt',
-    '',
-    ...failures.map((f) => `- \`${f.key}\` · \`${f.reason}\` · \`${f.sha}\``),
-    '',
-    '_Named surface+SHA above. The base capture itself ran; this is not a failed base recapture._',
-    '',
-  ];
-}
-
 export type OneSidedStatus = 'new' | 'capture-failed' | 'removed';
 
 /** missing 'after' = captured only on base (a REMOVAL); missing 'before' = new, or
@@ -117,23 +113,19 @@ export function oneSidedStatus(p: PreparedSurface, failures: SurfaceCaptureFailu
   return surfaceMissingMatchesBaselineFailure(p.sd.surface, failures) ? 'capture-failed' : 'new';
 }
 
+// One line per kind; a surface whose base capture failed is already named by the failure line.
 const MISSING_SUMMARY: [OneSidedStatus, (n: number, names: string) => string][] = [
   [
     'removed',
     (n, names) =>
-      `🗑️ **${n} REMOVED surface(s)** — present in the baseline, not captured on head: ${names}. ` +
-      `Review as removals; approving accepts the disappearance.`,
-  ],
-  [
-    'capture-failed',
-    (n, names) =>
-      `⚠️ **${n} head surface(s)** have no base map because a named baseline surface capture failed (not first adoption, not a base recapture failure): ${names}.`,
+      `🗑️ **${n === 1 ? '1 removed surface' : `${n} removed surfaces`}** — in the baseline, not captured on head: ${names}. ` +
+      `Review ${n === 1 ? 'it' : 'them'} as ${n === 1 ? 'a removal' : 'removals'}.`,
   ],
   [
     'new',
     (n, names) =>
-      `🆕 **${n} new surface(s)** captured with no baseline to compare: ${names}. ` +
-      `These are reviewable first-adoption surfaces; approve them before they become the baseline.`,
+      `🆕 **${n === 1 ? '1 new surface' : `${n} new surfaces`}** with no baseline to compare: ${names}. ` +
+      `Review ${n === 1 ? 'it before it becomes' : 'them before they become'} part of the baseline.`,
   ],
 ];
 
@@ -223,8 +215,8 @@ export function reachGateLine(blocking: number, hasChanges: boolean): string {
 /** The one sentence for visible additions/removals that gate the check: said once per report. */
 export function visibleStructureLine(n: number): string {
   return n === 1
-    ? '🧱 **1 visible element was added or removed** — it needs review; approve it with the other changes.'
-    : `🧱 **${n} visible elements were added or removed** — they need review; approve them with the other changes.`;
+    ? '🧱 **1 visible element was added or removed** — it needs review.'
+    : `🧱 **${n} visible elements were added or removed** — they need review.`;
 }
 
 function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
@@ -309,16 +301,15 @@ export function reportHeadline(input: HeadlineInput): string[] {
 /** The shared-chrome note (#754); its verdict clause is left out when the headline already said it. */
 function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[] {
   const chrome = input.globalChromeCount ?? 0;
-  if (chrome <= 0) return [];
+  // The headline already said the visible change; the Global chrome section lists it.
+  if (chrome <= 0 || structureSaid) return [];
   const gating = (input.elevatedNavigableChromeAdds ?? 0) > 0 || (input.elevatedVisibleStructure ?? 0) > 0;
   const verdictNote = !gating
     ? " DOM structure does not change this check's verdict."
-    : structureSaid
-      ? ''
-      : ' Visible additions/removals need review — approve them with the other changes.';
+    : ' Visible additions/removals need review.';
   return [
     '',
-    `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below.${verdictNote}`,
+    `🧱 **${chrome === 1 ? '1 global chrome element' : `${chrome} global chrome elements`}** added or removed on every surface base that renders its container, listed once under Global chrome below.${verdictNote}`,
   ];
 }
 

@@ -334,10 +334,13 @@ export function renderChromeStructureSection(
   const n = chrome.length;
   const elevated = opts.elevatedNavigableAdds ?? 0;
   const visibleElevated = opts.elevatedVisibleStructure ?? 0;
+  // The headline already says visible additions/removals need review; this names only what is chrome-specific.
   const verdictBlurb =
-    elevated > 0 || visibleElevated > 0
-      ? `Visible element additions/removals are reviewable and gate the check; approve them with the other changes. Navigable Global chrome additions (${elevated}) need review too; other invisible/zero-size chrome structure stays advisory.`
-      : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
+    elevated > 0
+      ? `${elevated === 1 ? '1 navigable addition here needs' : `${elevated} navigable additions here need`} review; invisible/zero-size chrome structure stays advisory.`
+      : visibleElevated > 0
+        ? 'Invisible/zero-size chrome structure stays advisory.'
+        : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
   return [
     '',
     '---',
@@ -403,9 +406,8 @@ export function renderContentSection(
     elevated > 0 ? '## 📝 Content and structure changes' : '## 📝 Content and structure changes (advisory)';
   const blurb =
     elevated > 0
-      ? `_${count} content/structure change(s). **Visible element additions/removals (${elevated}) are reviewable** and ` +
-        `gate the check; approve them with the other changes. Pure text, ` +
-        `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
+      ? `_${count} content/structure change(s). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock ` +
+        `text stay advisory and do not alone change the verdict; the visible additions/removals are named at the top._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
         `computed-style certification and do not affect the check. Surfaced so copy, element, and reflow changes are ` +
         `visible when content comparison is enabled. Live/age/clock text (relative ages, clocks) is labeled below ` +

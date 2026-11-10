@@ -135,7 +135,7 @@ test('visible element add on a paired surface elevates reviewableCounts.dom and 
   assert.ok((json.reviewableCounts?.dom ?? 0) >= 1, 'visible add/remove must enter reviewableCounts.dom');
   assert.equal(json.comparison?.hasReviewableEvidence, true);
   assert.ok((json.elevatedVisibleStructure ?? json.content?.elevatedVisibleStructure ?? 0) >= 1);
-  assert.match(md, /reviewable|needs review|STYLE_REVIEW_REQUIRED|Approve/i);
+  assert.match(md, /needs? review/i);
   // Must not claim an added/removed element "renders identically" / has no visible effect.
   assert.doesNotMatch(md, /element added[\s\S]{0,400}renders identically before and after/);
   assert.doesNotMatch(md, /element removed[\s\S]{0,400}renders identically before and after/);

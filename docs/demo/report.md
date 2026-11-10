@@ -2,9 +2,9 @@
 
 **4 changes to review** on `home` at 900px wide: 3 elements.
 
-🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
+🆕 **1 new surface** with no baseline to compare: `pricing @ 900`. Review it before it becomes part of the baseline.
 
-🧱 **2 visible elements were added or removed** — they need review; approve them with the other changes.
+🧱 **2 visible elements were added or removed** — they need review.
 
 📝 _3 content/structure change(s) below; text and invisible DOM churn stay advisory._
 
@@ -18,7 +18,7 @@ _pricing @ 900_
 
 <sub>after · pricing @ 900</sub>
 
-_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._
+_No baseline to compare against._
 
 ## Changes
 
@@ -99,7 +99,7 @@ _The changed element is not visible in the captured page (it is outside the scre
 
 ## 📝 Content and structure changes
 
-_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check; approve them with the other changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
+_3 content/structure change(s). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict; the visible additions/removals are named at the top._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readInventories, readResidue } from '../capture.js';
 import type { ComparabilitySummary } from '../diff.js';
-import { liveTextFreezeError, type LiveTextAudit } from '../live-text.js';
+import type { LiveTextAudit } from '../live-text.js';
 import type { LegacyPairAudit } from '../legacy-pairs.js';
 import type { CriticalObligationAudit, DeclaredCriticalObligations } from '../critical-obligations.js';
 import { auditCoverage, auditDeterminism, type CoverageLedger, type CoverageVerdict } from '../coverage.js';
@@ -210,11 +210,10 @@ export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
     );
   return [
     '',
-    '⚠ **Live/age freeze violated** — StyleProof cannot certify this compare. A freeze was declared but captured age/clock text still drifted. This is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
+    // The headline says the compare cannot be certified; this names the drift and the fix once.
+    '⚠ **Age/clock text drifted after the freeze** — this is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
     '',
     ...samples,
-    '',
-    `_${liveTextFreezeError(audit)}_`,
     '',
   ];
 }

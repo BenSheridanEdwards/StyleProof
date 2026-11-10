@@ -75,7 +75,23 @@ function tidy(lines: string[]): string[] {
 /** The summary and blocking lines only: group headings, Evidence and reach tables stay in the report. */
 function openingLines(top: string[]): string[] {
   const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l));
-  return tidy((end < 0 ? top : top.slice(0, end)).filter((l) => !l.includes('<!--') && !APPROVAL_BOX.test(l)));
+  return tidy(
+    (end < 0 ? top : top.slice(0, end))
+      .filter((l) => !l.includes('<!--') && !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
+      .map(pointAtFullReport),
+  );
+}
+
+const RULE_LINE = /^\s*---+\s*$/;
+
+/**
+ * The opening lines point at report sections the comment does not carry ("see below",
+ * "see **Changed but never matched**", "listed … below"): point at the full report instead.
+ */
+function pointAtFullReport(line: string): string {
+  return line
+    .replace(/\(see (?:below|\*\*[^*]+\*\*)\)/g, '(see the full report)')
+    .replace(/ below(?=[;.,)]|$)/g, ' in the full report');
 }
 
 type Block = { text: string; sep: string; section: boolean };

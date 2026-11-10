@@ -11,7 +11,7 @@ import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
-import type { ReportReach } from './reach.js';
+import { publishedReach, type ReportReach } from './reach.js';
 import { reserveScriptNotice, budgetScriptReach, jsonBytes } from './script-units.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
@@ -31,20 +31,17 @@ const ONE_SIDED: Record<OneSidedStatus, OneSidedText> = {
   removed: {
     heading: (key) => `### \`${key}\` · REMOVED surface 🗑️`,
     alt: 'removed surface',
-    note: () =>
-      `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`,
+    note: () => `_In the baseline, not captured on head._`,
   },
   new: {
     heading: (key) => `### \`${key}\` · new surface ${NEW_SURFACE_MARKER}`,
     alt: 'new surface',
-    note: () =>
-      `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`,
+    note: () => `_No baseline to compare against._`,
   },
   'capture-failed': {
     heading: (key) => `### \`${key}\` · baseline repair needed ⚠️`,
     alt: 'baseline repair needed',
-    note: (key) =>
-      `_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair \`${key}\` on the named SHA in the receipt above._`,
+    note: () => `_Nothing to compare with until the base capture is repaired._`,
   },
 };
 
@@ -440,7 +437,7 @@ export function buildReportJson(a: ReportArtifacts) {
   const script = budgetScriptReach(a.reach, capped.json.reach, maxBytes - jsonBytes(capped.json));
   return {
     ...capped,
-    json: { ...capped.json, ...(script.reach ? { reach: script.reach } : {}) },
+    json: { ...capped.json, ...(script.reach ? { reach: publishedReach(script.reach) } : {}) },
     scriptUnitsOmitted: script.omitted,
     scriptDetailsOmitted: script.detailsOmitted,
   };

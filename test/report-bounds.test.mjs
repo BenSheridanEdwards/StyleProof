@@ -522,10 +522,10 @@ test('end-to-end: a surface captured only on base renders as REMOVED, never as a
   assert.equal(res.oneSidedSurfaces, 1);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /REMOVED surface 🗑️/);
-  assert.match(md, /REMOVED surface\(s\)/);
-  assert.match(md, /approving accepts the disappearance/i);
+  assert.match(md, /🗑️ \*\*1 removed surface\*\* — in the baseline, not captured on head/);
+  assert.match(md, /Review it as a removal\./);
   assert.doesNotMatch(md, /pricing.*new surface 🆕/s);
-  assert.doesNotMatch(md, /new surface\(s\)\*\* captured with no baseline/);
+  assert.doesNotMatch(md, /new surfaces?\*\* with no baseline/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   const removedEntry = json.surfaces.find((s) => s.surface === 'pricing@1280');
   assert.equal(removedEntry.isRemoved, true);
@@ -700,7 +700,7 @@ test('end-to-end: Markdown surface labels match classification from report.json 
 
   // baseline failure count in Markdown should match JSON
   const baselineFailureCount = json.baselineFailures.length;
-  const mdFailureCountMatch = md.match(/(\d+)\s+baseline\s+capture\s+failure/i);
+  const mdFailureCountMatch = md.match(/(\d+) surfaces? failed to capture on the base/);
   assert.ok(mdFailureCountMatch, 'Markdown should mention baseline capture failure count');
   assert.equal(parseInt(mdFailureCountMatch[1], 10), baselineFailureCount, 'Markdown failure count should match JSON');
 

@@ -1070,14 +1070,13 @@ runs:
             }[trustState];
             const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
             const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-            const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
+            // The report summary above already says what was and was not found; the footer gives the check status once.
+            const migrationCleanGuidance = `_The **${statusContext}** check is green._`;
             const cleanGuidance = migrationMode
               ? migrationCleanGuidance
-              : contentEvaluated
-                ? contentChanges > 0
-                  ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
-                  : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
-                : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+              : contentEvaluated && contentChanges > 0
+                ? `_The **${statusContext}** check is green; advisory content changes do not affect it._`
+                : `_The **${statusContext}** check is green._`;
             const advisoryGuidance = changed
               ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
               : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;

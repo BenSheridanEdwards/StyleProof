@@ -1014,8 +1014,8 @@ test('composite action names style certification precisely and can publish advis
   assert.match(reportStep[0], /generated\.content\.changes/);
   assert.match(actionYml, /NO_REVIEWABLE_STYLE_CHANGES/);
   assert.match(actionYml, /STYLE_REVIEW_REQUIRED/);
-  assert.match(commentStep[0], /Content\/structure was not evaluated/);
-  assert.match(commentStep[0], /advisory content\/structure change/);
+  // Rule 5 (QA8): the clean footer gives the check status; the report summary says what was found.
+  assert.match(commentStep[0], /check is green; advisory content changes do not affect it/);
   assert.match(commentStep[0], /StyleProof is advisory/);
   assert.doesNotMatch(commentStep[0], /To accept: rebuild the map/);
   assert.match(statusStep[0], /No reviewable computed-style changes/);

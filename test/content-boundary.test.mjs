@@ -325,9 +325,9 @@ test('visible structural additions elevate even when content section is off; cro
   assert.equal(contentOn.changedSurfaces, 0);
   assert.equal(contentOn.totalFindings, 0);
   assert.equal(contentOn.contentChanges, 1);
-  assert.match(contentOnMarkdown, /visible element addition|STYLE_REVIEW_REQUIRED|needs review/i);
+  assert.match(contentOnMarkdown, /visible elements? (?:was|were) added or removed/);
   assert.ok(contentOnMarkdown.includes('element added'));
-  assert.match(contentOnMarkdown, /Visible element additions\/removals|reviewable/i);
+  assert.match(contentOnMarkdown, /the visible additions\/removals are named at the top/);
 
   rmTmp(directories.root);
 });

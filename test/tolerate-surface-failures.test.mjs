@@ -1017,10 +1017,10 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 1, 'new surfaces make the report exit 1');
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
-  assert.match(md, /baseline capture failure/i);
-  assert.match(md, /do not approve indefinitely/i);
-  assert.match(md, /not a base recapture failure/i);
-  assert.match(md, /not first adoption/);
+  // Rule 5 (QA8-01): the failure is named once with its fix; the tile says what it means for review.
+  assert.match(md, /failed to capture on the base/);
+  assert.match(md, /The rest of the base was captured; repair/);
+  assert.match(md, /baseline repair needed/);
   assert.match(md, new RegExp(fixtureCommitSha('base-sha')));
   rmTmp(root);
 });
@@ -1067,8 +1067,11 @@ test('styleproof-report persists the complete bounded baseline-failure receipt w
     ['new-a@1280', 'new-b@1280', 'new-c@1280'],
   );
   for (const { key } of failures) assert.match(md, new RegExp(key.replace('@', '@')));
-  assert.match(md, /5 baseline capture failure\(s\)/i);
-  assert.match(md, /3 new surface\(s\).*review.*first[- ]adoption/is);
+  assert.match(md, /5 surfaces failed to capture on the base/);
+  assert.match(
+    md,
+    /3 new surfaces\*\* with no baseline to compare.*Review them before they become part of the baseline/s,
+  );
   assert.doesNotMatch(md, /private exception/i);
   rmTmp(root);
 });
@@ -1105,7 +1108,7 @@ test('styleproof-report marks only a matching failed baseline surface as repair 
   assert.equal(genuinelyNew.isNew, true);
   assert.equal(genuinelyNew.baselineStatus, 'new');
   assert.match(md, /failed@1280.*baseline repair needed/is);
-  assert.match(md, /genuinely-new@1280.*reviewable first-adoption surface/is);
+  assert.match(md, /genuinely-new@1280.*No baseline to compare against/is);
   assert.doesNotMatch(md, /private viewport exception/i);
   rmTmp(root);
 });
@@ -1151,8 +1154,8 @@ test('styleproof-report keeps large baseline-failure receipts inside the markdow
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
   assert.ok(Buffer.byteLength(md) <= 400_000, `markdown bytes: ${Buffer.byteLength(md)}`);
-  assert.match(md, /display budget/);
-  assert.match(md, /full bounded identities are in report\.json/);
+  // The failure line names ten surfaces and counts the rest; every receipt is in report.json.
+  assert.match(md, /and 9990 more, all listed in report\.json/);
   assert.equal(json.baselineFailures.length, failures.length);
   assert.deepEqual(json.baselineFailures[0], {
     key: 'failed-00000@1280',
@@ -1226,7 +1229,7 @@ test('styleproof-report never echoes untrusted baseline failure details', () => 
   run(REPORT, [A, B, '--out', out]);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   const json = fs.readFileSync(path.join(out, 'report.json'), 'utf8');
-  assert.match(md, /baseline capture failure/i);
+  assert.match(md, /failed to capture on the base/);
   assert.doesNotMatch(md, /<script>|PRIVATE-BASELINE-FAILURE-MARKER|pwned/i);
   assert.doesNotMatch(json, /<script>|PRIVATE-BASELINE-FAILURE-MARKER|pwned/i);
   assert.match(json, /capture-[0-9a-f]{12}/);

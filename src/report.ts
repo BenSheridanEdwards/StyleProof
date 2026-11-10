@@ -71,7 +71,6 @@ import {
 } from './report/certification.js';
 import { buildDigest } from './report/digest.js';
 import {
-  baselineFailureDetailLines,
   oneSidedStatus,
   reachGateLine,
   readBaselineInfo,
@@ -84,9 +83,11 @@ import { capturedComment } from './report/captured.js';
 import { createSectionRegistry } from './report/section-meta.js';
 import {
   assessReach,
+  publishedReach,
   reachHeadlineLines,
   reachSectionLines,
   reachSummaryLine,
+  type PublishedReach,
   type ReportReach,
 } from './report/reach.js';
 import {
@@ -213,7 +214,7 @@ export type ReportResult = {
   /** Present only when `migration: true`. */
   migrationGallery?: MigrationGallery;
   /** Change Reach J1 (#996); only when a capture carries a reach ledger. */
-  reach?: ReportReach;
+  reach?: PublishedReach;
 };
 
 function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
@@ -447,12 +448,7 @@ function renderReportBody(
 ) {
   const { view, baseline, content, migrationGallery, reach, surfaceKeyOf } = input;
   const { md } = out;
-  if (baseline.failures.length > 0) {
-    md.detail(
-      baselineFailureDetailLines(baseline.failures),
-      `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
-    );
-  }
+  // The failure line at the top names each surface and commit; full receipts are in report.json.
   const oneSided = renderOneSidedSections(ctx, out, view.missing, baseline.surfaceFailures);
   const changed = renderChangedSections(
     ctx,
@@ -566,7 +562,13 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const headline = reportHeadline({
     changeGroups: view.changeGroups,
     missing: view.missing,
-    ...sectionSummary(ctx, view.changeGroups, reach?.rules.length, surfaceKeyOf),
+    // A changed-rule count is only true when both sides recorded the CSS they served.
+    ...sectionSummary(
+      ctx,
+      view.changeGroups,
+      reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
+      surfaceKeyOf,
+    ),
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -723,7 +725,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
-    ...(reach ? { reach } : {}),
+    ...(reach ? { reach: publishedReach(reach) } : {}),
   };
 }
 
