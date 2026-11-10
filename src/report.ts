@@ -245,7 +245,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
 }
 
 /** Every crop left out and every partly shown page, said once at the end of the opening (rule 5). */
-function insertLimitLines(ctx: RenderCtx, md: ReportMarkdown, openingEnd: number): void {
+function appendLimitLines(ctx: RenderCtx, md: ReportMarkdown): void {
   const limits = [
     ...partialPageLines(ctx.partialPages ?? []),
     ...cropGapLines(ctx.cropGaps ?? [], {
@@ -254,9 +254,8 @@ function insertLimitLines(ctx: RenderCtx, md: ReportMarkdown, openingEnd: number
       maxBytes: ctx.crops.maxBytes,
     }),
   ];
-  const rest = md.lines.splice(openingEnd);
+  // The body is queued as blocks until finish(), so these lines still end the opening.
   limits.forEach((line) => md.lines.push(line));
-  rest.forEach((line) => md.lines.push(line));
 }
 
 type Gates = {
@@ -613,12 +612,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const gateInHeadline = Boolean(reach?.blocking) && headline.includes(reachGateLine(reach!.blocking, false));
   const reachStrip = reach && !gateInHeadline ? reachHeadlineLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
-  productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
-  headline.forEach((appended) => md.lines.push(appended));
+  // The summary line leads (SPEC report order); a blocking product-state line follows it (RV11-05).
+  const summaryEnd = headline.indexOf('');
+  const lead = summaryEnd < 0 ? headline : headline.slice(0, summaryEnd);
+  lead.forEach((appended) => md.lines.push(appended));
+  const productState = productStateWarningLines(comparison, gates.legacyPairs).filter((line) => line !== '');
+  if (productState.length) ['', ...productState].forEach((appended) => md.lines.push(appended));
+  headline.slice(lead.length).forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
-  // Crop limits are known only once the sections are written; their one line joins the opening here.
-  const openingEnd = md.lines.length;
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
   if (reachStrip.length && !md.lines.includes(reachStrip[1])) {
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
@@ -637,7 +639,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Whole pages for report.html come last, so they never take the crop budget from evidence.
   finishSections(ctx, md);
 
-  insertLimitLines(ctx, md, openingEnd);
+  // Crop limits are known only once the sections are written; their lines end the opening.
+  appendLimitLines(ctx, md);
 
   if (ctx.crops.downscaled > 0) {
     md.append([

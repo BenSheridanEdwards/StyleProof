@@ -99,10 +99,12 @@ export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]):
 export function undeclaredOnBaseLines(keys: readonly string[], sha?: string): string[] {
   if (keys.length === 0) return [];
   const at = sha ? ` \`${sha.slice(0, 12)}\`` : '';
-  // The new-surface line names them; this says only why their base capture attempts do not count.
+  // Named here too (RV11-06): the new-surface line names every new surface, and this says which of
+  // them were never declared on the base, a different fact about some of them.
   const n = keys.length;
+  const names = keys.map((key) => `\`${formatSurfaceList([key])}\``).join(', ');
   return [
-    `ℹ️ ${n === 1 ? '1 of these new surfaces was' : `${n} of these new surfaces were`} never declared on the base commit${at} ` +
+    `ℹ️ ${names} ${n === 1 ? 'was' : 'were'} never declared on the base commit${at} ` +
       `(the head capture spec ran against the base), so ${n === 1 ? 'its base capture attempt is' : 'their base capture attempts are'} not counted as a baseline failure.`,
   ];
 }
@@ -271,8 +273,10 @@ function countsByPlace(gaps: CropGap[]): string {
 }
 
 /**
- * Every change with no crop, said once for the whole report: the true total, each cause with the
- * places it hit, and the option that shows them. Sections and entries carry no note of their own.
+ * Every change missing some or all of its crops, said once for the whole report: the true total of
+ * changes (one per section or entry, however many image pairs it lost, so it agrees with the
+ * summary's count), each cause with the places it hit, and the option that shows them. Sections and
+ * entries carry no note of their own.
  */
 export function cropGapLines(
   gaps: CropGap[],
@@ -298,24 +302,38 @@ export function cropGapLines(
   const n = gaps.length;
   return [
     '',
-    `✂️ **${n === 1 ? '1 change has' : `${n} changes have`} no crop**${hits.length > 1 ? ':' : ','} ${parts.join('; ')}. ` +
+    `✂️ **${n === 1 ? '1 change is' : `${n} changes are`} missing crops**${hits.length > 1 ? ':' : ','} ${parts.join('; ')}. ` +
       `${n === 1 ? 'It is' : 'Each is'} still listed and counted` +
-      (options.length ? `; ${options.join(', or ')} to show ${n === 1 ? 'its crop' : 'their crops'}.` : '.'),
+      (options.length ? `; ${options.join(', or ')} to show the crops.` : '.'),
   ];
 }
 
 /**
- * One-sided pages shown only in part, said once: how many, why, and what to do. The 🆕/🗑️ line
- * names each page and its last tile caption says how much of it is shown.
+ * One-sided pages shown only in part, said once for the report: each page by name with how much is
+ * shown, why, and what to do. It names nothing the PR comment lacks (no tiles or captions).
  */
-export function partialPageLines(pages: PartialPage[]): string[] {
+export function partialPageLines(pages: PartialPage[], maxTiles = 8): string[] {
   if (pages.length === 0) return [];
-  const one = pages.length === 1;
+  const list = pages
+    .map(
+      (p) =>
+        `${where(p.surface)} (${p.shown} of ${p.captured}px, full screenshot \`${safeKey(p.surface)}.png\` in the ${p.side} capture)`,
+    )
+    .join(', ');
+  const budget = pages.some((p) => p.budget);
+  const capped = pages.some((p) => !p.budget);
+  const why = [
+    capped ? `a new or removed page shows at most ${maxTiles} screen heights` : '',
+    budget ? `the report's crop budget ran out` : '',
+  ].filter(Boolean);
+  const todo = [
+    capped ? 'open the full screenshot to review the rest' : '',
+    budget ? 'raise `--max-crop-files` or `--max-crop-bytes` to show more of it' : '',
+  ].filter(Boolean);
   return [
     '',
-    `📏 **${one ? '1 page' : `${pages.length} pages`} with nothing to compare against ${one ? 'is' : 'are'} only partly shown.** ` +
-      `Such a page shows at most 8 screen heights, within the crop budget, and the tile captions say how much; ` +
-      `the rest is not reviewed in this report. Open the full screenshot in the capture to review it.`,
+    `📏 **Only part of ${pages.length === 1 ? '1 page' : `${pages.length} pages`} is shown:** ${list}. ` +
+      `${why.join(', and ').replace(/^./, (c) => c.toUpperCase())}; ${todo.join(', or ')}.`,
   ];
 }
 

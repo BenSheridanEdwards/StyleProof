@@ -516,9 +516,12 @@ test('maxCrops bounds advisory content image sets without hiding textual finding
   assert.match(md, /Old one/);
   assert.match(md, /Old two/);
   assert.match(md, /Old three/);
-  // #971: the two uncropped entries say why they have no crop.
+  // #971: the two uncropped entries are counted, with why.
   // #971 + rule 5: the two uncropped entries are counted once, in the opening, with the option.
-  assert.match(md, /✂️ \*\*2 changes have no crop\*\*, past the `--max-crops` limit of 1 per surface \(2 on `[^`]+`\)/);
+  assert.match(
+    md,
+    /✂️ \*\*2 changes are missing crops\*\*, past the `--max-crops` limit of 1 per surface \(2 on `[^`]+`\)/,
+  );
   assert.equal(md.split('--max-crops').length - 1, 2, 'the note is said once');
   rmTmp(dirs.root);
 });
@@ -567,7 +570,7 @@ test('#971: a content change past the per-surface crop cap carries an omission n
   // Rule 5: one opening line counts both uncropped additions on each surface; no entry repeats it.
   assert.match(
     capped.md,
-    /✂️ \*\*4 changes have no crop\*\*, past the `--max-crops` limit of 3 per surface \(2 on `first @ 500`, 2 on `second @ 500`\)\. Each is still listed and counted; raise `--max-crops` to show their crops\./,
+    /✂️ \*\*4 changes are missing crops\*\*, past the `--max-crops` limit of 3 per surface \(2 on `first @ 500`, 2 on `second @ 500`\)\. Each is still listed and counted; raise `--max-crops` to show the crops\./,
   );
   assert.equal(capped.md.split('--max-crops').length - 1, 2, 'the note is said once');
   for (const surface of ['first@500', 'second@500']) {

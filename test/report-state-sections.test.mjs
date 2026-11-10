@@ -126,6 +126,44 @@ test('a list of checkboxes restyling their labels still names the driving contro
   assert.match(labels, /· when `input\.opt` is `:checked`/);
 });
 
+test("an element's own hover and another control's checked each name their own driver (RV11-01)", (t) => {
+  const root = mkTmp('styleproof-state-own-driven-');
+  t.after(() => rmTmp(root));
+  const [box, label] = ['body > input:nth-child(1)', 'body > label:nth-child(2)'];
+  const dirs = ['before', 'after'].map((side) => path.join(root, side));
+  for (const dir of dirs) {
+    const before = dir === dirs[0];
+    const map = makeMap({
+      elements: {
+        [box]: { tag: 'input', cls: 'opt', rect: [20, 20, 20, 20] },
+        [label]: { tag: 'label', cls: 'opt-label', text: 'Send offers', rect: [40, 20, 100, 20] },
+      },
+      states: {
+        // The label's own hover, and the checkbox's checked state restyling the label.
+        [label]: { hover: { [label]: { 'background-color': before ? 'rgb(255, 255, 255)' : 'rgb(40, 40, 120)' } } },
+        [box]: { checked: { [label]: { color: before ? 'rgb(20, 120, 60)' : 'rgb(160, 40, 40)' } } },
+      },
+    });
+    writeCapture(dir, 'form@390', map, solidPng(390, 180));
+    for (const state of ['hover', 'checked'])
+      fs.writeFileSync(
+        path.join(dir, `form@390.${state}.png`),
+        solidPng(390, 180, before ? [20, 120, 60] : [160, 40, 40]),
+      );
+  }
+  const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+  const section = sectionsOf(fs.readFileSync(result.reportMdPath, 'utf8'))['Opt label'];
+  assert.ok(section, 'one section for the label');
+  // The hover is the label's own; only the checked state is the checkbox's.
+  assert.match(section, /background changes from white to dark indigo when hovered/);
+  assert.match(section, /text colour changes from green to red when the opt is checked/);
+  assert.doesNotMatch(section, /when the opt is hovered/);
+  assert.match(section, /· when `input\.opt` is `:checked`$/m);
+  assert.doesNotMatch(section, /`:hover`, `:checked`/);
+  assert.match(section, /\*\*While hovered\*\*/);
+  assert.match(section, /\*\*While checked\*\*/);
+});
+
 test('a state layer captured on one side only gets a plain line, not an unnamed element (RV2-05)', (t) => {
   const root = mkTmp('styleproof-state-layer-');
   t.after(() => rmTmp(root));

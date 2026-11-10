@@ -1,4 +1,5 @@
 import type { PNG } from 'pngjs';
+import { escapeHtmlAttribute } from '../code-span.js';
 import { STATE_WORDS } from './change-line.js';
 import type { Box } from './geometry.js';
 import { cropPng, cropStem } from './png.js';
@@ -38,24 +39,20 @@ export function stateLabel(state: string): string | undefined {
   return STATE_WORDS[state] ? `While ${STATE_WORDS[state]}` : undefined;
 }
 
-/** Escape for an attribute in a table cell; entities already in the text (escaped page text) stay single. */
-const escapeCellAttribute = (value: string): string =>
-  value
-    .replace(/&(?!(?:amp|lt|gt|quot);)/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/\|/g, '\\|');
+/** Escape for an attribute in a table cell: the shared attribute escape, plus `|` so the row stays whole. */
+const escapeCellAttribute = (value: string): string => escapeHtmlAttribute(value).replace(/\|/g, '\\|');
 
 const MAX_CROP_W = 1280;
 const MAX_CROP_AREA = 1_024_000;
 
-/** No note here: the report's opening counts every omitted crop once, by cause and surface. */
-function omittedCrop(ctx: RenderCtx, surface: string) {
+/**
+ * No note here, and no gap either: the caller records one gap per change (a section or an entry,
+ * whatever its pair count), so the report's opening counts changes, not image pairs (RV11-02).
+ */
+function omittedCrop(ctx: RenderCtx) {
   ctx.crops.omitted++;
-  ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: surface });
 
-  return { md: [], images: {}, omitted: true };
+  return { md: [], images: {}, omitted: cropGapReason(ctx.crops) };
 }
 
 /**
@@ -65,7 +62,7 @@ function omittedCrop(ctx: RenderCtx, surface: string) {
 export function renderCropPair(
   ctx: RenderCtx,
   spec: CropPairSpec,
-): { md: string[]; images: CropImages; size?: { w: number; h: number }; omitted?: boolean } | null {
+): { md: string[]; images: CropImages; size?: { w: number; h: number }; omitted?: 'budget' | 'size' } | null {
   const { box, pngA, pngB } = spec;
   const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
@@ -88,12 +85,12 @@ export function renderCropPair(
   const after = cropPng(pngB, inCommon ? aligned : box, w, h);
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
 
-  if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx, spec.surface);
+  if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx);
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = {};
   const beforeRel = `${stem}-before.png`;
   const afterRel = `${stem}-after.png`;
-  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx, spec.surface);
+  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx);
   images.before = beforeRel;
   images.after = afterRel;
   const image = (rel: string, side: string) =>

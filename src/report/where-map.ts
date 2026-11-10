@@ -1,4 +1,5 @@
 import { PNG } from 'pngjs';
+import { escapeHtmlAttribute } from '../code-span.js';
 import type { Rect } from '../capture.js';
 import { writeBudgetedPng } from './crop-budget.js';
 import type { Box } from './geometry.js';
@@ -23,7 +24,8 @@ export type WhereMap = {
   boxes: Box[];
 };
 
-const RING_PAD = 8;
+/** Ring padding round each box, page pixels; report.html's SVG map uses the same. */
+export const RING_PAD = 8;
 const RING_WIDTH = 3;
 const RING: [number, number, number] = [224, 17, 157];
 /** Fade outside the boxes: 45% of the pixel, 55% white. */
@@ -54,43 +56,69 @@ export function whereView(page: { w: number; h: number }, boxes: Box[]): Box {
   return { x: 0, y, w: page.w, h };
 }
 
-/** The 2×2 average of the page pixels under one map pixel, clamped to the page. */
-function averagePixel(page: PNG, x: number, y: number): [number, number, number] {
-  const left = Math.min(x, page.width - 1);
-  const right = Math.min(left + 1, page.width - 1);
-  const top = Math.min(y, page.height - 1);
-  const bottom = Math.min(top + 1, page.height - 1);
-  const at = (px: number, py: number, c: number) => page.data[(py * page.width + px) * 4 + c];
-  const channel = (c: number) =>
-    Math.round((at(left, top, c) + at(right, top, c) + at(left, bottom, c) + at(right, bottom, c)) / 4);
-  return [channel(0), channel(1), channel(2)];
+type MapBox = { x: number; y: number; width: number; height: number };
+
+/** Map pixels: 0 (the default) faded page, 1 ring, 2 page inside a box. */
+const RINGED = 1;
+const INSIDE = 2;
+
+/**
+ * Mark a box's pixels with `value`. A pixel x is in [start, end) when x >= start and x < end, so
+ * it runs from ceil(start) to ceil(end) - 1, clipped to the map.
+ */
+function markBox(mask: Uint8Array, width: number, height: number, box: MapBox, inset: number, value: number) {
+  const left = Math.max(0, Math.ceil(box.x + inset));
+  const right = Math.min(width, Math.ceil(box.x + box.width - inset));
+  const top = Math.max(0, Math.ceil(box.y + inset));
+  const bottom = Math.min(height, Math.ceil(box.y + box.height - inset));
+  for (let y = top; y < bottom; y++) mask.fill(value, y * width + left, y * width + Math.max(left, right));
 }
 
-type MapBox = { x: number; y: number; w: number; h: number };
-
-const insideAny = (boxes: MapBox[], x: number, y: number, inset: number): boolean =>
-  boxes.some((b) => x >= b.x + inset && x < b.x + b.w - inset && y >= b.y + inset && y < b.y + b.h - inset);
-
-/** A map pixel: the ring colour on a box edge, the page inside a box, faded page outside. */
-function shade(rgb: [number, number, number], boxes: MapBox[], x: number, y: number): [number, number, number] {
-  if (!insideAny(boxes, x, y, 0))
-    return rgb.map((v) => Math.round(v * (1 - FADE) + 255 * FADE)) as [number, number, number];
-  return insideAny(boxes, x, y, RING_WIDTH) ? rgb : RING;
-}
-
-/** Half-scale overview of the window: faded outside the padded boxes, with a ring round each. */
+/**
+ * Half-scale overview of the window: faded outside the padded boxes, with a ring round each. Each
+ * box is marked once on a mask, then every map pixel is written in one pass (RV11-12).
+ */
 function drawWhereMap(page: PNG, view: Box, boxes: Box[]): PNG {
-  const out = new PNG({ width: Math.max(1, Math.ceil(view.w / 2)), height: Math.max(1, Math.ceil(view.h / 2)) });
+  const width = Math.max(1, Math.ceil(view.w / 2));
+  const height = Math.max(1, Math.ceil(view.h / 2));
+  const out = new PNG({ width, height });
   const mapped = boxes.map((b) => ({
     x: (b.x - view.x - RING_PAD) / 2,
     y: (b.y - view.y - RING_PAD) / 2,
-    w: (b.w + 2 * RING_PAD) / 2,
-    h: (b.h + 2 * RING_PAD) / 2,
+    width: (b.w + 2 * RING_PAD) / 2,
+    height: (b.h + 2 * RING_PAD) / 2,
   }));
-  for (let y = 0; y < out.height; y++) {
-    for (let x = 0; x < out.width; x++) {
-      const o = (y * out.width + x) * 4;
-      out.data.set([...shade(averagePixel(page, view.x + 2 * x, view.y + 2 * y), mapped, x, y), 255], o);
+  // A pixel inside any box is ringed; inside any box's inner edge it shows the page.
+  const mask = new Uint8Array(width * height);
+  for (const box of mapped) markBox(mask, width, height, box, 0, RINGED);
+  for (const box of mapped) markBox(mask, width, height, box, RING_WIDTH, INSIDE);
+  const source = page.data;
+  for (let y = 0; y < height; y++) {
+    // The 2×2 page pixels under this map row, clamped to the page.
+    const top = Math.min(view.y + 2 * y, page.height - 1);
+    const bottom = Math.min(top + 1, page.height - 1);
+    for (let x = 0; x < width; x++) {
+      const at = y * width + x;
+      const o = at * 4;
+      out.data[o + 3] = 255;
+      if (mask[at] === RINGED) {
+        out.data[o] = RING[0];
+        out.data[o + 1] = RING[1];
+        out.data[o + 2] = RING[2];
+        continue;
+      }
+      const left = Math.min(view.x + 2 * x, page.width - 1);
+      const right = Math.min(left + 1, page.width - 1);
+      const a = (top * page.width + left) * 4;
+      const b = (top * page.width + right) * 4;
+      const c = (bottom * page.width + left) * 4;
+      const d = (bottom * page.width + right) * 4;
+      for (let channel = 0; channel < 3; channel++) {
+        const average = Math.round(
+          (source[a + channel] + source[b + channel] + source[c + channel] + source[d + channel]) / 4,
+        );
+        out.data[o + channel] = mask[at] === INSIDE ? average : Math.round(average * (1 - FADE) + 255 * FADE);
+      }
     }
   }
   return out;
@@ -117,14 +145,6 @@ export const whereReceipt = (map: WhereMap) => ({
   boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
 });
 
-/** Escape for an attribute or caption; entities already in the text (escaped page text) stay single. */
-const escapeAttribute = (value: string): string =>
-  value
-    .replace(/&(?!(?:amp|lt|gt|quot);)/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-
 /**
  * The map's Markdown: one line, so GitHub keeps the image inline with its caption
  * (a line holding only an `<img>` would start a raw HTML block).
@@ -133,7 +153,7 @@ export function whereMapLine(ctx: RenderCtx, map: WhereMap, things: string, page
   const on = page ? `on ${page}` : 'on the page';
   const where = map.side === 'after' ? on : `${on} before the change`;
   return (
-    `<img src="${escapeAttribute(ctx.img(map.image))}" width="320" alt="${escapeAttribute(`Where ${where}: ${things} highlighted`)}">` +
-    `<br><sub>Where: ${escapeAttribute(things)} ${escapeAttribute(where)}</sub>`
+    `<img src="${escapeHtmlAttribute(ctx.img(map.image))}" width="320" alt="${escapeHtmlAttribute(`Where ${where}: ${things} highlighted`)}">` +
+    `<br><sub>Where: ${escapeHtmlAttribute(things)} ${escapeHtmlAttribute(where)}</sub>`
   );
 }

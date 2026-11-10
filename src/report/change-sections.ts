@@ -4,7 +4,15 @@ import type { Finding, PropChange } from '../diff.js';
 import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../change-groups.js';
 import { isGeometryOnlyGroup } from '../findings-clean.js';
 import { codeValue } from '../code-span.js';
-import { changeLine, plural, sectionNoun, sectionTitle, type SectionSubject, type StateChange } from './change-line.js';
+import {
+  changeLine,
+  counted,
+  plural,
+  sectionNoun,
+  sectionTitle,
+  type SectionSubject,
+  type StateChange,
+} from './change-line.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
 import { containerOf, paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
 import { cellPair, renderCropChanges } from './markdown.js';
@@ -45,8 +53,11 @@ export type ChangeSection = {
   findings: Finding[];
   /** Pairs to show: resting first when anything changed at rest, then each forced state. */
   states: PairState[];
-  /** The element whose state restyles these (a checkbox restyling its label); `count` drivers share its label. */
-  driver?: { path: string; entry?: ElementEntry; count: number };
+  /**
+   * The element whose state restyles these (a checkbox restyling its label); `count` drivers share
+   * its label. `states` are the states it drives; any other state is the elements' own (RV11-01).
+   */
+  driver?: { path: string; entry?: ElementEntry; count: number; states: PairState[] };
 };
 
 /** What the diff writes for the side of a state change the state leaves alone, per side. */
@@ -148,6 +159,10 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
       sameSelectorCount: Math.max(sameSelectorCount, paths.length),
     };
     const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
+    // A state is the driver's when every finding for it comes from another element's state.
+    const drivenStates = states.filter((state) =>
+      own.every((f) => f.kind !== 'state' || f.state !== state || f.path !== subjectPath(f)),
+    );
     return {
       title: paths[0] === SURFACE_SUBJECT ? 'Interaction states not compared' : sectionTitle(subject),
       selector,
@@ -155,8 +170,11 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
       sameSelectorCount: subject.sameSelectorCount,
       findings: own,
       states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
-      ...(drivers.length
-        ? { driver: { path: drivers[0], entry: entryOf(maps, drivers[0]), count: drivers.length } }
+      // Name a driver only for states it drives on its own; a state the elements also change themselves stays theirs.
+      ...(drivers.length && drivenStates.length
+        ? {
+            driver: { path: drivers[0], entry: entryOf(maps, drivers[0]), count: drivers.length, states: drivenStates },
+          }
         : {}),
     };
   });
@@ -223,6 +241,7 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
           texts: [section.driver.entry.text ?? ''],
         },
         count: section.driver.count,
+        states: section.driver.states,
       }
     : undefined;
   return changeLine({
@@ -281,8 +300,6 @@ export function cssRows(findings: Finding[]): string[][] {
   }
   return [...rows, ...followers];
 }
-
-const counted = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /** Forced-state pseudo-classes a captured state proves; any other pseudo-class cannot be attributed. */
 const STATE_PSEUDO: Record<string, string> = {
@@ -352,8 +369,7 @@ function cssDetailLines(
   const verb = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom')?.change ?? 'restyled';
   const meta = `${codeValue(section.selector)} · ${counted(section.paths.length, 'element')} ${verb}${ruleMeta(extra.rules)}${across}`;
   const driver = section.driver
-    ? ` · when ${codeValue(prettyLabel(section.driver.path, section.driver.entry?.cls ?? ''))} is ${section.states
-        .filter((s) => s !== 'rest')
+    ? ` · when ${codeValue(prettyLabel(section.driver.path, section.driver.entry?.cls ?? ''))} is ${section.driver.states
         .map((s) => codeValue(`:${s}`))
         .join(', ')}`
     : '';
@@ -506,7 +522,8 @@ type StatePair = {
   note?: string;
   images?: CropImages;
   size?: { w: number; h: number };
-  omitted?: boolean;
+  /** Why the pair was left out (the crop budget, or the image was too large). */
+  omitted?: 'budget' | 'size';
 };
 
 /** One state's clean pair, or the reason it has none. */
@@ -535,7 +552,7 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
     md: pair.md,
     images: pair.images,
     ...(pair.size ? { size: pair.size } : {}),
-    ...(pair.omitted ? { omitted: true } : {}),
+    ...(pair.omitted ? { omitted: pair.omitted } : {}),
   };
 }
 
@@ -547,24 +564,39 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput, what: string): Sectio
     ctx.cropGaps?.push({ reason: 'max-crops', where: input.surface });
     return { ...out, omitted: 'max-crops' };
   }
-  for (const state of input.section.states) {
-    const pair = statePair(ctx, input, state, what);
-    pair.md.forEach((line) => out.md.push(line));
-    if (pair.note) out.note = pair.note;
-    if (pair.omitted) out.omitted = 'budget';
-    if (state === 'rest' && pair.images) out.images = pair.images;
-    else if (pair.images?.after) out.stateImages[state] = pair.images;
-    if (pair.images?.before && pair.images.after && pair.size) {
-      out.meta.push({
-        state,
-        before: pair.images.before,
-        after: pair.images.after,
-        ...pair.size,
-        what: `${what}${stateWhat(state)}`,
-      });
-    }
-  }
+  for (const state of input.section.states)
+    addStatePair(ctx, input, out, state, statePair(ctx, input, state, what), what);
   return out;
+}
+
+/** Add one state's pair to the section: its lines, images and report.html data, or its gap. */
+function addStatePair(
+  ctx: RenderCtx,
+  input: SectionInput,
+  out: SectionPairs,
+  state: PairState,
+  pair: StatePair,
+  what: string,
+): void {
+  pair.md.forEach((line) => out.md.push(line));
+  if (pair.note) out.note = pair.note;
+  if (pair.omitted) {
+    // One gap per section, however many of its pairs were left out (RV11-02).
+    if (!out.omitted) ctx.cropGaps?.push({ reason: pair.omitted, where: input.surface });
+    out.omitted = 'budget';
+  }
+  if (state === 'rest' && pair.images) out.images = pair.images;
+  else if (pair.images?.after) out.stateImages[state] = pair.images;
+  if (pair.images?.before && pair.images.after && pair.size) {
+    out.meta.push({
+      state,
+      before: pair.images.before,
+      after: pair.images.after,
+      width: pair.size.w,
+      height: pair.size.h,
+      what: `${what}${stateWhat(state)}`,
+    });
+  }
 }
 
 /** The section's report.json region: the same shape as before, with clean images and Where receipts. */
@@ -726,9 +758,11 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
       state,
       before: `${stem}-base.png`,
       after: `${stem}-head.png`,
-      w: pngB.width,
-      h: pngB.height,
-      ...(pngA.width !== pngB.width || pngA.height !== pngB.height ? { bw: pngA.width, bh: pngA.height } : {}),
+      width: pngB.width,
+      height: pngB.height,
+      ...(pngA.width !== pngB.width || pngA.height !== pngB.height
+        ? { baseWidth: pngA.width, baseHeight: pngA.height }
+        : {}),
     };
     // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
     if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {

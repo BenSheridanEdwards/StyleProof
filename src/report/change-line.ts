@@ -32,7 +32,8 @@ export type ChangeLineInput = {
   rest: Array<PropChange & { pseudo?: string }>;
   states: StateChange[];
   /** A state owned by another element (a checkbox `:checked` restyling its label). */
-  driver?: { subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>; count?: number };
+  /** `states`: the states the driver owns; the rest are the subject's own (default: every state). */
+  driver?: { subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>; count?: number; states?: string[] };
   dom?: 'added' | 'removed' | 'retagged';
   /** Only size/position values moved: no styling property changed. */
   geometryOnly?: boolean;
@@ -95,6 +96,13 @@ function sharedText(texts: string[]): string | null {
   const cleaned = texts.map(shortText);
   return cleaned.length > 0 && cleaned.every((t) => t !== null && t === cleaned[0]) ? cleaned[0] : null;
 }
+
+/** "1 element", "3 elements" (regular plurals only). */
+export const counted = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+/** "a", "a and b", "a, b and c". */
+export const andList = (items: string[]): string =>
+  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
 
 /** Plural of the last word: "card title" → "card titles", "entry" → "entries". */
 export function plural(noun: string): string {
@@ -275,7 +283,10 @@ function listClauses(clauses: string[], article: string): string {
 function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
   const noun = input.driver ? sectionNoun(input.driver.subject) : '';
   const driver = !input.driver ? null : (input.driver.count ?? 1) > 1 ? `the matching ${noun} is` : `the ${noun} is`;
-  const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driver));
+  const drives = (state: string) => !input.driver?.states || input.driver.states.includes(state);
+  const clauses = input.states
+    .filter((st) => st.props.length)
+    .map((st) => stateClause(st, drives(st.state) ? driver : null));
   if (!clauses.length) return [];
   if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
   const rest = input.restFolded ? [] : [many ? 'At rest they look the same.' : 'At rest it looks the same.'];

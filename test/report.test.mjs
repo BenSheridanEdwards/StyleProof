@@ -1520,7 +1520,7 @@ test('a new surface taller than the tile cap says exactly how much is shown (#75
   assert.match(md, /part 8 of 8 · 700–800 of 1234px/);
   assert.match(
     md,
-    /📏 \*\*1 page with nothing to compare against is only partly shown\.\*\*[^\n]*not reviewed in this report/,
+    /📏 \*\*Only part of 1 page is shown:\*\* `pricing @ 320` \(800 of 1234px, full screenshot `pricing@320\.png` in the head capture\)\. A new or removed page shows at most 8 screen heights; open the full screenshot to review the rest\./,
   );
   const entry = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces.find(
     (s) => s.surface === 'pricing@320',

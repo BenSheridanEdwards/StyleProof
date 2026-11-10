@@ -71,6 +71,10 @@ test('report discloses explicit product-state mismatch and withholds approvable 
   );
   // QA10-01: say the fact without approval wording; certify and advisory runs have nothing to approve.
   assert.match(md, /so their differences are not compared\./);
+  // RV11-05: the summary line leads; the blocking product-state line follows it.
+  const summary = md.indexOf('No reviewable computed-style changes');
+  const blocked = md.indexOf('⛔ **This compare cannot certify:**');
+  assert.ok(summary > 0 && blocked > summary, md.slice(0, 400));
   assert.doesNotMatch(md, /approv/i);
   assert.doesNotMatch(md, /## (?:Element-level )?Changes/);
   assert.doesNotMatch(md, /private-selector/, 'suppressed raw paths must not appear as report evidence');

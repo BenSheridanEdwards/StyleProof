@@ -62,7 +62,8 @@ export type RenderCtx = {
 
 /** A change with no crop: past `--max-crops`, past the crop budget, or too large after downscaling. */
 export type CropGap = { reason: 'max-crops' | 'budget' | 'size'; where: string };
-export type PartialPage = { surface: string; shown: number; captured: number };
+/** A one-sided page shown in part: which capture holds its full screenshot, and whether the crop budget cut it. */
+export type PartialPage = { surface: string; shown: number; captured: number; side: 'head' | 'base'; budget: boolean };
 
 /** The current surface's decoded screenshots, per render ctx: rendering visits one surface at a time. */
 const surfacePngs = new WeakMap<RenderCtx, { surface: string; files: Map<string, PNG | null> }>();

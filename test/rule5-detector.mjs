@@ -278,8 +278,15 @@ const IDENTIFIER = /\b[\w.-]+ ?@ ?\d{2,5}\b|\b[0-9a-f]{40}\b|\b[0-9a-f]{12}\b|`(
 const LOCATION_LABEL =
   /^\s*(?:#{1,6} |!\[|<img\b|<sub>|\|)|^\s*_(?:on |after · |before · )?[\w.-]+ ?@ ?\d+_\s*$|^\s*- `[\w.-]+ ?@ ?\d+` · \d+ \w+(?:, \d+ \w+)*\s*$/i;
 
+/** Distinctive words of a block's statements, identifiers removed: what the block says about them. */
+const blockWords = (statements) =>
+  new Set(normalise(statements.replace(IDENTIFIER, ' ')).filter((t) => t.length > 3 && !GENERIC.has(t) && t !== 'N'));
+
 /**
- * An identifier stated in two different blocks (paragraphs or lists) repeats a list. Location
+ * An identifier stated in two different blocks that say the same thing about it repeats a list
+ * (the failed surfaces named in the summary and again in the footer). Two blocks that name one
+ * surface for different facts (it is new; it is only partly shown) do not: they must share at least
+ * SHARED_WORDS distinctive words, SHARED_SHARE of the smaller block's, to count (RV11-10). Location
  * labels are not statements: a section may name its page in its heading and caption.
  */
 export function repeatedIdentifiers(text) {
@@ -299,9 +306,17 @@ export function repeatedIdentifiers(text) {
   const out = new Set();
   blocks.forEach((block, i) => {
     const statements = block.filter((line) => !LOCATION_LABEL.test(line)).join('\n');
+    const words = blockWords(statements);
     for (const id of new Set((statements.match(IDENTIFIER) ?? []).map((s) => s.replace(/\s/g, '')))) {
-      if (where.has(id) && where.get(id) !== i) out.add(`${id} is stated in two blocks`);
-      else where.set(id, i);
+      const earlier = where.get(id);
+      if (!earlier) {
+        where.set(id, { i, words });
+        continue;
+      }
+      if (earlier.i === i) continue;
+      const common = [...words].filter((w) => earlier.words.has(w));
+      if (common.length >= SHARED_WORDS && common.length / Math.min(words.size, earlier.words.size) >= SHARED_SHARE)
+        out.add(`${id} is stated in two blocks that say the same thing (${common.join(', ')})`);
     }
   });
   return [...out];
@@ -359,7 +374,7 @@ export function danglingReferences(report) {
   // Position words point at a place in the full report; the comment is a different document.
   for (const m of report.matchAll(
     // Letter lookarounds, not \b: `_below_` and `**below**` must match through emphasis.
-    /[^\n]*(?<!\p{L})(?:below|above|further (?:down|up|on)|(?:in|at) the (?:next|following|previous|last) section)(?!\p{L})[^\n]*/giu,
+    /[^\n]*(?<!\p{L})(?:below|beneath|above|further (?:down|up|on)|(?:in|at) the (?:next|following|previous|last) section)(?!\p{L})[^\n]*/giu,
   ))
     out.push(`points at a position: "${m[0].trim().slice(0, 110)}"`);
   // "see X", "(see X)": X must be the full report or a section the comment carries.
@@ -367,6 +382,10 @@ export function danglingReferences(report) {
     const target = m[1].trim();
     if (!/full report/i.test(target + m[2]) && !carried(target)) out.push(`"see ${target}" is not in the comment`);
   }
+  // Parts of the full report the comment never carries: one-sided page tiles and their captions.
+  if (!/<sub>/.test(report))
+    for (const m of report.matchAll(/[^\n]*(?<!\p{L})(?:tiles?|captions?)(?!\p{L})[^\n]*/giu))
+      out.push(`points at captions or tiles the comment does not carry: "${m[0].trim().slice(0, 110)}"`);
   // "listed/named under X", "a section under X", "under **X**".
   for (const m of report.matchAll(
     /\b(?:(?:listed|named)(?: once)? (?:under|in)|under) (?:the )?(?:\*\*)?([A-Z][^.;,*\n]+?)(?:\*\*)?(?: section)?(?=[.;,)]|$)/gm,
@@ -425,16 +444,22 @@ export function situationCounts(md, json) {
   const gone = md.match(/\*\*(\d+) removed surfaces?\*\*/);
   if (gone && Number(gone[1]) !== oneSided('isRemoved'))
     out.push(`says ${gone[1]} removed surfaces, report.json has ${oneSided('isRemoved')}`);
-  // Changes past `--max-crops`: the stated total equals the per-surface counts it lists, and is at
-  // least the change sections report.json marks `cropOmitted: 'max-crops'`.
-  const cap = md.match(/\*\*(\d+) changes? ha(?:s|ve) no crop\*\*([^\n]*)/);
+  // Changes missing crops: a count of changes, not image pairs (RV11-02). It is checked against the
+  // change sections report.json marks `cropOmitted` (one region per section), not against the
+  // renderer's own tally: the stated total equals the per-surface counts it lists; it is at least
+  // those sections; and with no content layer and no one-sided page it is exactly those sections.
+  const cap = md.match(/\*\*(\d+) changes? (?:is|are) missing crops\*\*([^\n]*)/);
   if (cap) {
+    const total = Number(cap[1]);
     const listed = [...cap[2].matchAll(/(\d+) on /g)].reduce((sum, m) => sum + Number(m[1]), 0);
-    const sections = (json.surfaces ?? [])
-      .flatMap((s) => s.regions ?? [])
-      .filter((r) => r.cropOmitted === 'max-crops').length;
-    if (listed !== Number(cap[1])) out.push(`says ${cap[1]} changes have no crop, but lists ${listed}`);
-    if (Number(cap[1]) < sections) out.push(`says ${cap[1]} changes have no crop, report.json has ${sections}`);
+    const sections = (json.surfaces ?? []).flatMap((s) => s.regions ?? []).filter((r) => r.cropOmitted).length;
+    const oneSidedPages = (json.surfaces ?? []).filter((s) => s.isNew || s.isRemoved).length;
+    if (listed !== total) out.push(`says ${total} changes are missing crops, but lists ${listed}`);
+    if (total < sections) out.push(`says ${total} changes are missing crops, report.json has ${sections} sections`);
+    if (!json.content && !oneSidedPages && total !== sections)
+      out.push(
+        `says ${total} changes are missing crops, but ${sections} change sections are (pairs counted, not changes?)`,
+      );
   }
   const visible = md.match(/\*\*(\d+) visible elements? (?:was|were) added or removed\*\*/);
   if (visible && Number(visible[1]) !== (json.reviewableCounts?.dom ?? 0)) {

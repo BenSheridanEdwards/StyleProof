@@ -400,5 +400,9 @@ export function reachSummaryLine(reach: PublishedReach): string {
     ? `${counts['never-rendered']} rule(s), ${counts.unmeasured} unmeasured, ${counts['blind-channel']} blind-channel, `
     : 'not every changed rule could be listed, ';
 
-  return `- Changed but never matched: ${ruleCounts}${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
+  // The headline's gate line points here, so the one-liner names the rules it holds (RV11-15).
+  const never = (reach.rules ?? []).filter((rule) => rule.status === 'never-rendered');
+  const names = never.length ? `${namedRules(never)} — ` : '';
+
+  return `- Changed but never matched: ${names}${ruleCounts}${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\``;
 }

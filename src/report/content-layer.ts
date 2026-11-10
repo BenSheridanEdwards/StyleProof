@@ -118,6 +118,18 @@ function parentStructureBox(s: Sides, pathKey: string, leaf: Box): Box | null {
   return parentBox;
 }
 
+/** A content entry's Where map and pair; a pair a limit left out is one gap for the entry. */
+function pairLines(
+  s: Sides,
+  surface: string,
+  c: ContentChange,
+  suffix: string,
+  pair: NonNullable<ReturnType<typeof renderCropPair>>,
+): string[] {
+  if (pair.omitted) s.ctx.cropGaps?.push({ reason: pair.omitted, where: surface });
+  return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
+}
+
 function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
   const box = contentBox(s, c);
   if (!box) return [];
@@ -146,10 +158,10 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
         skipIdentical: true,
       });
     }
-    if (pair) return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
+    if (pair) return pairLines(s, surface, c, suffix, pair);
     return ['', noStructureCropNote(c.change)];
   }
-  if (pair) return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
+  if (pair) return pairLines(s, surface, c, suffix, pair);
   return ['', NO_PIXEL_DIFFERENCE_NOTE];
 }
 

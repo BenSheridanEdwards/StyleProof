@@ -119,6 +119,40 @@ const stated = (id) => (color) => ({
     { metadata: { productState: { id, revision: 'fixture-v1' } } },
   ),
 });
+/** A link restyled at rest and on hover: one section with two pairs. */
+const docsLink = (color) => ({
+  tag: 'a',
+  cls: 'docs',
+  text: 'Docs',
+  rect: [20, 20, 80, 20],
+  style: { color },
+});
+const withHover = (captures, hover) =>
+  Object.fromEntries(
+    Object.entries(captures).map(([key, map]) => [
+      key,
+      { ...map, states: { 'body > a.docs': { hover: { 'body > a.docs': { 'background-color': hover } } } } },
+    ]),
+  );
+/** A checkbox and its label: the label's own hover, and the checkbox's checked state restyling it. */
+const ownAndDriven = (before) => ({
+  'form@390': makeMap({
+    elements: {
+      'body > input:nth-child(1)': { tag: 'input', cls: 'opt', rect: [20, 20, 20, 20] },
+      'body > label:nth-child(2)': { tag: 'label', cls: 'opt-label', text: 'Send offers', rect: [40, 20, 100, 20] },
+    },
+    states: {
+      'body > label:nth-child(2)': {
+        hover: {
+          'body > label:nth-child(2)': { 'background-color': before ? 'rgb(255, 255, 255)' : 'rgb(40, 40, 120)' },
+        },
+      },
+      'body > input:nth-child(1)': {
+        checked: { 'body > label:nth-child(2)': { color: before ? 'rgb(20, 120, 60)' : 'rgb(160, 40, 40)' } },
+      },
+    },
+  }),
+});
 const REAL_FIXTURE = path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures/report-real-shop');
 const STYLED = (color) => ({ 'home@1280': page({ 'body > h1': title(color), 'body > p': para }) });
 
@@ -420,7 +454,7 @@ const SHAPES = {
     before: kinds(BLACK),
     after: kinds(RED),
     trust: reviewable,
-    expect: /\*\*10 changes to review\*\*[\s\S]*✂️ \*\*2 changes have no crop\*\*, past the `--max-crops` limit/,
+    expect: /\*\*10 changes to review\*\*[\s\S]*✂️ \*\*2 changes are missing crops\*\*, past the `--max-crops` limit/,
   },
   'many content changes over the --max-crops limit': {
     before: kinds(BLACK, 'Old'),
@@ -428,7 +462,7 @@ const SHAPES = {
     png: (key, side) => solidPng(1280, 400, side === 'after' ? [20, 20, 20] : [200, 200, 200]),
     trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
     expect: /No reviewable computed-style changes/,
-    expectContent: /✂️ \*\*2 changes have no crop\*\*/,
+    expectContent: /✂️ \*\*2 changes are missing crops\*\*/,
   },
   'many Global chrome additions over the --max-crops limit': {
     before: chromeLinks(0),
@@ -436,7 +470,7 @@ const SHAPES = {
     png: (key, side) => solidPng(1280, 400, side === 'after' ? [20, 20, 20] : [255, 255, 255]),
     trust: reviewable,
     expect: /visible elements? (?:was|were) added or removed/,
-    expectContent: /✂️ \*\*2 changes have no crop\*\*[^\n]*Global chrome/,
+    expectContent: /✂️ \*\*2 changes are missing crops\*\*[^\n]*Global chrome/,
   },
   'tall new surface (over 8 viewports)': {
     before: PLAIN,
@@ -444,7 +478,7 @@ const SHAPES = {
     png: tallPng,
     trust: reviewable,
     expect:
-      /📏 \*\*1 page with nothing to compare against is only partly shown[\s\S]*part 8 of 8 · 5600–6400 of 8000px/,
+      /📏 \*\*Only part of 1 page is shown:\*\* `long @ 1280` \(6400 of 8000px, full screenshot `long@1280\.png` in the (?:head|base) capture\)/,
   },
   'tall removed surface (over 8 viewports)': {
     before: { ...PLAIN, ...TALL },
@@ -452,14 +486,15 @@ const SHAPES = {
     png: tallPng,
     trust: reviewable,
     expect:
-      /📏 \*\*1 page with nothing to compare against is only partly shown[\s\S]*part 8 of 8 · 5600–6400 of 8000px/,
+      /📏 \*\*Only part of 1 page is shown:\*\* `long @ 1280` \(6400 of 8000px, full screenshot `long@1280\.png` in the (?:head|base) capture\)/,
   },
   'two tall new surfaces': {
     before: PLAIN,
     after: { ...PLAIN, ...TALL2 },
     png: tallPng,
     trust: reviewable,
-    expect: /📏 \*\*2 pages with nothing to compare against are only partly shown/,
+    expect:
+      /📏 \*\*Only part of 2 pages is shown:\*\* `long @ 1280` \(6400 of 8000px[^\n]*`longer @ 1280` \(6400 of 8000px/,
   },
   'crop budget reached (and --max-crops)': {
     before: kinds(BLACK),
@@ -467,7 +502,47 @@ const SHAPES = {
     opts: { maxCropFiles: 6 },
     trust: reviewable,
     expect:
-      /✂️ \*\*\d+ changes have no crop\*\*: \d+ past the `--max-crops` limit[^\n]*; \d+ past the report's crop budget/,
+      /✂️ \*\*\d+ changes are missing crops\*\*: \d+ past the `--max-crops` limit[^\n]*; \d+ past the report's crop budget/,
+  },
+  // RV11-02: one section with a resting and a hover pair, under the crop budget, is one change.
+  'rest + hover section under the crop budget': {
+    before: withHover({ 'docs@1280': page({ 'body > a.docs': docsLink(BLACK) }) }, 'rgb(255, 255, 255)'),
+    after: withHover({ 'docs@1280': page({ 'body > a.docs': docsLink(RED) }) }, 'rgb(40, 40, 120)'),
+    hoverPng: true,
+    opts: { maxCropFiles: 0 },
+    trust: reviewable,
+    expect: /\*\*1 change to review\*\*[\s\S]*✂️ \*\*1 change is missing crops\*\*/,
+  },
+  // RV11-01: the label's own hover and the checkbox's checked state, each named by its own driver.
+  "an element's own hover plus another control's checked": {
+    before: ownAndDriven(true),
+    after: ownAndDriven(false),
+    hoverPng: true,
+    trust: reviewable,
+    expect:
+      /background changes from white to dark indigo when hovered[^\n]*text colour changes from green to red when the opt is checked/,
+    expectNot: /when the opt is hovered|`:hover`, `:checked`/,
+  },
+  // RV11-07: one restyle on every surface base is promoted to the Global chrome callout (#193).
+  'global chrome style change (callout)': {
+    before: Object.fromEntries(
+      ['home@1280', 'settings@1280'].map((key) => [
+        key,
+        page({ 'body > nav': nav, 'body > nav > a': navLink, 'body > p': para }),
+      ]),
+    ),
+    after: Object.fromEntries(
+      ['home@1280', 'settings@1280'].map((key) => [
+        key,
+        page({
+          'body > nav': nav,
+          'body > nav > a': { ...navLink, style: { ...navLink.style, color: RED } },
+          'body > p': para,
+        }),
+      ]),
+    ),
+    trust: reviewable,
+    expect: /## 🧱 Global chrome change — across/,
   },
   'incomparable product state': {
     before: stated('checkout-loading')(BLACK),
@@ -586,8 +661,16 @@ function generate(dir, spec, { includeContent, migration }) {
       continue;
     }
     fs.mkdirSync(sideDir, { recursive: true });
-    for (const [key, capture] of Object.entries(captures))
+    for (const [key, capture] of Object.entries(captures)) {
       writeCapture(sideDir, key, capture, spec.png?.(key, side) ?? solidPng(1280, 400));
+      // Forced-state screenshots that differ by side, so state pairs are cropped.
+      if (spec.hoverPng)
+        for (const state of ['hover', 'checked'])
+          fs.writeFileSync(
+            path.join(sideDir, `${key}.${state}.png`),
+            solidPng(1280, 400, side === 'before' ? [20, 120, 60] : [160, 40, 40]),
+          );
+    }
     if (spec.failures) {
       manifest(sideDir, side === 'before' ? 'b'.repeat(40) : 'c'.repeat(40), side === 'before' ? spec.failures : []);
     }
@@ -618,6 +701,8 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
         const variant = `${includeContent ? 'content on' : 'content off'}${migration ? ', migration' : ''}`;
         if (!includeContent && !migration)
           assert.match(visibleMd(md), spec.expect, `${shape}: the fixture reaches its branch`);
+        if (!includeContent && !migration && spec.expectNot)
+          assert.doesNotMatch(visibleMd(md), spec.expectNot, `${shape}: the fixture avoids the wrong wording`);
         if (includeContent && !migration && spec.expectContent)
           assert.match(visibleMd(md), spec.expectContent, `${shape}: with content on, the fixture reaches its branch`);
         const reportFound = [

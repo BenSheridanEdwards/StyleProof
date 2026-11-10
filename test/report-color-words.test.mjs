@@ -20,6 +20,9 @@ test('a colour is named only when its nearest named colour is genuinely close', 
   for (const value of [
     'rgb(165, 243, 252)', // light cyan: the nearest palette word is "white"
     'rgb(0, 160, 80)', // green: the nearest palette word is "teal"
+    'rgb(200, 200, 200)', // light gray (#c8c8c8): the nearest neutral is "white" (RV11-14)
+    'rgb(230, 230, 230)', // very light gray (#e6e6e6): not white
+    'rgb(28, 28, 28)', // near black, but not black
   ]) {
     assert.equal(colorNameIfClose(value), null, value);
   }

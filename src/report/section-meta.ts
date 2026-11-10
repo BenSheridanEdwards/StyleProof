@@ -13,8 +13,9 @@ export type SectionMetaPair = {
   state: PairState;
   before: string;
   after: string;
-  w: number;
-  h: number;
+  /** The crops' size in pixels. */
+  width: number;
+  height: number;
   /** The noun phrase in the images' alt text: "the first card title while hovered". */
   what: string;
 };
@@ -29,15 +30,15 @@ export type SectionMetaWhere = {
   boxes: Array<[number, number, number, number]>;
 };
 
-/** A whole-page pair; `w`/`h` is the head page, `bw`/`bh` the base page when its size differs. */
+/** A whole-page pair; `width`/`height` is the head page, `baseWidth`/`baseHeight` the base page when its size differs. */
 export type SectionMetaPage = {
   state: PairState;
   before: string;
   after: string;
-  w: number;
-  h: number;
-  bw?: number;
-  bh?: number;
+  width: number;
+  height: number;
+  baseWidth?: number;
+  baseHeight?: number;
 };
 
 export type SectionMeta = {
@@ -102,7 +103,7 @@ const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.is
 const isTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isNumber);
 const isPair = (v: unknown): v is SectionMetaPair => {
   const p = v as SectionMetaPair;
-  return !!p && [p.state, p.before, p.after, p.what].every(isString) && isNumber(p.w) && isNumber(p.h);
+  return !!p && [p.state, p.before, p.after, p.what].every(isString) && isNumber(p.width) && isNumber(p.height);
 };
 const isWhere = (v: unknown): v is SectionMetaWhere => {
   const w = v as SectionMetaWhere;
@@ -121,8 +122,8 @@ const isPage = (v: unknown): v is SectionMetaPage => {
   return (
     !!p &&
     [p.state, p.before, p.after].every(isString) &&
-    [p.w, p.h].every(isNumber) &&
-    [p.bw, p.bh].every((n) => n === undefined || isNumber(n))
+    [p.width, p.height].every(isNumber) &&
+    [p.baseWidth, p.baseHeight].every((n) => n === undefined || isNumber(n))
   );
 };
 

@@ -16,8 +16,8 @@ const meta = {
       state: 'hover',
       before: 'crops/a-1-before.png',
       after: 'crops/a-1-after.png',
-      w: 424,
-      h: 180,
+      width: 424,
+      height: 180,
       what: 'the "first" card',
     },
   ],
@@ -30,7 +30,7 @@ const meta = {
       boxes: [[33, 172, 382, 46]],
     },
   ],
-  pages: [{ state: 'rest', before: 'crops/a-page-base.png', after: 'crops/a-page-head.png', w: 1280, h: 800 }],
+  pages: [{ state: 'rest', before: 'crops/a-page-base.png', after: 'crops/a-page-head.png', width: 1280, height: 800 }],
 };
 
 test('a section comment round-trips its data', () => {

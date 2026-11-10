@@ -74,6 +74,24 @@ function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeigh
   return tiles;
 }
 
+/** A one-sided page shown in part: recorded for the report's one opening line (QA11-02). */
+function notePartialPage(
+  ctx: RenderCtx,
+  surface: string,
+  side: 'before' | 'after',
+  shownPage: { png: PNG; tiles: Tile[]; tileHeight: number; shown: number },
+): void {
+  const { png, tiles, tileHeight, shown } = shownPage;
+  ctx.partialPages?.push({
+    surface,
+    shown,
+    captured: png.height,
+    side: side === 'after' ? 'head' : 'base',
+    // Fewer tiles than the cap allows: the crop budget ran out, not the page-height cap.
+    budget: tiles.length < Math.min(MAX_ONE_SIDED_TILES, Math.ceil(png.height / tileHeight)),
+  });
+}
+
 /** Markdown for the tiles: each part numbered with its pixel range, and any unshown tail said plainly. */
 function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number, alt: string, caption: string) {
   const md: string[] = [];
@@ -126,7 +144,7 @@ function renderOneSided(
       const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
       json.shownHeight = shown;
       json.capturedHeight = png.height;
-      if (shown < png.height) ctx.partialPages?.push({ surface: p.sd.surface, shown, captured: png.height });
+      if (shown < png.height) notePartialPage(ctx, p.sd.surface, side, { png, tiles, tileHeight, shown });
     } else {
       ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: p.sd.surface });
     }
@@ -150,8 +168,7 @@ function chromeCalloutLines(nChrome: number, chromeBases: number, totalBases: nu
     `## 🧱 Global chrome ${nChrome === 1 ? 'change' : 'changes'} — across ${chromeSpanLabel(chromeBases, totalBases)} captured surface base(s)`,
     '',
     `_${nChrome} change(s): the affected element changed on every surface base that renders it` +
-      `${landmark ? ' (inside a nav, header or footer)' : ''}, so it reads as ONE global change, not a ` +
-      `per-view one. The detail is folded beneath — review it once._`,
+      `${landmark ? ' (inside a nav, header or footer)' : ''}, so it is listed once here instead of once per view._`,
   ];
 }
 

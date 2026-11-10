@@ -80,6 +80,7 @@ test('approval wording inside emphasis and in any inflection is caught (QA10-03)
 test('pointers at places the comment does not carry are caught (QA10-03)', () => {
   for (const line of [
     '_The content changes are further down._',
+    '_The detail is folded beneath — review it once._',
     '_The content changes are _below_._',
     'The content changes are **below**.',
     'The content changes are <em>Below</em>.',
@@ -153,4 +154,23 @@ test('an empty paragraph under the title is caught (QA10-04)', () => {
 test('approval wording inside HTML emphasis is caught in report.html (QA10-03)', () => {
   const html = '<main><p>The page is capped, <em>so approving this surface</em> accepts it.</p></main>';
   assert.ok(reportProblems('report.html', htmlText(html)).some((p) => /approval/.test(p)));
+});
+
+test('a surface named for two different facts is allowed; named twice for one fact is not (RV11-10)', () => {
+  const md = [
+    '🆕 **1 new surface** with no baseline to compare: `long @ 1280`. Review it before it becomes part of the baseline.',
+    '',
+    '📏 **Only part of 1 page is shown:** `long @ 1280` (6400 of 8000px, full screenshot `long@1280.png` in the head capture). A new or removed page shows at most 8 screen heights; open the full screenshot to review the rest.',
+  ].join('\n');
+  assert.deepEqual(
+    reportProblems('report.md', md).filter((p) => /stated in two blocks/.test(p)),
+    [],
+  );
+});
+
+test('a comment pointing at tile captions it does not carry is caught (QA11-02)', () => {
+  const body =
+    '## 🗺️ StyleProof report\n\n📏 **1 page with nothing to compare against is only partly shown.** The tile captions say how much; the rest is not reviewed.' +
+    LINK;
+  assert.ok(commentProblems('comment', body).some((p) => /captions or tiles/.test(p)));
 });

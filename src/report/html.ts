@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { STATE_WORDS } from './change-line.js';
+import { andList, counted, STATE_WORDS } from './change-line.js';
+import { RING_PAD } from './where-map.js';
 import {
   decodeCapturedMeta,
   decodeSectionMeta,
@@ -245,9 +246,6 @@ const safeCrop = (src: string) => /^(?:crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s
 const stateWords = (state: string) =>
   state === 'rest' ? '' : STATE_WORDS[state] ? `while ${STATE_WORDS[state]}` : `in :${state}`;
 
-/** Where-map ring padding, page pixels (the same as the PNG overview). */
-const RING_PAD = 8;
-
 /** The Where map as an SVG over the head (or base) page, or the PNG overview when the page is not available. */
 function whereFigure(meta: SectionMeta, index: number, alt: string, caption: string): string {
   const where = meta.where[index];
@@ -283,7 +281,7 @@ function whereFigure(meta: SectionMeta, index: number, alt: string, caption: str
 
 /** One before/after pair: two clean images side by side (stacked on narrow screens). */
 function pairBlock(
-  pair: { state: string; before: string; after: string; w: number; h: number; what?: string },
+  pair: { state: string; before: string; after: string; width: number; height: number; what?: string },
   lazy = false,
   label = stateWords(pair.state),
 ) {
@@ -293,7 +291,7 @@ function pairBlock(
   const side = (name: 'before' | 'after', src: string) =>
     safeCrop(src)
       ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
-        `<img class="shot ${name}" src="${attr(src)}" width="${pair.w}" height="${pair.h}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${pair.what ?? 'the whole page'}`)}"${loading}></figure>`
+        `<img class="shot ${name}" src="${attr(src)}" width="${pair.width}" height="${pair.height}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${pair.what ?? 'the whole page'}`)}"${loading}></figure>`
       : '';
   return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
 }
@@ -305,13 +303,13 @@ function pairBlock(
 function pagePairBlock(page: SectionMetaPage): string {
   const label = `whole page ${stateWords(page.state)}`.trim();
   const tag = `<span class="state">${escapeHtml(label)}</span>`;
-  const side = (name: 'before' | 'after', src: string, w: number, h: number) =>
+  const side = (name: 'before' | 'after', src: string, width: number, height: number) =>
     safeCrop(src)
       ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
-        `<svg class="shot ${name} page" viewBox="0 0 ${w} ${h}" role="img" aria-label="${attr(`${name === 'before' ? 'Before' : 'After'}: the ${label}`)}">` +
-        `<image href="${attr(src)}" width="${w}" height="${h}"/></svg></figure>`
+        `<svg class="shot ${name} page" viewBox="0 0 ${width} ${height}" role="img" aria-label="${attr(`${name === 'before' ? 'Before' : 'After'}: the ${label}`)}">` +
+        `<image href="${attr(src)}" width="${width}" height="${height}"/></svg></figure>`
       : '';
-  return `<div class="pair">${side('before', page.before, page.bw ?? page.w, page.bh ?? page.h)}${side('after', page.after, page.w, page.h)}</div>`;
+  return `<div class="pair">${side('before', page.before, page.baseWidth ?? page.width, page.baseHeight ?? page.height)}${side('after', page.after, page.width, page.height)}</div>`;
 }
 
 const PAGE_LINE = /^_On (.+)_$/;
@@ -411,16 +409,12 @@ function sectionCard(title: string, meta: SectionMeta, body: string[]): string {
   ].join('\n');
 }
 
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
-const andList = (items: string[]) =>
-  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
-
 /** "What was captured": pages and widths, forced states, recipe states and the changed rules. */
 function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
   const items = meta.pages.map((p) => {
     const widths = p.widths.length ? ` at ${andList(p.widths.map(String))}px wide` : '';
     const states = p.states.length
-      ? `, at rest and in ${plural(p.states.length, 'forced state')}: ${p.states.map((s) => `<code>:${escapeHtml(s)}</code>`).join(', ')}`
+      ? `, at rest and in ${counted(p.states.length, 'forced state')}: ${p.states.map((s) => `<code>:${escapeHtml(s)}</code>`).join(', ')}`
       : ', at rest';
     return `The <strong>${escapeHtml(p.base)}</strong> page${widths}${states}.`;
   });
@@ -440,7 +434,7 @@ function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
     if (!rules.length) continue;
     const sheets = [...new Set(rules.map((r) => r.sheet).filter(Boolean))];
     const where = sheets.length === 1 ? ` in <code>${escapeHtml(sheets[0])}</code>` : '';
-    items.push(`${plural(rules.length, 'changed CSS rule')}${where}, ${words}: ${rules.map(ruleLink).join(', ')}.`);
+    items.push(`${counted(rules.length, 'changed CSS rule')}${where}, ${words}: ${rules.map(ruleLink).join(', ')}.`);
   }
   if (!items.length) return '';
   return `<section class="coverage" aria-labelledby="coverage-title"><h2 id="coverage-title">What was captured</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`;

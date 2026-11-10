@@ -666,7 +666,7 @@ test('a bounded report summarizes unrendered rules without losing the full JSON 
   });
   assert.ok(
     output.md.includes(
-      "- Changed but never matched: 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked (not held by `changeReach: 'gate'`); full list in report.json under `reach`",
+      "- Changed but never matched: `.fault-0`, `.fault-1`, `.fault-10`, `.fault-11`, `.fault-12` and 95 more — 100 rule(s), 0 unmeasured, 0 blind-channel, 0 evidence gap(s); changed stylesheets no capture served are not checked (not held by `changeReach: 'gate'`); full list in report.json under `reach`",
     ),
   );
   // QA3-01: the warn-only J2 counts stay machine output.
@@ -820,4 +820,37 @@ test('script-only captures name unavailable map SHAs rather than inventing a sou
   assert.equal(reach?.complete, false);
   assert.match(reach?.gaps.find((gap) => gap.join === 'J2')?.reason ?? '', /base map SHA unavailable/);
   assert.equal(assessReachMaps([withoutReach(map())], [withoutReach(map())], 'warn'), undefined);
+});
+
+test('a gate report cut to one-liners still names the held rule where the gate line points (RV11-15)', () => {
+  const dirs = tmpDirs();
+  try {
+    const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
+    for (const [dir, hash, color] of [
+      [dirs.beforeDir, 'h1', 'rgb(0, 0, 0)'],
+      [dirs.afterDir, 'h2', 'rgb(200, 0, 0)'],
+    ]) {
+      const map = {
+        ...makeMap({
+          elements: {
+            'body > p': { tag: 'p', cls: 'title', text: 'Hello', rect: [20, 20, 300, 40], style: { color } },
+          },
+        }),
+        reach: {
+          version: 2,
+          scope: 'compared',
+          sheets: ['/app.css'],
+          rules: [rule('.title', hash, { used: true }), rule('.unopened', hash)],
+        },
+      };
+      writeCapture(dir, 'home@1280', map, solidPng(1280, 400));
+    }
+    const result = generateStyleMapReport({ ...dirs, changeReach: 'gate', maxReportBytes: 1200 });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(md, /✗ \*\*Reach gate\*\*[^\n]*\(see \*\*Changed but never matched\*\*\)/);
+    // The section became a one-liner; it still names the rule that holds the gate.
+    assert.match(md, /^- Changed but never matched: [^\n]*`\.unopened`/m);
+  } finally {
+    rmTmp(dirs.root);
+  }
 });

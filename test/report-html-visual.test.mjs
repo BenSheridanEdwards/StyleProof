@@ -132,7 +132,9 @@ test('section data from report.md is escaped, and a forged image path is never l
     id: 'x" onclick="alert(1)',
     paths: ['<script>alert(1)</script>'],
     more: 0,
-    pairs: [{ state: 'rest', before: 'javascript:alert(1)', after: 'crops/a.png', w: 10, h: 10, what: '"><script>' }],
+    pairs: [
+      { state: 'rest', before: 'javascript:alert(1)', after: 'crops/a.png', width: 10, height: 10, what: '"><script>' },
+    ],
     where: [],
     pages: [],
   };
@@ -289,7 +291,9 @@ function markdownWithSection() {
         boxes: [[10, 10, 50, 20]],
       },
     ],
-    pages: [{ state: 'rest', before: 'crops/a-page-base.png', after: 'crops/a-page-head.png', w: 800, h: 400 }],
+    pages: [
+      { state: 'rest', before: 'crops/a-page-base.png', after: 'crops/a-page-head.png', width: 800, height: 400 },
+    ],
   };
   return [
     '## 🗺️ StyleProof report',

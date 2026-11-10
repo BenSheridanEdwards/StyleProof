@@ -85,8 +85,8 @@ test('whole-report crop budget preserves findings and certification', async (t) 
     assert.ok(capped.files.length <= 5, `wrote ${capped.files.length} crop files`);
     assert.ok(capped.json.cropBudget.omitted > 0);
     // Rule 5: one opening line states every crop left out, with the true total and the option.
-    assert.equal((capped.md.match(/no crop\*\*/g) ?? []).length, 1);
-    const line = capped.md.match(/\*\*(\d+) changes? ha(?:s|ve) no crop\*\*[^\n]*/);
+    assert.equal((capped.md.match(/missing crops\*\*/g) ?? []).length, 1);
+    const line = capped.md.match(/\*\*(\d+) changes? (?:is|are) missing crops\*\*[^\n]*/);
     const sectionsOmitted = capped.json.surfaces
       .flatMap((s) => s.regions ?? [])
       .filter((r) => r.cropOmitted === 'budget').length;
@@ -126,7 +126,7 @@ test('whole-report crop budget preserves findings and certification', async (t) 
   await t.test('zero bytes disables crops and preserves findings', () => {
     const capped = report(dirs, 'zero-bytes', { maxCropBytes: 0 });
     assert.deepEqual(capped.files, []);
-    assert.match(capped.md, /no crop\*\*[^\n]*past the report's crop budget/);
+    assert.match(capped.md, /missing crops\*\*[^\n]*past the report's crop budget/);
     sameFindings(capped, full);
   });
 
@@ -138,7 +138,7 @@ test('whole-report crop budget preserves findings and certification', async (t) 
       Object.keys(added).sort(),
       ['surface', 'missing', 'isNew', 'isRemoved', 'baselineStatus', 'classification'].sort(),
     );
-    assert.match(capped.md, /no crop\*\*[^\n]*past the report's crop budget/);
+    assert.match(capped.md, /missing crops\*\*[^\n]*past the report's crop budget/);
     assert.doesNotMatch(capped.md, /no screenshot saved/);
     sameFindings(capped, full);
   });
@@ -158,7 +158,11 @@ test('one-sided pages retain partial tiles and the page-capped warning', (t) => 
   assert.equal(added.capturedHeight, 4000);
   assert.ok(added.shownHeight < added.capturedHeight);
   assert.match(capped.md, /part 2 of 2 · 800–1600 of 4000px/);
-  assert.match(capped.md, /📏 \*\*1 page with nothing to compare against is only partly shown\.\*\*/);
+  // The crop budget cut this page, so the line names it and the option that shows more of it.
+  assert.match(
+    capped.md,
+    /📏 \*\*Only part of 1 page is shown:\*\* `new @ 1280` \(1600 of 4000px, [^\n]*crop budget ran out; raise `--max-crop-files` or `--max-crop-bytes`/,
+  );
 });
 
 test('a tall changed element has clean crops clipped to the pixel cap', (t) => {
@@ -260,4 +264,31 @@ test('advisory content crops do not take the crop budget from reviewable style c
   assert.deepEqual(capped.files, styleFiles, 'the budget goes to the reviewable style change first');
   assert.equal(capped.json.cropBudget.omitted, 1, 'the advisory content crop is the one left out');
   assert.match(capped.md, /Updated demo copy/, 'the content change is still listed');
+});
+
+test('a section with a resting and a hover pair counts as one change missing crops (RV11-02)', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  const link = 'body > a.docs';
+  for (const [dir, color, hover, fill] of [
+    [dirs.beforeDir, 'rgb(0, 0, 0)', 'rgb(255, 255, 255)', [20, 120, 60]],
+    [dirs.afterDir, 'rgb(200, 30, 30)', 'rgb(40, 40, 120)', [160, 40, 40]],
+  ]) {
+    const map = makeMap({
+      elements: { [link]: { tag: 'a', cls: 'docs', text: 'Docs', rect: [20, 20, 80, 20], style: { color } } },
+      states: { [link]: { hover: { [link]: { 'background-color': hover } } } },
+    });
+    writeCapture(dir, 'docs@1280', map, solidPng(1280, 400, fill));
+    fs.writeFileSync(path.join(dir, 'docs@1280.hover.png'), solidPng(1280, 400, fill));
+  }
+  for (const limits of [{ maxCropFiles: 0 }, { maxCropBytes: 10 }]) {
+    const capped = report(dirs, `pairs-${Object.keys(limits)[0]}`, limits);
+    assert.match(capped.md, /\*\*1 change to review\*\*/);
+    // The count of changes, whatever the wording: never the 2 image pairs.
+    const line = capped.md.match(
+      /\*\*(\d+) changes? (?:is missing crops|are missing crops|has no crop|have no crop)\*\*/,
+    );
+    assert.ok(line, capped.md.slice(0, 600));
+    assert.equal(Number(line[1]), 1, line[0]);
+  }
 });

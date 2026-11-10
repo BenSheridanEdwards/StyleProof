@@ -82,11 +82,14 @@ function lab(r: number, g: number, b: number): [number, number, number] {
 
 const MAX_HUE_GAP = 25;
 const NEUTRAL_CHROMA = 10;
+/** CIELAB lightness each neutral word covers: "white" only near-white, "black" only near-black (RV11-14). */
+const NEUTRAL_LIGHTNESS: Record<string, [number, number]> = { white: [95, 100], black: [0, 8], gray: [20, 80] };
 
 /**
  * `colorName`, but only when the word is genuinely close: a chromatic name must match the
  * colour's hue within 25° (light/dark covers lightness), a neutral name needs a near-neutral
- * colour. Otherwise null, so callers show the value instead of a misleading word.
+ * colour inside that word's lightness band. Otherwise null, so callers show the value instead of
+ * a misleading word.
  */
 export function colorNameIfClose(v: string): string | null {
   const name = colorName(v);
@@ -95,9 +98,10 @@ export function colorNameIfClose(v: string): string | null {
   const base = name.replace(/^(light|dark) /, '');
   const entry = PALETTE.find(([word]) => word === base);
   if (!entry) return null;
-  const [, a1, b1] = lab(c.r, c.g, c.b);
+  const [lightness, a1, b1] = lab(c.r, c.g, c.b);
   const chroma = Math.hypot(a1, b1);
-  if (base === 'black' || base === 'white' || base === 'gray') return chroma <= NEUTRAL_CHROMA ? name : null;
+  const band = NEUTRAL_LIGHTNESS[base];
+  if (band) return chroma <= NEUTRAL_CHROMA && lightness >= band[0] && lightness <= band[1] ? name : null;
   const [, a2, b2] = lab(...entry[1]);
   const gap = Math.abs(((Math.atan2(b1, a1) - Math.atan2(b2, a2)) * 180) / Math.PI);
   return chroma > NEUTRAL_CHROMA && Math.min(gap, 360 - gap) <= MAX_HUE_GAP ? name : null;

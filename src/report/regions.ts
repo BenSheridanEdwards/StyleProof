@@ -9,6 +9,7 @@ import {
   surfaceWidth,
 } from '../change-groups.js';
 import { codeValue } from '../code-span.js';
+import { andList } from './change-line.js';
 import type { StyleMap } from '../capture.js';
 import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT, type ChangeSection } from './change-sections.js';
 
@@ -172,9 +173,6 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     findingCount,
   };
 }
-
-const andList = (items: string[]): string =>
-  items.length > 1 ? `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}` : (items[0] ?? '');
 
 /** " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." */
 function scopeText(keys: string[], base: (key: string) => string, elements: number, changedRules?: number): string {
