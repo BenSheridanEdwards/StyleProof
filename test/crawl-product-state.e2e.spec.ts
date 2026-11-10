@@ -17,6 +17,9 @@ test.afterAll(() => fs.rmSync(directory, { recursive: true, force: true }));
 let tone = 'rgb(0, 0, 0)';
 const seenLinks: string[] = [];
 
+// The fixture echoes the request path into the page, so escape it like any reflected value.
+const escapeHtml = (value: string) => value.replace(/[&<>"']/g, (char) => `&#${char.charCodeAt(0)};`);
+
 const server = http.createServer((req, res) => {
   res.setHeader('content-type', 'text/html');
   const nav = '<nav><a href="/alpha">a</a> <a href="/beta">b</a></nav>';
@@ -29,7 +32,9 @@ const server = http.createServer((req, res) => {
     '<button aria-haspopup="dialog" onclick="document.getElementById(\'d\').hidden = false">open</button>' +
     '<div id="d" role="dialog" hidden>dialog</div>';
 
-  res.end(`<!doctype html><html><body>${nav}<h1 style="color: ${tone}">${req.url}</h1>${popup}${push}</body></html>`);
+  res.end(
+    `<!doctype html><html><body>${nav}<h1 style="color: ${tone}">${escapeHtml(req.url ?? '')}</h1>${popup}${push}</body></html>`,
+  );
 });
 
 await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
