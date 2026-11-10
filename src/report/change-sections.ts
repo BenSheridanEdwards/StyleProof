@@ -801,6 +801,8 @@ type SectionPairs = {
   meta: SectionMetaPair[];
   /** A pair was left out for a limit (the element is visible): which one. */
   omitted?: 'budget' | 'max-crops';
+  /** Some pair the section needed had both screenshots. */
+  screenshots?: true;
 };
 
 /** The elements a state's pair is about: every section element at rest, the state's targets otherwise. */
@@ -816,6 +818,8 @@ type StatePair = {
   size?: { w: number; h: number };
   /** Why the pair was left out (the crop budget, or the image was too large). */
   omitted?: 'budget' | 'size';
+  /** Both screenshots for this state exist. */
+  screenshots?: true;
 };
 
 /** One state's clean pair, or the reason it has none. */
@@ -824,11 +828,13 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
   const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, surface, `.${state}`);
   const targets = pairTargets(section, state);
   const target = targets.find((p) => hasExposedChangedEntry(maps[0], maps[1], [p], pngs) && elementBox(ctx, maps, p));
+  // Both screenshots exist: a missing pair then means nothing changed is exposed in them (RV15-07).
+  const screenshots = pngs[0] && pngs[1] ? { screenshots: true as const } : {};
   if (!target || !pngs[0] || !pngs[1]) {
     const missing = noPairNote(ctx, maps, state, targets, pngs);
     return state === 'rest'
-      ? { md: [], note: missing }
-      : { md: ['', `**${stateLabel(state) ?? `In :${state}`}**`, '', missing] };
+      ? { md: [], note: missing, ...screenshots }
+      : { md: ['', `**${stateLabel(state) ?? `In :${state}`}**`, '', missing], ...screenshots };
   }
   seq.crop++;
   const pair = renderCropPair(ctx, {
@@ -843,6 +849,7 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState, what: 
   return {
     md: pair.md,
     images: pair.images,
+    screenshots: true,
     ...(pair.size ? { size: pair.size } : {}),
     ...(pair.omitted ? { omitted: pair.omitted } : {}),
   };
@@ -872,6 +879,7 @@ function addStatePair(
 ): void {
   pair.md.forEach((line) => out.md.push(line));
   if (pair.note) out.note = pair.note;
+  if (pair.screenshots) out.screenshots = true;
   if (pair.omitted) {
     // One gap per section, however many of its pairs were left out (RV11-02).
     if (!out.omitted) ctx.cropGaps?.push({ reason: pair.omitted, where: input.surface });
@@ -908,8 +916,9 @@ function sectionRegion(ctx: RenderCtx, input: SectionInput, pairs: SectionPairs,
     ...(where.length ? { where: where.map(whereReceipt) } : {}),
     // A limit left the crop out: say which (main's `cropOmitted: 'budget'`, plus `'max-crops'`).
     ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
-    // Screenshots exist but no changed element is exposed in them: say so in the receipt too.
-    ...(!shown && !pairs.omitted && input.pngs[0] && input.pngs[1]
+    // The section's own screenshots exist but no changed element is exposed in them: say so in the
+    // receipt too. A state-only section with no state screenshots has nothing to be hidden in (RV15-07).
+    ...(!shown && !pairs.omitted && pairs.screenshots
       ? { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON }
       : {}),
     ...(input.spacing.length ? { spacing: input.spacing } : {}),

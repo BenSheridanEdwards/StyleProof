@@ -158,9 +158,10 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     : [];
   // A changed run no section shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));
-  // Not shown because a limit left the crops out is not "not visible".
+  // Not shown because a limit left the crops out, or with no screenshot to show it in, is not "not
+  // visible": the surface says so only when a section's own receipt does (RV15-07).
   const notRendered =
-    !rendered.some((r) => r.shown) && rendered.some((r) => !r.region.cropOmitted) && pngs[0] && pngs[1];
+    !rendered.some((r) => r.shown) && rendered.some((r) => 'visualEvidence' in r.region && r.region.visualEvidence);
   return {
     md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
     json: {

@@ -311,6 +311,41 @@ for (const [added, expected] of [
   });
 }
 
+// RV15-07: a state-only section whose state screenshots are missing has no screenshot to be "not
+// visible" in: report.json must not say so (main gives no receipt). With the screenshots and a
+// zero-size element, the receipt stays.
+for (const [screenshots, rect, expected] of [
+  [false, [40, 20, 100, 20], undefined],
+  [true, [40, 20, 0, 0], 'not-rendered'],
+]) {
+  test(`a state-only section ${screenshots ? 'with screenshots and a hidden element' : 'with no state screenshots'} ${expected ? 'keeps the' : 'gets no'} not-visible receipt (RV15-07)`, (t) => {
+    const root = mkTmp('styleproof-state-receipt-');
+    t.after(() => rmTmp(root));
+    const dirs = ['before', 'after'].map((side) => path.join(root, side));
+    for (const dir of dirs) {
+      const before = dir === dirs[0];
+      const map = makeMap({
+        elements: {
+          [checkbox]: { tag: 'input', cls: 'opt', rect: [20, 20, 20, 20] },
+          [label]: { tag: 'label', cls: 'opt-label', text: 'Send offers', rect },
+        },
+        states: { [checkbox]: { checked: { [label]: { color: before ? 'rgb(20, 120, 60)' : 'rgb(160, 40, 40)' } } } },
+      });
+      writeCapture(dir, 'form@390', map, solidPng(390, 300));
+      if (screenshots) fs.writeFileSync(path.join(dir, 'form@390.checked.png'), solidPng(390, 300));
+    }
+    const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    const region = json.surfaces[0].regions.find((r) => r.paths.includes(label));
+    assert.equal(region.visualEvidence, expected);
+    assert.equal(json.surfaces[0].visualEvidence, expected);
+    if (!screenshots) {
+      const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      assert.match(md, /No :checked screenshot/, 'report.md gives the true reason');
+    }
+  });
+}
+
 test('machine findings keep the state owners', (t) => {
   const { json } = fixture(t);
   const owners = json.surfaces[0].findings.map((f) => [f.path, f.state, f.sub]).sort();
