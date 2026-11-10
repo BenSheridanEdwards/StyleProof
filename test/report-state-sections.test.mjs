@@ -12,6 +12,22 @@ const label = 'body > label:nth-child(2)';
 const nickname = 'body > input:nth-child(3)';
 const save = 'body > button:nth-child(4)';
 
+/**
+ * "Show the CSS" renders each owner's state changes as main does: a block headed by the owner's
+ * selector, then its `| :state | prop |` rows. The rows under the block for `selector`, as "state prop".
+ */
+function ownerRows(section, selector) {
+  const out = [];
+  let inBlock = false;
+  for (const line of section.split('\n')) {
+    const head = /^\*\*(?:[^*]+\*\* )?`([^`]+)`(?:\*\*)?(?: ×\d+)?$/.exec(line);
+    if (head) inBlock = head[1] === selector;
+    const row = /^\| `:([\w-]+)` \| `([\w-]+)` \|/.exec(line);
+    if (row && inBlock) out.push(`${row[1]} ${row[2]}`);
+  }
+  return out;
+}
+
 function fixture(t, screenshots = true, hidden = false) {
   const root = mkTmp('styleproof-state-sections-');
   t.after(() => rmTmp(root));
@@ -71,10 +87,9 @@ for (const [screenshots, hidden] of [
       ['Offers label', 'Nickname', 'Save'],
       'page order, one per changed element',
     );
-    assert.match(
-      sections['Offers label'],
-      /`label\.offers-label` · 1 element restyled · when `input\.offers-check` is `:checked`/,
-    );
+    // The CSS names the control under its own block, as the capture records (#1299).
+    assert.match(sections['Offers label'], /^`label\.offers-label` · 1 element restyled$/m);
+    assert.deepEqual(ownerRows(sections['Offers label'], 'input.offers-check'), ['checked color']);
     assert.match(sections.Nickname, /`input\.nickname` · 1 element restyled/);
     assert.match(sections.Save, /`button\.save` · 1 element restyled/);
     assert.doesNotMatch(sections.Nickname, /:checked|:disabled/, 'no other state leaks into the field');
@@ -89,10 +104,10 @@ test('a state that restyles another element names that element and the control d
   assert.match(offers, /^On the offers label, the text colour changes from .+ when the offers check is checked\./m);
   assert.match(offers, /\*\*While checked\*\*/);
   assert.doesNotMatch(offers, /While disabled|While showing its placeholder/);
-  // QA12-01: the row names the control that produced it, as the capture records.
-  assert.match(
-    offers,
-    /\| `input\.offers-check:checked color` \|/,
+  // The row sits under the control that produced it, as the capture records (main's per-owner block).
+  assert.deepEqual(
+    ownerRows(offers, 'input.offers-check'),
+    ['checked color'],
     "the CSS row is the label colour under the checkbox's :checked",
   );
   assert.match(sections.Save, /\*\*While disabled\*\*/);
@@ -128,7 +143,7 @@ test('a list of checkboxes restyling their labels still names the driving contro
   const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
   const labels = sectionsOf(fs.readFileSync(result.reportMdPath, 'utf8'))['Opt labels'];
   assert.match(labels, /^On both opt labels, the text colour changes from .+ when the matching opt is checked\./m);
-  assert.match(labels, /· when `input\.opt` is `:checked`/);
+  assert.deepEqual(ownerRows(labels, 'input.opt'), ['checked color']);
 });
 
 test("an element's own hover and another control's checked each name their own driver (RV11-01)", (t) => {
@@ -163,8 +178,9 @@ test("an element's own hover and another control's checked each name their own d
   assert.match(section, /background changes from white to dark indigo when hovered/);
   assert.match(section, /text colour changes from green to red when the opt is checked/);
   assert.doesNotMatch(section, /when the opt is hovered/);
-  assert.match(section, /· when `input\.opt` is `:checked`$/m);
-  assert.doesNotMatch(section, /`:hover`, `:checked`/);
+  // Each owner's block holds only its own change: the label's hover, the checkbox's checked.
+  assert.deepEqual(ownerRows(section, 'input.opt'), ['checked color']);
+  assert.deepEqual(ownerRows(section, 'label.opt-label'), ['hover background-color']);
   assert.match(section, /\*\*While hovered\*\*/);
   assert.match(section, /\*\*While checked\*\*/);
 });

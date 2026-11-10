@@ -53,6 +53,24 @@ for (const config of CONFIGS)
       controls: config.map(([tag, state], i) => ({ word: WORDS[next++], tag, state, prop: PROPS[i] })),
     });
 
+// QA13's live shapes (check/round-13/qa/site-break): two `input.opt` controls restyling different
+// properties of one paragraph (QA13-01), `input.pickr` and `select.pickr` sharing a noun (QA13-02),
+// and two `input.tick` controls making one identical change (the only "either of the 2" case).
+const LIVE_QA13_HTML = `<section class="row"><input type="checkbox" id="news" class="opt"><input type="checkbox" id="gift" class="opt"><p class="summary">Your choices</p></section>
+<section class="row"><input type="text" class="pickr"><select class="pickr"><option>One</option></select><p class="note">Pick note</p></section>
+<section class="row"><input type="checkbox" id="one" class="tick"><input type="checkbox" id="two" class="tick"><p class="shared">Shared change</p></section>`;
+const liveQa13Css = (head: boolean) => {
+  const [red, yellow] = head ? ['rgb(160, 40, 40)', 'rgb(255, 224, 138)'] : ['rgb(20, 120, 60)', 'rgb(200, 220, 255)'];
+  return [
+    '.summary, .note, .shared { padding: 2px 6px; color: rgb(34, 34, 34); background: rgb(240, 240, 240); }',
+    `#news:checked ~ .summary { color: ${red}; }`,
+    `#gift:checked ~ .summary { background: ${yellow}; }`,
+    `input.pickr:focus ~ .note { color: ${red}; }`,
+    `select.pickr:focus ~ .note { background: ${yellow}; }`,
+    `.tick:checked ~ .shared { color: ${red}; }`,
+  ];
+};
+
 const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/styles.css"></head><body>
 ${GROUPS.map(
   (g, n) =>
@@ -64,6 +82,7 @@ ${GROUPS.map(
       )
       .join('')}<label class="target${n}">Choice ${n}</label></div>`,
 ).join('\n')}
+${LIVE_QA13_HTML}
 </body></html>`;
 
 const css = (head: boolean) =>
@@ -75,6 +94,7 @@ const css = (head: boolean) =>
       ),
       ...(g.ownHover ? [`.target${n}:hover { font-weight: ${head ? 700 : 400}; }`] : []),
     ]),
+    ...liveQa13Css(head),
   ].join('\n');
 
 test('every captured state names the control the capture recorded for it (QA12-01)', async ({ page }) => {
@@ -114,6 +134,17 @@ test('every captured state names the control the capture recorded for it (QA12-0
           states.some((f: { cls?: string }) => f.cls === c.word),
           `${c.word}:${c.state} was captured`,
         ).toBe(true);
+    // QA13-01: each `input.opt` is named for its own change; QA13-02: the two pickrs by selector;
+    // the identical pair alone reads "either of the 2".
+    const section = (title: string) => md.split('\n### ').find((s) => s.startsWith(title)) ?? '';
+    expect(section('Summary')).toMatch(
+      /when one `input\.opt` is checked, and the background .* when another `input\.opt` is checked/,
+    );
+    expect(section('Summary')).not.toMatch(/either of the 2/);
+    expect(section('Note')).toMatch(
+      /when `input\.pickr` is focused, and the background .* when `select\.pickr` is focused/,
+    );
+    expect(section('Shared')).toMatch(/when either of the 2 ticks is checked/);
     const problems = attributionCheck(md, json, 'report.md');
     for (const approved of [false, true]) {
       const comment = await runActionComment({

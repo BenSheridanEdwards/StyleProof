@@ -37,12 +37,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   image is inlined once and shared by every Where map and whole-page panel that draws it.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
   under the label. Which control drives a state comes only from the capture: each state finding records the
-  control whose state was forced (report.json `findings[].path`, the restyled element in `sub`), as main
-  renders it. Every state clause, CSS-line entry and property row names that control for that finding: "when
-  hovered" for the element's own state, "when the opt is checked" for one control, "when the matching opt is
-  checked" when each grouped element has its own control of that selector, and "when either of the 2 opts is
-  checked" when several controls of one selector produce one change. A label restyled by its own hover and two
-  controls names all three, and rows read `input.opt:checked color`. A new or removed hover/focus style names the resting value
+  owner path whose state was forced (report.json `findings[].path`, the restyled element in `sub`). The change
+  line has one clause per owner path, carrying only that owner's properties: "when hovered" for the element's
+  own state, "when the opt is checked" for one control, and "when the matching opt is checked" when each
+  grouped element has its own. Owners share a clause ("when either of the 2 opts is checked") only when each
+  made a byte-identical change. Owners whose clauses would read alike are told apart by selector ("when
+  `input.pickr` is focused … when `select.pickr` is focused"), or, when the selectors match too, as "one
+  `input.opt` … another `input.opt`". **Show the CSS** lists state changes as main does: one block per owner
+  path, headed by that owner, with identical blocks collapsed to ×N. A new or removed hover/focus style names the resting value
   it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the

@@ -14,6 +14,7 @@ import {
   generateStyleMapReport,
 } from '../dist/report.js';
 import { attributionCheck } from './state-attribution-oracle.mjs';
+import { cases as OWNER_TRUTH_CASES } from './owner-truth-cases.mjs';
 import { runActionComment } from './action-comment-harness.mjs';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
@@ -207,10 +208,17 @@ test("each state finding names its control on QA12's real Chromium capture (QA12
 });
 
 /** The generated matrix: one label restyled by one or two controls, with or without its own hover. */
+// Each control: its path, its element and the properties its state changes on the target. `opt2*`
+// share `opt`'s selector (`input.opt`) but are other elements; `pickr`/`spickr` share a noun but not
+// a selector (QA13-02).
 const CONTROLS = {
-  opt: { path: at('input', 1), entry: control(0), prop: 'color', values: GREEN },
-  toggle: { path: at('button', 2), entry: control(1, 'toggle', 'button'), prop: 'background-color', values: WHITE },
-  opt2: { path: at('input', 3), entry: control(2), prop: 'outline-color', values: AMBER },
+  opt: { path: at('input', 1), entry: control(0), props: { color: GREEN } },
+  toggle: { path: at('button', 2), entry: control(1, 'toggle', 'button'), props: { 'background-color': WHITE } },
+  opt2diff: { path: at('input', 3), entry: control(2), props: { 'outline-color': AMBER } },
+  opt2same: { path: at('input', 3), entry: control(2), props: { color: GREEN } },
+  opt2overlap: { path: at('input', 3), entry: control(2), props: { color: GREEN, 'background-color': WHITE } },
+  pickr: { path: at('input', 1), entry: control(0, 'pickr'), props: { color: GREEN } },
+  spickr: { path: at('select', 2), entry: control(1, 'pickr', 'select'), props: { 'background-color': WHITE } },
 };
 const TARGET = at('label', 4);
 const MATRIX = [];
@@ -229,13 +237,31 @@ for (const [controls, states] of [
     ['opt', 'toggle'],
     ['hover', 'focus'],
   ],
+  // Same selector, different elements (QA13-01): different, the same, and overlapping properties.
   [
-    ['opt', 'opt2'],
+    ['opt', 'opt2diff'],
     ['checked', 'checked'],
   ],
   [
-    ['opt', 'opt2'],
+    ['opt', 'opt2diff'],
     ['checked', 'hover'],
+  ],
+  [
+    ['opt', 'opt2same'],
+    ['checked', 'checked'],
+  ],
+  [
+    ['opt', 'opt2same'],
+    ['checked', 'hover'],
+  ],
+  [
+    ['opt', 'opt2overlap'],
+    ['checked', 'checked'],
+  ],
+  // Same noun, different selectors and elements (QA13-02).
+  [
+    ['pickr', 'spickr'],
+    ['focus', 'focus'],
   ],
 ])
   for (const ownHover of [false, true]) MATRIX.push({ controls, states, ownHover });
@@ -248,7 +274,8 @@ const matrixBuild =
     controls.forEach((name, i) => {
       const c = CONTROLS[name];
       elements[c.path] = c.entry;
-      stateMap[c.path] = { [states[i]]: { [TARGET]: { [c.prop]: value(before, c.values) } } };
+      const props = Object.fromEntries(Object.entries(c.props).map(([prop, values]) => [prop, value(before, values)]));
+      stateMap[c.path] = { [states[i]]: { [TARGET]: props } };
     });
     if (ownHover) stateMap[TARGET] = { hover: { [TARGET]: { 'font-weight': pick(before, '400', '700') } } };
     return { elements, states: stateMap };
@@ -256,7 +283,7 @@ const matrixBuild =
 
 for (const combo of MATRIX) {
   const name = `${combo.controls.map((c, i) => `${c}:${combo.states[i]}`).join(' + ')}${combo.ownHover ? ' + own hover' : ''}`;
-  test(`matrix: ${name}, in report.md and the PR comment, approved or not (QA12-01)`, async (t) => {
+  test(`matrix: ${name}, in report.md and the PR comment, approved or not (QA12-01, QA13-01/02/03)`, async (t) => {
     const root = mkTmp('styleproof-attribution-matrix-');
     t.after(() => rmTmp(root));
     const [beforeDir, afterDir] = writeSides(root, matrixBuild(combo));
@@ -276,5 +303,28 @@ for (const combo of MATRIX) {
       problems.push(...attributionCheck(comment, json, `${name} / comment${approved ? ' (approved)' : ''}`));
     }
     assert.deepEqual(problems, []);
+  });
+}
+
+// The round-13 diagnosis's wrong-control cases (QA11 RV11-01, QA12-01 a/b/c, QA13-01/02/03/03b),
+// through this oracle in report.md and in the PR comment.
+for (const [name, build] of Object.entries(OWNER_TRUTH_CASES)) {
+  test(`owner-path oracle: ${name}, in report.md and the PR comment`, async (t) => {
+    const root = mkTmp('styleproof-attribution-cases-');
+    t.after(() => rmTmp(root));
+    const [beforeDir, afterDir] = writeSides(root, build);
+    const outDir = path.join(root, 'report');
+    const result = generateStructural({ beforeDir, afterDir, outDir });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    const comment = await runActionComment({
+      reportDir: outDir,
+      mode: 'review-gate',
+      trustState: 'STYLE_REVIEW_REQUIRED',
+    });
+    assert.deepEqual(
+      [...attributionCheck(md, json, `${name} / report.md`), ...attributionCheck(comment, json, `${name} / comment`)],
+      [],
+    );
   });
 }

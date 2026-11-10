@@ -1,7 +1,7 @@
 import type { PropChange } from '../diff.js';
 import { colorNameIfClose, toHex } from '../describe.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
-import { humanLabel, isNonValue } from '../change-groups.js';
+import { humanLabel, isNonValue, prettyLabel } from '../change-groups.js';
 
 /**
  * A change section's name and its one plain-English line, built only from captured
@@ -27,13 +27,16 @@ export type SectionSubject = {
 /** One forced state's changes from one source; `driver` is the control that produced them, absent for the element's own state. */
 export type StateChange = { state: string; props: PropChange[]; driver?: StateDriver };
 /**
- * `count`: distinct controls of this label across the section ("the matching opt", one per element).
- * `alternatives`: distinct controls of this label behind one element's change ("either of the 2 opts").
+ * The owner(s) of one source, as the capture records them. `owners`: owner paths that each produced
+ * this identical change ("either of the 2 opts"). `matching`: each grouped element has its own.
+ * `name`: how to tell this owner from another whose clause would read alike ("`select.pickr`",
+ * "one `input.opt`", "another `input.opt`").
  */
 export type StateDriver = {
   subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
-  count?: number;
-  alternatives?: number;
+  owners: number;
+  matching?: true;
+  name?: 'label' | 'one' | 'another';
 };
 
 export type ChangeLineInput = {
@@ -293,12 +296,18 @@ function stateSentences(input: ChangeLineInput, who: string, many: boolean): str
   // Each clause names its own source: the element's own state, or the control that produced it.
   const driverPhrase = (driver?: StateDriver): string | null => {
     if (!driver) return null;
+    const label = codeValue(prettyLabel(driver.subject.path, driver.subject.cls));
     const noun = sectionNoun(driver.subject);
-    const alternatives = driver.alternatives ?? 1;
-    // Several controls of one label produce this one change: name them all, never pick one.
-    if (alternatives > 1) return `${alternatives === 2 ? 'either' : 'any'} of the ${alternatives} ${plural(noun)} is`;
-    return (driver.count ?? 1) > 1 ? `the matching ${noun} is` : `the ${noun} is`;
+    const matching = driver.matching ? 'matching ' : '';
+    if (driver.owners > 1) {
+      const which = driver.owners === 2 ? 'either' : 'any';
+      return `${which} of the ${driver.owners} ${matching}${driver.name ? `${label} controls` : plural(noun)} is`;
+    }
+    if (driver.name === 'label') return `${label} is`;
+    if (driver.name) return `${driver.name} ${label} is`;
+    return `the ${matching}${noun} is`;
   };
+
   const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
   if (!clauses.length) return [];
   if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
