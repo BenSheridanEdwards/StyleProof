@@ -56,7 +56,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   Change sections replace overlap-merged crop regions, so `regions` holds one entry per section, and a forced
   state's region `paths` name the element that changed, not the element that owns the state. Whole-page
   captures for report.html are written to `crops/` as `*-page-base.png` / `*-page-head.png` inside the crop
-  budget, after every crop. See Migration step 4.
+  budget, after every crop. When a side's served-CSS record is missing, old or unreadable, `reach` (in
+  report.json and the report API result) now omits `counts`, and omits `rules` when none could be listed,
+  instead of publishing zero counts; it keeps `ledger`, `complete: false` and the named gap. See Migration
+  step 4.
 - `zoomBelow` is still accepted but has no effect (crops are never magnified). `foldDetailsAt` no longer
   changes change sections; their CSS is always collapsed.
 - A crop of a small element widens to its enclosing card or component (up to 640 × 480) when one fits and
@@ -78,12 +81,16 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   storage get the sections as text, because no image URL there works for every reader. The branch-storage link
   reads "Open the full visual report →".
 - Each fact in the report and the PR comment is stated once, in plain words: a visible element added or removed
-  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface, a surface whose base
-  capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of the base was captured; repair that
-  surface on that commit and recapture."), a reach gate and a frozen-clock drift. Report content no longer tells
-  the reader to approve; the PR comment's footer gives the approval or certify guidance for its mode. The clean
-  footer gives only the check status, the comment points at "the full report" instead of sections it does not
-  carry, and the summary gives no changed-CSS-rule count when a served-CSS record is missing.
+  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface, a subtree volatile
+  on one side only, a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest
+  of the base was captured; repair that surface on that commit and capture it again.", naming at most 10 surfaces
+  and then "and N more, all listed in report.json"), a reach gate and a frozen-clock drift. Report content never
+  tells the reader to approve; the PR comment's footer gives the approval or certify guidance for its mode. Two
+  footers changed: the clean footer gives only the check status ("The **StyleProof** check is green."), and the
+  partial-baseline footer no longer lists the failed surfaces and SHAs again; it says "Reviewer approval cannot
+  clear the missing baseline surfaces named above; repair them and rerun." The comment points at "the full
+  report" instead of sections it does not carry, and the summary gives no changed-CSS-rule count when a
+  served-CSS record is missing.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
   `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
   in report.json, the Action's `trust-state` output and commit statuses.
