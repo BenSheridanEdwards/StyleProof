@@ -275,19 +275,15 @@ export function reportHeadline(input: HeadlineInput): string[] {
     );
   } else if (candidates && input.volatileCount > 0) md.push('', `_${candidates}_`);
   const headOnly = input.headOnlyVolatile ?? [];
-  md.push(
-    ...oneSidedVolatileLines(
-      headOnly,
-      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-    ),
-  );
+  oneSidedVolatileLines(
+    headOnly,
+    `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
+  ).forEach((appended) => md.push(appended));
   const baseOnly = input.baseOnlyVolatile ?? [];
-  md.push(
-    ...oneSidedVolatileLines(
-      baseOnly,
-      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there, or fixture the base-side churn so the next baseline compares it.`,
-    ),
-  );
+  oneSidedVolatileLines(
+    baseOnly,
+    `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there, or fixture the base-side churn so the next baseline compares it.`,
+  ).forEach((appended) => md.push(appended));
   // A structure-only report leads with the visible-structure line; the notes below never repeat it.
   return [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
 }
