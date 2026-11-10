@@ -11,6 +11,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   page can carry product-state identity. Before, only a crawl's `variants` or `liveStates` entries could declare
   one; the crawled page itself could not, so a crawl with neither — such as the `styleproof-init` template for
   non-Next apps — always reported its pairs as _Product-state identity unproven_.
+- `ProductStateIdentityError` can no longer be extended: the class is non-extensible, so adding a static property
+  or swapping its prototype with `Object.setPrototypeOf` fails (a `TypeError` in strict mode). Subclassing it with
+  `extends` still works.
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
