@@ -796,3 +796,58 @@ test('reordered siblings of different classes keep the base elements that main k
     ],
   );
 });
+
+// Nested markup: an item inserted one level up leaves each label's own parent unchanged, so the
+// list to judge is the one where the two paths diverge.
+const navigationLink = (n) => `body > ul:nth-child(1) > li:nth-child(${n}) > a:nth-child(1)`;
+const navigationList = (labels) =>
+  makeMap({
+    elements: Object.fromEntries(
+      labels.flatMap((label, index) => [
+        [
+          `body > ul:nth-child(1) > li:nth-child(${index + 1})`,
+          { tag: 'li', cls: 'item', rect: [0, index * 40, 220, 40], ownTextLength: 0 },
+        ],
+        [
+          navigationLink(index + 1),
+          { tag: 'a', cls: 'link', rect: [0, index * 40, 220, 40], ownTextLength: label.length, text: label },
+        ],
+      ]),
+    ),
+  });
+
+test('an item inserted above nested links does not pair a renamed link with the inserted one', () => {
+  const textChanges = diffContentMaps(navigationList(['Billing', 'Undo']), navigationList(['Log', 'Profile', 'Add']))
+    .filter((change) => change.kind === 'text')
+    .map((change) => [change.path, change.before, change.after]);
+  assert.deepEqual(textChanges, [[navigationLink(2), 'Billing', 'Profile']]);
+});
+
+// One signature group can span several lists with the same path pattern: a rename in one list
+// must not cancel a real shift in another.
+const toolbarButton = (toolbarIndex, n) => `body > nav:nth-child(${toolbarIndex}) > button:nth-child(${n})`;
+const toolbars = (...lists) =>
+  makeMap({
+    elements: Object.fromEntries(
+      lists.flatMap((labels, toolbarIndex) =>
+        labels.map((label, index) => [
+          toolbarButton(toolbarIndex + 1, index + 1),
+          {
+            tag: 'button',
+            cls: 'tool',
+            rect: [index * 80, toolbarIndex * 40, 80, 40],
+            ownTextLength: label.length,
+            text: label,
+            style: LABEL_STYLE,
+          },
+        ]),
+      ),
+    ),
+  });
+
+test('a rename in one toolbar does not cancel a real shift and its restyle in another', () => {
+  const before = toolbars(['Cut', 'Copy'], ['Copy']);
+  const after = toolbars(['Undo', 'Paste'], ['Hi', 'Copy']);
+  after.elements[toolbarButton(2, 2)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarButton(2, 2), ['color']]]);
+});

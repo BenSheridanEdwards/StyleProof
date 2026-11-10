@@ -16,12 +16,13 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *   1. content shift — same hashed semantic path pattern, tag, class, own-text
  *      length and component on both sides pair k-th to k-th, only while the group
  *      is the same size on both sides (an nth-child shift, never an add/remove),
- *      no member was already placed, or shown in place, by own-text identity, and
- *      no pair reads as a rename in place: captured own text that differs, inside
- *      sibling lists that hold the same child paths with the same tag, class and
- *      component on both sides (nothing inserted or removed), and no move (own-text
- *      identity or any group) shifting an element onto its base path or away from
- *      its head path.
+ *      and no member was already placed, or shown in place, by own-text identity.
+ *      A move that reads as a rename in place is dropped: captured own text that
+ *      differs, the same tag, class and component at each of its paths on both
+ *      sides, an unchanged sibling list (same child paths and shapes on both sides)
+ *      where its two paths diverge, so nothing was inserted or removed there, and no
+ *      other move (own-text identity or any group) shifting an element onto its base
+ *      path or away from its head path.
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -147,6 +148,17 @@ function ownTextDiffers(before: ElementEntry | undefined, after: ElementEntry | 
   return before?.text !== undefined && after?.text !== undefined && before.text !== after.text;
 }
 
+/** True when both entries exist and share tag, class and component: the same kind of element. */
+function sameElementShape(before: ElementEntry | undefined, after: ElementEntry | undefined): boolean {
+  return (
+    before !== undefined &&
+    after !== undefined &&
+    before.tag === after.tag &&
+    before.cls.trim() === after.cls.trim() &&
+    (before.component?.name ?? '') === (after.component?.name ?? '')
+  );
+}
+
 type PathMove = readonly [beforePath: string, afterPath: string];
 
 /** Parent path → its children's paths with tag, class and component, as one comparable key. */
@@ -163,11 +175,12 @@ function siblingListShapes(map: StyleMap): Map<string, string> {
 
 /**
  * True when a text-differing move is better explained by elements renamed in place (two sibling
- * labels renamed to texts of equal length) than by a shift. Nothing may have been inserted or
- * removed beside either path: each sibling list holds the same child paths with the same tag,
- * class and component on both sides. And no move may account for either occupant: an element
- * shifted onto the base path, or the base element at the head path shifted away, means the
- * shift is the explanation.
+ * labels renamed to texts of equal length) than by a shift. Each path must hold the same kind of
+ * element (tag, class, component) on both sides. A shift needs a sibling inserted or removed in
+ * the list where the two paths diverge, so that list must be unchanged: the same child paths
+ * with the same tag, class and component on both sides. And no move may account for either
+ * occupant: an element shifted onto the base path, or the base element at the head path shifted
+ * away, means the shift is the explanation.
  */
 function isRenameInPlace(
   before: StyleMap,
@@ -179,10 +192,11 @@ function isRenameInPlace(
 ): boolean {
   return (
     ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
+    sameElementShape(before.elements[beforePath], after.elements[beforePath]) &&
+    sameElementShape(before.elements[afterPath], after.elements[afterPath]) &&
     !shiftedOnto.has(beforePath) &&
     !shiftedAway.has(afterPath) &&
-    isUnchangedSiblingList(parentPath(beforePath) ?? '') &&
-    isUnchangedSiblingList(parentPath(afterPath) ?? '')
+    isUnchangedSiblingList(sharedPathPrefix(beforePath, afterPath))
   );
 }
 
@@ -204,7 +218,7 @@ function correspondingPathsByContentSignature(
 ): Map<string, string> {
   const bySignatureAfter = pathsByContentSignature(after);
   const identifiedTargets = new Set(identified.values());
-  const candidateGroups: PathMove[][] = [];
+  const candidates: PathMove[] = [];
   for (const [signature, beforePaths] of pathsByContentSignature(before)) {
     const afterPaths = bySignatureAfter.get(signature) ?? [];
     // A size change means a real add/remove somewhere in the group: stay concrete.
@@ -216,25 +230,20 @@ function correspondingPathsByContentSignature(
     );
     // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
-    candidateGroups.push(moves);
+    candidates.push(...moves);
   }
-  // Drop closed permutations across every group first, so a veto below cannot open one.
-  const shifts = withoutClosedPermutations(new Map(candidateGroups.flat()));
-  const shiftGroups = candidateGroups.map((moves) => moves.filter(([beforePath]) => shifts.has(beforePath)));
+  // Drop closed permutations across every group first, so dropping a move below cannot open one.
+  const shifts = withoutClosedPermutations(new Map(candidates));
   // A shift chain can span groups and own-text identity, so judge each occupant against every move.
   const everyMove: PathMove[] = [...identified, ...shifts];
   const shiftedOnto = new Set(everyMove.map(([, afterPath]) => afterPath));
   const shiftedAway = new Set(everyMove.map(([beforePath]) => beforePath));
   const isUnchangedSiblingList = unchangedSiblingLists(before, after);
-  const beforeToAfter = new Map<string, string>();
-  for (const moves of shiftGroups) {
-    // A rename in place makes the k-th pairing a coincidence of length: keep the group on its paths.
-    const renamedInPlace = (move: PathMove) =>
-      isRenameInPlace(before, after, move, shiftedOnto, shiftedAway, isUnchangedSiblingList);
-    if (moves.some(renamedInPlace)) continue;
-    for (const [beforePath, afterPath] of moves) beforeToAfter.set(beforePath, afterPath);
-  }
-  return withoutClosedPermutations(beforeToAfter);
+  // A rename in place makes that k-th pairing a coincidence of length; the group's other moves stand.
+  const kept = [...shifts].filter(
+    (move) => !isRenameInPlace(before, after, move, shiftedOnto, shiftedAway, isUnchangedSiblingList),
+  );
+  return withoutClosedPermutations(new Map(kept));
 }
 
 /** Re-key base elements onto their head paths; an unmatched occupant of a claimed path is dropped. */
