@@ -240,10 +240,12 @@ function correspondingPathsByContentSignature(
   const shiftedAway = new Set(everyMove.map(([beforePath]) => beforePath));
   const isUnchangedSiblingList = unchangedSiblingLists(before, after);
   // A rename in place makes that k-th pairing a coincidence of length; the group's other moves stand.
-  const kept = [...shifts].filter(
-    (move) => !isRenameInPlace(before, after, move, shiftedOnto, shiftedAway, isUnchangedSiblingList),
+  // No other move touches a dropped move's paths, so dropping it cannot break another chain.
+  return new Map(
+    [...shifts].filter(
+      (move) => !isRenameInPlace(before, after, move, shiftedOnto, shiftedAway, isUnchangedSiblingList),
+    ),
   );
-  return withoutClosedPermutations(new Map(kept));
 }
 
 /** Re-key base elements onto their head paths; an unmatched occupant of a claimed path is dropped. */

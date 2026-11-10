@@ -11,12 +11,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   pairing matched an old and a new label of the same text length as one shifted element. With own
   text captured (`captureText`), such a pairing is now dropped when it reads as a rename in place:
   the text differs, each of its paths holds the same tag, class and component on both sides, the
-  sibling list where its two paths diverge is unchanged (nothing was inserted or removed there),
+  sibling list where its two paths diverge holds the same child paths and shapes on both sides,
   and no other match shifts an element onto the old path or moves the element at the new path
-  away. Elements that shift because a sibling was inserted or removed, at any nesting level or in
-  any of several lists that share a path pattern, still pair as before. The same pairing feeds
-  certification, so a style difference between two renamed labels (an active item) is no longer
-  certified as a restyle of the wrong element.
+  away. A sibling inserted or removed, at any nesting level or in any of several lists that share
+  a path pattern, still pairs the shifted elements as before. When renames combine with an
+  insertion and a removal in the same list, a reorder, or a move to another list that shares the
+  path pattern, the evidence fits both readings, and the content layer may now show renames in
+  place. The same pairing feeds certification, so a style difference between two renamed labels
+  (an active item styled without a class change) is no longer certified as a restyle of the wrong
+  element.
 - Each change section of the report says a fact once. The plain-English summary now sits above the
   before/after crop, and the raw property list that repeated it is removed; exact values stay in
   the folded table. A section heading is the selector and what happened, for example
