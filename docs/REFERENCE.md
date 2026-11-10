@@ -63,7 +63,9 @@ the CSS on demand. On a public repository with `report-storage: branch` the sect
 also show the Where map and the clean before/after crops, served from the report's
 commit-bound URL. On a private repository, or with artifact storage, no image URL works
 for every reader, so the sections are text and the linked report holds the images. A
-very large report is cut at 50,000 characters with a line counting the sections left out.
+very large report is cut at 50,000 characters, under GitHub's limit. A note then says how
+many more changes the full report lists, or, for a report with no change section, that the
+rest is in the full report, and that its link is at the end of the comment.
 `report.json` records one row per one-sided surface and per change group under
 `digest`, as
 `{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase, count? }], more }`.
