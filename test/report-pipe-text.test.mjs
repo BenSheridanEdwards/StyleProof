@@ -38,7 +38,7 @@ for (const text of ['Docs and API', 'Docs | API', 'a || b |']) {
     const textOnly = reportCommentSummary(md, {});
     assert.equal((textOnly.match(/<img /g) ?? []).length, 0, 'the text-only comment posts no image');
     assert.doesNotMatch(textOnly, /crops\//, 'and no relative crops/ link');
-    const pub = reportCommentSummary(md, { imageBase: 'https://github.com/o/r/blob/abc/pr-1/' });
+    const pub = reportCommentSummary(md, { imageBase: `https://github.com/acme/app/blob/${'a'.repeat(40)}/pr-1/` });
     assert.doesNotMatch(pub, /src="crops\//, 'the public comment has no relative image');
     assert.equal((pub.match(/-1-(?:before|after)\.png\?raw=1/g) ?? []).length, 2, 'the pair, once');
     const html = renderReportHtml(md, { outDir });
