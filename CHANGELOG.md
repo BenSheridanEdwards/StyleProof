@@ -35,14 +35,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   longhands, `currentColor` followers). report.html renders the same report as a browser page with an
   Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
-  under the label, with the checkbox named as the driver ("when their opts are checked" for a list of them),
+  under the label, with the checkbox named as the driver ("when the matching opt is checked" for a list of them),
   and each control's state gets its own section. A new or removed hover/focus style names the resting value
   it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
   state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
   digest, the distinct-change tally and "Nothing else". They stay in report.json (`comparability`,
-  `baselineProvenance`, `reach`, `digest`). The report still says, in plain words, when a compare cannot
+  `baselineProvenance`, `reach`, `digest`). Under `changeReach: 'gate'`, a report whose gate holds findings
+  shows the one "Reach gate" line and the **Changed but never matched** tables, and still no J2/J3 detail. The report still says, in plain words, when a compare cannot
   certify, when evidence fails, and when a changed CSS rule was never matched or cannot be seen in computed
   styles. `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
   has changes; an unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`.
