@@ -244,6 +244,21 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
   };
 }
 
+/** Every crop left out and every partly shown page, said once at the end of the opening (rule 5). */
+function insertLimitLines(ctx: RenderCtx, md: ReportMarkdown, openingEnd: number): void {
+  const limits = [
+    ...partialPageLines(ctx.partialPages ?? []),
+    ...cropGapLines(ctx.cropGaps ?? [], {
+      maxCrops: ctx.maxCrops,
+      maxFiles: ctx.crops.maxFiles,
+      maxBytes: ctx.crops.maxBytes,
+    }),
+  ];
+  const rest = md.lines.splice(openingEnd);
+  limits.forEach((line) => md.lines.push(line));
+  rest.forEach((line) => md.lines.push(line));
+}
+
 type Gates = {
   legacyPairs?: LegacyPairAudit;
   criticalStates?: CriticalObligationAudit;
@@ -622,18 +637,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // Whole pages for report.html come last, so they never take the crop budget from evidence.
   finishSections(ctx, md);
 
-  // Every crop left out and every partly shown page, said once in the opening (rule 5).
-  const limits = [
-    ...partialPageLines(ctx.partialPages ?? []),
-    ...cropGapLines(ctx.cropGaps ?? [], {
-      maxCrops: ctx.maxCrops,
-      maxFiles: ctx.crops.maxFiles,
-      maxBytes: ctx.crops.maxBytes,
-    }),
-  ];
-  const rest = md.lines.splice(openingEnd);
-  limits.forEach((line) => md.lines.push(line));
-  rest.forEach((line) => md.lines.push(line));
+  insertLimitLines(ctx, md, openingEnd);
 
   if (ctx.crops.downscaled > 0) {
     md.append([
