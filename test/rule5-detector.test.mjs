@@ -194,7 +194,8 @@ test('the detector sees one change said twice inside a counted clause (QA16-01, 
 });
 
 test('the size-cap note must say what to do and count the changes the full report names (QA18-05)', () => {
-  const report = ['## Report', '', '### A', '', 'a', '', '### B', '', 'b', '', '### C', '', 'c', ''].join('\n');
+  const section = (title, body) => [`### ${title}`, '', '<!-- styleproof-section %7B%7D -->', '', body, ''];
+  const report = ['## Report', '', ...section('A', 'a'), ...section('B', 'b'), ...section('C', 'c')].join('\n');
   const note = (n) =>
     `_This comment reached GitHub's size limit. ${n} more changes are listed in the full report: open it from the link at the end of this comment._`;
   const comment = (n) => ['## Report', '', '### A', '', 'a', '', note(n)].join('\n');
@@ -206,4 +207,24 @@ test('the size-cap note must say what to do and count the changes the full repor
     'a bare "…and N more"',
   );
   assert.ok(capNoteProblems(['## Report', '', '### A', '', 'a'].join('\n'), report).length > 0, 'cut without a note');
+  // QA19-02: a new or removed surface's heading is no change section, so it does not count.
+  const withSurfaces = [
+    '## Report',
+    '',
+    '### `brand-new@1280` · new surface <!-- styleproof-new -->',
+    '',
+    '_brand-new @ 1280_',
+    '',
+    '### `old@1280` · removed surface <!-- styleproof-removed -->',
+    '',
+    ...section('A', 'a'),
+    ...section('B', 'b'),
+    ...section('C', 'c'),
+  ].join('\n');
+  assert.deepEqual(capNoteProblems(comment(2), withSurfaces), [], 'one-sided surfaces are not counted');
+  // A change the comment shows that the full report does not name is still caught.
+  assert.ok(
+    capNoteProblems(['## Report', '', '### Z', '', 'z', '', note(2)].join('\n'), report).some((p) => /"Z"/.test(p)),
+    'a cut change missing from the full report',
+  );
 });

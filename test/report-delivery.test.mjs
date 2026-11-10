@@ -264,6 +264,24 @@ test('a report with hundreds of sections still fits one GitHub comment (QA1-01)'
     /^_This comment reached GitHub's size limit\. \d+ more changes are listed in the full report: open it from the link at the end of this comment\._$/m,
   );
   assert.deepEqual(capNoteProblems(body, huge), []);
+  // QA19-02: with a new and a removed surface in the full report, the note's count still holds.
+  const oneSided = [
+    '### `brand-new@1280` · new surface <!-- styleproof-new -->',
+    '',
+    '_brand-new @ 1280_',
+    '',
+    '### `old@1280` · removed surface <!-- styleproof-removed -->',
+    '',
+    '_old @ 1280_',
+    '',
+  ].join('\n');
+  const withSurfaces = huge.replace(
+    '\n## Changes\n',
+    `\n## One-sided pages, states, or surfaces — review first\n\n${oneSided}\n## Changes\n`,
+  );
+  const capped = (await executeActionComment({ repositoryPrivate: false, reportMd: withSurfaces })).created[0].body;
+  assert.match(capped, /This comment reached GitHub's size limit\. \d+ more changes are listed in the full report/);
+  assert.deepEqual(capNoteProblems(capped, withSurfaces), []);
   assert.equal(body.split(reportUrl).length - 1, 1);
   assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
 });

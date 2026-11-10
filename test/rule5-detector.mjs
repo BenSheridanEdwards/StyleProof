@@ -451,8 +451,14 @@ export function capNoteProblems(comment, reportMd) {
       comment,
     );
   const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => m[1].replace(/\s*<!--.*$/, '').trim());
+  // The full report's change sections: a heading followed by its section data, as the comment cuts
+  // them. A new or removed surface's heading is no change section, so it is never counted (QA19-02).
+  const sectionHeads = (text) =>
+    [...text.matchAll(/^### (?!📊)(.+)\n+<!-- styleproof-section /gm)].map((m) =>
+      m[1].replace(/\s*<!--.*$/, '').trim(),
+    );
   const shown = heads(comment);
-  const all = heads(reportMd);
+  const all = sectionHeads(reportMd);
   if (!note) {
     if (/size limit/.test(comment)) out.push('a size-limit note without a count of the changes left out');
     else if (shown.length !== all.length)
