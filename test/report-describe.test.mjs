@@ -9,7 +9,6 @@ import {
   colorName,
   tokenIndex,
   toHex,
-  propertyGlanceLine,
 } from '../dist/report.js';
 import {
   makeMap,
@@ -308,45 +307,6 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
   rmTmp(root);
 });
 
-test('propertyGlanceLine is one line per property, no bullets, no blank lines', () => {
-  const line = propertyGlanceLine([
-    {
-      kind: 'style',
-      path: 'button',
-      cls: 'btn',
-      pseudo: null,
-      props: [
-        { prop: 'background-color', before: 'rgb(20, 184, 166)', after: 'rgb(220, 38, 38)' },
-        { prop: 'font-size', before: '13px', after: '16px' },
-      ],
-    },
-    {
-      kind: 'state',
-      path: 'button',
-      cls: 'btn',
-      state: 'hover',
-      sub: '',
-      props: [{ prop: 'color', before: 'rgb(94, 234, 212)', after: 'rgb(254, 202, 202)' }],
-    },
-  ]);
-  const rows = line.split('\n');
-  assert.equal(rows.length, 3);
-  assert.ok(
-    rows.every((r) => r.length > 0),
-    'no blank lines between properties',
-  );
-  assert.ok(
-    rows[0].endsWith('<br>') && rows[1].endsWith('<br>'),
-    'GitHub hard-breaks so they do not wrap into one paragraph',
-  );
-  assert.ok(!rows[2].includes('<br>'), 'last property has no trailing break');
-  assert.ok(!line.includes(' · '), 'not smashed onto one middot line');
-  assert.ok(!line.includes('- '), 'no bullets');
-  assert.match(rows[0], /`background-color`/);
-  assert.match(rows[1], /`font-size`/);
-  assert.match(rows[2], /`:hover` `color`/);
-});
-
 test('state-only change crops hover vs hover, not rest vs rest', () => {
   const link = (hoverColor) =>
     makeMap({
@@ -373,7 +333,7 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   fs.writeFileSync(path.join(dirs.beforeDir, 'demo@900.hover.png'), solidPng(400, 200, [165, 243, 252]));
   fs.writeFileSync(path.join(dirs.afterDir, 'demo@900.hover.png'), solidPng(400, 200, [252, 165, 165]));
   const md = fs.readFileSync(generateStyleMapReport(dirs).reportMdPath, 'utf8');
-  assert.match(md, /Both sides are :hover/);
+  assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/, 'the caption names the state on both sides');
   assert.match(md, /base :hover/);
   assert.match(md, /head :hover/);
   assert.ok(!md.includes('◀ before  ·  after ▶'), 'state-only must not use the rest crop');
@@ -487,7 +447,7 @@ test('state-only change without layer screenshots does not pretend rest is hover
   rmTmp(dirs.root);
 });
 
-test('property changes sit on one line above the crop, not only under the fold', () => {
+test('the change reads in plain English above the crop, not only under the fold', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -499,9 +459,12 @@ test('property changes sit on one line above the crop, not only under the fold',
   const img = md.indexOf('![before');
   assert.ok(img > 0, 'report still has a crop');
   const above = md.slice(0, img);
-  assert.match(above, /`background-color`/, 'the property is readable before the picture');
-  assert.match(above, /→/, 'before → after is on the glance line');
-  assert.ok(!above.includes('<details>'), 'glance is not inside the diamond fold');
+  const section = above.slice(above.lastIndexOf('### '));
+  assert.match(section, /^- \*\*`[^`]+`\*\* — background .* → /m, 'the change is readable before the picture');
+  assert.ok(!section.includes('<details>'), 'the summary is not inside the fold');
+  assert.doesNotMatch(md, /<br>/, 'no raw property list repeats the summary');
+  assert.match(section, /^### `[^`]+` · 1 element restyled$/m, 'the heading is the selector and what happened');
+  assert.match(md, /^<sub>◀ before {2}· {2}after ▶<\/sub>$/m, 'the caption only labels the two sides');
   rmTmp(root);
 });
 

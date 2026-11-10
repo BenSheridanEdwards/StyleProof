@@ -109,23 +109,6 @@ test('report.html only accepts exact trailing paragraph breaks and escapes other
   assert.doesNotMatch(html, /<script\b|<strong\b/i);
 });
 
-test('report.html stacks a generated multi-property glance line with real line breaks', async () => {
-  const { propertyGlanceLine } = await import('../dist/report/markdown.js');
-  const md = propertyGlanceLine([
-    {
-      kind: 'style',
-      path: 'h2',
-      props: [
-        { prop: 'border-color', before: '#1e3c78', after: '#961e3c' },
-        { prop: 'color', before: '#1e3c78', after: '#961e3c' },
-      ],
-    },
-  ]);
-  const html = renderReportHtml(md);
-  assert.doesNotMatch(html, /&lt;br&gt;/);
-  assert.match(html, /<code>#961e3c<\/code><br> <code>color<\/code>/);
-});
-
 test('report.html never interprets untrusted text as markup (#698)', () => {
   const html = renderReportHtml(
     [
@@ -189,11 +172,9 @@ test('the committed demo report renders completely (#698)', () => {
 });
 
 test('report.html keeps an author-controlled comment inside a double-fenced value inert', async () => {
-  const { propertyGlanceLine } = await import('../dist/report/markdown.js');
+  const { codeValue } = await import('../dist/code-span.js');
   const after = '"`<!--><img src=x onerror=alert(1)>-->"';
-  const md = propertyGlanceLine([
-    { kind: 'style', path: 'p', props: [{ prop: 'font-family', before: 'serif', after }] },
-  ]);
+  const md = `${codeValue('font-family')} ${codeValue('serif')} → ${codeValue(after)}`;
   const html = renderReportHtml(md);
   assert.doesNotMatch(html, /<img src=x/, 'a CSS value must never become live markup');
   assert.doesNotMatch(html, /<!-->/);

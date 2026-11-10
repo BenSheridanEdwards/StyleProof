@@ -25,10 +25,11 @@ Output is `report.md` + `crops/`, capped ~400 KB so GitHub renders it;
 
 ## What a change looks like
 
-Each distinct change is one section: a side-by-side before/after crop from the
-same page rectangle, the same crop again with magenta boxes marking exactly what
-moved, a plain-English summary (`background brand-cyan → brand-amber`,
-`columns: 2 → 3`), then the exact property table folded under a toggle. A change
+Each distinct change is one section: a plain-English summary
+(`background brand-cyan → brand-amber`, `columns: 2 → 3`), a side-by-side
+before/after crop from the same page rectangle, the same crop again with magenta
+boxes marking exactly what moved (under a toggle), then the exact property table
+folded under a toggle. A change
 too small to see at 1:1 also gets a magnified zoom crop, so a sub-pixel tweak
 can't slip past. A clean run still prints a receipt: `No visual changes detected.`
 New surfaces show as `🆕 new surface`.

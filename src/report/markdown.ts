@@ -77,22 +77,6 @@ export function clipText(s: string, max = 200): string {
   return t.length > max ? t.slice(0, max - 1) + '…' : t;
 }
 
-/** One line per property change, stacked above the crop. `<br>` keeps GitHub from merging lines. */
-export function propertyGlanceLine(findings: Finding[]): string {
-  const parts: string[] = [];
-  for (const group of groupByPath(findings)) {
-    const added = ofKind(group, 'dom').some((f) => f.change === 'added');
-    const styles = ofKind(group, 'style').map((s) => [s.pseudo ? `${codeValue(s.pseudo)} ` : '', s.props] as const);
-    const states = ofKind(group, 'state').map((st) => [`${codeValue(`:${st.state}`)} `, st.props] as const);
-    for (const [prefix, props] of [...styles, ...states]) {
-      for (const c of summarizeProps(props)) {
-        parts.push(`${prefix}${codeValue(c.prop)} ${valueCells(c, added).join(' → ')}`);
-      }
-    }
-  }
-  return parts.join('<br>\n');
-}
-
 function propRows(rows: SummarizedProp[], added: boolean): string[][] {
   const out: string[][] = [];
   for (const r of rows) {
@@ -263,21 +247,24 @@ export function foldedGeometryFindings(raw: Finding[], shown: Finding[]): Findin
   });
 }
 
-/** A crop's changes: property tables, folded under plain-English bullets once they
- *  reach `foldAt` rows (≤ 0 folds always, Infinity never), or contain folded geometry. */
-export function renderCropChanges(
+/** A crop's changes in two parts: `summary` reads above the crop, `details` below it. */
+export type CropChanges = { summary: string[]; details: string[] };
+
+/** A crop's changes: plain-English bullets, and the property tables folded under a toggle once
+ *  they reach `foldAt` rows (≤ 0 folds always, Infinity never), or contain folded geometry. */
+export function cropChangeParts(
   findings: Finding[],
   foldAt: number,
   ctx: DescribeCtx,
   folded: Finding[] = [],
-): string[] {
+): CropChanges {
   const tables = renderElements(findings);
 
-  if (!tables.length && !folded.length) return [];
+  if (!tables.length && !folded.length) return { summary: [], details: [] };
   const rows = findings.flatMap((f) => (f.kind === 'dom' ? [] : summarizeProps(f.props))).length;
   const foldedCount = derivedLonghandCount(folded);
 
-  if (rows < foldAt && !foldedCount) return tables;
+  if (rows < foldAt && !foldedCount) return { summary: [], details: tables };
   const foldedTables = foldedCount ? ['', 'Folded size/position rows:', ...renderElements(folded, 40, true)] : [];
   const bullets = describeChange(buildElementChanges(findings), ctx);
   const summary = bullets.length ? bullets.map((b) => `- ${b}`) : ['_see changes_'];
@@ -286,23 +273,32 @@ export function renderCropChanges(
     summary[summary.length - 1] += ` (+${foldedCount} size/position row${foldedCount === 1 ? '' : 's'} folded)`;
   }
 
-  return ['', ...summary, '', '<details>', `<summary>${foldSummary(findings)}</summary>`].concat(tables, foldedTables, [
-    '',
-    '</details>',
-  ]);
+  return {
+    summary: ['', ...summary],
+    details: ['', '<details>', `<summary>${foldSummary(findings)}</summary>`].concat(tables, foldedTables, [
+      '',
+      '</details>',
+    ]),
+  };
 }
 
-/** A crop's heading: human label, selector, then what happened inside it. */
+/** Both parts in reading order, for a section with no crop between them. */
+export function renderCropChanges(
+  findings: Finding[],
+  foldAt: number,
+  ctx: DescribeCtx,
+  folded: Finding[] = [],
+): string[] {
+  const parts = cropChangeParts(findings, foldAt, ctx, folded);
+
+  return [...parts.summary, ...parts.details];
+}
+
+/** A crop's heading: the outermost changed selector, then what happened inside it. */
 export function regionHeading(regionPaths: string[], findings: Finding[], foldedOnly = !findings.length): string {
   const anchors = [...regionPaths].sort((a, b) => a.split(' > ').length - b.split(' > ').length);
   const cls = findings.find((f) => f.path === anchors[0])?.cls ?? '';
-  const selector = prettyLabel(anchors[0] ?? '', cls);
-  const human = humanLabel(anchors[0] ?? '', cls);
-  const named =
-    human && human.toLowerCase() !== selector.toLowerCase()
-      ? `**${escapeInlineMarkdown(human)}** ${codeValue(selector)}`
-      : codeValue(selector);
-  const label = anchors.length > 1 ? `${named} + ${anchors.length - 1} more` : named;
+  const selector = codeValue(prettyLabel(anchors[0] ?? '', cls));
 
-  return `${label} · ${foldedOnly ? 'size/position rows folded' : groupTitle(findings)}`;
+  return `${selector} · ${foldedOnly ? 'size/position rows folded' : groupTitle(findings)}`;
 }
