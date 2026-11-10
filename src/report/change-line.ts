@@ -212,7 +212,8 @@ function fragmentList(fragments: string[]): string {
   return `${fragments.slice(0, 2).join(', ')} and ${rest} more ${rest === 1 ? 'property' : 'properties'}`;
 }
 
-const STATE_WORDS: Record<string, string> = {
+/** The one table of forced-state words: change lines, pair labels and report.html read it. */
+export const STATE_WORDS: Record<string, string> = {
   hover: 'hovered',
   focus: 'focused',
   active: 'pressed',

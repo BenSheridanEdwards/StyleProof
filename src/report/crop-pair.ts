@@ -1,4 +1,5 @@
 import type { PNG } from 'pngjs';
+import { STATE_WORDS } from './change-line.js';
 import type { Box } from './geometry.js';
 import { cropPng, cropStem } from './png.js';
 import { cropBudgetNote, cropBudgetOpen, writeBudgetedPair } from './crop-budget.js';
@@ -34,15 +35,7 @@ export type CropPairSpec = {
 
 /** Human-readable label for a forced-state capture. */
 export function stateLabel(state: string): string | undefined {
-  const labels: Record<string, string> = {
-    hover: 'While hovered',
-    focus: 'While focused',
-    active: 'While pressed',
-    checked: 'While checked',
-    disabled: 'While disabled',
-    'placeholder-shown': 'While showing its placeholder',
-  };
-  return labels[state];
+  return STATE_WORDS[state] ? `While ${STATE_WORDS[state]}` : undefined;
 }
 
 /** Escape for an attribute in a table cell; entities already in the text (escaped page text) stay single. */

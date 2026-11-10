@@ -80,7 +80,12 @@ test('a change section is a card: name, line, SVG Where map, clean pair, collaps
     /<svg viewBox="0 \d+ 800 \d+" role="img" aria-label="Where on shop @ 800: 2 card titles highlighted" class="map"/,
   );
   assert.match(html, /<image id="sp-page-\d+" href="data:image\/png;base64,[^"]+" width="800" height="400"\/>/);
-  assert.equal(html.match(/<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" rx="6" class="ring"\/>/g)?.length, 2);
+  assert.equal(
+    html.match(
+      /<rect x="[^"]+" y="[^"]+" width="[^"]+" height="[^"]+" rx="6" class="ring" fill="none" stroke="#e0119d" stroke-width="3"\/>/g,
+    )?.length,
+    2,
+  );
   assert.match(
     html,
     /<span class="side before">Before<\/span><\/figcaption><img class="shot before" src="data:image\/png;base64,[^"]+" width="\d+" height="\d+" alt="Before: the first card title">/,
@@ -166,6 +171,7 @@ test('a budget too small for the full design still keeps every word in a plain p
     assert.match(full, /data-set-theme/);
     assert.ok(Buffer.byteLength(plain) <= 2_500);
     assert.doesNotMatch(plain, /<script\b/);
+    assert.doesNotMatch(plain, /data-set-theme/, 'no theme buttons without the script that drives them (RV5-04)');
     assert.match(plain, /1 change to review<\/strong> on <code>home<\/code>/);
   } finally {
     rmTmp(root);
@@ -198,7 +204,102 @@ test('each whole page is inlined once, however many Where maps draw on it (RV2-1
     .readFileSync(path.join(outDir, 'crops', 'home-1280-page-head.png'))
     .toString('base64')
     .slice(0, 200);
-  const inMaps = [...html.matchAll(/<svg [^>]*class="map"[\s\S]*?<\/svg>/g)].filter((m) => m[0].includes(head)).length;
-  assert.equal(inMaps, 1, 'the head page is inlined in one map; the others reuse it');
-  assert.equal((html.match(/<use href="#sp-page-\d+"\/>/g) ?? []).length, 2);
+  // RV5-03: one copy in the hidden <defs>; every map draws it with <use>.
+  // Base and head pages are identical bytes here, so count the inlined page images, not the data.
+  assert.equal((html.match(/<image id="sp-page-\d+" href="data:/g) ?? []).length, 2, 'base and head inlined once each');
+  const mapSvgs = [...html.matchAll(/<svg [^>]*class="map"[\s\S]*?<\/svg>/g)].map((m) => m[0]);
+  assert.ok(mapSvgs.every((svg) => /<use href="#sp-page-\d+"\/>/.test(svg) && !svg.includes(head)));
 });
+
+test('whole pages are inlined once across every section, with no false omitted-images alert (RV5-03)', (t) => {
+  const root = mkTmp('styleproof-html-pages-once-');
+  t.after(() => rmTmp(root));
+  // A 1280×1600 page with a noisy band, about 178 KB as PNG: a few sections used to overflow 2 MB.
+  const page = (seed) => {
+    const png = new PNG({ width: 1280, height: 1600 });
+    let s = seed;
+    for (let y = 0; y < 1600; y++) {
+      for (let x = 0; x < 1280; x++) {
+        const i = (y * 1280 + x) * 4;
+        if (y >= 1300 && y < 1500) {
+          s = (s * 1103515245 + 12345) >>> 0;
+          png.data.set([s >>> 24, (s >>> 16) & 255, (s >>> 8) & 255, 255], i);
+        } else png.data.set([240, 240, 245, 255], i);
+      }
+    }
+    return PNG.sync.write(png);
+  };
+  for (const [side, seed] of [
+    ['before', 7],
+    ['after', 9],
+  ]) {
+    const elements = {};
+    for (let i = 0; i < 6; i++) {
+      elements[`body > div:nth-child(${i + 1})`] = {
+        tag: 'div',
+        cls: `widget-${i}`,
+        rect: [20, 20 + i * 250, 400, 120],
+        style: { color: side === 'before' ? 'rgb(0, 0, 0)' : `rgb(${100 + i}, 0, 0)` },
+      };
+    }
+    writeCapture(path.join(root, side), 'home@1280', makeMap({ elements }), page(seed));
+  }
+  const outDir = path.join(root, 'report');
+  const result = generateStyleMapReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir,
+  });
+  const html = renderReportHtml(fs.readFileSync(result.reportMdPath, 'utf8'), { outDir });
+  for (const file of ['home-1280-page-base.png', 'home-1280-page-head.png']) {
+    const sample = fs
+      .readFileSync(path.join(outDir, 'crops', file))
+      .toString('base64')
+      .slice(100, 160);
+    assert.equal(html.split(sample).length - 1, 1, `${file} is inlined once`);
+  }
+  assert.doesNotMatch(html, /role="alert"|image omitted/i, 'every image fits; no omitted-images alert');
+  assert.equal(
+    (html.match(/<details class="more pages">/g) ?? []).length,
+    6,
+    'each section still offers its whole page',
+  );
+});
+
+test('Where map rects carry their own fill and stroke, so a map without the stylesheet is not black (RV5-04)', () => {
+  const html = renderReportHtml(markdownWithSection());
+  const map = html.match(/<svg [^>]*class="map"[\s\S]*?<\/svg>/)?.[0] ?? '';
+  assert.match(map, /<rect class="dim" [^>]*fill="#fff" fill-opacity="0\.55"/);
+  assert.match(map, /<rect [^>]*class="ring" fill="none" stroke="#e0119d" stroke-width="3"/);
+});
+
+function markdownWithSection() {
+  const meta = {
+    v: 1,
+    id: 'titles',
+    paths: ['body > h2'],
+    more: 0,
+    pairs: [],
+    where: [
+      {
+        image: 'crops/a-where.png',
+        side: 'after',
+        page: [800, 400],
+        view: [0, 0, 800, 400],
+        boxes: [[10, 10, 50, 20]],
+      },
+    ],
+    pages: [{ state: 'rest', before: 'crops/a-page-base.png', after: 'crops/a-page-head.png', w: 800, h: 400 }],
+  };
+  return [
+    '## 🗺️ StyleProof report',
+    '',
+    '### Titles',
+    '',
+    encodeSectionMeta(meta),
+    '',
+    'A line.',
+    '',
+    '<!-- styleproof-section-end -->',
+  ].join('\n');
+}

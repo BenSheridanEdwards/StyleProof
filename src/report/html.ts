@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { STATE_WORDS } from './change-line.js';
 import {
   decodeCapturedMeta,
   decodeSectionMeta,
@@ -9,6 +10,7 @@ import {
   WHERE_LINE,
   type CapturedMeta,
   type SectionMeta,
+  type SectionMetaPage,
 } from './section-meta.js';
 
 /**
@@ -240,15 +242,8 @@ const attr = (value: string | number) => escapeHtml(String(value));
 /** A crop reference the page may load: relative `crops/<file>.png` or http(s), never anything else. */
 const safeCrop = (src: string) => /^(?:crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s]+)$/.test(src) && isSafeUrl(src);
 
-const STATE_WORDS: Record<string, string> = {
-  hover: 'while hovered',
-  focus: 'while focused',
-  active: 'while pressed',
-  checked: 'while checked',
-  disabled: 'while disabled',
-  'placeholder-shown': 'while showing its placeholder',
-};
-const stateWords = (state: string) => (state === 'rest' ? '' : (STATE_WORDS[state] ?? `in :${state}`));
+const stateWords = (state: string) =>
+  state === 'rest' ? '' : STATE_WORDS[state] ? `while ${STATE_WORDS[state]}` : `in :${state}`;
 
 /** Where-map ring padding, page pixels (the same as the PNG overview). */
 const RING_PAD = 8;
@@ -279,7 +274,9 @@ function whereFigure(meta: SectionMeta, index: number, alt: string, caption: str
     `<figure class="where"><svg viewBox="${vx} ${vy} ${vw} ${vh}" role="img" aria-label="${attr(alt)}" class="map" data-fallback="${attr(where.image)}">` +
     `<defs><mask id="${mask}"><rect width="${pw}" height="${ph}" fill="#fff"/>${boxes.map((b) => rect(b, ' fill="#000"')).join('')}</mask></defs>` +
     `<image href="${attr(href)}" width="${pw}" height="${ph}"/>` +
-    `<rect class="dim" width="${pw}" height="${ph}" mask="url(#${mask})"/>${boxes.map((b) => rect(b, ' class="ring"')).join('')}` +
+    // Fill and stroke also as attributes: the compact page has no stylesheet for them.
+    `<rect class="dim" width="${pw}" height="${ph}" fill="#fff" fill-opacity="0.55" mask="url(#${mask})"/>` +
+    boxes.map((b) => rect(b, ' class="ring" fill="none" stroke="#e0119d" stroke-width="3"')).join('') +
     `</svg>${figcaption}</figure>`
   );
 }
@@ -299,6 +296,22 @@ function pairBlock(
         `<img class="shot ${name}" src="${attr(src)}" width="${pair.w}" height="${pair.h}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${pair.what ?? 'the whole page'}`)}"${loading}></figure>`
       : '';
   return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
+}
+
+/**
+ * A whole-page pair as SVG panels over the page image, so report.html can inline each page once
+ * and draw it here and in the Where maps through `<use>` (no script needed).
+ */
+function pagePairBlock(page: SectionMetaPage): string {
+  const label = `whole page ${stateWords(page.state)}`.trim();
+  const tag = `<span class="state">${escapeHtml(label)}</span>`;
+  const side = (name: 'before' | 'after', src: string, w: number, h: number) =>
+    safeCrop(src)
+      ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
+        `<svg class="shot ${name} page" viewBox="0 0 ${w} ${h}" role="img" aria-label="${attr(`${name === 'before' ? 'Before' : 'After'}: the ${label}`)}">` +
+        `<image href="${attr(src)}" width="${w}" height="${h}"/></svg></figure>`
+      : '';
+  return `<div class="pair">${side('before', page.before, page.bw ?? page.w, page.bh ?? page.h)}${side('after', page.after, page.w, page.h)}</div>`;
 }
 
 const PAGE_LINE = /^_On (.+)_$/;
@@ -350,9 +363,6 @@ function sectionParts(body: string[]) {
   return { line, page, wheres, notes, css: css.slice(2, -1) };
 }
 
-const decodeEntities = (text: string) =>
-  text.replace(/&(amp|quot|lt|gt);/g, (_m, e: string) => ({ amp: '&', quot: '"', lt: '<', gt: '>' })[e]!);
-
 /** The CSS fold's table, as the preview draws it: a swatch beside each hex colour, currentColor followers muted. */
 function cssTableHtml(html: string): string {
   return html
@@ -370,8 +380,8 @@ function sectionCard(title: string, meta: SectionMeta, body: string[]): string {
     whereFigure(
       meta,
       i,
-      decodeEntities(parts.wheres[i]?.alt ?? 'Where on the page'),
-      decodeEntities(parts.wheres[i]?.caption ?? ''),
+      decodeAttribute(parts.wheres[i]?.alt ?? 'Where on the page'),
+      decodeAttribute(parts.wheres[i]?.caption ?? ''),
     ),
   );
   const page = parts.page && !figures.length ? `<p class="page">On ${inline(parts.page)}</p>` : '';
@@ -387,13 +397,7 @@ function sectionCard(title: string, meta: SectionMeta, body: string[]): string {
     : '';
   const pages = meta.pages.length
     ? `<details class="more pages"><summary>Show the whole page</summary><div class="more-body">${meta.pages
-        .map((p) =>
-          pairBlock(
-            { ...p, what: `the whole page ${stateWords(p.state)}`.trim() },
-            true,
-            `whole page ${stateWords(p.state)}`.trim(),
-          ),
-        )
+        .map(pagePairBlock)
         .join('')}</div></details>`
     : '';
   return [
@@ -622,7 +626,8 @@ const THEME_SCRIPT = `<script>
 })();
 </script>`;
 
-type ImageSlot = { match: string; src: string; alt: string; priority: number; fallback?: string };
+/** `shared`: an SVG drawing a page `<image>`; each page is inlined once in `<defs>` and drawn with `<use>`. */
+type ImageSlot = { match: string; src: string; alt: string; priority: number; fallback?: string; shared?: boolean };
 
 /** Embedding order: one-sided pages first, then pairs and other images, Where maps, whole pages last. */
 function imagePriority(tag: string, alt: string): number {
@@ -643,14 +648,26 @@ function imageSlots(page: string): ImageSlot[] {
       alt,
       priority: 2,
       fallback: `<img class="map" src="${m[1]}" alt="${alt}">`,
+      shared: true,
     };
   });
+  const pages = [...page.matchAll(/<svg [^>]*class="shot [^"]*page"[^>]*>[\s\S]*?<\/svg>/g)].map((m) => ({
+    match: m[0],
+    src: m[0].match(/<image href="([^"]*)"/)?.[1] ?? '',
+    alt: attrOf(m[0], 'aria-label'),
+    priority: 3,
+    shared: true,
+  }));
   const images = [...page.matchAll(/<img [^>]*>/g)].map((m) => {
     const alt = attrOf(m[0], 'alt');
     return { match: m[0], src: attrOf(m[0], 'src'), alt, priority: imagePriority(m[0], alt) };
   });
-  return [...maps, ...images];
+  return [...maps, ...pages, ...images];
 }
+
+const PAGE_IMAGE = /<image href="[^"]*" width="[^"]*" height="[^"]*"\/>/;
+const DEFS_WRAPPER =
+  '<svg class="sp-defs" width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute"><defs></defs></svg>';
 
 /** Embed images as data URLs by priority while the byte budget allows; the rest become short captions. */
 function embedImages(page: string, outDir: string, maxBytes: number): string {
@@ -677,33 +694,45 @@ function embedImages(page: string, outDir: string, maxBytes: number): string {
     omitted -= 1;
     return true;
   };
-  // Maps of the same page share one inlined copy: the first carries an id, the rest `<use>` it.
+  // Every page image is inlined once, in a hidden <defs>; each map and whole-page panel <use>s it.
   const pageIds = new Map<string, string>();
-  const reuse = (slot: ImageSlot, i: number): boolean => {
-    const id = pageIds.get(slot.src);
-    const html =
-      id && slot.match.replace(/<image href="[^"]*" width="[^"]*" height="[^"]*"\/>/, `<use href="#${id}"/>`);
-    const cost = html ? Buffer.byteLength(html) - Buffer.byteLength(rendered[i]) : Infinity;
-    if (!html || cost > remaining) return false;
+  const defs: string[] = [];
+  const shareImage = (slot: ImageSlot, i: number): boolean => {
+    const image = slot.match.match(PAGE_IMAGE)?.[0];
+    if (!image) return false;
+    let id = pageIds.get(image);
+    let def = '';
+    if (!id) {
+      const data = readCropDataUrl(decodeAttribute(slot.src), outDir, remaining);
+      if (!data) return false;
+      id = `sp-page-${pageIds.size + 1}`;
+      def = image.replace('<image href=', `<image id="${id}" href=`).replace(`href="${slot.src}"`, `href="${data}"`);
+    }
+    const html = slot.match.replace(image, `<use href="#${id}"/>`);
+    const cost =
+      Buffer.byteLength(def) +
+      (def && !defs.length ? DEFS_WRAPPER.length : 0) +
+      Buffer.byteLength(html) -
+      Buffer.byteLength(rendered[i]);
+    if (cost > remaining) return false;
+    if (def) {
+      pageIds.set(image, id);
+      defs.push(def);
+    }
     rendered[i] = html;
     remaining -= cost;
     omitted -= 1;
     return true;
   };
   for (const { slot, i } of order) {
-    if (slot.fallback) {
-      if (reuse(slot, i)) continue;
-      const id = `sp-page-${pageIds.size + 1}`;
-      if (embed(slot.match.replace('<image href=', `<image id="${id}" href=`), slot.src, 'href', i)) {
-        pageIds.set(slot.src, id);
-        continue;
-      }
-      // The SVG map needs the whole page; without it, the PNG overview stands in.
-      embed(slot.fallback, slot.fallback.match(/ src="([^"]*)"/)?.[1] ?? '', 'src', i);
-    } else embed(slot.match, slot.src, 'src', i);
+    if (slot.shared && shareImage(slot, i)) continue;
+    // The SVG map needs the whole page; without it, the PNG overview stands in.
+    if (slot.fallback) embed(slot.fallback, slot.fallback.match(/ src="([^"]*)"/)?.[1] ?? '', 'src', i);
+    else if (!slot.shared) embed(slot.match, slot.src, 'src', i);
   }
+  const shared = defs.length ? DEFS_WRAPPER.replace('</defs>', `${defs.join('')}</defs>`) : '';
   body = body.replace(/<!-- image-(\d+) -->/g, (_match, i) => rendered[Number(i)]);
-  if (omitted) body = body.replace('<main>', `<main>${banner(omitted)}`);
+  body = body.replace('<main>', `<main>${shared}${omitted ? banner(omitted) : ''}`);
   return body;
 }
 
@@ -717,7 +746,9 @@ const COMPACT_STYLE = `
   th, td { border: 1px solid #8888; padding: 4px 8px; text-align: left; }
   .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }`;
 
-function pageHtml(body: string, compact: boolean): string {
+function pageHtml(fullBody: string, compact: boolean): string {
+  // The theme buttons need the theme script, which the compact page leaves out.
+  const body = compact ? fullBody.replace(THEME_SWITCH, '') : fullBody;
   return `<!doctype html>
 <html lang="en">
 <head>

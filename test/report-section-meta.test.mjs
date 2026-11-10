@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
 import { decodeSectionMeta, encodeSectionMeta, SECTION_END } from '../dist/report/section-meta.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportForTesting } from '../dist/report.js';
+import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 
 const meta = {
   v: 1,
@@ -51,4 +55,36 @@ test('anything that is not a valid section comment decodes to null', () => {
   ]) {
     assert.equal(decodeSectionMeta(line), null, line.slice(0, 40));
   }
+});
+
+test('section ids never take an id report.html already uses (RV5-05)', (t) => {
+  const root = mkTmp('styleproof-section-ids-');
+  t.after(() => rmTmp(root));
+  for (const side of ['before', 'after']) {
+    const color = side === 'before' ? 'rgb(0, 0, 0)' : 'rgb(200, 0, 0)';
+    const elements = {
+      'body > h2': { tag: 'h2', cls: 'coverage-title', rect: [20, 20, 300, 40], style: { color } },
+      'body > p:nth-child(2)': { tag: 'p', cls: 'sp-page', rect: [20, 300, 300, 40], style: { color } },
+      'body > div:nth-child(3)': {
+        tag: 'div',
+        cls: 'sp-page',
+        rect: [20, 600, 300, 40],
+        style: { 'background-color': color },
+      },
+    };
+    writeCapture(path.join(root, side), 'home@1280', makeMap({ elements }), solidPng(1280, 900));
+  }
+  const result = generateStyleMapReportForTesting({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'report'),
+  });
+  const ids = fs
+    .readFileSync(result.reportMdPath, 'utf8')
+    .split('\n')
+    .map(decodeSectionMeta)
+    .filter(Boolean)
+    .map((meta) => meta.id);
+  assert.equal(ids.length, 3, ids.join(', '));
+  for (const id of ids) assert.doesNotMatch(id, /^(?:coverage-title|sp-page(?:-\d+)?)$/, id);
 });

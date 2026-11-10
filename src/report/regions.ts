@@ -9,7 +9,19 @@ import {
   surfaceWidth,
 } from '../change-groups.js';
 import { codeValue } from '../code-span.js';
-import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT } from './change-sections.js';
+import type { StyleMap } from '../capture.js';
+import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT, type ChangeSection } from './change-sections.js';
+
+/** A change group's sections, built once for the summary line and the rendering. */
+const builtSections = new WeakMap<ChangeGroup, ChangeSection[]>();
+function groupSections(cg: ChangeGroup, maps: [StyleMap, StyleMap]): ChangeSection[] {
+  let sections = builtSections.get(cg);
+  if (!sections) {
+    sections = buildChangeSections(cg.rep.findings, maps);
+    builtSections.set(cg, sections);
+  }
+  return sections;
+}
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { isSameOrDescendant } from './geometry.js';
 import { MISLEADING_CROP_REASON } from './crop-pair.js';
@@ -115,7 +127,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
 
     return { md, json, findingCount };
   }
-  const sections = buildChangeSections(findings, maps);
+  const sections = groupSections(cg, maps);
   const claimed = new Set<SiblingSpacingChange>();
   const within = (paths: string[]) => (f: { path: string }) => paths.some((root) => isSameOrDescendant(f.path, root));
   const rendered = sections.map((section, index) =>
@@ -191,9 +203,7 @@ export function sectionSummary(
   let elements = 0;
   for (const cg of groups) {
     // A group with only folded size/position rows renders one block.
-    const sections = cg.rep.findings.length
-      ? buildChangeSections(cg.rep.findings, presentationMaps(ctx, cg.rep.sd.surface))
-      : [];
+    const sections = cg.rep.findings.length ? groupSections(cg, presentationMaps(ctx, cg.rep.sd.surface)) : [];
     sectionCount += Math.max(1, sections.length);
     // A state layer captured on one side is a change to review, but not an element.
     elements += sections.reduce((n, s) => n + (s.paths[0] === SURFACE_SUBJECT ? 0 : s.paths.length), 0);

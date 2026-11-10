@@ -29,7 +29,16 @@ export type SectionMetaWhere = {
   boxes: Array<[number, number, number, number]>;
 };
 
-export type SectionMetaPage = { state: PairState; before: string; after: string; w: number; h: number };
+/** A whole-page pair; `w`/`h` is the head page, `bw`/`bh` the base page when its size differs. */
+export type SectionMetaPage = {
+  state: PairState;
+  before: string;
+  after: string;
+  w: number;
+  h: number;
+  bw?: number;
+  bh?: number;
+};
 
 export type SectionMeta = {
   v: 1;
@@ -109,7 +118,12 @@ const isWhere = (v: unknown): v is SectionMetaWhere => {
 };
 const isPage = (v: unknown): v is SectionMetaPage => {
   const p = v as SectionMetaPage;
-  return !!p && [p.state, p.before, p.after].every(isString) && isNumber(p.w) && isNumber(p.h);
+  return (
+    !!p &&
+    [p.state, p.before, p.after].every(isString) &&
+    [p.w, p.h].every(isNumber) &&
+    [p.bw, p.bh].every((n) => n === undefined || isNumber(n))
+  );
 };
 
 /** The section data in a comment line, or null when the line is not a valid section comment. */

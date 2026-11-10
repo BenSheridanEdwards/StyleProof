@@ -651,11 +651,13 @@ const MAX_META_PATHS = 20;
 
 /** A URL-safe id, unique in the report: "card-titles", "card-titles-2". */
 function sectionId(registry: SectionRegistry, title: string): string {
-  const base =
+  const slug =
     title
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'change';
+  // report.html's own ids ("What was captured", inlined pages) are never a section's.
+  const base = slug === 'coverage-title' || slug.startsWith('sp-') ? `change-${slug}` : slug;
   const taken = new Set(registry.metas.map((m) => m.id));
   let id = base;
   for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
@@ -719,7 +721,14 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
     if (!pngA || !pngB) continue;
     const stem = cropStem(surface, state === 'rest' ? 'page' : `page-${state}`);
     // `-base` / `-head`, never `-before` / `-after`: those names mean clean crops.
-    const page = { state, before: `${stem}-base.png`, after: `${stem}-head.png`, w: pngB.width, h: pngB.height };
+    const page: SectionMetaPage = {
+      state,
+      before: `${stem}-base.png`,
+      after: `${stem}-head.png`,
+      w: pngB.width,
+      h: pngB.height,
+      ...(pngA.width !== pngB.width || pngA.height !== pngB.height ? { bw: pngA.width, bh: pngA.height } : {}),
+    };
     // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
     if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {
       written.set(`${surface}\0${state}`, page);
