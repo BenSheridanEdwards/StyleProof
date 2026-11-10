@@ -886,3 +886,57 @@ test('a rename in one toolbar and a removal in another still certify the shifted
   });
   assert.deepEqual(certifiedRestyles(before, after), [['body > nav:nth-child(3) > span:nth-child(1)', ['color']]]);
 });
+
+// A same-shape container inserted above the point where two paths diverge renumbers the old
+// container; the lists up to the root must be unchanged for a move to read as a rename in place.
+const DEFAULT_STYLE = { color: 'rgb(20, 20, 20)' };
+const KEPT_STYLE = { color: 'rgb(0, 100, 0)' };
+const menu = (menuIndex) => [
+  `body > ul:nth-child(${menuIndex})`,
+  { tag: 'ul', cls: 'menu', style: DEFAULT_STYLE, ownTextLength: 0 },
+];
+const menuItem = (menuIndex, itemIndex, text, style = DEFAULT_STYLE, className = 'link') => [
+  [
+    `body > ul:nth-child(${menuIndex}) > li:nth-child(${itemIndex})`,
+    { tag: 'li', cls: 'item', style: DEFAULT_STYLE, ownTextLength: 0 },
+  ],
+  [
+    `body > ul:nth-child(${menuIndex}) > li:nth-child(${itemIndex}) > a:nth-child(1)`,
+    { tag: 'a', cls: className, style, ownTextLength: text.length, text },
+  ],
+];
+const page = (...entries) =>
+  makeMap({
+    elements: Object.fromEntries([
+      ['body', { tag: 'body', cls: '', style: DEFAULT_STYLE, ownTextLength: 0 }],
+      ...entries,
+    ]),
+  });
+
+test('a menu inserted before a reworded menu certifies nothing that main does not', () => {
+  const before = page(
+    menu(1),
+    ...menuItem(1, 1, 'Share'),
+    ...menuItem(1, 2, 'Code', KEPT_STYLE),
+    ...menuItem(1, 3, 'Print'),
+  );
+  const after = page(
+    menu(1),
+    ...menuItem(1, 1, 'Edit'),
+    ...menuItem(1, 2, 'Close'),
+    ...menuItem(1, 3, 'Edit', DEFAULT_STYLE, 'link external'),
+    menu(2),
+    ...menuItem(2, 1, 'Code', KEPT_STYLE),
+    ...menuItem(2, 2, 'Merge'),
+  );
+  assert.deepEqual(certifiedRestyles(before, after), []);
+});
+
+test('renamed labels of equal length with a styled active item certify no restyle of the wrong item', () => {
+  const ACTIVE_STYLE = { color: 'rgb(0, 80, 200)' };
+  const before = navItems(BASE_LABELS, true);
+  const after = navItems(HEAD_LABELS, true);
+  before.elements[item(5)].style = ACTIVE_STYLE;
+  after.elements[item(5)].style = ACTIVE_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), []);
+});
