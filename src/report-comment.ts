@@ -12,7 +12,7 @@ import { isSectionMetaLine, PAIR_ROW, SECTION_END, STATE_LABEL, WHERE_LINE } fro
 
 /**
  * GitHub refuses comments past 65,536 characters; this leaves over 15,000 for the
- * Action's marker, approval box, link and footer (which can name failed baseline surfaces).
+ * Action's marker, approval box, link, footer and hidden receipts.
  */
 export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 
