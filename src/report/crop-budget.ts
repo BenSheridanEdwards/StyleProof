@@ -56,19 +56,19 @@ export function writeBudgetedPng(ctx: RenderCtx, rel: string, png: PNG): boolean
 
 /**
  * Write a before/after pair at ONE scale: both sides are halved together until both fit the
- * per-file cap, then both are written or neither. `context` pages (whole pages) do not count
- * toward the downscaled-crops notice.
+ * per-file cap, then both are written or neither. Returns the written images (their size after any
+ * halving), or null. `context` pages (whole pages) do not count toward the downscaled-crops notice.
  */
 export function writeBudgetedPair(
   ctx: RenderCtx,
   [relA, pngA]: [string, PNG],
   [relB, pngB]: [string, PNG],
   options: { context?: boolean } = {},
-): boolean {
+): [PNG, PNG] | null {
   const b = ctx.crops;
-  if (!cropBudgetOpen(b)) return false;
+  if (!cropBudgetOpen(b)) return null;
   const cap = Math.min(MAX_CROP_FILE_BYTES, b.maxBytes);
-  let pair = [pngA, pngB];
+  let pair: PNG[] = [pngA, pngB];
   let encoded = pair.map(encodePng);
   let halved = false;
   for (let tries = 0; encoded.some((e) => e.length > cap) && tries < 3; tries++) {
@@ -76,18 +76,18 @@ export function writeBudgetedPair(
     encoded = pair.map(encodePng);
     halved = true;
   }
-  if (encoded.some((e) => e.length > cap)) return false;
+  if (encoded.some((e) => e.length > cap)) return null;
   const bytes = encoded[0].length + encoded[1].length;
   if (b.files + 2 > b.maxFiles || b.bytes + bytes > b.maxBytes) {
     b.exhausted = true;
-    return false;
+    return null;
   }
   fs.writeFileSync(path.join(ctx.outDir, relA), encoded[0]);
   fs.writeFileSync(path.join(ctx.outDir, relB), encoded[1]);
   if (halved && !options.context) b.downscaled += 2;
   b.files += 2;
   b.bytes += bytes;
-  return true;
+  return [pair[0], pair[1]];
 }
 
 /** Why a crop was just left out: the budget ran out, or this image could not fit the per-file limit. */

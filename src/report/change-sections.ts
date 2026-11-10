@@ -1039,6 +1039,7 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
         : {}),
     };
     // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
+    // Its width and height stay the capture's: they are the SVG coordinates the Where boxes are drawn in.
     if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {
       written.set(`${surface}\0${state}`, page);
     }

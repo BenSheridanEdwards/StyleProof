@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
+import { decodeSectionMeta } from '../dist/report/section-meta.js';
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 
 const solidPngFor = (side) => solidPng(1280, 400, side === 'before' ? [240, 240, 240] : [230, 230, 250]);
@@ -54,6 +55,19 @@ test('a pair and its whole pages are scaled together, never one side alone (RV2-
   // The notice counts the crops a reviewer compares, not the optional whole pages.
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.match(md, /_2 crop\(s\) downscaled/);
+  // The section data records the size written, so report.html shows the halved crop at its own size (RV19-06).
+  const meta = md
+    .split('\n')
+    .map(decodeSectionMeta)
+    .find((m) => m?.pairs.length);
+  const pair = meta.pairs.find((p) => p.after === 'crops/home-1280-1-after.png');
+  assert.equal(`${pair.width}x${pair.height}`, size('home-1280-1-after.png'));
+  const html = fs.readFileSync(path.join(root, 'report', 'report.html'), 'utf8');
+  const [w, h] = size('home-1280-1-after.png').split('x');
+  assert.match(
+    html,
+    new RegExp(`<img class="shot after" src="data:image/png;base64,[^"]+" width="${w}" height="${h}"`),
+  );
 });
 
 test('pair alt text escapes element text once (RV2-18)', (t) => {

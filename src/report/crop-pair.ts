@@ -93,7 +93,8 @@ export function renderCropPair(
   const images: CropImages = {};
   const beforeRel = `${stem}-before.png`;
   const afterRel = `${stem}-after.png`;
-  if (!writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png])) return omittedCrop(ctx);
+  const written = writeBudgetedPair(ctx, [beforeRel, before.png], [afterRel, after.png]);
+  if (!written) return omittedCrop(ctx);
   images.before = beforeRel;
   images.after = afterRel;
   const image = (rel: string, side: string) =>
@@ -107,5 +108,6 @@ export function renderCropPair(
     '| --- | --- |',
     `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
-  return { md, images, size: { w: before.png.width, h: before.png.height } };
+  // The size written: a pair halved to fit the per-file cap is recorded at its halved size (RV19-06).
+  return { md, images, size: { w: written[0].width, h: written[0].height } };
 }
