@@ -859,14 +859,17 @@ test('crawls never capture an off-origin redirect target', async () => {
   const CAPTURE = path.join(root, 'bin/styleproof-capture.mjs');
   const app = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-redirect-'));
   const port = await freePort();
+  const externalPort = await freePort();
   try {
     fs.writeFileSync(
       path.join(app, 'server.mjs'),
       `import http from 'node:http';
 const port = Number(process.argv[2]);
+// A different port is a different origin, without relying on public DNS/TLS.
+http.createServer((req, res) => res.end('External fixture')).listen(${externalPort}, '127.0.0.1');
 http.createServer((req, res) => {
   const url = req.url.split('?')[0];
-  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'https://example.com/'); return res.end(); }
+  if (url === '/away') { res.statusCode = 302; res.setHeader('location', 'http://127.0.0.1:${externalPort}/'); return res.end(); }
   res.setHeader('content-type', 'text/html');
   res.end('<!doctype html><html><head><style>.k{color:rgb(20,20,30)}</style></head><body>' +
     '<nav><a href="/">Home</a> <a href="/away">Away</a></nav><h1 class="k">Home</h1></body></html>');
