@@ -6,11 +6,11 @@
 
 All 3 cards change padding from `16px` to `24px`. Each is now 16px taller.
 
-<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-1-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 cards highlighted"><br><sub>Where: 3 cards on index @ 1280</sub>
+<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-1-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 cards highlighted"><br><sub>Where: 3 cards on index @ 1280</sub>
 
 | Before                                                                                                                                                                                                 | After                                                                                                                                                                                                |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-1-before.png?raw=1" width="340" alt="Before: the first card"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-1-after.png?raw=1" width="340" alt="After: the first card"> |
+| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-1-before.png?raw=1" width="340" alt="Before: the first card"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-1-after.png?raw=1" width="340" alt="After: the first card"> |
 
 <details>
 <summary>Show the CSS</summary>
@@ -27,11 +27,11 @@ All 3 cards change padding from `16px` to `24px`. Each is now 16px taller.
 
 All 3 card titles (Lamp, Chair, Rug) change text colour from dark indigo to dark red.
 
-<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-2-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 card titles highlighted"><br><sub>Where: 3 card titles on index @ 1280</sub>
+<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-2-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 card titles highlighted"><br><sub>Where: 3 card titles on index @ 1280</sub>
 
 | Before                                                                                                                                                                                                       | After                                                                                                                                                                                                      |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-2-before.png?raw=1" width="340" alt="Before: the first card title"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-2-after.png?raw=1" width="340" alt="After: the first card title"> |
+| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-2-before.png?raw=1" width="340" alt="Before: the first card title"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-2-after.png?raw=1" width="340" alt="After: the first card title"> |
 
 <details>
 <summary>Show the CSS</summary>
@@ -57,19 +57,19 @@ All 3 card titles (Lamp, Chair, Rug) change text colour from dark indigo to dark
 
 On all 3 Add to basket buttons, the background changes from dark indigo to red when hovered, and the outline colour changes from `#faa000` to `#00a050` when focused. At rest they look the same.
 
-<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-4-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 Add to basket buttons highlighted"><br><sub>Where: 3 Add to basket buttons on index @ 1280</sub>
+<img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-4-where.png?raw=1" width="320" alt="Where on index @ 1280: 3 Add to basket buttons highlighted"><br><sub>Where: 3 Add to basket buttons on index @ 1280</sub>
 
 **While hovered**
 
 | Before                                                                                                                                                                                                                               | After                                                                                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-3-before.png?raw=1" width="340" alt="Before: the first Add to basket button while hovered"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-3-after.png?raw=1" width="340" alt="After: the first Add to basket button while hovered"> |
+| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-3-before.png?raw=1" width="340" alt="Before: the first Add to basket button while hovered"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-3-after.png?raw=1" width="340" alt="After: the first Add to basket button while hovered"> |
 
 **While focused**
 
 | Before                                                                                                                                                                                                                               | After                                                                                                                                                                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-4-before.png?raw=1" width="340" alt="Before: the first Add to basket button while focused"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/feat/report-visual-first/docs/proof/report-visual-first/crops/index-1280-4-after.png?raw=1" width="340" alt="After: the first Add to basket button while focused"> |
+| <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-4-before.png?raw=1" width="340" alt="Before: the first Add to basket button while focused"> | <img src="https://github.com/BenSheridanEdwards/StyleProof/blob/3edd599b9162ca8638fcd7a08b1aec88ddd06f8c/docs/proof/report-visual-first/crops/index-1280-4-after.png?raw=1" width="340" alt="After: the first Add to basket button while focused"> |
 
 <details>
 <summary>Show the CSS</summary>
