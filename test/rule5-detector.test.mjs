@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commentProblems, reportProblems, situationCounts } from './rule5-detector.mjs';
+import { commentProblems, htmlText, reportProblems, situationCounts } from './rule5-detector.mjs';
 
 // The detector must fail on each class rule 5 forbids, using shapes earlier rounds shipped.
 const LINK =
@@ -54,4 +54,103 @@ test('a count that disagrees with report.json is caught', () => {
     found.some((p) => /names 1 failed surfaces and 3 more, but says 12/.test(p)),
     found.join('\n'),
   );
+});
+
+test('approval wording inside emphasis and in any inflection is caught (QA10-03)', () => {
+  for (const line of [
+    '_Approving this surface accepts the change._',
+    '*approve* once reviewed.',
+    'The differences are not shown as changes to approve.',
+    '_⚠️ Page capped: the rest is not shown, so approving this surface accepts content not reviewed here._',
+    'Sign off on it once the new colour is reviewed.',
+    '**Approved** changes stay green.',
+    'Approval accepts it.',
+  ]) {
+    assert.ok(
+      reportProblems('report.md', line).some((p) => /approval/.test(p)),
+      line,
+    );
+    assert.ok(
+      commentProblems('comment', `## 🗺️ StyleProof report\n\n${line}${LINK}`).some((p) => /approval/.test(p)),
+      line,
+    );
+  }
+});
+
+test('pointers at places the comment does not carry are caught (QA10-03)', () => {
+  for (const line of [
+    '_The content changes are further down._',
+    '_The content changes are _below_._',
+    'The content changes are **below**.',
+    'The content changes are <em>Below</em>.',
+    '_The content changes are **Further down**._',
+    '_The content changes are in the next section._',
+    '_1 surface with computed-style differences; each change is a section under Changes._',
+    '_The never-matched rules: see Changed but never matched._',
+  ]) {
+    assert.ok(commentProblems('comment', `## 🗺️ StyleProof report\n\n${line}${LINK}`).length > 0, line);
+  }
+  assert.deepEqual(
+    commentProblems(
+      'comment',
+      '## 🗺️ StyleProof report\n\n_Each rule is named in the full report; see the full report._' + LINK,
+    ),
+    [],
+  );
+});
+
+const section = (title, line, extra = []) => [`### ${title}`, '', line, '', ...extra, ''].join('\n');
+
+test('parallel per-section lines are allowed by rule; a note repeated per section is not (QA10-03)', () => {
+  // Two sections, each with its own change line ending in the same clause: parallel, allowed.
+  const parallel = [
+    '## Changes',
+    '',
+    section(
+      'Add to basket buttons',
+      'On all 3 Add to basket buttons, the background changes from dark indigo to red when hovered. At rest they look the same.',
+    ),
+    section(
+      'Opt labels',
+      'On both opt labels (Email, SMS), the text colour changes from green to red when the matching opt is checked. At rest they look the same.',
+      ['`label.opt-label` · 2 elements restyled · when `input.opt` is `:checked`'],
+    ),
+    section(
+      'Offers label',
+      'On the offers label (Offers), the text colour changes from green to red when the offers check is checked.',
+      ['`label.offers-label` · 1 element restyled · when `input.offers-check` is `:checked`'],
+    ),
+  ].join('\n');
+  assert.deepEqual(reportProblems('report.md', parallel), []);
+  // The same note as its own paragraph under two sections: said twice.
+  const note =
+    '_Crop omitted: this change group reached the `--max-crops` limit (8). The change is still listed and counted._';
+  const repeated = [
+    '## Changes',
+    '',
+    section('Chip', 'The chip text colour changes from teal to red.', [note]),
+    section('Badge', 'The badge text colour changes from green to red.', [note]),
+  ].join('\n');
+  assert.ok(
+    reportProblems('report.md', repeated).some((p) => /said twice/.test(p)),
+    reportProblems('report.md', repeated).join('\n'),
+  );
+  // Outside change sections the same clause is a repeat, as before.
+  assert.ok(
+    reportProblems(
+      'report.md',
+      'The buttons change colour. At rest they look the same.\n\nAt rest they look the same.',
+    ).some((p) => /said twice/.test(p)),
+  );
+});
+
+test('an empty paragraph under the title is caught (QA10-04)', () => {
+  const md = '## 🗺️ StyleProof report\n\n\n✗ **1 subtree(s) newly volatile on head** — excluded.\n';
+  assert.ok(reportProblems('report.md', md).some((p) => /empty paragraph/.test(p)));
+  assert.deepEqual(reportProblems('report.md', md.replace('\n\n\n', '\n\n')), []);
+});
+
+test('approval wording inside HTML emphasis is caught in report.html (QA10-03)', () => {
+  const html = '<main><p>The page is capped, <em>so approving this surface</em> accepts it.</p></main>';
+  assert.ok(reportProblems('report.html', htmlText(html)).some((p) => /approval/.test(p)));
 });

@@ -32,6 +32,10 @@ export const INTERNAL_CODE = new RegExp(
   ].join('|'),
 );
 
+/** Approval wording in any inflection (approve, approval, approving, approved), also inside
+ *  Markdown emphasis (`_Approving …_`, `*approve*`), and its synonym "sign off". */
+export const APPROVAL = /(?<!\p{L})(?:approv|sign(?:s|ed|ing)?[ -]off)/iu;
+
 export const visibleMd = (md) =>
   md
     .split('\n')
@@ -44,6 +48,20 @@ export const htmlText = (html) =>
     .replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, '')
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/<nav class="toc"[\s\S]*?<\/nav>/g, '')
+    // As in report.md: tables, fold labels and captions are not statements.
+    .replace(
+      /<table\b[\s\S]*?<\/table>|<summary\b[\s\S]*?<\/summary>|<sub\b[\s\S]*?<\/sub>|<figcaption\b[\s\S]*?<\/figcaption>/g,
+      '\n',
+    )
+    // A change section's title is an h2 inside <section class="change">; it reads as report.md's
+    // `###` section heading. Other headings keep their level.
+    .replace(/<section class="change"[\s\S]*?<\/section>/g, (section) =>
+      section.replace(/<h2\b/g, '<h3').replace(/<\/h2>/g, '</h3>'),
+    )
+    // Headings keep their level, so change sections are known in report.html as in report.md.
+    .replace(/<h([1-6])\b[^>]*>/g, (_, level) => `\n${'#'.repeat(Number(level))} `)
+    // An entry's bold code label keeps its Markdown form, so entries are known as in report.md.
+    .replace(/<p>\s*<strong>\s*<code>([^<]*)<\/code>\s*<\/strong>/g, '\n**`$1`**')
     // List items keep their marker, so parallel items are known as one list.
     .replace(/<li\b[^>]*>/g, '\n- ')
     // Inline tags join their text; block tags end a line.
@@ -77,26 +95,85 @@ export function normalise(text) {
   );
 }
 
-/** Sentences and list items; table rows and pure labels are not statements. Each unit knows the
- *  list it belongs to: items of one list are parallel by construction, so only an identical item
- *  counts as a repeat there. */
+/** The CSS line under "Show the CSS" names a selector, its count and its rule or driver: a label,
+ *  like a location caption, not a statement (`label.opt · 2 elements restyled · when …`). */
+const CSS_LABEL = /^\s*`?[\w.#:>[\]="'() -]+`? · \d+ elements? (?:restyled|added|removed|changed)\b/;
+
+/** Lines that only say where or which: a caption (`<sub>…</sub>`, "_On home @ 1280_", "after ·
+ *  long @ 1280 · part 2 of 8 …") or an element path on its own ("body > main > p"). */
+const LABEL_LINE =
+  /^\s*(?:<sub>.*<\/sub>|_?(?:on |after · |before · )?[\w.-]+ ?@ ?\d+(?: · [^\n]*)?_?|(?:- )?`?(?:html|body)\b[^\s.!?]*(?: > [^\s!?]+)*`?)\s*$/i;
+
+/** A change section starts at a `###` heading (not the comment's report link); `#`/`##` end it. An
+ *  entry of the Global chrome or content lists (a line that opens with a bold code label, such as
+ *  "**`a.help`** — element added on all 2 surface bases …") is a section of its own for this rule. */
+const SECTION_HEADING = /^#{3} (?!📊)/;
+const ENTRY_LABEL = /^\*\*`[^`\n]+`\*\*/;
+
+/**
+ * Sentences and list items; table rows and pure labels are not statements. Each unit knows the
+ * list it belongs to (items of one list are parallel by construction, so only an identical item
+ * counts as a repeat there), its change section (0 outside one), its paragraph, and whether it is
+ * that paragraph's only sentence.
+ */
 export function units(text) {
   const out = [];
   let list = 0;
   let inList = false;
+  let section = 0;
+  let sections = 0;
+  let paragraph = 0;
   for (const line of text.split('\n')) {
-    // Tables, folds, rules and images (an image's alt text labels it) are not statements.
-    if (/^\s*(?:\||!\[|<img\b)/.test(line) || /^\s*(?:<\/?details>|<summary>|---+)\s*$/.test(line)) continue;
+    if (!line.trim()) {
+      paragraph += 1;
+      continue;
+    }
+    if (/^#{1,6} /.test(line)) {
+      section = SECTION_HEADING.test(line) ? ++sections : 0;
+      paragraph += 1;
+    } else if (ENTRY_LABEL.test(line)) section = ++sections;
+    // Tables, folds, rules, images (an image's alt text labels it), captions, element paths and
+    // the CSS label line are not statements.
+    if (
+      /^\s*(?:\||!\[|<img\b)/.test(line) ||
+      /^\s*(?:<\/?details>|<summary>.*|---+)\s*$/.test(line) ||
+      CSS_LABEL.test(line) ||
+      LABEL_LINE.test(line)
+    )
+      continue;
     const item = /^\s*[-*] /.test(line);
     if (item && !inList) list += 1;
     inList = item || (inList && !line.trim());
     for (const raw of line.split(/(?<=[.;!?])\s+(?=\S)/)) {
       const tokens = normalise(raw);
-      if (tokens.length) out.push({ raw: raw.trim(), tokens, list: item ? list : 0 });
+      if (tokens.length) out.push({ raw: raw.trim(), tokens, list: item ? list : 0, section, paragraph });
     }
   }
-  return out;
+  const sizes = new Map();
+  const texts = new Map();
+  for (const u of out) {
+    sizes.set(u.paragraph, (sizes.get(u.paragraph) ?? 0) + 1);
+    texts.set(u.paragraph, `${texts.get(u.paragraph) ?? ''} ${u.tokens.join(' ')}`);
+  }
+  return out.map((u) => ({ ...u, alone: sizes.get(u.paragraph) === 1, paragraphText: texts.get(u.paragraph) }));
 }
+
+/**
+ * Parallel per-section lines. Each change section describes its own elements, so two of its
+ * statements may share wording with another section's ("At rest they look the same.", "the text
+ * colour changes from green to red") without saying one fact twice. The rule:
+ * - statements in two different change sections, in paragraphs that differ, are parallel: shared
+ *   runs and shared words between them are allowed;
+ * - an identical sentence is parallel only when it is part of a longer paragraph in both sections
+ *   (a clause of each section's own change line);
+ * - a sentence that is a paragraph on its own and recurs identically in another section is a
+ *   repeated note ("Crop omitted …" under every section past a cap), and so is an identical
+ *   paragraph.
+ * Outside change sections, and within one, every rule applies as before.
+ */
+const crossSection = (a, b) => a.section > 0 && b.section > 0 && a.section !== b.section;
+const parallelLines = (a, b) => crossSection(a, b) && a.paragraphText !== b.paragraphText;
+const parallelSentence = (a, b) => parallelLines(a, b) && !a.alone && !b.alone;
 
 const grams = (tokens, n) => {
   const out = new Set();
@@ -112,8 +189,9 @@ export function repeats(text) {
   for (const u of all) {
     if (u.tokens.length < SAME_UNIT) continue;
     const key = u.tokens.join(' ');
-    if (seen.has(key)) out.push(`said twice: "${u.raw.slice(0, 110)}"`);
-    else seen.set(key, u);
+    const earlier = seen.get(key) ?? [];
+    if (earlier.some((e) => !parallelSentence(e, u))) out.push(`said twice: "${u.raw.slice(0, 110)}"`);
+    seen.set(key, [...earlier, u]);
   }
   const runs = all.map((u) => grams(u.tokens, SHARED_RUN));
   const words = all.map((u) => new Set(u.tokens.filter((t) => t.length > 3 && !GENERIC.has(t) && t !== 'N')));
@@ -121,6 +199,7 @@ export function repeats(text) {
     for (let j = i + 1; j < all.length; j++) {
       if (all[i].tokens.join(' ') === all[j].tokens.join(' ')) continue;
       if (all[i].list && all[i].list === all[j].list) continue;
+      if (parallelLines(all[i], all[j])) continue;
       const shared = [...runs[i]].find((g) => runs[j].has(g));
       if (shared) {
         out.push(`two statements share "${shared}": "${all[i].raw.slice(0, 80)}" / "${all[j].raw.slice(0, 80)}"`);
@@ -194,8 +273,10 @@ export function contradictions(text) {
 /** Surface keys, commits and element selectors. */
 const IDENTIFIER = /\b[\w.-]+ ?@ ?\d{2,5}\b|\b[0-9a-f]{40}\b|\b[0-9a-f]{12}\b|`(?:body|html)\b[^`]*`/g;
 
-/** Lines that only say where something is (headings, captions, images, "_On home @ 1280_"). */
-const LOCATION_LABEL = /^\s*(?:#{1,6} |!\[|<img\b|<sub>|\|)|^\s*_(?:on |after · |before · )?[\w.-]+ ?@ ?\d+_\s*$/i;
+/** Lines that only say where something is (headings, captions, images, "_On home @ 1280_"), and a
+ *  per-surface index entry ("- `home@1280` · 10 added", the migration gallery's list). */
+const LOCATION_LABEL =
+  /^\s*(?:#{1,6} |!\[|<img\b|<sub>|\|)|^\s*_(?:on |after · |before · )?[\w.-]+ ?@ ?\d+_\s*$|^\s*- `[\w.-]+ ?@ ?\d+` · \d+ \w+(?:, \d+ \w+)*\s*$/i;
 
 /**
  * An identifier stated in two different blocks (paragraphs or lists) repeats a list. Location
@@ -236,13 +317,18 @@ export function reportProblems(name, text) {
   if (name !== 'report.html') out.push(...repeatedIdentifiers(text).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
   if (code) out.push(`${name}: internal code ${code[0]}`);
-  const approve = text.split('\n').find((line) => /\bapprov/i.test(line));
+  // The title is followed by one blank line and the opening paragraph, never an empty paragraph.
+  if (/^## [^\n]*\n[ \t]*\n[ \t]*\n/.test(text)) out.push(`${name}: an empty paragraph under the title`);
+  const approve = text.split('\n').find((line) => APPROVAL.test(line));
   if (approve) out.push(`${name}: report text mentions approval: "${approve.trim().slice(0, 110)}"`);
   return out;
 }
 
-/** Problems in a PR comment body. */
-export function commentProblems(name, body) {
+/**
+ * Problems in a PR comment body. `approvalMode` is whether approval is the action in this run
+ * (review-gate, migration, require-approval); certify and advisory comments never mention it.
+ */
+export function commentProblems(name, body, { approvalMode = true } = {}) {
   const text = commentText(body);
   const [report, footer = ''] = text.split('\n### 📊');
   const approvalBox = body.includes('- [ ] **Approve all changes**') || body.includes('- [x] **Approve all changes**');
@@ -250,13 +336,17 @@ export function commentProblems(name, body) {
   out.push(...repeatedIdentifiers(text.replace('\n### 📊', '\n\n### 📊')).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
   if (code) out.push(`${name}: internal code ${code[0]}`);
-  const reportApprove = report.split('\n').find((line) => /\bapprov/i.test(line));
+  const reportApprove = report.split('\n').find((line) => APPROVAL.test(line));
   if (reportApprove) out.push(`${name}: the report part mentions approval: "${reportApprove.trim().slice(0, 110)}"`);
-  // The footer may guide approval only beside a box, or say approval cannot clear the hold.
+  // The footer may guide approval only beside a box, or, where approval is the action, say that
+  // approval cannot clear the hold.
   const footerApprove = footer
     .split('\n')
-    .find((line) => /\bapprov/i.test(line) && !approvalBox && !/cannot clear|can't clear/i.test(line));
-  if (footerApprove) out.push(`${name}: footer mentions approval with no box: "${footerApprove.trim().slice(0, 110)}"`);
+    .find((line) => APPROVAL.test(line) && !approvalBox && !(approvalMode && /cannot clear|can't clear/i.test(line)));
+  if (footerApprove)
+    out.push(
+      `${name}: footer mentions approval where ${approvalMode ? 'there is no box' : 'approval is not the action'}: "${footerApprove.trim().slice(0, 110)}"`,
+    );
   out.push(...danglingReferences(report).map((p) => `${name}: ${p}`));
   return out;
 }
@@ -266,16 +356,22 @@ export function danglingReferences(report) {
   const out = [];
   const headings = [...report.matchAll(/^#{2,3} (.+)$/gm)].map((m) => normalise(m[1]).join(' '));
   const carried = (name) => headings.some((h) => h.includes(normalise(name).join(' ')));
-  for (const m of report.matchAll(/[^\n]*\b(?:below|above)\b[^\n]*/gi))
-    out.push(`points "below/above": "${m[0].trim().slice(0, 110)}"`);
-  for (const m of report.matchAll(/\(see ([^)]+)\)/gi)) {
-    if (!/^the full report$/i.test(m[1].trim()) && !carried(m[1])) out.push(`"(see ${m[1]})" is not in the comment`);
-  }
+  // Position words point at a place in the full report; the comment is a different document.
   for (const m of report.matchAll(
-    /\b(?:listed|named)(?: once)? (?:under|in) (?:\*\*)?([A-Z][^.;,*]+?)(?:\*\*)?(?=[.;,]|$)/gm,
+    // Letter lookarounds, not \b: `_below_` and `**below**` must match through emphasis.
+    /[^\n]*(?<!\p{L})(?:below|above|further (?:down|up|on)|(?:in|at) the (?:next|following|previous|last) section)(?!\p{L})[^\n]*/giu,
+  ))
+    out.push(`points at a position: "${m[0].trim().slice(0, 110)}"`);
+  // "see X", "(see X)": X must be the full report or a section the comment carries.
+  for (const m of report.matchAll(/\bsee (?:the )?(?:\*\*)?([^.;,)*\n]+)([^.;\n]*)/gi)) {
+    const target = m[1].trim();
+    if (!/full report/i.test(target + m[2]) && !carried(target)) out.push(`"see ${target}" is not in the comment`);
+  }
+  // "listed/named under X", "a section under X", "under **X**".
+  for (const m of report.matchAll(
+    /\b(?:(?:listed|named)(?: once)? (?:under|in)|under) (?:the )?(?:\*\*)?([A-Z][^.;,*\n]+?)(?:\*\*)?(?: section)?(?=[.;,)]|$)/gm,
   )) {
-    if (!/full report|report\.json/i.test(m[1]) && !carried(m[1]))
-      out.push(`"listed under ${m[1]}" is not in the comment`);
+    if (!/full report|report\.json/i.test(m[1]) && !carried(m[1])) out.push(`"under ${m[1]}" is not in the comment`);
   }
   return out;
 }
@@ -329,6 +425,17 @@ export function situationCounts(md, json) {
   const gone = md.match(/\*\*(\d+) removed surfaces?\*\*/);
   if (gone && Number(gone[1]) !== oneSided('isRemoved'))
     out.push(`says ${gone[1]} removed surfaces, report.json has ${oneSided('isRemoved')}`);
+  // Changes past `--max-crops`: the stated total equals the per-surface counts it lists, and is at
+  // least the change sections report.json marks `cropOmitted: 'max-crops'`.
+  const cap = md.match(/\*\*(\d+) changes? ha(?:s|ve) no crop\*\*([^\n]*)/);
+  if (cap) {
+    const listed = [...cap[2].matchAll(/(\d+) on /g)].reduce((sum, m) => sum + Number(m[1]), 0);
+    const sections = (json.surfaces ?? [])
+      .flatMap((s) => s.regions ?? [])
+      .filter((r) => r.cropOmitted === 'max-crops').length;
+    if (listed !== Number(cap[1])) out.push(`says ${cap[1]} changes have no crop, but lists ${listed}`);
+    if (Number(cap[1]) < sections) out.push(`says ${cap[1]} changes have no crop, report.json has ${sections}`);
+  }
   const visible = md.match(/\*\*(\d+) visible elements? (?:was|were) added or removed\*\*/);
   if (visible && Number(visible[1]) !== (json.reviewableCounts?.dom ?? 0)) {
     out.push(`says ${visible[1]} visible elements changed, report.json counts ${json.reviewableCounts?.dom ?? 0}`);

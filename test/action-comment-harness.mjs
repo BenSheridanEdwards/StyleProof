@@ -9,6 +9,14 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+const APPROVAL_STATUS = {
+  id: 7,
+  context: 'StyleProof',
+  state: 'success',
+  description: 'Approved by @maintainer (run 77)',
+  created_at: '2026-01-01T00:00:30Z',
+  creator: { type: 'Bot', login: 'github-actions[bot]' },
+};
 
 /** Every `${{ … }}` expression the comment step reads (its script and its env block). */
 export function commentStepExpressions() {
@@ -24,7 +32,7 @@ export function commentStepExpressions() {
  * @param {{ reportDir: string, mode: 'review-gate' | 'certify' | 'migration' | 'advisory', trustState: string,
  *   failOnDiff?: boolean, requireApproval?: boolean, repositoryPrivate?: boolean, storage?: 'branch' | 'artifact',
  *   includeContent?: boolean, contentChanges?: number, baseCaptureFailed?: boolean, untrusted?: boolean,
- *   blocking?: 'true' | 'false' | 'advisory', changed?: boolean }} options
+ *   blocking?: 'true' | 'false' | 'advisory', changed?: boolean, approved?: boolean }} options
  */
 export async function runActionComment({
   reportDir,
@@ -40,6 +48,7 @@ export async function runActionComment({
   untrusted = false,
   blocking = 'true',
   changed = trustState !== 'NO_REVIEWABLE_STYLE_CHANGES',
+  approved = false,
 }) {
   const repository = { owner: 'BenSheridanEdwards', repo: 'StyleProof' };
   const sha = 'a'.repeat(40);
@@ -98,7 +107,25 @@ export async function runActionComment({
     paginate: async (route, params) => (await route({ ...params, page: 1 })).data,
     rest: {
       pulls: { get: async () => ({ data: { head: { sha: 'c'.repeat(40) } } }) },
-      repos: { listCommitStatusesForRef: async () => ({ data: [] }) },
+      // An already-approved re-run: the commit carries a valid approval receipt for this digest,
+      // the runtime input readReviewApproval reads (src/review-approval.ts).
+      repos: { listCommitStatusesForRef: async () => ({ data: approved ? [APPROVAL_STATUS] : [] }) },
+      actions: {
+        getWorkflowRun: async () => ({
+          data: {
+            status: 'completed',
+            conclusion: 'success',
+            event: 'issue_comment',
+            head_branch: 'main',
+            triggering_actor: { login: 'maintainer' },
+            run_started_at: '2026-01-01T00:00:00Z',
+            updated_at: '2026-01-01T00:01:00Z',
+          },
+        }),
+        listWorkflowRunArtifacts: async () => ({
+          data: { artifacts: [{ name: `styleproof-approval-42-${'c'.repeat(40)}-${'d'.repeat(64)}`, expired: false }] },
+        }),
+      },
       issues: {
         listComments: async () => ({ data: [] }),
         createComment: async (input) => {

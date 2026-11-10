@@ -79,6 +79,47 @@ const fails = (n) =>
 const heads = (n) =>
   Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i}@1280`, page({ 'body > p': para })]));
 const PLAIN = { 'home@1280': page({ 'body > p': para }) };
+/** Ten element kinds restyled on one page: more change sections than `--max-crops` (8) allows. */
+const kinds = (color, text = 'Kind') => ({
+  'home@1280': page(
+    Object.fromEntries(
+      Array.from({ length: 10 }, (_, i) => [
+        `body > p.kind${i}`,
+        {
+          tag: 'p',
+          cls: `kind${i}`,
+          text: `${text} ${i}`,
+          ownTextLength: text.length + 2,
+          rect: [20, 20 + i * 36, 300, 20],
+          style: { color },
+        },
+      ]),
+    ),
+  ),
+});
+/** Ten links added to a nav on both pages: more Global chrome entries than `--max-crops` allows. */
+const navLinks = (n) =>
+  Object.fromEntries(
+    Array.from({ length: n }, (_, i) => [
+      `body > nav > a:nth-child(${i + 1})`,
+      { ...navLink, cls: `link${i}`, text: `Link ${i}`, rect: [10 + i * 70, 10, 60, 20] },
+    ]),
+  );
+const chromeLinks = (n) =>
+  Object.fromEntries(
+    ['home@1280', 'settings@1280'].map((key) => [key, page({ 'body > nav': nav, ...navLinks(n), 'body > p': para })]),
+  );
+/** A page captured 10 viewports tall: one-sided tiles stop at 8 viewports. */
+const TALL = { 'long@1280': page({ 'body > p': para }, { viewport: { width: 1280, height: 800 } }) };
+const TALL2 = { ...TALL, 'longer@1280': TALL['long@1280'] };
+const tallPng = (key) => (key.startsWith('long') ? solidPng(1280, 8000) : undefined);
+const stated = (id) => (color) => ({
+  'home@1280': page(
+    { 'body > h1': title(color), 'body > p': para },
+    { metadata: { productState: { id, revision: 'fixture-v1' } } },
+  ),
+});
+const REAL_FIXTURE = path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures/report-real-shop');
 const STYLED = (color) => ({ 'home@1280': page({ 'body > h1': title(color), 'body > p': para }) });
 
 /** Trust the Action's verdict step gives a reviewable shape: certify's gate fails it. */
@@ -368,6 +409,72 @@ const SHAPES = {
     trust: always('INVENTORY_REMOVAL_UNACKNOWLEDGED'),
     expect: /change to review/,
   },
+  // A real capture of the builder's three-page fixture: nine change sections, state pairs and
+  // CSS lines, so per-section lines that are legitimately parallel meet the detector.
+  'real multi-section report (captured fixture)': {
+    copy: REAL_FIXTURE,
+    trust: reviewable,
+    expect: /\*\*9 changes to review\*\*[\s\S]*### Opt labels/,
+  },
+  'many element kinds over the --max-crops limit': {
+    before: kinds(BLACK),
+    after: kinds(RED),
+    trust: reviewable,
+    expect: /\*\*10 changes to review\*\*[\s\S]*✂️ \*\*2 changes have no crop\*\*, past the `--max-crops` limit/,
+  },
+  'many content changes over the --max-crops limit': {
+    before: kinds(BLACK, 'Old'),
+    after: kinds(BLACK, 'New'),
+    png: (key, side) => solidPng(1280, 400, side === 'after' ? [20, 20, 20] : [200, 200, 200]),
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
+    expect: /No reviewable computed-style changes/,
+    expectContent: /✂️ \*\*2 changes have no crop\*\*/,
+  },
+  'many Global chrome additions over the --max-crops limit': {
+    before: chromeLinks(0),
+    after: chromeLinks(10),
+    png: (key, side) => solidPng(1280, 400, side === 'after' ? [20, 20, 20] : [255, 255, 255]),
+    trust: reviewable,
+    expect: /visible elements? (?:was|were) added or removed/,
+    expectContent: /✂️ \*\*2 changes have no crop\*\*[^\n]*Global chrome/,
+  },
+  'tall new surface (over 8 viewports)': {
+    before: PLAIN,
+    after: { ...PLAIN, ...TALL },
+    png: tallPng,
+    trust: reviewable,
+    expect:
+      /📏 \*\*1 page with nothing to compare against is only partly shown[\s\S]*part 8 of 8 · 5600–6400 of 8000px/,
+  },
+  'tall removed surface (over 8 viewports)': {
+    before: { ...PLAIN, ...TALL },
+    after: PLAIN,
+    png: tallPng,
+    trust: reviewable,
+    expect:
+      /📏 \*\*1 page with nothing to compare against is only partly shown[\s\S]*part 8 of 8 · 5600–6400 of 8000px/,
+  },
+  'two tall new surfaces': {
+    before: PLAIN,
+    after: { ...PLAIN, ...TALL2 },
+    png: tallPng,
+    trust: reviewable,
+    expect: /📏 \*\*2 pages with nothing to compare against are only partly shown/,
+  },
+  'crop budget reached (and --max-crops)': {
+    before: kinds(BLACK),
+    after: kinds(RED),
+    opts: { maxCropFiles: 6 },
+    trust: reviewable,
+    expect:
+      /✂️ \*\*\d+ changes have no crop\*\*: \d+ past the `--max-crops` limit[^\n]*; \d+ past the report's crop budget/,
+  },
+  'incomparable product state': {
+    before: stated('checkout-loading')(BLACK),
+    after: stated('checkout-ready')(RED),
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /This compare cannot certify:\*\* 1 paired capture\(s\) declare a different product state/,
+  },
   'base capture failed entirely (degraded baseline)': {
     before: PLAIN,
     after: PLAIN,
@@ -385,6 +492,22 @@ const MODES = [
   { label: 'certify + require-approval', mode: 'certify', requireApproval: true, failOnDiff: true },
   { label: 'migration', mode: 'migration', requireApproval: false, failOnDiff: false },
   { label: 'advisory', mode: 'advisory', requireApproval: false, failOnDiff: false, blocking: 'advisory' },
+  // A runtime input, not a `${{ }}` expression: the commit already carries a valid approval
+  // receipt for this digest, so the box renders ticked and the footer says signed off.
+  {
+    label: 'review-gate, already approved',
+    mode: 'review-gate',
+    requireApproval: true,
+    failOnDiff: false,
+    approved: true,
+  },
+  {
+    label: 'migration, already approved',
+    mode: 'migration',
+    requireApproval: false,
+    failOnDiff: false,
+    approved: true,
+  },
 ];
 const STORAGE = ['branch', 'artifact'];
 const VISIBILITY = [false, true];
@@ -452,8 +575,19 @@ function generate(dir, spec, { includeContent, migration }) {
   ]) {
     const sideDir = path.join(dir, side);
     if (fs.existsSync(sideDir)) continue;
+    if (spec.copy) {
+      fs.cpSync(path.join(spec.copy, side === 'before' ? 'base' : 'head'), sideDir, { recursive: true });
+      // The committed manifests carry no environment key (it reads as a secret to scanners); both
+      // sides get the same one here, as captures from one environment do.
+      const manifestFile = path.join(sideDir, MAP_MANIFEST);
+      const captured = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));
+      captured.compatibilityKey = fixtureCompatibilityKey('report-real-shop');
+      fs.writeFileSync(manifestFile, JSON.stringify(captured));
+      continue;
+    }
     fs.mkdirSync(sideDir, { recursive: true });
-    for (const [key, capture] of Object.entries(captures)) writeCapture(sideDir, key, capture, solidPng(1280, 400));
+    for (const [key, capture] of Object.entries(captures))
+      writeCapture(sideDir, key, capture, spec.png?.(key, side) ?? solidPng(1280, 400));
     if (spec.failures) {
       manifest(sideDir, side === 'before' ? 'b'.repeat(40) : 'c'.repeat(40), side === 'before' ? spec.failures : []);
     }
@@ -484,6 +618,8 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
         const variant = `${includeContent ? 'content on' : 'content off'}${migration ? ', migration' : ''}`;
         if (!includeContent && !migration)
           assert.match(visibleMd(md), spec.expect, `${shape}: the fixture reaches its branch`);
+        if (includeContent && !migration && spec.expectContent)
+          assert.match(visibleMd(md), spec.expectContent, `${shape}: with content on, the fixture reaches its branch`);
         const reportFound = [
           ...reportProblems('report.md', visibleMd(md)),
           ...reportProblems('report.html', htmlText(html)),
@@ -507,7 +643,11 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
                   ...(spec.action ?? {}),
                 });
                 const label = `${inputs.label}, ${storage}, ${repositoryPrivate ? 'private' : 'public'}${untrusted ? ', fork' : ''}, ${variant}`;
-                for (const p of commentProblems('comment', comment)) found.add(`${p} [${label}]`);
+                // Approval is the action only in review-gate, migration or with require-approval.
+                const approvalMode =
+                  inputs.mode !== 'advisory' &&
+                  (inputs.requireApproval || inputs.mode === 'review-gate' || inputs.mode === 'migration');
+                for (const p of commentProblems('comment', comment, { approvalMode })) found.add(`${p} [${label}]`);
               }
             }
           }

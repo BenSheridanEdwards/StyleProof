@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "packageVersion": "9.0.0",
+  "sha": "uncommitted",
+  "dirty": true,
+  "spec": "styleproof-manifest.json",
+  "specHash": "missing",
+  "harnessHash": "ef9ba57697334dee6bd0f0cf8cfaa95cc1bbaa5e09628274d7342961a02a338f",
+  "platform": "darwin",
+  "arch": "arm64",
+  "nodeMajor": "26",
+  "screenshots": true,
+  "har": false,
+  "createdAt": "2026-11-10T05:25:25.088Z"
+}
