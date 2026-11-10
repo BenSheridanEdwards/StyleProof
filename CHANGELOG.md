@@ -37,7 +37,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   image is inlined once and shared by every Where map and whole-page panel that draws it.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
   under the label, with the checkbox named as the driver ("when the matching opt is checked" for a list of them),
-  and each control's state gets its own section. A new or removed hover/focus style names the resting value
+  and each control's state gets its own section. Each state names its own driver: a label's own `:hover` reads
+  "when hovered" even when a checkbox's `:checked` also restyles it ("when the opt is checked"), and the CSS line
+  names the checkbox for `:checked` only. A new or removed hover/focus style names the resting value
   it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
@@ -70,15 +72,20 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   per-file size limit, so both sides are always at the same scale.
 - `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
   and counted, with no crop or Where map. Before, the extra regions collapsed into one union crop. Every change
-  left without a crop is now stated once, at the top of the report, instead of in a note under each entry:
-  "✂️ **4 changes have no crop**, past the `--max-crops` limit of 8 per surface (2 on `home @ 1280`, 2 on
-  `docs @ 1280`). Each is still listed and counted; raise `--max-crops` to show their crops." Content and
-  Global chrome entries past the limit, and crops past the crop budget (`--max-crop-files` /
-  `--max-crop-bytes`) or too large to fit, are counted in the same line, and the closing "N crop(s) omitted"
-  line is gone. A new or removed page shown only in part (at most 8 screen heights) is also said once at the
-  top, with how to see the rest; each tile caption still gives its pixel range.
+  missing some or all of its crops is now stated once, at the top of the report, instead of in a note under each
+  entry, and counted as changes (a section with a resting and a hover pair is one), so it agrees with the
+  summary: "✂️ **4 changes are missing crops**, past the `--max-crops` limit of 8 per surface (2 on
+  `home @ 1280`, 2 on `docs @ 1280`). Each is still listed and counted; raise `--max-crops` to show the
+  crops." Content and Global chrome entries past the limit, and crops past the crop budget (`--max-crop-files`
+  / `--max-crop-bytes`) or too large to fit, are counted in the same line, and the closing "N crop(s) omitted"
+  line is gone. A new or removed page shown only in part is also said once at the top, naming each page, how
+  much is shown and where its full screenshot is: "📏 **Only part of 1 page is shown:** `long @ 1280` (6400 of
+  8000px, full screenshot `long@1280.png` in the head capture). A new or removed page shows at most 8 screen
+  heights; open the full screenshot to review the rest." (When the crop budget cut it, the line says to raise
+  `--max-crop-files` or `--max-crop-bytes` instead.)
 - A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
-  otherwise it gives the hex value alone.
+  otherwise it gives the hex value alone. "White", "black" and "gray" also need the matching lightness, so a
+  light gray such as `#c8c8c8` reads as its hex value, not "white".
 - The PR comment carries every change section from report.md: its name, its line, the Where caption and the
   CSS on demand, cut at 50,000 characters with a count of the sections left out. The cap covers the whole
   summary, so a report with no change section (a large Change Reach table, say) still posts one comment with
@@ -90,7 +97,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Each fact in the report and the PR comment is stated once, in plain words: a visible element added or removed
   ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface (its tile no longer
   repeats "No baseline to compare against." / "In the baseline, not captured on head."), a subtree volatile on
-  one side only, a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of
+  one side only, a new surface never declared on the base (named, with why its base capture is not counted), a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of
   the base was captured; repair that surface on that commit and capture it again.", naming at most 10 surfaces
   and then "and N more, all listed in report.json"), a reach gate, a frozen-clock drift, and every crop limit
   (see `--max-crops` above). Report content never mentions approval in any form: an incomparable product state
@@ -103,6 +110,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   surfaces and SHAs again; it says "Reviewer approval cannot clear the missing baseline surfaces named above;
   repair them and rerun." The comment points at "the full report" instead of sections it does not carry, and the
   summary gives no changed-CSS-rule count when a served-CSS record is missing.
+  The summary line always comes first; a "⛔ This compare cannot certify" line now follows it instead of
+  preceding it. The Global chrome callout no longer says its detail is "folded beneath" (it is not), and under
+  a small `maxReportBytes` the one-line Changed but never matched entry names the rules that hold the gate.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
   `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
   in report.json, the Action's `trust-state` output and commit statuses.
