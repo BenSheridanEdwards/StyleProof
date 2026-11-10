@@ -206,7 +206,11 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
   const status = formatPartialBaselineStatusDescription(receipts);
   const failEcho = formatPartialBaselineFailEcho(receipts);
 
-  for (const text of [comment, status, failEcho]) {
+  // Rule 5 (QA9-02): the comment's report summary names the surface and SHA, so the footer does not.
+  assert.doesNotMatch(comment, new RegExp(FAILED_SURFACE));
+  assert.match(comment, /approval cannot clear the missing baseline surfaces named above/);
+  assert.doesNotMatch(comment, FALSE_RECAPTURE_CLAIM);
+  for (const text of [status, failEcho]) {
     assert.match(text, new RegExp(FAILED_SURFACE));
     assert.match(text, new RegExp(BASE_SHA));
     assert.match(text, /not a base recapture failure/i);

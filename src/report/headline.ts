@@ -90,7 +90,7 @@ export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]):
   const one = failures.length === 1;
   return [
     `⚠️ **${one ? '1 surface' : `${failures.length} surfaces`} failed to capture on the base:** ${list}. ` +
-      `The rest of the base was captured; repair ${one ? 'that surface' : 'those surfaces'} on that commit and recapture.`,
+      `The rest of the base was captured; repair ${one ? 'that surface' : 'those surfaces'} on that commit and capture ${one ? 'it' : 'them'} again.`,
   ];
 }
 
@@ -98,9 +98,11 @@ export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]):
 export function undeclaredOnBaseLines(keys: readonly string[], sha?: string): string[] {
   if (keys.length === 0) return [];
   const at = sha ? ` \`${sha.slice(0, 12)}\`` : '';
+  // The new-surface line names them; this says only why their base capture attempts do not count.
+  const n = keys.length;
   return [
-    `ℹ️ **${keys.length} base capture attempt(s) not counted as baseline failures**: \`${formatSurfaceList([...keys])}\`. ` +
-      `The base commit${at} never declared these surface(s) (the head capture spec ran against base), so they are reviewed as new surfaces.`,
+    `ℹ️ ${n === 1 ? '1 of these new surfaces was' : `${n} of these new surfaces were`} never declared on the base commit${at} ` +
+      `(the head capture spec ran against the base), so ${n === 1 ? 'its base capture attempt is' : 'their base capture attempts are'} not counted as a baseline failure.`,
   ];
 }
 
@@ -145,13 +147,13 @@ const CONSISTENCY_FAILURE = {
     explanation:
       'every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.',
     remediation:
-      '_This is **not** a clean no-change and **not** a visual-approval gate, so StyleProof cannot certify it: fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands. The base capture itself ran._',
+      '_This is not a clean no-change, so StyleProof cannot certify it: fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands._',
   },
   presentation_collapsed_while_raw_reviewable: {
     explanation:
       'report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.',
     remediation:
-      '_This is **not** a clean no-change and cannot be approved visually, so StyleProof cannot certify it: inspect the raw path churn or tighten the correspondence signal before trusting this comparison. The base capture itself ran._',
+      '_This is not a clean no-change, so StyleProof cannot certify it: inspect the raw path churn or tighten the correspondence signal before trusting this comparison._',
   },
 } as const;
 
@@ -181,16 +183,8 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   if (input.baseline.surfaceFailures.length > 0) {
     return [...baselineFailureSummaryLines(input.baseline.failures)];
   }
-  if (input.headOnlyVolatile?.length) {
-    return [
-      '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below), so StyleProof cannot certify this compare; not a clean no-change.',
-    ];
-  }
-  if (input.baseOnlyVolatile?.length) {
-    return [
-      '⚠ Review required — a subtree volatile on the base settled on head and was excluded from the comparison (see below). Not a clean no-change; approve once the head rendering there is reviewed.',
-    ];
-  }
+  // A volatile subtree's own block (below the summary) says what happened and what to do: once.
+  if (input.headOnlyVolatile?.length || input.baseOnlyVolatile?.length) return [];
   if (input.liveTextFreezeViolated) {
     return [
       '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared, so StyleProof cannot certify this compare; not a style review.',
@@ -206,9 +200,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
 export function reachGateLine(blocking: number, hasChanges: boolean): string {
   return (
     `✗ **Reach gate** — ${blocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). ` +
-    (hasChanges
-      ? 'They hold the check: certify mode fails; review-gate mode needs approval.'
-      : 'Not a clean no-change: certify mode fails; review-gate mode needs approval.')
+    (hasChanges ? 'They hold the check.' : 'Not a clean no-change: they hold the check.')
   );
 }
 
@@ -246,54 +238,56 @@ function summaryLines(input: HeadlineInput): string[] {
   const md = [
     verdictToReview(input.sectionCount + missing.length, changeGroups.length ? input.scope : ''),
     '',
-    ...baselineFailureSummaryLines(baseline.failures),
-    ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
-    ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
+    // Each statement its own paragraph, so report.html never runs two together.
+    ...[
+      baselineFailureSummaryLines(baseline.failures),
+      missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
+      undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
+    ].flatMap((lines) => (lines.length ? [...lines.filter((l, i) => l || i < lines.length - 1), ''] : [])),
   ];
   while (md[md.length - 1] === '') md.pop();
   return md;
 }
 
+/** One block per side of one-sided volatility: the lead line, then up to 20 regions, then the overflow count. */
+function oneSidedVolatileLines(regions: NonNullable<HeadlineInput['headOnlyVolatile']>, lead: string): string[] {
+  if (regions.length === 0) return [];
+  return [
+    '',
+    lead,
+    ...regions.slice(0, 20).map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`),
+    ...(regions.length > 20 ? [`- … and ${regions.length - 20} more (full list in report.json)`] : []),
+  ];
+}
+
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
   const md = summaryLines(input);
-  if (input.volatileCount > 0) {
-    const candidates = input.liveCandidateLabels.length
-      ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
-      : '';
+  // Regions volatile on one side only are named in their own block below; count only the others.
+  const live = input.volatileCount - (input.headOnlyVolatile?.length ?? 0) - (input.baseOnlyVolatile?.length ?? 0);
+  const candidates = input.liveCandidateLabels.length
+    ? `Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
+    : '';
+  if (live > 0) {
     md.push(
       '',
-      `_${input.volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates}_`,
+      `_${live} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates ? ` ${candidates}` : ''}_`,
     );
-  }
+  } else if (candidates && input.volatileCount > 0) md.push('', `_${candidates}_`);
   const headOnly = input.headOnlyVolatile ?? [];
-  if (headOnly.length > 0) {
-    md.push(
-      '',
+  md.push(
+    ...oneSidedVolatileLines(
+      headOnly,
       `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-    );
-    headOnly
-      .slice(0, 20)
-      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
-      .forEach((appended) => md.push(appended));
-    (headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []).forEach(
-      (appended) => md.push(appended),
-    );
-  }
+    ),
+  );
   const baseOnly = input.baseOnlyVolatile ?? [];
-  if (baseOnly.length > 0) {
-    md.push(
-      '',
-      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
-    );
-    baseOnly
-      .slice(0, 20)
-      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
-      .forEach((appended) => md.push(appended));
-    (baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []).forEach(
-      (appended) => md.push(appended),
-    );
-  }
+  md.push(
+    ...oneSidedVolatileLines(
+      baseOnly,
+      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there, or fixture the base-side churn so the next baseline compares it.`,
+    ),
+  );
   // A structure-only report leads with the visible-structure line; the notes below never repeat it.
   return [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
 }
@@ -316,11 +310,9 @@ function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[]
 /** The advisory content count; visible additions/removals were already named above. */
 function contentCountLines(input: HeadlineInput): string[] {
   if (input.contentCount <= 0 || (input.changeGroups.length === 0 && input.missing.length === 0)) return [];
-  const note =
-    (input.elevatedVisibleStructure ?? 0) > 0
-      ? `📝 _${input.contentCount} content/structure change(s) below; text and invisible DOM churn stay advisory._`
-      : `📝 _${input.contentCount} advisory content change(s) below — they don't affect the check._`;
-  return ['', note];
+  // The Content and structure section says what is advisory; this only points there.
+  const kind = (input.elevatedVisibleStructure ?? 0) > 0 ? 'content/structure' : 'advisory content';
+  return ['', `📝 _${input.contentCount} ${kind} change(s) below._`];
 }
 
 /** Content-layer pointers: shared chrome, visible structure elevation (said once), then the advisory count. */

@@ -1620,7 +1620,8 @@ test('end-to-end: a region volatile only on the head is named and never reads as
   ]);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
-  assert.match(md, /✗ Not certified — a subtree became volatile on head/);
+  // Rule 5 (QA9-01): the volatile block states it once and says it is not certified.
+  assert.match(md, /✗ \*\*1 subtree\(s\) newly volatile on head\*\*[^\n]*\*\*not certified\*\*/);
   assert.match(md, /1 subtree\(s\) newly volatile on head/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.equal(json.volatility.headOnly.length, 1);

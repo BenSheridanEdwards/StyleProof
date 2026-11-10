@@ -126,7 +126,7 @@ test('gate holds never-rendered changes without claiming a clean computed-style 
   const output = report(fixture(t, [side('h1')], [side('h2')]), { changeReach: 'gate' });
   assert.match(output.md, /✗ \*\*Reach gate\*\* — 2 changed CSS rule\(s\) or reach evidence gap\(s\)/);
   assert.doesNotMatch(output.md, /✓ No reviewable/);
-  assert.match(output.md, /✗ \*\*Reach gate\*\*[^\n]*certify mode fails; review-gate mode needs approval/);
+  assert.match(output.md, /✗ \*\*Reach gate\*\*[^\n]*Not a clean no-change: they hold the check\./);
   // QA3-01: what the gate holds and what it does not is said once, in the section.
   assert.ok(output.md.includes("**Not checked** (not held by `changeReach: 'gate'`)"));
   assert.equal(output.json.reach.level, 'gate');
@@ -717,7 +717,7 @@ test('reach gate headline and CLI lines name matched rules and the current secti
   const output = report(dirs, { changeReach: 'gate' });
   assert.ok(
     output.md.includes(
-      '✗ **Reach gate** — 1 changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails; review-gate mode needs approval.',
+      '✗ **Reach gate** — 1 changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: they hold the check.',
     ),
   );
   stampCertifyingFixture(dirs.beforeDir, fixtureCommitSha('base'));

@@ -2,52 +2,20 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { generateStructuralStyleMapReportForTesting, generateStyleMapReport } from '../dist/report.js';
+import { reportHeadline } from '../dist/report/headline.js';
+import { criticalObligationLines } from '../dist/report/certification.js';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
-import { runActionComment } from './action-comment-harness.mjs';
+import { commentStepExpressions, runActionComment } from './action-comment-harness.mjs';
+import { commentProblems, countProblems, htmlText, reportProblems, visibleMd } from './rule5-detector.mjs';
 
-// Ben's report rule 5, checked across every report shape the headline and section builders
-// produce (QA7/QA8): report.md, report.html and the Action's real PR comment, in review-gate
-// and certify mode. The shape list follows the branches of reportHeadline / summaryLines /
-// noChangedSurfaceSummary / contentNoteLines / reachHeadlineLines / productStateWarningLines
-// and the one-sided, change-section, content-layer and global-chrome section builders.
-
-const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const TRUST_STATES = [...fs.readFileSync(path.join(root, 'src/verdict.ts'), 'utf8').matchAll(/\| '([A-Z_]+)'/g)].map(
-  (m) => m[1],
-);
-const CODES = new RegExp(
-  [
-    ...TRUST_STATES,
-    'REPORT_PUBLICATION_FAILED',
-    'capture_failed',
-    'base-capture-failed',
-    '\\bJ2\\b',
-    '\\bJ3\\b',
-    'Reach (?:in)?complete',
-    'warn-only',
-    'scriptReach',
-    'run-level gap',
-    'Product-state identity unproven',
-  ].join('|'),
-);
-
-// Facts that must be stated at most once per output.
-const FACTS = {
-  'visible addition/removal': /visible element/gi,
-  'approve with the other changes': /with the other changes/gi,
-  'not a base recapture failure': /recapture failure|failed base recapture/gi,
-  'first adoption': /first[- ]adoption/gi,
-  'removal acceptance': /disappearance/gi,
-  'cannot certify': /cannot certify/gi,
-  'Reach gate': /Reach gate/g,
-  'reach could not check': /could not check every changed CSS rule/gi,
-  'gates the check': /\bgates? the check\b/gi,
-  'global chrome change': /global chrome element/gi,
-  'baseline capture failed': /capture failed|failed on the base/gi,
-};
+// Ben's report rule 5 across every report shape and every Action input the PR comment reads.
+// The detector (test/rule5-detector.mjs) knows no report phrases: it finds repeated statements
+// by shared normalised token runs, identifiers listed twice, internal codes, approval talk in
+// report text, and comment pointers at content the comment lacks. Shapes follow the branches of
+// reportHeadline / summaryLines / noChangedSurfaceSummary / contentNoteLines / reachHeadlineLines /
+// productStateWarningLines / criticalObligationLines and the section builders.
 
 const BLACK = 'rgb(0, 0, 0)';
 const RED = 'rgb(200, 30, 30)';
@@ -106,55 +74,73 @@ function reorder(order) {
   });
   return makeMap({ elements });
 }
-const reviewable = () => 'STYLE_REVIEW_REQUIRED';
-const certifyFails = (mode) => (mode === 'certify' ? 'CERTIFICATION_FAILED' : 'STYLE_REVIEW_REQUIRED');
+const fails = (n) =>
+  Array.from({ length: n }, (_, i) => ({ key: `p${i}@1280`, reason: 'timeout on base', kind: 'capture' }));
+const heads = (n) =>
+  Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i}@1280`, page({ 'body > p': para })]));
+const PLAIN = { 'home@1280': page({ 'body > p': para }) };
+const STYLED = (color) => ({ 'home@1280': page({ 'body > h1': title(color), 'body > p': para }) });
 
-/** name → fixture and the trust state the Action's verdict step gives it in each mode. */
+/** Trust the Action's verdict step gives a reviewable shape: certify's gate fails it. */
+const reviewable = (inputs) => (inputs.certifyGate ? 'CERTIFICATION_FAILED' : 'STYLE_REVIEW_REQUIRED');
+const always = (state) => () => state;
+
 const SHAPES = {
   'empty (no changes)': {
-    expect: /✓ No reviewable computed-style changes/,
-    before: { 'home@1280': page({ 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }) },
-    trust: () => 'NO_REVIEWABLE_STYLE_CHANGES',
+    before: PLAIN,
+    after: PLAIN,
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
+    expect: /No reviewable computed-style changes/,
   },
   'style changes only': {
-    expect: /\*\*1 change to review\*\*/,
-    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para }) },
+    before: STYLED(BLACK),
+    after: STYLED(RED),
     trust: reviewable,
+    expect: /\*\*1 change to review\*\*/,
   },
   'structure only (one element)': {
-    expect: /1 visible element was added or removed/,
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }) },
+    after: PLAIN,
     trust: reviewable,
+    expect: /1 visible element was added or removed/,
   },
   'structure only (two elements)': {
-    expect: /2 visible elements were added or removed/,
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > div.promo2': promo2, 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }) },
+    after: PLAIN,
     trust: reviewable,
+    expect: /2 visible elements were added or removed/,
   },
   'style + structure': {
-    expect: /1 visible element was added or removed/,
     before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para }) },
+    after: STYLED(RED),
     trust: reviewable,
+    expect: /1 visible element was added or removed/,
   },
   'new surface': {
-    expect: /1 new surface/,
-    before: { 'home@1280': page({ 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }), 'pricing@1280': page({ 'body > p': para }) },
+    before: PLAIN,
+    after: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
     trust: reviewable,
+    expect: /1 new surface/,
   },
   'removed surface': {
-    expect: /1 removed surface/,
-    before: { 'home@1280': page({ 'body > p': para }), 'pricing@1280': page({ 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }) },
+    before: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
+    after: PLAIN,
     trust: reviewable,
+    expect: /1 removed surface/,
+  },
+  'new + removed surfaces': {
+    before: { ...PLAIN, 'old@1280': page({ 'body > p': para }) },
+    after: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
+    trust: reviewable,
+    expect: /1 removed surface/,
+  },
+  'removed surface + style': {
+    before: { ...STYLED(BLACK), 'pricing@1280': page({ 'body > p': para }) },
+    after: STYLED(RED),
+    trust: reviewable,
+    expect: /1 removed surface/,
   },
   'style + structure + new surface': {
-    expect: /1 new surface/,
     before: {
       'home@1280': page({
         'body > h1': title(BLACK),
@@ -163,52 +149,67 @@ const SHAPES = {
         'body > p': para,
       }),
     },
-    after: {
-      'home@1280': page({ 'body > h1': title(RED), 'body > p': para }),
-      'pricing@1280': page({ 'body > p': para }),
-    },
+    after: { ...STYLED(RED), 'pricing@1280': page({ 'body > p': para }) },
     trust: reviewable,
+    expect: /1 new surface/,
   },
-  'base capture failed (named)': {
-    expect: /failed to capture on the base/,
-    failures: [{ key: 'pricing@1280', reason: 'timeout on base', kind: 'capture' }],
-    before: { 'home@1280': page({ 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }), 'pricing@1280': page({ 'body > p': para }) },
-    trust: () => 'PARTIAL_BASELINE',
+  'base capture failed (one surface)': {
+    failures: fails(1),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(1) },
+    trust: always('PARTIAL_BASELINE'),
+    expect: /1 surface failed to capture on the base/,
+  },
+  'base capture failed (two surfaces)': {
+    failures: fails(2),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(2) },
+    trust: always('PARTIAL_BASELINE'),
+    expect: /2 surfaces failed to capture on the base/,
+  },
+  'base capture failed (twelve surfaces, over the naming cap)': {
+    failures: fails(12),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(12) },
+    trust: always('PARTIAL_BASELINE'),
+    expect: /12 surfaces failed to capture on the base[\s\S]*and 2 more/,
   },
   'base capture failed + style': {
-    expect: /failed to capture on the base/,
-    failures: [{ key: 'pricing@1280', reason: 'timeout on base', kind: 'capture' }],
-    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }) },
-    after: {
-      'home@1280': page({ 'body > h1': title(RED), 'body > p': para }),
-      'pricing@1280': page({ 'body > p': para }),
-    },
-    trust: () => 'PARTIAL_BASELINE',
+    failures: fails(1),
+    before: STYLED(BLACK),
+    after: { ...STYLED(RED), ...heads(1) },
+    trust: always('PARTIAL_BASELINE'),
+    expect: /1 surface failed to capture on the base/,
+  },
+  'base capture failed + new surface': {
+    failures: fails(1),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(1), 'pricing@1280': page({ 'body > p': para }) },
+    trust: always('PARTIAL_BASELINE'),
+    expect: /1 new surface/,
   },
   'product-state blocked (structure)': {
-    expect: /This compare cannot certify/,
     opts: { requireStateIdentity: true },
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > p': para }) },
-    trust: () => 'CERTIFICATION_FAILED',
+    after: PLAIN,
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /This compare cannot certify/,
   },
   'product-state blocked (style + structure)': {
-    expect: /This compare cannot certify/,
     opts: { requireStateIdentity: true },
     before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para }) },
-    trust: () => 'CERTIFICATION_FAILED',
+    after: STYLED(RED),
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /This compare cannot certify/,
   },
   'reach gate holding, no style change': {
-    expect: /Reach gate/,
     opts: { changeReach: 'gate' },
     before: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h1')])) },
     after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
-    trust: certifyFails,
+    trust: reviewable,
+    expect: /Reach gate/,
   },
   'reach gate holding, with style changes': {
-    expect: /Reach gate/,
     opts: { changeReach: 'gate' },
     before: {
       'home@1280': page(
@@ -222,11 +223,27 @@ const SHAPES = {
         reach([rule('.title', 'h2', { used: true }), rule('.unopened', 'h2')]),
       ),
     },
-    trust: certifyFails,
+    trust: reviewable,
+    expect: /Reach gate/,
+  },
+  'reach gate holding, with structure': {
+    opts: { changeReach: 'gate' },
+    before: { 'home@1280': page({ 'body > p': para, 'body > div.promo': promo }, reach([rule('.unopened', 'h1')])) },
+    after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
+    trust: reviewable,
+    expect: /Reach gate/,
+  },
+  'reach gate holding only a missing served-CSS record': {
+    opts: { changeReach: 'gate' },
+    before: STYLED(BLACK),
+    after: {
+      'home@1280': page({ 'body > h1': title(RED), 'body > p': para }, reach([rule('.title', 'h2', { used: true })])),
+    },
+    trust: reviewable,
+    expect: /Reach gate/,
   },
   'warn-level reach gaps (one side has no served-CSS record)': {
-    expect: /could not check every changed CSS rule/,
-    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }) },
+    before: STYLED(BLACK),
     after: {
       'home@1280': page(
         { 'body > h1': title(RED), 'body > p': para },
@@ -234,33 +251,25 @@ const SHAPES = {
       ),
     },
     trust: reviewable,
+    expect: /could not check every changed CSS rule/,
   },
   'warn-level reach: never matched + unmeasured': {
-    expect: /never matched on a captured page/,
     before: {
       'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h1'), rule('.ignored', 'h1', { outside: true })])),
     },
     after: {
       'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h2'), rule('.ignored', 'h2', { outside: true })])),
     },
-    trust: () => 'NO_REVIEWABLE_STYLE_CHANGES',
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
+    expect: /never matched on a captured page/,
   },
-  'global chrome, --include-content on': {
-    expect: /## 🧱 Global chrome/,
-    opts: { includeContent: true },
+  'global chrome': {
     before: chromeSurfaces(false),
     after: chromeSurfaces(true),
     trust: reviewable,
-  },
-  'global chrome, --include-content off': {
     expect: /visible element was added or removed/,
-    before: chromeSurfaces(false),
-    after: chromeSurfaces(true),
-    trust: reviewable,
   },
-  'style + structure + text, --include-content on': {
-    expect: /## 📝 Content and structure changes/,
-    opts: { includeContent: true },
+  'style + structure + text': {
     before: {
       'home@1280': page({
         'body > h1': title(BLACK),
@@ -270,49 +279,149 @@ const SHAPES = {
     },
     after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': { ...para, text: 'New text' } }) },
     trust: reviewable,
+    expect: /visible element was added or removed/,
   },
-  'style + structure + text, --include-content off': {
-    expect: /Content\/structure was not evaluated|visible element/,
-    before: {
-      'home@1280': page({
-        'body > h1': title(BLACK),
-        'body > div.promo': promo,
-        'body > p': { ...para, text: 'Old text' },
-      }),
-    },
+  'text + style (no structure)': {
+    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': { ...para, text: 'Old text' } }) },
     after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': { ...para, text: 'New text' } }) },
     trust: reviewable,
+    expect: /\*\*1 change to review\*\*/,
+  },
+  'text only': {
+    before: { 'home@1280': page({ 'body > p': { ...para, text: 'Old text' } }) },
+    after: { 'home@1280': page({ 'body > p': { ...para, text: 'New text' } }) },
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
+    expect: /No reviewable computed-style changes/,
   },
   'head-only volatile subtree': {
-    expect: /newly volatile on head/,
-    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para }, { volatile: ['body > h1'] }) },
-    trust: () => 'CERTIFICATION_FAILED',
+    before: STYLED(BLACK),
+    after: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }, { volatile: ['body > h1'] }) },
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /volatile on head/,
+  },
+  'head-only volatile subtree + style': {
+    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }) },
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(RED), 'body > div.promo': promo, 'body > p': para },
+        { volatile: ['body > div.promo'] },
+      ),
+    },
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /volatile on head/,
+  },
+  'base-only volatile subtree': {
+    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }, { volatile: ['body > h1'] }) },
+    after: STYLED(BLACK),
+    trust: reviewable,
+    expect: /volatile on the base/,
+  },
+  'base-only volatile subtree + style': {
+    before: {
+      'home@1280': page(
+        { 'body > h1': title(BLACK), 'body > p': para, 'body > div.promo': promo },
+        { volatile: ['body > div.promo'] },
+      ),
+    },
+    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para, 'body > div.promo': promo }) },
+    trust: reviewable,
+    expect: /volatile on the base/,
+  },
+  'volatile on both sides + style (live region)': {
+    before: {
+      'home@1280': page(
+        { 'body > h1': title(BLACK), 'body > p': para, 'body > div.promo': promo },
+        { volatile: ['body > div.promo'] },
+      ),
+    },
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(RED), 'body > p': para, 'body > div.promo': promo },
+        { volatile: ['body > div.promo'] },
+      ),
+    },
+    trust: reviewable,
+    expect: /live region/,
   },
   'report consistency failure (correspondence collapsed every finding)': {
-    expect: /Report consistency failure/,
-    // Report-only path correspondence is on in the structural generator (the CLI path aligns this).
     structural: true,
     before: { 's@400': reorder(['button', 'label']) },
     after: { 's@400': reorder(['label', 'button']) },
-    trust: () => 'CERTIFICATION_FAILED',
-  },
-  'migration mode (style changes)': {
-    expect: /[Mm]igration/,
-    opts: { migration: true },
-    modes: ['migration'],
-    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': para }) },
-    after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': para }) },
-    trust: reviewable,
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /Report consistency failure/,
   },
   'live-text freeze violated': {
-    expect: /Live\/age freeze violated/,
-    opts: { includeContent: true },
     before: { 'dashboard@1280': age('open 102.1d', 96) },
     after: { 'dashboard@1280': age('open 103.1d', 104) },
-    trust: () => 'CERTIFICATION_FAILED',
+    trust: always('CERTIFICATION_FAILED'),
+    expect: /Live\/age freeze violated/,
+  },
+  'data residue unacknowledged (trust state)': {
+    before: STYLED(BLACK),
+    after: STYLED(RED),
+    trust: always('DATA_RESIDUE_UNACKNOWLEDGED'),
+    expect: /change to review/,
+  },
+  'navigation removal unacknowledged (trust state)': {
+    before: STYLED(BLACK),
+    after: STYLED(RED),
+    trust: always('INVENTORY_REMOVAL_UNACKNOWLEDGED'),
+    expect: /change to review/,
+  },
+  'base capture failed entirely (degraded baseline)': {
+    before: PLAIN,
+    after: PLAIN,
+    trust: always('DEGRADED_BASELINE'),
+    action: { baseCaptureFailed: true, changed: true },
+    expect: /No reviewable computed-style changes/,
   },
 };
+
+/** Action inputs the comment step reads, from action.yml; each varies here or is pinned with a reason. */
+const MODES = [
+  { label: 'review-gate', mode: 'review-gate', requireApproval: true, failOnDiff: false },
+  { label: 'certify + fail-on-diff', mode: 'certify', requireApproval: false, failOnDiff: true },
+  { label: 'certify without fail-on-diff', mode: 'certify', requireApproval: false, failOnDiff: false },
+  { label: 'certify + require-approval', mode: 'certify', requireApproval: true, failOnDiff: true },
+  { label: 'migration', mode: 'migration', requireApproval: false, failOnDiff: false },
+  { label: 'advisory', mode: 'advisory', requireApproval: false, failOnDiff: false, blocking: 'advisory' },
+];
+const STORAGE = ['branch', 'artifact'];
+const VISIBILITY = [false, true];
+const UNTRUSTED = [false, true];
+const PINNED = {
+  'github.run_attempt': 'run receipt, not copy',
+  'github.run_id': 'run receipt, not copy',
+  'inputs.github-token': 'credential, never rendered',
+  'inputs.report-retention-days': 'one artifact expiry line; its value does not change wording',
+  'inputs.status-context': 'a name interpolated into the footer',
+  'steps.context.outputs.head-sha': 'receipt marker',
+  'steps.context.outputs.pr-number': 'link path',
+  'steps.delivery.outputs.upload': 'a skipped upload posts no report content',
+  'steps.publish.outputs.sha': 'link path',
+  'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': 'link path (follows storage)',
+  'steps.report-artifact.outputs.artifact-digest': 'receipt marker',
+  'steps.verdict.outputs.diff-digest': 'receipt marker',
+  'toJSON(inputs.comment-marker)': 'hidden marker',
+};
+const VARIED = [
+  'inputs.base-capture-failed',
+  "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'",
+  'inputs.include-content',
+  'inputs.mode',
+  'inputs.report-storage',
+  'inputs.require-approval',
+  'steps.config.outputs.blocking',
+  'steps.context.outputs.untrusted-capture',
+  'steps.diff.outputs.changed',
+  'steps.report.outputs.content-changes',
+  'steps.verdict.outputs.state',
+];
+
+test('the matrix varies or pins every input the comment step reads', () => {
+  const unaccounted = commentStepExpressions().filter((e) => !VARIED.includes(e) && !(e in PINNED));
+  assert.deepEqual(unaccounted, []);
+});
 
 function manifest(dir, sha, failures) {
   fs.writeFileSync(
@@ -336,166 +445,141 @@ function manifest(dir, sha, failures) {
   );
 }
 
-const visibleMd = (md) =>
-  md
-    .split('\n')
-    .filter((line) => !line.startsWith('<!-- '))
-    .join('\n');
-const htmlText = (html) =>
-  html
-    .replace(/data:[^"')\s]+/g, '')
-    .replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<nav class="toc"[\s\S]*?<\/nav>/g, '')
-    // Inline tags join their text; block tags end a line.
-    .replace(/<\/?(?:strong|code|em|a|span|i|b|sub|small)\b[^>]*>/g, '')
-    .replace(/<[^>]+>/g, '\n')
-    .replace(/&amp;/g, '&')
-    .replace(/[ \t]+/g, ' ');
-const commentText = (body) =>
-  body
-    .split('\n')
-    .filter((line) => !line.startsWith('<!-- '))
-    .join('\n');
-
-/** Sentences and clauses, numbers folded, tables and short labels skipped. */
-function clauses(text) {
-  return text
-    .split('\n')
-    .filter((line) => !/^\s*\|/.test(line))
-    .join('\n')
-    .split(/(?<=[.;:!?])\s+|\n| — /)
-    .map((c) => c.replace(/[`*_]/g, '').replace(/\d+/g, 'N').replace(/\s+/g, ' ').trim().toLowerCase())
-    .filter((c) => c.length > 25);
-}
-
-function problems(name, text, { approvalBox }) {
-  const out = [];
-  for (const [fact, re] of Object.entries(FACTS)) {
-    const n = text.match(re)?.length ?? 0;
-    if (n > 1) out.push(`${name}: "${fact}" said ${n} times`);
-  }
-  const seen = new Map();
-  for (const c of clauses(text)) seen.set(c, (seen.get(c) ?? 0) + 1);
-  for (const [c, n] of seen) if (n > 1) out.push(`${name}: clause repeated ${n}×: "${c.slice(0, 100)}"`);
-  const code = text.match(CODES);
-  if (code) out.push(`${name}: internal code ${code[0]}`);
-  const approveLines = text
-    .split('\n')
-    .filter((line) => /\bapprov(?:e|ing)\b/i.test(line) && !/cannot|can't|never/i.test(line));
-  const allowed = approvalBox ? approveLines.filter((line) => !/Approve all changes/.test(line)) : approveLines;
-  if (!approvalBox && allowed.length)
-    out.push(`${name}: says approve with no approval box: "${allowed[0].slice(0, 120)}"`);
-  if (approvalBox && allowed.length)
-    out.push(`${name}: report text tells the reader to approve: "${allowed[0].slice(0, 120)}"`);
-  return out;
-}
-
-/** The comment must not point at content it does not carry. */
-function danglingReferences(comment) {
-  const out = [];
-  if (/\bbelow\b/i.test(comment))
-    out.push(`comment: says "below": "${comment.match(/[^\n]*\bbelow\b[^\n]*/i)[0].slice(0, 120)}"`);
-  for (const [, heading] of comment.matchAll(/\b(?:see|under) \*\*([^*]+)\*\*/gi)) {
-    if (!new RegExp(`^#{2,3} .*${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'm').test(comment)) {
-      out.push(`comment: refers to "${heading}", which the comment does not carry`);
+function generate(dir, spec, { includeContent, migration }) {
+  for (const [side, captures] of [
+    ['before', spec.before],
+    ['after', spec.after],
+  ]) {
+    const sideDir = path.join(dir, side);
+    if (fs.existsSync(sideDir)) continue;
+    fs.mkdirSync(sideDir, { recursive: true });
+    for (const [key, capture] of Object.entries(captures)) writeCapture(sideDir, key, capture, solidPng(1280, 400));
+    if (spec.failures) {
+      manifest(sideDir, side === 'before' ? 'b'.repeat(40) : 'c'.repeat(40), side === 'before' ? spec.failures : []);
     }
   }
-  // The report part of the comment (before the link) carries no horizontal rule of its own.
-  if (/^---$/m.test(comment)) out.push('comment: a stray --- rule above the report link');
-  return out;
-}
-
-/** The summary line's counts against report.json. */
-function countProblems(md, json) {
-  const out0 = [];
-  // QA8-04: with a served-CSS record missing, no output (report.json included) claims zero changed rules.
-  if (
-    (json.reach?.gaps ?? []).some((gap) => gap.kind === 'ledger') &&
-    (json.reach.counts || json.reach.rules?.length === 0)
-  ) {
-    out0.push('report.json claims rule counts though a served-CSS record is missing');
-  }
-  if (/\b0 changed CSS rules?\b/.test(md) && (json.reach?.gaps ?? []).some((gap) => gap.kind === 'ledger')) {
-    out0.push('summary claims 0 changed CSS rules though a served-CSS record is missing');
-  }
-  return [...out0, ...countLineProblems(md, json)];
-}
-
-function countLineProblems(md, json) {
-  const line = visibleMd(md).match(
-    /\*\*(\d+) changes? to review\*\*(?:[^\n]*?: (\d+) elements?(?:, (\d+) changed CSS rules?)?)?/,
-  );
-  if (!line) return [];
-  const out = [];
-  const sections = (json.surfaces ?? []).reduce((n, s) => n + (s.regions ? Math.max(1, s.regions.length) : 1), 0);
-  if (Number(line[1]) !== sections) out.push(`summary says ${line[1]} changes, report.json has ${sections}`);
-  if (line[2] !== undefined) {
-    const elements = (json.surfaces ?? [])
-      .flatMap((s) => s.regions ?? [])
-      .reduce((n, r) => n + r.paths.filter((p) => p !== '(surface)').length, 0);
-    if (Number(line[2]) !== elements) out.push(`summary says ${line[2]} elements, report.json has ${elements}`);
-  }
-  if (line[3] !== undefined) {
-    const ledgerGap = (json.reach?.gaps ?? []).some((gap) => gap.kind === 'ledger');
-    if (ledgerGap) out.push(`summary counts ${line[3]} changed CSS rules though a served-CSS record is missing`);
-    else if (Number(line[3]) !== json.reach.rules.length)
-      out.push(`summary says ${line[3]} rules, report.json has ${json.reach.rules.length}`);
-  }
-  return out;
+  const outDir = path.join(dir, `report-${includeContent ? 'content' : 'plain'}${migration ? '-migration' : ''}`);
+  const result = (spec.structural ? generateStructuralStyleMapReportForTesting : generateStyleMapReport)({
+    beforeDir: path.join(dir, 'before'),
+    afterDir: path.join(dir, 'after'),
+    outDir,
+    ...(includeContent ? { includeContent: true } : {}),
+    ...(migration ? { migration: true } : {}),
+    ...(spec.opts ?? {}),
+  });
+  return { outDir, contentChanges: result.contentChanges ?? 0 };
 }
 
 for (const [shape, spec] of Object.entries(SHAPES)) {
   test(`rule 5 holds for: ${shape}`, async (t) => {
     const dir = mkTmp('styleproof-rule5-');
     t.after(() => rmTmp(dir));
-    for (const [side, captures] of [
-      ['before', spec.before],
-      ['after', spec.after],
-    ]) {
-      const sideDir = path.join(dir, side);
-      fs.mkdirSync(sideDir, { recursive: true });
-      for (const [key, capture] of Object.entries(captures)) writeCapture(sideDir, key, capture, solidPng(1280, 400));
-      if (spec.failures)
-        manifest(sideDir, side === 'before' ? 'b'.repeat(40) : 'c'.repeat(40), side === 'before' ? spec.failures : []);
-    }
-    const outDir = path.join(dir, 'report');
-    (spec.structural ? generateStructuralStyleMapReportForTesting : generateStyleMapReport)({
-      beforeDir: path.join(dir, 'before'),
-      afterDir: path.join(dir, 'after'),
-      outDir,
-      ...(spec.opts ?? {}),
-    });
-    const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
-    const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
-    const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
-    assert.match(visibleMd(md), spec.expect, `${shape}: the fixture reaches its branch`);
-    const found = [
-      ...problems('report.md', visibleMd(md), { approvalBox: false }),
-      ...problems('report.html', htmlText(html), { approvalBox: false }),
-      ...countProblems(md, json),
-    ];
-    for (const mode of spec.modes ?? ['review-gate', 'certify']) {
-      const body = await runActionComment({ reportDir: outDir, mode, trustState: spec.trust(mode) });
-      const approvalBox = body.includes('- [ ] **Approve all changes**');
-      // The whole comment (summary and footer) states each fact once; only the footer may
-      // say "Approve", and only next to the box. The Action's own box line is not report text.
-      const whole = commentText(body).replace(/^\s*- \[[ xX]\] \*\*Approve all changes\*\*.*$/m, '');
-      const [report, footer = ''] = whole.split('\n### 📊');
-      found.push(
-        ...problems(`comment (${mode})`, whole, { approvalBox: true }).filter((p) => !p.includes('tells the reader')),
-        ...problems(`comment report part (${mode})`, report, { approvalBox: false }).filter((p) =>
-          p.includes('approve'),
-        ),
-        ...danglingReferences(report).map((p) => `${p} (${mode})`),
-      );
-      if (!approvalBox && /\bapprov(?:e|ing)\b/i.test(footer.replace(/[^\n]*(?:cannot|can't|never)[^\n]*/gi, ''))) {
-        found.push(`comment (${mode}): footer says approve with no box`);
+    const found = new Set();
+    for (const includeContent of [false, true]) {
+      for (const migration of [false, true]) {
+        const { outDir, contentChanges } = generate(dir, spec, { includeContent, migration });
+        const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+        const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+        const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
+        const variant = `${includeContent ? 'content on' : 'content off'}${migration ? ', migration' : ''}`;
+        if (!includeContent && !migration)
+          assert.match(visibleMd(md), spec.expect, `${shape}: the fixture reaches its branch`);
+        const reportFound = [
+          ...reportProblems('report.md', visibleMd(md)),
+          ...reportProblems('report.html', htmlText(html)),
+          ...countProblems(md, json),
+        ];
+        for (const p of reportFound) found.add(`${p} [${variant}]`);
+        for (const inputs of MODES.filter((m) => (m.mode === 'migration') === migration)) {
+          for (const storage of STORAGE) {
+            for (const repositoryPrivate of VISIBILITY) {
+              for (const untrusted of UNTRUSTED) {
+                const certifyGate = inputs.mode === 'certify' && inputs.failOnDiff && !inputs.requireApproval;
+                const comment = await runActionComment({
+                  reportDir: outDir,
+                  ...inputs,
+                  trustState: spec.trust({ certifyGate }),
+                  storage,
+                  repositoryPrivate,
+                  untrusted,
+                  includeContent,
+                  contentChanges,
+                  ...(spec.action ?? {}),
+                });
+                const label = `${inputs.label}, ${storage}, ${repositoryPrivate ? 'private' : 'public'}${untrusted ? ', fork' : ''}, ${variant}`;
+                for (const p of commentProblems('comment', comment)) found.add(`${p} [${label}]`);
+              }
+            }
+          }
+        }
       }
-      // The footer alone may tell the reader to approve, and only with a box to tick.
-      if (!approvalBox && /Tick \*\*Approve all changes\*\*/.test(body))
-        found.push(`comment (${mode}): approve guidance with no box`);
     }
+    // One line per distinct problem (inputs folded), so a failure stays readable.
+    const distinct = [...new Set([...found].map((p) => p.replace(/ \[[^\]]*\]$/, '')))];
+    assert.deepEqual(
+      distinct,
+      [],
+      `${shape}:\n${distinct.slice(0, 40).join('\n')}\n\nfirst inputs: ${[...found][0] ?? ''}`,
+    );
+  });
+}
+
+// Branches whose fixtures need a git checkout or capture-time audits: rendered from their
+// headline/certification inputs and checked by the same detector.
+const baseInput = (overrides = {}) => ({
+  changeGroups: [],
+  missing: [],
+  sectionCount: 0,
+  scope: '',
+  volatileCount: 0,
+  liveCandidateLabels: [],
+  contentCount: 0,
+  elevatedStructureDom: 0,
+  contentEvaluated: false,
+  reportConsistency: { ok: true, reason: 'aligned' },
+  baseline: { surfaceFailures: [], failures: [], undeclaredOnBase: [] },
+  confidenceBlocked: false,
+  comparisonBlocked: false,
+  reachBlocking: 0,
+  ...overrides,
+});
+const newSurface = (key) => ({ sd: { surface: key, missing: 'before' } });
+const RENDERED = {
+  'base surface never declared on the base (undeclared-on-base)': () =>
+    reportHeadline(
+      baseInput({
+        missing: [newSurface('reports@1280')],
+        baseline: { surfaceFailures: [], failures: [], undeclaredOnBase: ['reports@1280'], sha: 'b'.repeat(40) },
+      }),
+    ),
+  'raw-only deltas the report cannot render (consistency failure)': () =>
+    reportHeadline(
+      baseInput({
+        reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' },
+        rawCounts: { dom: 0, style: 2, state: 1 },
+      }),
+    ),
+  'live-state candidate labels': () =>
+    reportHeadline(
+      baseInput({
+        volatileCount: 2,
+        liveCandidateLabels: ['ticker', 'clock'],
+        changeGroups: [{}],
+        sectionCount: 1,
+        scope: '.',
+      }),
+    ),
+  'critical state obligations failing': () =>
+    criticalObligationLines(
+      { armed: true, failing: ['checkout@1280'], unresolved: ['billing@1280'], contradictory: ['admin@1280'] },
+      { 'checkout@1280': { owner: 'payments', reason: 'card form' } },
+    ),
+};
+for (const [shape, render] of Object.entries(RENDERED)) {
+  test(`rule 5 holds for: ${shape}`, () => {
+    const text = render().join('\n');
+    assert.ok(text.trim(), `${shape}: renders`);
+    const found = reportProblems('report.md', text);
     assert.deepEqual(found, [], `${shape}:\n${found.join('\n')}`);
   });
 }

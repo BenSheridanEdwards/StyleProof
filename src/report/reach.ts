@@ -347,13 +347,18 @@ export function reachSectionLines(reach: ReportReach): string[] {
   return [
     '',
     '## Changed but never matched',
-    '',
-    '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet.' +
-      // Under the gate, the Reach gate line above already says these hold the check.
-      (reach.level === 'gate' ? '' : ' Reach findings do not change the verdict.') +
-      '_',
-    '',
-    ...ruleTable(never),
+    // Only when rules never matched: a gate holding only a missing record has no table to show.
+    ...(never.length
+      ? [
+          '',
+          '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet.' +
+            // Under the gate, the Reach gate line above already says these hold the check.
+            (reach.level === 'gate' ? '' : ' Reach findings do not change the verdict.') +
+            '_',
+          '',
+          ...ruleTable(never),
+        ]
+      : []),
     ...(unmeasured.length
       ? [
           '',

@@ -133,11 +133,13 @@ function partialBaselineNamed(receipts: unknown): string {
 
 const wrapActionComment = (body: string): string => `_${body}_`;
 
-/** PR-comment footer for PARTIAL_BASELINE — interpolates the receipt key+SHA. */
-export function formatPartialBaselineComment(receipts: unknown): string {
+/**
+ * PR-comment footer for PARTIAL_BASELINE. The report summary above it already names each failed
+ * surface, its commit and the fix, so the footer only says what approval cannot do (rule 5).
+ */
+export function formatPartialBaselineComment(): string {
   return wrapActionComment(
-    `${partialBaselineNamed(receipts)} failed on the listed base SHA — ${NOT_RECAPTURE}. ` +
-      `Repair those surfaces on that SHA; reviewer approval cannot clear missing baseline surfaces.`,
+    'Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun.',
   );
 }
 

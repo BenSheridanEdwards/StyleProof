@@ -433,12 +433,8 @@ function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
     r.section && sectionIds.has(r.section)
       ? `<a href="#${attr(r.section)}"><code>${escapeHtml(r.key)}</code></a>`
       : `<code>${escapeHtml(r.key)}</code>`;
-  const groups: Array<[string, string]> = [
-    ['reached', 'each matched by elements on a captured page'],
-    ['never-rendered', 'that no captured page matched'],
-    ['blind-channel', 'that computed styles cannot show'],
-    ['unmeasured', 'that could not be checked on compared elements'],
-  ];
+  // Rules reach could not match or check are stated at the top (warn lines or the gate section).
+  const groups: Array<[string, string]> = [['reached', 'each matched by elements on a captured page']];
   for (const [status, words] of groups) {
     const rules = meta.rules.filter((r) => r.status === status);
     if (!rules.length) continue;

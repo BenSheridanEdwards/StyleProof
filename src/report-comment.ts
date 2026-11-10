@@ -91,7 +91,7 @@ const RULE_LINE = /^\s*---+\s*$/;
 function pointAtFullReport(line: string): string {
   return line
     .replace(/\(see (?:below|\*\*[^*]+\*\*)\)/g, '(see the full report)')
-    .replace(/ below(?=[;.,)]|$)/g, ' in the full report');
+    .replace(/ below\b/g, ' in the full report');
 }
 
 type Block = { text: string; sep: string; section: boolean };

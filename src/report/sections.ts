@@ -41,7 +41,8 @@ const ONE_SIDED: Record<OneSidedStatus, OneSidedText> = {
   'capture-failed': {
     heading: (key) => `### \`${key}\` · baseline repair needed ⚠️`,
     alt: 'baseline repair needed',
-    note: () => `_Nothing to compare with until the base capture is repaired._`,
+    // The summary names every failed surface and the fix; the tile heading says which this is.
+    note: () => '',
   },
 };
 
@@ -139,7 +140,8 @@ function renderOneSided(
       `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
     );
   }
-  md.push('', text.note(key));
+  const note = text.note(key);
+  if (note) md.push('', note);
   return { md, json };
 }
 

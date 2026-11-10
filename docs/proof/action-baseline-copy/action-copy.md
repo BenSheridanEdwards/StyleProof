@@ -4,10 +4,13 @@ Fixture receipts from `docs/proof/honest-baseline-attribution/baseline-failures.
 `base-capture-failed=false`. Baseline surface `pricing@1280` at
 `1e0a210cd0d46de0ff9378e818d6f793fadc921c`.
 
-## PARTIAL_BASELINE — comment, status, fail echo include key+SHA
+## PARTIAL_BASELINE — status and fail echo include key+SHA
+
+The PR comment's report summary names each failed surface, its commit and the fix, so the
+comment footer does not list them again:
 
 ```
-_`pricing@1280` at `1e0a210cd0d46de0ff9378e818d6f793fadc921c` failed on the listed base SHA — this is not a base recapture failure. Repair those surfaces on that SHA; reviewer approval cannot clear missing baseline surfaces._
+_Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun._
 ```
 
 ```

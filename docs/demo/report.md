@@ -6,7 +6,7 @@
 
 🧱 **2 visible elements were added or removed** — they need review.
 
-📝 _3 content/structure change(s) below; text and invisible DOM churn stay advisory._
+📝 _3 content/structure change(s) below._
 
 ## One-sided pages, states, or surfaces — review first
 

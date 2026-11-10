@@ -1019,7 +1019,7 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   // Rule 5 (QA8-01): the failure is named once with its fix; the tile says what it means for review.
   assert.match(md, /failed to capture on the base/);
-  assert.match(md, /The rest of the base was captured; repair/);
+  assert.match(md, /The rest of the base was captured; repair[^.]*capture (?:it|them) again/);
   assert.match(md, /baseline repair needed/);
   assert.match(md, new RegExp(fixtureCommitSha('base-sha')));
   rmTmp(root);

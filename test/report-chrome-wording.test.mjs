@@ -59,7 +59,7 @@ for (const landmark of ['main', 'nav', 'header', 'footer', 'navigation']) {
       const result = generateContentReport({ beforeDir, afterDir, outDir, includeContent: true });
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
-      assert.match(md, /added or removed identically on every captured surface base/);
+      assert.match(md, /added or removed identically wherever its container renders/);
 
       if (['nav', 'header', 'footer'].includes(landmark)) {
         assert.match(md, /inside a nav, header or footer/);

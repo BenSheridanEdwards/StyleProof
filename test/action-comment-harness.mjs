@@ -10,18 +10,43 @@ const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
 const nativeRequire = createRequire(import.meta.url);
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 
+/** Every `${{ … }}` expression the comment step reads (its script and its env block). */
+export function commentStepExpressions() {
+  const step = actionYml.match(/- name: Upsert PR comment[\s\S]*?(?=\n {4}- name:)/)?.[0] ?? '';
+  return [...new Set([...step.matchAll(/\$\{\{ (.+?) \}\}/g)].map((m) => m[1]))].sort();
+}
+
 /**
- * @param {{ reportDir: string, mode: 'review-gate' | 'certify', trustState: string,
- *   repositoryPrivate?: boolean, storage?: 'branch' | 'artifact' }} options
+ * The Action inputs and step outputs the comment step reads, as the matrix varies them. Every
+ * `${{ … }}` expression in the step must have a value here (the harness throws otherwise), so a
+ * new input cannot slip past the matrix unnoticed.
+ *
+ * @param {{ reportDir: string, mode: 'review-gate' | 'certify' | 'migration' | 'advisory', trustState: string,
+ *   failOnDiff?: boolean, requireApproval?: boolean, repositoryPrivate?: boolean, storage?: 'branch' | 'artifact',
+ *   includeContent?: boolean, contentChanges?: number, baseCaptureFailed?: boolean, untrusted?: boolean,
+ *   blocking?: 'true' | 'false' | 'advisory', changed?: boolean }} options
  */
-export async function runActionComment({ reportDir, mode, trustState, repositoryPrivate = false, storage = 'branch' }) {
+export async function runActionComment({
+  reportDir,
+  mode,
+  trustState,
+  failOnDiff = mode === 'certify',
+  requireApproval = mode === 'review-gate',
+  repositoryPrivate = false,
+  storage = 'branch',
+  includeContent = false,
+  contentChanges = 0,
+  baseCaptureFailed = false,
+  untrusted = false,
+  blocking = 'true',
+  changed = trustState !== 'NO_REVIEWABLE_STYLE_CHANGES',
+}) {
   const repository = { owner: 'BenSheridanEdwards', repo: 'StyleProof' };
   const sha = 'a'.repeat(40);
   const url =
     storage === 'branch'
       ? `https://github.com/${repository.owner}/${repository.repo}/blob/${sha}/pr-42/report.md`
       : `https://github.com/${repository.owner}/${repository.repo}/actions/runs/9001/artifacts/4451`;
-  const certify = mode === 'certify';
   const values = new Map([
     ['steps.context.outputs.pr-number', '42'],
     ['github.run_id', '9001'],
@@ -32,11 +57,14 @@ export async function runActionComment({ reportDir, mode, trustState, repository
     ['steps.publish.outputs.sha', sha],
     ['inputs.report-storage', storage],
     ['inputs.report-retention-days', '30'],
-    ['steps.diff.outputs.changed', trustState === 'NO_REVIEWABLE_STYLE_CHANGES' ? 'false' : 'true'],
-    ['inputs.require-approval', certify ? 'false' : 'true'],
-    ["inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'", String(certify)],
+    ['steps.diff.outputs.changed', String(changed)],
+    ['inputs.require-approval', String(requireApproval)],
+    [
+      "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'",
+      String(failOnDiff && !requireApproval && mode === 'certify'),
+    ],
     ['inputs.mode', mode],
-    ['steps.config.outputs.blocking', 'true'],
+    ['steps.config.outputs.blocking', blocking],
     ['steps.gate.outputs.approved', 'false'],
     ['steps.gate.outputs.approver', ''],
     ['inputs.status-context', 'StyleProof'],
@@ -44,10 +72,10 @@ export async function runActionComment({ reportDir, mode, trustState, repository
     ['steps.verdict.outputs.state', trustState],
     ['steps.verdict.outputs.diff-digest', 'd'.repeat(64)],
     ['steps.context.outputs.head-sha', 'c'.repeat(40)],
-    ['inputs.include-content', 'false'],
-    ['steps.report.outputs.content-changes', '0'],
-    ['inputs.base-capture-failed', 'false'],
-    ['steps.context.outputs.untrusted-capture', 'false'],
+    ['inputs.include-content', String(includeContent)],
+    ['steps.report.outputs.content-changes', String(contentChanges)],
+    ['inputs.base-capture-failed', String(baseCaptureFailed)],
+    ['steps.context.outputs.untrusted-capture', String(untrusted)],
   ]);
   const step = actionYml.match(/- name: Upsert PR comment[\s\S]*?script: \|\n([\s\S]*?)(?=\n\s{4}#|\n\s{4}- name:)/);
   if (!step) throw new Error('action.yml has no "Upsert PR comment" script');

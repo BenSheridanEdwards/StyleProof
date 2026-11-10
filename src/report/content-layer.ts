@@ -20,10 +20,13 @@ const NO_PIXEL_DIFFERENCE_NOTE =
 /** One-sided structure: identical crop pixels mean missing evidence, not "no visible effect". */
 function noStructureCropNote(change: 'added' | 'removed'): string {
   return (
-    `_No distinct before/after crop for this element ${change} (the cropped region matches on both ` +
-    `screenshots). The element itself was ${change} — this is not a claim that the change has no visible effect._`
+    `_No distinct before/after crop where an element was ${change}: the cropped region matches on both ` +
+    `screenshots. That is missing evidence, not a claim that the change has no visible effect._`
   );
 }
+
+/** Each "no crop" note once per content section: later elements of the same kind need not repeat it. */
+const ONCE_NOTES = new Set([NO_PIXEL_DIFFERENCE_NOTE, noStructureCropNote('added'), noStructureCropNote('removed')]);
 
 /** An entry past the `--max-crops` cap names the cap instead of silently showing no crop (#971). */
 function cropCapNote(scope: string, maxCrops: number): string[] {
@@ -347,9 +350,8 @@ export function renderChromeStructureSection(
     '',
     `## 🧱 Global chrome — ${n} element ${n === 1 ? 'change' : 'changes'} on every surface base that renders its container`,
     '',
-    `_Each element below was added or removed identically on every captured surface base that renders its ` +
-      `container${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' (inside a nav, header or footer)' : ''}, ` +
-      `so it is listed once here instead of once per surface — review it once. ${verdictBlurb}_`,
+    // The heading names the scope; the intro adds that the change is identical and why it is listed once.
+    `_Each was added or removed identically wherever its container renders, so it is listed once here instead of once per surface${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' (inside a nav, header or footer)' : ''}. ${verdictBlurb}_`,
     ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
   ];
 }
@@ -393,6 +395,18 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
   return { md, seq };
 }
 
+/** Appends a surface's lines, dropping a "no crop" note (and its blank line) already said in this section. */
+function appendSayingNotesOnce(md: string[], lines: string[], said: Set<string>): void {
+  for (const [i, line] of lines.entries()) {
+    if (!ONCE_NOTES.has(line)) {
+      md.push(line);
+    } else if (!said.has(line)) {
+      said.add(line);
+      md.push(line);
+    } else if (md[md.length - 1] === '' && lines[i - 1] === '') md.pop();
+  }
+}
+
 /** Content/structure section: visible add/remove elevate to the gate; text/invisible/retags stay advisory. */
 export function renderContentSection(
   ctx: RenderCtx,
@@ -414,9 +428,10 @@ export function renderContentSection(
         `so it cannot be mistaken for a product style regression._`;
   const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
+  const said = new Set<string>();
   for (const surface of surfaces) {
     const out = renderContentSurface(ctx, surface, seq);
-    out.md.forEach((appended) => md.push(appended));
+    appendSayingNotesOnce(md, out.md, said);
     seq = out.seq;
   }
   return { md, count };

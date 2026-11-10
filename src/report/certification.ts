@@ -211,7 +211,7 @@ export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
   return [
     '',
     // The headline says the compare cannot be certified; this names the drift and the fix once.
-    '⚠ **Age/clock text drifted after the freeze** — this is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
+    '⚠ **To fix:** fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
     '',
     ...samples,
     '',
