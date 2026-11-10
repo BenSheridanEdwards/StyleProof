@@ -10,11 +10,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Two renamed sibling labels no longer read as one element removed and one added. The content-shift
   pairing matched an old and a new label of the same text length as one shifted element. With own
   text captured (`captureText`), a pair whose text differs now stays on its own paths when it reads
-  as a rename in place: both paths hold an element of the same tag, class and component on both
-  sides, and no other match shifts an element onto the old path or moves the element at the new
-  path away. Elements that shift because a sibling was inserted or removed still pair with
-  themselves, even when their text changes to the same length. The same pairing feeds certification, so a style difference between
-  two renamed labels (an active item) is no longer certified as a restyle of the wrong element.
+  as a rename in place: nothing was inserted or removed beside it, so each sibling list holds the
+  same child paths with the same tag, class and component on both sides, and no other match shifts
+  an element onto the old path or moves the element at the new path away. Elements that shift
+  because a sibling was inserted or removed still pair as before. The same pairing feeds
+  certification, so a style difference between two renamed labels (an active item) is no longer
+  certified as a restyle of the wrong element.
 - Each change section of the report says a fact once. The plain-English summary now sits above the
   before/after crop, and the raw property list that repeated it is removed; exact values stay in
   the folded table. A section heading is the selector and what happened, for example

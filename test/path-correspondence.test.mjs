@@ -749,3 +749,50 @@ test('a same-shape sibling of another text length inserted before a renamed labe
     'the restyle of the shifted label is certified',
   );
 });
+
+// An inserted or removed sibling can sit in a group of its own text length, which changes size and
+// contributes no move. The labels that shift past it must still pair as a shift.
+const labelToolbar = (labels) => toolbar(labels.map((label) => ['label', label]));
+const certifiedRestyles = (before, after) =>
+  diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+    finding.path,
+    finding.props.map((property) => property.prop),
+  ]);
+
+test('a label inserted before renamed labels of colliding lengths still certifies the restyle main certifies', () => {
+  const before = labelToolbar(['Save', 'Cut', 'Cut', 'Copy']);
+  const after = labelToolbar(['Cut', 'Send', 'Cut', 'Cut', 'Code']);
+  after.elements[toolbarSlot(5)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarSlot(5), ['color']]]);
+});
+
+test('a label removed before renamed labels of colliding lengths still certifies the restyle main certifies', () => {
+  const before = labelToolbar(['Old', 'Save', 'Cut', 'Copy']);
+  const after = labelToolbar(['Send', 'Cat', 'Code']);
+  after.elements[toolbarSlot(3)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarSlot(3), ['color']]]);
+});
+
+test('reordered siblings of different classes keep the base elements that main keeps', () => {
+  const before = toolbar([
+    ['notice', 'a'],
+    ['label', 'b'],
+    ['label', 'c'],
+    ['label', 'dd'],
+  ]);
+  const after = toolbar([
+    ['label', 'h'],
+    ['notice', 'g'],
+    ['label', 'fff'],
+    ['label', 'e'],
+  ]);
+  const shifted = correspondContentShiftedPaths(before, after);
+  assert.deepEqual(
+    Object.entries(shifted.elements).map(([elementPath, element]) => [elementPath, element.text]),
+    [
+      [toolbarSlot(1), 'a'],
+      [toolbarSlot(2), 'b'],
+      [toolbarSlot(4), 'c'],
+    ],
+  );
+});

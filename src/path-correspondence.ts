@@ -17,10 +17,11 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      length and component on both sides pair k-th to k-th, only while the group
  *      is the same size on both sides (an nth-child shift, never an add/remove),
  *      no member was already placed, or shown in place, by own-text identity, and
- *      no pair reads as a rename in place: captured own text that differs, both of
- *      its paths holding an element of the same tag, class and component on both
- *      sides, and no move (own-text identity or any group) shifting an element
- *      onto its base path or away from its head path.
+ *      no pair reads as a rename in place: captured own text that differs, inside
+ *      sibling lists that hold the same child paths with the same tag, class and
+ *      component on both sides (nothing inserted or removed), and no move (own-text
+ *      identity or any group) shifting an element onto its base path or away from
+ *      its head path.
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -146,25 +147,27 @@ function ownTextDiffers(before: ElementEntry | undefined, after: ElementEntry | 
   return before?.text !== undefined && after?.text !== undefined && before.text !== after.text;
 }
 
-/** True when both entries exist and share tag, class and component: the same kind of element. */
-function sameElementShape(before: ElementEntry | undefined, after: ElementEntry | undefined): boolean {
-  return (
-    before !== undefined &&
-    after !== undefined &&
-    before.tag === after.tag &&
-    before.cls.trim() === after.cls.trim() &&
-    (before.component?.name ?? '') === (after.component?.name ?? '')
-  );
-}
-
 type PathMove = readonly [beforePath: string, afterPath: string];
 
+/** Parent path → its children's paths with tag, class and component, as one comparable key. */
+function siblingListShapes(map: StyleMap): Map<string, string> {
+  const childrenByParent = new Map<string, string[]>();
+  for (const [elementPath, element] of Object.entries(map.elements)) {
+    const parent = parentPath(elementPath) ?? '';
+    const children = childrenByParent.get(parent) ?? [];
+    children.push(JSON.stringify([elementPath, element.tag, element.cls.trim(), element.component?.name ?? '']));
+    childrenByParent.set(parent, children);
+  }
+  return new Map([...childrenByParent].map(([parent, children]) => [parent, children.sort().join('\n')]));
+}
+
 /**
- * True when a text-differing move is better explained by two elements renamed in place (two
- * sibling labels renamed to texts of equal length) than by a shift. Both paths must hold an
- * element of the same shape on both sides, and no move may account for either occupant: an
- * element shifted onto the base path, or the base element at the head path shifted away, means
- * a sibling was inserted or removed and the shift is the explanation.
+ * True when a text-differing move is better explained by elements renamed in place (two sibling
+ * labels renamed to texts of equal length) than by a shift. Nothing may have been inserted or
+ * removed beside either path: each sibling list holds the same child paths with the same tag,
+ * class and component on both sides. And no move may account for either occupant: an element
+ * shifted onto the base path, or the base element at the head path shifted away, means the
+ * shift is the explanation.
  */
 function isRenameInPlace(
   before: StyleMap,
@@ -172,14 +175,24 @@ function isRenameInPlace(
   [beforePath, afterPath]: PathMove,
   shiftedOnto: Set<string>,
   shiftedAway: Set<string>,
+  isUnchangedSiblingList: (parent: string) => boolean,
 ): boolean {
   return (
     ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
-    sameElementShape(before.elements[beforePath], after.elements[beforePath]) &&
-    sameElementShape(before.elements[afterPath], after.elements[afterPath]) &&
     !shiftedOnto.has(beforePath) &&
-    !shiftedAway.has(afterPath)
+    !shiftedAway.has(afterPath) &&
+    isUnchangedSiblingList(parentPath(beforePath) ?? '') &&
+    isUnchangedSiblingList(parentPath(afterPath) ?? '')
   );
+}
+
+/** Lazily compares each parent's sibling list across the two maps; built only when a veto needs it. */
+function unchangedSiblingLists(before: StyleMap, after: StyleMap): (parent: string) => boolean {
+  let shapes: [Map<string, string>, Map<string, string>] | undefined;
+  return (parent) => {
+    shapes ??= [siblingListShapes(before), siblingListShapes(after)];
+    return shapes[0].get(parent) === shapes[1].get(parent);
+  };
 }
 
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
@@ -205,14 +218,20 @@ function correspondingPathsByContentSignature(
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
     candidateGroups.push(moves);
   }
+  // Drop closed permutations across every group first, so a veto below cannot open one.
+  const shifts = withoutClosedPermutations(new Map(candidateGroups.flat()));
+  const shiftGroups = candidateGroups.map((moves) => moves.filter(([beforePath]) => shifts.has(beforePath)));
   // A shift chain can span groups and own-text identity, so judge each occupant against every move.
-  const everyMove: PathMove[] = [...identified, ...candidateGroups.flat()];
+  const everyMove: PathMove[] = [...identified, ...shifts];
   const shiftedOnto = new Set(everyMove.map(([, afterPath]) => afterPath));
   const shiftedAway = new Set(everyMove.map(([beforePath]) => beforePath));
+  const isUnchangedSiblingList = unchangedSiblingLists(before, after);
   const beforeToAfter = new Map<string, string>();
-  for (const moves of candidateGroups) {
+  for (const moves of shiftGroups) {
     // A rename in place makes the k-th pairing a coincidence of length: keep the group on its paths.
-    if (moves.some((move) => isRenameInPlace(before, after, move, shiftedOnto, shiftedAway))) continue;
+    const renamedInPlace = (move: PathMove) =>
+      isRenameInPlace(before, after, move, shiftedOnto, shiftedAway, isUnchangedSiblingList);
+    if (moves.some(renamedInPlace)) continue;
     for (const [beforePath, afterPath] of moves) beforeToAfter.set(beforePath, afterPath);
   }
   return withoutClosedPermutations(beforeToAfter);
