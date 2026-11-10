@@ -95,4 +95,119 @@ export const cases = {
       st(p('input', 3), 'checked', p('label', 4), { color: C(b, G, R) }),
     ),
   }),
+  // QA14-01: two pairs of identical `input.opt2` (one pair the colour, the other the background).
+  // Main heads both blocks `input.opt2` ×2: the report has nothing that tells the pairs apart.
+  'QA14-01 two-pairs-same-selector': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'opt2'),
+      [p('input', 2)]: inp(1, 'opt2'),
+      [p('input', 3)]: inp(2, 'opt2'),
+      [p('input', 4)]: inp(3, 'opt2'),
+      [p('label', 5)]: lab(4),
+    },
+    states: merge(
+      ...[1, 2].map((n) => st(p('input', n), 'checked', p('label', 5), { color: C(b, G, R) })),
+      ...[3, 4].map((n) => st(p('input', n), 'checked', p('label', 5), { 'background-color': C(b, W, I) })),
+    ),
+  }),
+  // QA14-01: three `input.chip`, each restyling one property; main shows three identical headings.
+  'QA14-01 three-chips-three-props': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'chip'),
+      [p('input', 2)]: inp(1, 'chip'),
+      [p('input', 3)]: inp(2, 'chip'),
+      [p('label', 4)]: lab(3),
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 4), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('label', 4), { 'background-color': C(b, W, I) }),
+      st(p('input', 3), 'checked', p('label', 4), { 'outline-color': C(b, G, R) }),
+    ),
+  }),
+  // QA14-01: two `input.opt`, one checked, one hovered: different owners in different states.
+  'QA14-01 same-selector-different-states': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('input', 2)]: inp(1), [p('label', 3)]: lab(2) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), { color: C(b, G, R) }),
+      st(p('input', 2), 'hover', p('label', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA14-06: one identical change from two differently-labelled owners: said once.
+  'QA14-06 identical-change-two-selectors': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'pickr'),
+      [p('select', 2)]: inp(1, 'pickr', 'select'),
+      [p('label', 3)]: lab(2),
+    },
+    states: merge(
+      st(p('input', 1), 'focus', p('label', 3), { color: C(b, G, R) }),
+      st(p('select', 2), 'focus', p('label', 3), { color: C(b, G, R) }),
+    ),
+  }),
+  // QA14-06: the element's own hover and a control's hover make one identical change.
+  'QA14-06 identical-own-and-control-change': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('label', 2)]: lab(0) },
+    states: merge(
+      st(p('label', 2), 'hover', p('label', 2), { color: C(b, G, R) }),
+      st(p('input', 1), 'hover', p('label', 2), { color: C(b, G, R) }),
+    ),
+  }),
+  // QA14-04: the owner is not in the map's elements; it is still a control, never the label's own.
+  'QA14-04 owner-missing-from-elements': (b) => ({
+    elements: { [p('label', 2)]: lab(0) },
+    states: merge(st(p('input', 1), 'checked', p('label', 2), { color: C(b, G, R) })),
+  }),
+  // QA14-05: a control restyles the label's ::before.
+  'QA14-05 control-restyles-pseudo-element': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('label', 2)]: lab(0) },
+    states: merge(st(p('input', 1), 'checked', `${p('label', 2)}::before`, { 'background-color': C(b, W, I) })),
+  }),
+  // QA14-07 / QA14-01: two `button.btn` the report names apart by their text ("the Save button").
+  'QA14-07 two-buttons-different-text': (b) => ({
+    elements: {
+      [p('button', 1)]: inp(0, 'btn', 'button', 'Save'),
+      [p('button', 2)]: inp(1, 'btn', 'button', 'Cancel'),
+      [p('div', 3)]: { tag: 'div', cls: 'panel', text: 'Panel', rect: [60, 100, 200, 60] },
+    },
+    states: merge(
+      st(p('button', 1), 'hover', p('div', 3), { color: C(b, G, R) }),
+      st(p('button', 2), 'hover', p('div', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA14-07: a button and a link named by their text.
+  'QA14-07 button-and-link-text-owners': (b) => ({
+    elements: {
+      [p('button', 1)]: inp(0, 'tgl', 'button', 'Dark mode'),
+      [p('a', 2)]: inp(1, 'lnk', 'a', 'Help'),
+      [p('div', 3)]: { tag: 'div', cls: 'panel', text: 'Panel', rect: [60, 100, 200, 60] },
+    },
+    states: merge(
+      st(p('button', 1), 'focus', p('div', 3), { color: C(b, G, R) }),
+      st(p('a', 2), 'hover', p('div', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA14-05: one owner restyles the label and its ::before in one state: one clause, not two alike.
+  'QA14-05 owner-restyles-label-and-pseudo': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('label', 2)]: lab(0) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 2), { color: C(b, G, R) }),
+      st(p('input', 1), 'checked', `${p('label', 2)}::before`, { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA14-01: two `input.opt`, one changes the colour, the other the colour and the background.
+  'QA14-01 overlap-subset-props': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('input', 2)]: inp(1), [p('label', 3)]: lab(2) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R), 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA14-04: a hidden owner (no entry) beside a captured owner of the same selector.
+  'QA14-04 hidden-owner-plus-visible-owner': (b) => ({
+    elements: { [p('input', 2)]: inp(1), [p('label', 3)]: lab(2) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('label', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
 };

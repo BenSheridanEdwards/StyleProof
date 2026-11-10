@@ -13,8 +13,8 @@ const nickname = 'body > input:nth-child(3)';
 const save = 'body > button:nth-child(4)';
 
 /**
- * "Show the CSS" renders each owner's state changes as main does: a block headed by the owner's
- * selector, then its `| :state | prop |` rows. The rows under the block for `selector`, as "state prop".
+ * "Show the CSS" heads each owner's state changes with the owner's selector, as main does, then the
+ * preview's `| :state prop | before | after |` rows. The rows under the block for `selector`, as "state prop".
  */
 function ownerRows(section, selector) {
   const out = [];
@@ -22,7 +22,7 @@ function ownerRows(section, selector) {
   for (const line of section.split('\n')) {
     const head = /^\*\*(?:[^*]+\*\* )?`([^`]+)`(?:\*\*)?(?: ×\d+)?$/.exec(line);
     if (head) inBlock = head[1] === selector;
-    const row = /^\| `:([\w-]+)` \| `([\w-]+)` \|/.exec(line);
+    const row = /^\| `:([\w-]+) ([\w-]+)` \|/.exec(line);
     if (row && inBlock) out.push(`${row[1]} ${row[2]}`);
   }
   return out;

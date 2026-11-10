@@ -12,7 +12,7 @@ import { captureStateLayerScreenshots } from '../dist/capture.js';
 import { writeCaptureManifest } from '../dist/map-store.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { mkTmp, rmTmp, writeCapture } from './helpers.mjs';
-import { attributionCheck } from './state-attribution-oracle.mjs';
+import { attributionCheck, elementsIn } from './state-attribution-oracle.mjs';
 import { runActionComment } from './action-comment-harness.mjs';
 
 type Control = { word: string; tag: 'input' | 'button'; state: 'checked' | 'hover' | 'focus'; prop: string };
@@ -55,19 +55,30 @@ for (const config of CONFIGS)
 
 // QA13's live shapes (check/round-13/qa/site-break): two `input.opt` controls restyling different
 // properties of one paragraph (QA13-01), `input.pickr` and `select.pickr` sharing a noun (QA13-02),
-// and two `input.tick` controls making one identical change (the only "either of the 2" case).
+// and two `input.tick` controls making one identical change (the only "either of the 2" case). Then
+// QA14-01's live shapes (check/round-14/qa/site-r14): four `input.pair` in two identical pairs, and
+// three `input.chip` restyling one property each. The report cannot tell those apart, so each is
+// one counted clause ("one of the 4 `input.pair` controls"), never "one … another".
 const LIVE_QA13_HTML = `<section class="row"><input type="checkbox" id="news" class="opt"><input type="checkbox" id="gift" class="opt"><p class="summary">Your choices</p></section>
 <section class="row"><input type="text" class="pickr"><select class="pickr"><option>One</option></select><p class="note">Pick note</p></section>
-<section class="row"><input type="checkbox" id="one" class="tick"><input type="checkbox" id="two" class="tick"><p class="shared">Shared change</p></section>`;
+<section class="row"><input type="checkbox" id="one" class="tick"><input type="checkbox" id="two" class="tick"><p class="shared">Shared change</p></section>
+<section class="row"><input type="checkbox" id="pa" class="pair"><input type="checkbox" id="pb" class="pair"><input type="checkbox" id="pc" class="pair"><input type="checkbox" id="pd" class="pair"><p class="pairs">Two pairs</p></section>
+<section class="row"><input type="checkbox" id="qx" class="chip"><input type="checkbox" id="qy" class="chip"><input type="checkbox" id="qz" class="chip"><p class="chips">Chip result</p></section>`;
 const liveQa13Css = (head: boolean) => {
   const [red, yellow] = head ? ['rgb(160, 40, 40)', 'rgb(255, 224, 138)'] : ['rgb(20, 120, 60)', 'rgb(200, 220, 255)'];
   return [
-    '.summary, .note, .shared { padding: 2px 6px; color: rgb(34, 34, 34); background: rgb(240, 240, 240); }',
+    '.summary, .note, .shared, .pairs, .chips { padding: 2px 6px; color: rgb(34, 34, 34); background: rgb(240, 240, 240); }',
+    '.pairs, .chips { border: 2px solid rgb(200, 200, 200); }',
     `#news:checked ~ .summary { color: ${red}; }`,
     `#gift:checked ~ .summary { background: ${yellow}; }`,
     `input.pickr:focus ~ .note { color: ${red}; }`,
     `select.pickr:focus ~ .note { background: ${yellow}; }`,
     `.tick:checked ~ .shared { color: ${red}; }`,
+    `#pa:checked ~ .pairs, #pb:checked ~ .pairs { color: ${red}; }`,
+    `#pc:checked ~ .pairs, #pd:checked ~ .pairs { background: ${yellow}; }`,
+    `#qx:checked ~ .chips { color: ${red}; }`,
+    `#qy:checked ~ .chips { background: ${yellow}; }`,
+    `#qz:checked ~ .chips { border-color: ${head ? 'rgb(0, 160, 80)' : 'rgb(0, 0, 0)'}; }`,
   ];
 };
 
@@ -134,18 +145,27 @@ test('every captured state names the control the capture recorded for it (QA12-0
           states.some((f: { cls?: string }) => f.cls === c.word),
           `${c.word}:${c.state} was captured`,
         ).toBe(true);
-    // QA13-01: each `input.opt` is named for its own change; QA13-02: the two pickrs by selector;
-    // the identical pair alone reads "either of the 2".
+    // QA13-01 / QA14-01: two `input.opt` restyling different properties are one counted clause (the
+    // report cannot tell them apart); QA13-02: the two pickrs by selector; the identical pair alone
+    // reads "either of the 2". Nothing is ever told apart by invented words ("one … another").
     const section = (title: string) => md.split('\n### ').find((s) => s.startsWith(title)) ?? '';
     expect(section('Summary')).toMatch(
-      /when one `input\.opt` is checked, and the background .* when another `input\.opt` is checked/,
+      /the text colour changes .* or the background changes .* when one of the 2 `input\.opt` controls is checked/,
     );
     expect(section('Summary')).not.toMatch(/either of the 2/);
+    expect(section('Pairs')).toMatch(
+      /the text colour changes .* or the background changes .* when one of the 4 `input\.pair` controls is checked/,
+    );
+    expect(section('Chip')).toMatch(
+      /the text colour changes .*, the background changes .* or the border colour changes .* when one of the 3 `input\.chip` controls is checked/,
+    );
+    expect(md).not.toMatch(/when (?:one|another) `input\.(?:opt|pair|chip)` is/);
     expect(section('Note')).toMatch(
       /when `input\.pickr` is focused, and the background .* when `select\.pickr` is focused/,
     );
     expect(section('Shared')).toMatch(/when either of the 2 ticks is checked/);
-    const problems = attributionCheck(md, json, 'report.md');
+    const elements = elementsIn(path.join(root, 'base'), path.join(root, 'head'));
+    const problems = attributionCheck(md, json, 'report.md', elements);
     for (const approved of [false, true]) {
       const comment = await runActionComment({
         reportDir: outDir,
@@ -153,7 +173,7 @@ test('every captured state names the control the capture recorded for it (QA12-0
         trustState: 'STYLE_REVIEW_REQUIRED',
         approved,
       });
-      problems.push(...attributionCheck(comment, json, `comment${approved ? ' (approved)' : ''}`));
+      problems.push(...attributionCheck(comment, json, `comment${approved ? ' (approved)' : ''}`, elements));
     }
     expect(problems).toEqual([]);
   } finally {

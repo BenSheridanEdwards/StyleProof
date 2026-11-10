@@ -13,7 +13,7 @@ import {
   generateStructuralStyleMapReportForTesting as generateStructural,
   generateStyleMapReport,
 } from '../dist/report.js';
-import { attributionCheck } from './state-attribution-oracle.mjs';
+import { attributionCheck, elementsIn } from './state-attribution-oracle.mjs';
 import { cases as OWNER_TRUTH_CASES } from './owner-truth-cases.mjs';
 import { runActionComment } from './action-comment-harness.mjs';
 import { MAP_MANIFEST } from '../dist/map-store.js';
@@ -178,7 +178,7 @@ for (const [name, build] of Object.entries(COMBINATIONS)) {
       (json.surfaces ?? []).some((s) => (s.findings ?? []).some((f) => f.kind === 'state')),
       'state findings exist',
     );
-    assert.deepEqual(attributionCheck(md, json, name), []);
+    assert.deepEqual(attributionCheck(md, json, name, elementsIn(beforeDir, afterDir)), []);
   });
 }
 
@@ -204,13 +204,14 @@ test("each state finding names its control on QA12's real Chromium capture (QA12
     json.surfaces[0].findings.some((f) => f.kind === 'state' && f.cls === 'wrap'),
     'the wrap finding exists',
   );
-  assert.deepEqual(attributionCheck(md, json, 'real capture'), []);
+  assert.deepEqual(attributionCheck(md, json, 'real capture', elementsIn(...dirs)), []);
 });
 
 /** The generated matrix: one label restyled by one or two controls, with or without its own hover. */
 // Each control: its path, its element and the properties its state changes on the target. `opt2*`
 // share `opt`'s selector (`input.opt`) but are other elements; `pickr`/`spickr` share a noun but not
-// a selector (QA13-02).
+// a selector (QA13-02); `opt3` is a third `input.opt` (QA14-01); `save`/`cancel` are two `button.btn`
+// a reader tells apart by their text (QA14-07).
 const CONTROLS = {
   opt: { path: at('input', 1), entry: control(0), props: { color: GREEN } },
   toggle: { path: at('button', 2), entry: control(1, 'toggle', 'button'), props: { 'background-color': WHITE } },
@@ -219,6 +220,13 @@ const CONTROLS = {
   opt2overlap: { path: at('input', 3), entry: control(2), props: { color: GREEN, 'background-color': WHITE } },
   pickr: { path: at('input', 1), entry: control(0, 'pickr'), props: { color: GREEN } },
   spickr: { path: at('select', 2), entry: control(1, 'pickr', 'select'), props: { 'background-color': WHITE } },
+  opt3: { path: at('input', 5), entry: control(4), props: { 'background-color': WHITE } },
+  save: { path: at('button', 2), entry: { ...control(1, 'btn', 'button'), text: 'Save' }, props: { color: GREEN } },
+  cancel: {
+    path: at('button', 3),
+    entry: { ...control(2, 'btn', 'button'), text: 'Cancel' },
+    props: { 'background-color': WHITE },
+  },
 };
 const TARGET = at('label', 4);
 const MATRIX = [];
@@ -263,6 +271,24 @@ for (const [controls, states] of [
     ['pickr', 'spickr'],
     ['focus', 'focus'],
   ],
+  // Three of one selector: three changes, and two identical plus one (QA14-01).
+  [
+    ['opt', 'opt2diff', 'opt3'],
+    ['checked', 'checked', 'checked'],
+  ],
+  [
+    ['opt', 'opt2same', 'opt3'],
+    ['checked', 'checked', 'checked'],
+  ],
+  // Two of one selector named by their text, same and different states (QA14-07).
+  [
+    ['save', 'cancel'],
+    ['hover', 'hover'],
+  ],
+  [
+    ['save', 'cancel'],
+    ['hover', 'focus'],
+  ],
 ])
   for (const ownHover of [false, true]) MATRIX.push({ controls, states, ownHover });
 
@@ -291,7 +317,8 @@ for (const combo of MATRIX) {
     const result = generateStructural({ beforeDir, afterDir, outDir });
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
     const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-    const problems = attributionCheck(md, json, `${name} / report.md`);
+    const elements = elementsIn(beforeDir, afterDir);
+    const problems = attributionCheck(md, json, `${name} / report.md`, elements);
     for (const approved of [false, true]) {
       const comment = await runActionComment({
         reportDir: outDir,
@@ -300,7 +327,7 @@ for (const combo of MATRIX) {
         approved,
       });
       assert.equal(comment.includes('- [x] **Approve all changes**'), approved, 'the approved re-run renders ticked');
-      problems.push(...attributionCheck(comment, json, `${name} / comment${approved ? ' (approved)' : ''}`));
+      problems.push(...attributionCheck(comment, json, `${name} / comment${approved ? ' (approved)' : ''}`, elements));
     }
     assert.deepEqual(problems, []);
   });
@@ -322,8 +349,12 @@ for (const [name, build] of Object.entries(OWNER_TRUTH_CASES)) {
       mode: 'review-gate',
       trustState: 'STYLE_REVIEW_REQUIRED',
     });
+    const elements = elementsIn(beforeDir, afterDir);
     assert.deepEqual(
-      [...attributionCheck(md, json, `${name} / report.md`), ...attributionCheck(comment, json, `${name} / comment`)],
+      [
+        ...attributionCheck(md, json, `${name} / report.md`, elements),
+        ...attributionCheck(comment, json, `${name} / comment`, elements),
+      ],
       [],
     );
   });

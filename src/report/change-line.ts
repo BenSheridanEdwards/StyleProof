@@ -25,18 +25,33 @@ export type SectionSubject = {
 
 /** One forced state's summarized prop changes. */
 /** One forced state's changes from one source; `driver` is the control that produced them, absent for the element's own state. */
-export type StateChange = { state: string; props: PropChange[]; driver?: StateDriver };
 /**
- * The owner(s) of one source, as the capture records them. `owners`: owner paths that each produced
- * this identical change ("either of the 2 opts"). `matching`: each grouped element has its own.
- * `name`: how to tell this owner from another whose clause would read alike ("`select.pickr`",
- * "one `input.opt`", "another `input.opt`").
+ * One clause: a forced state's change(s). `ownToo`: the element's own state made the same change as
+ * the driver ("when hovered or when the opt is hovered"). `alternatives`: a counted clause whose
+ * owners made different changes, joined with "or".
+ */
+export type StateChange = {
+  state: string;
+  props: Array<PropChange & { pseudo?: string }>;
+  driver?: StateDriver;
+  ownToo?: true;
+  alternatives?: true;
+};
+/**
+ * The owner(s) of one clause, as the capture records them (by owner path, never inferred):
+ * - `owners`: how many owner paths made it (several only for one identical change: "either of the 2 opts");
+ * - `counted`: owners of one selector the report cannot tell apart ("one of the 3 `input.chip` controls");
+ * - `labels`: several selectors that made one identical change ("`input.pickr` or `select.pickr`");
+ * - `matching`: each grouped element has its own owner; `name: 'label'`: named by selector, because
+ *   another single owner's noun reads the same.
  */
 export type StateDriver = {
   subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
   owners: number;
+  counted?: { label: string; total: number };
+  labels?: string[];
   matching?: true;
-  name?: 'label' | 'one' | 'another';
+  name?: 'label';
 };
 
 export type ChangeLineInput = {
@@ -254,9 +269,23 @@ const withVerb = (fragment: string): string =>
 
 /** "background changes from blue to red when hovered" */
 function stateClause(change: StateChange, driver: string | null): string {
+  const word = stateWord(change.state);
+  const when = !driver
+    ? `when ${word}`
+    : change.ownToo
+      ? `when ${word} or when ${driver} ${word}`
+      : `when ${driver} ${word}`;
+  // A counted clause's changes came from different owners: each is said in full, none pruned as an echo.
+  if (change.alternatives)
+    return `${alternativeList([...new Set(change.props.map(propFragment).map(withVerb))])} ${when}`;
   const [first, ...more] = withoutColorEchoes(change.props).map(propFragment);
-  const when = driver ? `when ${driver} ${stateWord(change.state)}` : `when ${stateWord(change.state)}`;
   return `${fragmentList([withVerb(first), ...more])} ${when}`;
+}
+
+/** A counted clause's different changes: "a or the b", "a, the b or the c" (each owner made one). */
+function alternativeList(fragments: string[]): string {
+  if (fragments.length <= 1) return fragments.join('');
+  return `${fragments.slice(0, -1).join(', the ')} or the ${fragments[fragments.length - 1]}`;
 }
 
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
@@ -299,12 +328,11 @@ function stateSentences(input: ChangeLineInput, who: string, many: boolean): str
     const label = codeValue(prettyLabel(driver.subject.path, driver.subject.cls));
     const noun = sectionNoun(driver.subject);
     const matching = driver.matching ? 'matching ' : '';
-    if (driver.owners > 1) {
-      const which = driver.owners === 2 ? 'either' : 'any';
-      return `${which} of the ${driver.owners} ${matching}${driver.name ? `${label} controls` : plural(noun)} is`;
-    }
+    if (driver.counted) return `one of the ${driver.counted.total} ${codeValue(driver.counted.label)} controls is`;
+    if (driver.labels) return `${driver.labels.map(codeValue).join(' or ')} is`;
+    if (driver.owners > 1)
+      return `${driver.owners === 2 ? 'either' : 'any'} of the ${driver.owners} ${matching}${plural(noun)} is`;
     if (driver.name === 'label') return `${label} is`;
-    if (driver.name) return `${driver.name} ${label} is`;
     return `the ${matching}${noun} is`;
   };
 

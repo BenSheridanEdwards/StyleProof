@@ -38,13 +38,18 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
   under the label. Which control drives a state comes only from the capture: each state finding records the
   owner path whose state was forced (report.json `findings[].path`, the restyled element in `sub`). The change
-  line has one clause per owner path, carrying only that owner's properties: "when hovered" for the element's
-  own state, "when the opt is checked" for one control, and "when the matching opt is checked" when each
-  grouped element has its own. Owners share a clause ("when either of the 2 opts is checked") only when each
-  made a byte-identical change. Owners whose clauses would read alike are told apart by selector ("when
-  `input.pickr` is focused … when `select.pickr` is focused"), or, when the selectors match too, as "one
-  `input.opt` … another `input.opt`". **Show the CSS** lists state changes as main does: one block per owner
-  path, headed by that owner, with identical blocks collapsed to ×N. A new or removed hover/focus style names the resting value
+  line names each owner, carrying only what it changed: "when hovered" for the element's own state, "when the
+  opt is checked" for one control, "when the Save button is hovered" for a button or link named by its text, and
+  "when the matching opt is checked" when each grouped element has its own. One identical change is said once,
+  whoever made it: "when `input.pickr` or `select.pickr` is focused", "when hovered or when the opt is
+  hovered", "when either of the 2 opts is checked". Owners of one selector that the report cannot tell apart
+  (main heads them alike) are one counted clause, never named apart by invented words: "the text colour
+  changes … or the background changes … when one of the 2 `input.opt` controls is checked". Owners whose nouns collide
+  across selectors are named by selector ("when `input.pickr` is focused … when `select.pickr` is focused"),
+  and an owner the capture has no element entry for is named by its selector, as main heads it. **Show the
+  CSS** heads each owner path's state changes with that owner, as main does, then the preview's
+  `` `:hover color` `` rows with colour swatches in report.html and "(follows `color`)" on follower rows;
+  identical blocks collapse to ×N. A new or removed hover/focus style names the resting value
   it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
