@@ -149,15 +149,20 @@ test('every captured state names the control the capture recorded for it (QA12-0
     // report cannot tell them apart); QA13-02: the two pickrs by selector; the identical pair alone
     // reads "either of the 2". Nothing is ever told apart by invented words ("one … another").
     const section = (title: string) => md.split('\n### ').find((s) => s.startsWith(title)) ?? '';
+    // QA15-01: the counted clause names the count once, then each owner's own change, echo pruned
+    // (the first control's border follows its colour) and capped.
     expect(section('Summary')).toMatch(
-      /the text colour changes .* or the background changes .* when one of the 2 `input\.opt` controls is checked/,
+      /when one of the 2 `input\.opt` controls is checked, one changes the text colour from [^,]+ to [^,]+, while the other changes the background from [^,.]+ to [^,.]+\./,
     );
-    expect(section('Summary')).not.toMatch(/either of the 2/);
+    const sentence = section('Summary')
+      .split('\n')
+      .find((l) => l.startsWith('On '));
+    expect(sentence).not.toMatch(/either of the 2| or the |border/);
     expect(section('Pairs')).toMatch(
-      /the text colour changes .* or the background changes .* when one of the 4 `input\.pair` controls is checked/,
+      /when one of the 4 `input\.pair` controls is checked, 2 of them change the text colour from [^,]+ to [^,]+, while the other 2 change the background from [^,.]+ to [^,.]+\./,
     );
     expect(section('Chip')).toMatch(
-      /the text colour changes .*, the background changes .* or the border colour changes .* when one of the 3 `input\.chip` controls is checked/,
+      /when one of the 3 `input\.chip` controls is checked, one changes the [^;]+; one changes the [^;]+; and 1 more control makes another change\./,
     );
     expect(md).not.toMatch(/when (?:one|another) `input\.(?:opt|pair|chip)` is/);
     expect(section('Note')).toMatch(

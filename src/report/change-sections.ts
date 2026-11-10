@@ -398,6 +398,29 @@ function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [Sty
   return new Set(single.filter((source) => byNoun.get(nounOf(source))!.size > 1));
 }
 
+type StateProp = StateChange['props'][number];
+
+/**
+ * A counted clause's owners, each with its own change in that state (QA15-01): owners that made the
+ * same whole change share one group, with their count. Grouped by owner, never flattened into
+ * alternatives.
+ */
+function ownerGroups(
+  source: StateSource,
+  firstStates: StateFinding[],
+  propsOf: (changes: StateFinding[]) => StateProp[],
+): Array<{ count: number; props: StateProp[] }> {
+  const groups = new Map<string, { count: number; props: StateProp[] }>();
+  for (const owner of source.owners) {
+    const props = propsOf(firstStates.filter((f) => f.path === owner && f.state === source.state));
+    const key = JSON.stringify(props);
+    const seen = groups.get(key);
+    if (seen) seen.count += 1;
+    else groups.set(key, { count: 1, props });
+  }
+  return [...groups.values()];
+}
+
 /** The owner(s) a clause names, or none for the element's own state, as the capture records them. */
 function sourceDriver(
   section: ChangeSection,
@@ -441,9 +464,9 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   const sources = stateSources(section, maps);
   const firstStates = first.filter(isStateFinding);
   const named = ownerNames(sources, firstStates, maps);
-  const states: StateChange[] = sources.flatMap((source) => {
-    // A change on a pseudo-element keeps its pseudo (QA14-05); a counted clause lists each change.
-    const props = source.changes.flatMap((f) =>
+  // A change on a pseudo-element keeps its pseudo (QA14-05).
+  const propsOf = (changes: StateFinding[]): StateProp[] =>
+    changes.flatMap((f) =>
       summarizeProps(
         f.props.map((p) => ({
           ...p,
@@ -452,7 +475,10 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
         })),
       ).map((p) => ({ ...p, ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}) })),
     );
+  const states: StateChange[] = sources.flatMap((source) => {
+    const props = propsOf(source.changes);
     const driver = sourceDriver(section, maps, source, { firstStates, named });
+    const groups = source.counted ? ownerGroups(source, firstStates, propsOf) : [];
     return props.length
       ? [
           {
@@ -460,7 +486,7 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
             props,
             ...(driver ? { driver } : {}),
             ...(driver && source.own ? { ownToo: true } : {}),
-            ...(source.counted && source.changes.length > 1 ? { alternatives: true } : {}),
+            ...(groups.length > 1 ? { groups } : {}),
           },
         ]
       : [];

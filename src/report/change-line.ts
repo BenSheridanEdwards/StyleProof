@@ -23,19 +23,20 @@ export type SectionSubject = {
   sameSelectorCount: number;
 };
 
-/** One forced state's summarized prop changes. */
-/** One forced state's changes from one source; `driver` is the control that produced them, absent for the element's own state. */
+type StateProp = PropChange & { pseudo?: string };
+
 /**
- * One clause: a forced state's change(s). `ownToo`: the element's own state made the same change as
- * the driver ("when hovered or when the opt is hovered"). `alternatives`: a counted clause whose
- * owners made different changes, joined with "or".
+ * One clause: a forced state's change(s); `driver` is the control that produced them, absent for the
+ * element's own state. `ownToo`: the element's own state made the same change as the driver ("when
+ * hovered or when the opt is hovered"). `groups`: a counted clause whose owners made different
+ * changes, one group per owner (owners with the same change share one, with their `count`).
  */
 export type StateChange = {
   state: string;
-  props: Array<PropChange & { pseudo?: string }>;
+  props: StateProp[];
   driver?: StateDriver;
   ownToo?: true;
-  alternatives?: true;
+  groups?: Array<{ count: number; props: StateProp[] }>;
 };
 /**
  * The owner(s) of one clause, as the capture records them (by owner path, never inferred):
@@ -267,25 +268,43 @@ const withVerb = (fragment: string): string =>
       ? fragment.replace(' from ', ' changes from ')
       : `${fragment} changes`;
 
+/** One clause; `grouped` clauses lead with their trigger and take no article. */
+type Clause = { text: string; grouped?: true };
+
 /** "background changes from blue to red when hovered" */
-function stateClause(change: StateChange, driver: string | null): string {
+function stateClause(change: StateChange, driver: string | null): Clause {
   const word = stateWord(change.state);
   const when = !driver
     ? `when ${word}`
     : change.ownToo
       ? `when ${word} or when ${driver} ${word}`
       : `when ${driver} ${word}`;
-  // A counted clause's changes came from different owners: each is said in full, none pruned as an echo.
-  if (change.alternatives)
-    return `${alternativeList([...new Set(change.props.map(propFragment).map(withVerb))])} ${when}`;
+  if (change.groups) return { text: `${when}, ${ownerGroups(change.groups)}`, grouped: true };
   const [first, ...more] = withoutColorEchoes(change.props).map(propFragment);
-  return `${fragmentList([withVerb(first), ...more])} ${when}`;
+  return { text: `${fragmentList([withVerb(first), ...more])} ${when}` };
 }
 
-/** A counted clause's different changes: "a or the b", "a, the b or the c" (each owner made one). */
-function alternativeList(fragments: string[]): string {
-  if (fragments.length <= 1) return fragments.join('');
-  return `${fragments.slice(0, -1).join(', the ')} or the ${fragments[fragments.length - 1]}`;
+const MAX_GROUPS = 2;
+
+/**
+ * A counted clause's owners, each with its own change (QA15-01): "one changes the text colour …,
+ * while the other changes the background …". Echoes are pruned and each owner's change is capped
+ * like any change line; past two owners, "and N more controls make other changes".
+ */
+function ownerGroups(groups: NonNullable<StateChange['groups']>): string {
+  const said = (g: { count: number; props: StateProp[] }, who: string) =>
+    `${who} ${g.count === 1 ? 'changes' : 'change'} ${fragmentList(withoutColorEchoes(g.props).map((p) => `the ${propFragment(p)}`))}`;
+  const who = (g: { count: number }) => (g.count === 1 ? 'one' : `${g.count} of them`);
+  if (groups.length === 2) {
+    const other = groups[1].count === 1 ? 'the other' : `the other ${groups[1].count}`;
+    return `${said(groups[0], who(groups[0]))}, while ${said(groups[1], other)}`;
+  }
+  const shown = groups.slice(0, MAX_GROUPS).map((g) => said(g, who(g)));
+  const rest = groups.slice(MAX_GROUPS).reduce((sum, g) => sum + g.count, 0);
+  const tail = rest
+    ? [`and ${rest} more ${rest === 1 ? 'control makes another change' : 'controls make other changes'}`]
+    : [];
+  return [...shown, ...tail].join('; ');
 }
 
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
@@ -336,11 +355,18 @@ function stateSentences(input: ChangeLineInput, who: string, many: boolean): str
     return `the ${matching}${noun} is`;
   };
 
-  const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
+  // A grouped (counted) clause says its owners after its trigger, so it comes last.
+  const all = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
+  const clauses = [...all.filter((c) => !c.grouped), ...all.filter((c) => c.grouped)];
   if (!clauses.length) return [];
-  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
   const rest = input.restFolded ? [] : [many ? 'At rest they look the same.' : 'At rest it looks the same.'];
-  return [`On ${who}, the ${listClauses(clauses, 'the ')}.`, ...rest];
+  if (input.rest.length) {
+    const [first, ...more] = clauses;
+    const lead = first.grouped ? capitalise(first.text) : `${many ? 'Their' : 'Its'} ${first.text}`;
+    return [`${listClauses([lead, ...more.map((c) => c.text)], '')}.`];
+  }
+  const texts = clauses.map((c) => (c.grouped ? c.text : `the ${c.text}`));
+  return [`On ${who}, ${listClauses(texts, '')}.`, ...rest];
 }
 
 /** The section's one plain-English line. */

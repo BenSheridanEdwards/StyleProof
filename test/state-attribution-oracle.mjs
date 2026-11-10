@@ -160,6 +160,8 @@ export function truthOf(json, elements = {}) {
 /**
  * The sentence's clauses: each "when …" with the property text before it. "when hovered or when the
  * opt is hovered" is one clause with two phrases (the element's own state and an owner, one change).
+ * A counted clause with owner groups leads with its trigger ("when one of the 2 `input.opt` controls
+ * is checked, one changes …, while the other changes …"): its property text follows it.
  */
 function clausesOf(sentence) {
   const out = [];
@@ -167,15 +169,18 @@ function clausesOf(sentence) {
   // The owner phrase (code spans aside) never crosses a comma, a full stop or another "when", so a
   // bare "when hovered" stays its own phrase.
   const pattern = /when (?:((?:`[^`]*`|(?!when )[^,.;`])+?) (?:is|are) )?([a-z]+)(?=[ ,.;])/g;
-  for (const m of sentence.matchAll(pattern)) {
-    if (!STATE_BY_WORD[m[2]]) continue;
-    const text = sentence.slice(from, m.index);
+  const matches = [...sentence.matchAll(pattern)].filter((m) => STATE_BY_WORD[m[2]]);
+  for (const [i, m] of matches.entries()) {
+    const end = m.index + m[0].length;
+    const after = sentence.slice(end, matches[i + 1]?.index ?? sentence.length);
+    const grouped = /^one of the \d+ `/.test(m[1] ?? '') && /^, (?:one|\d+ of them) changes? /.test(after);
+    const text = grouped ? after.replace(/(?:, and |\. At rest.*)$/, '') : sentence.slice(from, m.index);
     const previous = out[out.length - 1];
-    if (previous && text.trim() === 'or' && previous.state === STATE_BY_WORD[m[2]]) {
+    if (!grouped && previous && text.trim() === 'or' && previous.state === STATE_BY_WORD[m[2]]) {
       previous.phrases.push(m[1] ?? '');
       previous.said += ` or ${m[0]}`;
-    } else out.push({ text, phrases: [m[1] ?? ''], state: STATE_BY_WORD[m[2]], said: m[0] });
-    from = m.index + m[0].length;
+    } else out.push({ text, phrases: [m[1] ?? ''], state: STATE_BY_WORD[m[2]], said: m[0], grouped });
+    from = grouped ? end + after.length : end;
   }
   return out;
 }
