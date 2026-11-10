@@ -851,3 +851,38 @@ test('a rename in one toolbar does not cancel a real shift and its restyle in an
   after.elements[toolbarButton(2, 2)].style = RESTYLED_LABEL_STYLE;
   assert.deepEqual(certifiedRestyles(before, after), [[toolbarButton(2, 2), ['color']]]);
 });
+
+// A group spanning two toolbars can pair across them. A removal in one toolbar must keep that move,
+// even when the toolbars' shared ancestor is unchanged, so the shifted sibling still pairs.
+const placedSpan = (elementPath, className, text, rect) => [
+  elementPath,
+  {
+    tag: 'span',
+    cls: className,
+    rect,
+    ownTextLength: text.length,
+    text,
+    style: className.includes('primary') ? RESTYLED_LABEL_STYLE : LABEL_STYLE,
+  },
+];
+
+test('a rename in one toolbar and a removal in another still certify the shifted sibling restyle', () => {
+  // A heading with the same text keeps own-text identity from pairing the shifted label.
+  const heading = placedSpan('body > header:nth-child(1) > span:nth-child(1)', 'title', 'Notice', [0, 0, 120, 20]);
+  const before = makeMap({
+    elements: Object.fromEntries([
+      heading,
+      placedSpan('body > nav:nth-child(2) > span:nth-child(1)', 'label', 'Overview', [0, 40, 80, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(1)', 'label', 'Load', [300, 80, 60, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(2)', 'label primary', 'Notice', [360, 80, 60, 20]),
+    ]),
+  });
+  const after = makeMap({
+    elements: Object.fromEntries([
+      heading,
+      placedSpan('body > nav:nth-child(2) > span:nth-child(1)', 'label', 'Copy', [0, 40, 80, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(1)', 'label', 'Notice', [360, 80, 60, 20]),
+    ]),
+  });
+  assert.deepEqual(certifiedRestyles(before, after), [['body > nav:nth-child(3) > span:nth-child(1)', ['color']]]);
+});

@@ -19,10 +19,10 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      and no member was already placed, or shown in place, by own-text identity.
  *      A move that reads as a rename in place is dropped: captured own text that
  *      differs, the same tag, class and component at each of its paths on both
- *      sides, an unchanged sibling list (same child paths and shapes on both sides)
- *      where its two paths diverge, so nothing was inserted or removed there, and no
- *      other move (own-text identity or any group) shifting an element onto its base
- *      path or away from its head path.
+ *      sides, unchanged sibling lists (same child paths and shapes on both sides)
+ *      from each path's parent up to where the two paths diverge, and no other move
+ *      (own-text identity or any group) shifting an element onto its base path or
+ *      away from its head path.
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -176,11 +176,12 @@ function siblingListShapes(map: StyleMap): Map<string, string> {
 /**
  * True when a text-differing move is better explained by elements renamed in place (two sibling
  * labels renamed to texts of equal length) than by a shift. Each path must hold the same kind of
- * element (tag, class, component) on both sides. A shift needs a sibling inserted or removed in
- * the list where the two paths diverge, so that list must be unchanged: the same child paths
- * with the same tag, class and component on both sides. And no move may account for either
- * occupant: an element shifted onto the base path, or the base element at the head path shifted
- * away, means the shift is the explanation.
+ * element (tag, class, component) on both sides. A shift needs a sibling inserted or removed
+ * somewhere between the two paths, so every sibling list from each path's parent up to the list
+ * where they diverge must be unchanged: the same child paths with the same tag, class and
+ * component on both sides. And no move may account for either occupant: an element shifted onto
+ * the base path, or the base element at the head path shifted away, means the shift is the
+ * explanation.
  */
 function isRenameInPlace(
   before: StyleMap,
@@ -190,14 +191,32 @@ function isRenameInPlace(
   shiftedAway: Set<string>,
   isUnchangedSiblingList: (parent: string) => boolean,
 ): boolean {
+  if (
+    !ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) ||
+    !sameElementShape(before.elements[beforePath], after.elements[beforePath]) ||
+    !sameElementShape(before.elements[afterPath], after.elements[afterPath]) ||
+    shiftedOnto.has(beforePath) ||
+    shiftedAway.has(afterPath)
+  ) {
+    return false;
+  }
+  const divergence = sharedPathPrefix(beforePath, afterPath);
   return (
-    ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
-    sameElementShape(before.elements[beforePath], after.elements[beforePath]) &&
-    sameElementShape(before.elements[afterPath], after.elements[afterPath]) &&
-    !shiftedOnto.has(beforePath) &&
-    !shiftedAway.has(afterPath) &&
-    isUnchangedSiblingList(sharedPathPrefix(beforePath, afterPath))
+    listsUnchangedUpTo(beforePath, divergence, isUnchangedSiblingList) &&
+    listsUnchangedUpTo(afterPath, divergence, isUnchangedSiblingList)
   );
+}
+
+/** True when every sibling list from the path's parent up to `ancestor` (or the root) is unchanged. */
+function listsUnchangedUpTo(
+  elementPath: string,
+  ancestor: string,
+  isUnchangedSiblingList: (parent: string) => boolean,
+): boolean {
+  for (let parent = parentPath(elementPath) ?? ''; ; parent = parentPath(parent) ?? '') {
+    if (!isUnchangedSiblingList(parent)) return false;
+    if (parent === ancestor || parent === '') return true;
+  }
 }
 
 /** Lazily compares each parent's sibling list across the two maps; built only when a veto needs it. */
