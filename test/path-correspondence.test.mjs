@@ -580,3 +580,38 @@ test('certification keeps the DESCENDANTS of an identity-replaced element one-si
     [['style', ['color']]],
   );
 });
+
+// Two renamed labels can leave an old and a new text of the same length on different
+// siblings. With own text captured, that coincidence must not read as an nth-child shift.
+const navItems = (labels, withText) =>
+  makeMap({
+    elements: Object.fromEntries(
+      labels.map((label, i) => [
+        `body > nav:nth-child(1) > button:nth-child(${i + 1})`,
+        {
+          tag: 'button',
+          cls: 'nav-item',
+          rect: [0, i * 40, 220, 40],
+          ownTextLength: label.length,
+          ...(withText ? { text: label } : {}),
+        },
+      ]),
+    ),
+  });
+const BASE_LABELS = ['Overview', 'Audit log', 'Members', 'Billing', 'Settings'];
+const HEAD_LABELS = ['Overview', 'Audit trail', 'People', 'Invoices', 'Preferences'];
+const item = (n) => `body > nav:nth-child(1) > button:nth-child(${n})`;
+
+test('renamed labels of equal length are not paired as an nth-child shift when own text is captured', () => {
+  const before = navItems(BASE_LABELS, true);
+  const shifted = correspondContentShiftedPaths(before, navItems(HEAD_LABELS, true));
+  assert.equal(shifted.elements[item(4)].text, 'Billing', 'the fourth item keeps its own path');
+  assert.equal(shifted.elements[item(5)].text, 'Settings', 'the fifth item is not moved onto the fourth');
+  assert.equal(Object.keys(shifted.elements).length, 5, 'no base element is dropped');
+});
+
+test('without captured own text, an equal-length pair still reads as an nth-child shift', () => {
+  const before = navItems(BASE_LABELS, false);
+  const shifted = correspondContentShiftedPaths(before, navItems(HEAD_LABELS, false));
+  assert.equal(shifted.elements[item(4)].ownTextLength, 'Settings'.length, 'length is the only evidence, as before');
+});

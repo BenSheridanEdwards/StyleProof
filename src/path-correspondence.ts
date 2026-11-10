@@ -15,8 +15,9 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      follow. Text is compared in memory only, never emitted.
  *   1. content shift — same hashed semantic path pattern, tag, class, own-text
  *      length and component on both sides pair k-th to k-th, only while the group
- *      is the same size on both sides (an nth-child shift, never an add/remove)
- *      and no member was already placed, or shown in place, by own-text identity.
+ *      is the same size on both sides (an nth-child shift, never an add/remove),
+ *      no member was already placed, or shown in place, by own-text identity, and
+ *      no pair has captured own text that differs.
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -137,6 +138,11 @@ function withoutClosedPermutations(moves: Map<string, string>): Map<string, stri
   return kept;
 }
 
+/** True only when both sides captured own text (`captureText`) and it is not the same text. */
+function ownTextDiffers(before: ElementEntry | undefined, after: ElementEntry | undefined): boolean {
+  return before?.text !== undefined && after?.text !== undefined && before.text !== after.text;
+}
+
 /** base path → head path for elements whose identity is recognisable on both sides but whose path moved. */
 function correspondingPathsByContentSignature(
   before: StyleMap,
@@ -158,6 +164,13 @@ function correspondingPathsByContentSignature(
     );
     // Own text shows an element stayed put; moving it, or something onto its path, contradicts that.
     if (moves.some(([beforePath, afterPath]) => inPlace.has(beforePath) || inPlace.has(afterPath))) continue;
+    // A shifted element keeps its own text. Captured text that differs shows two elements whose
+    // text only has the same length (two renamed labels), so the k-th pairing is a coincidence.
+    if (
+      moves.some(([beforePath, afterPath]) => ownTextDiffers(before.elements[beforePath], after.elements[afterPath]))
+    ) {
+      continue;
+    }
     for (const [beforePath, afterPath] of moves) beforeToAfter.set(beforePath, afterPath);
   }
   return withoutClosedPermutations(beforeToAfter);

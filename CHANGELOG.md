@@ -7,6 +7,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Two renamed sibling labels no longer read as one element removed and one added. The content-shift
+  pairing matched an old and a new label of the same text length as one shifted element. With own
+  text captured (`captureText`), a pair whose text differs now stays on its own paths.
 - Each change section of the report says a fact once. The plain-English summary now sits above the
   before/after crop, and the raw property list that repeated it is removed; exact values stay in
   the folded table. A section heading is the selector and what happened, for example
