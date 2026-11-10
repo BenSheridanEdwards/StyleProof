@@ -361,4 +361,28 @@ export const cases = {
       st(p('input', 2), 'hover', p('a', 3), { 'background-color': C(b, W, I) }),
     ),
   }),
+  // QA18-01: a lone owner beside a ×2 clause of the same selector and noun reads as main heads it,
+  // `input.opt`, never "the opt" (main heads all three "**Opt** `input.opt`").
+  'QA18-01 lone-owner-beside-x2': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('input', 2)]: inp(1), [p('input', 3)]: inp(2), [p('label', 4)]: lab(3) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 4), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('label', 4), { 'background-color': C(b, W, I) }),
+      st(p('input', 3), 'checked', p('label', 4), { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA18-01: three Save buttons, a lone one beside a ×2 clause: no "the Save button" beside them.
+  'QA18-01 lone-save-button-beside-x2': (b) => ({
+    elements: {
+      [p('button', 1)]: inp(0, 'btn', 'button', 'Save'),
+      [p('button', 2)]: inp(1, 'btn', 'button', 'Save'),
+      [p('button', 3)]: inp(2, 'btn', 'button', 'Save'),
+      [p('div', 4)]: { tag: 'div', cls: 'panel', text: 'Panel', rect: [60, 140, 200, 60] },
+    },
+    states: merge(
+      st(p('button', 1), 'hover', p('div', 4), { color: C(b, G, R) }),
+      st(p('button', 2), 'hover', p('div', 4), { 'background-color': C(b, W, I) }),
+      st(p('button', 3), 'hover', p('div', 4), { 'background-color': C(b, W, I) }),
+    ),
+  }),
 };

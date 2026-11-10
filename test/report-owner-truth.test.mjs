@@ -153,9 +153,12 @@ for (const [name, build] of Object.entries(cases)) {
       );
       // 5. Each clause names an owner that produced a change in that state.
       for (const m of clauses) {
-        const ownersHere = mine.filter((f) => f.state === STATE_OF[m[2]]).map(nameOf);
+        // By its noun or text, or by its own selector, as main heads it.
+        const ownersHere = mine.filter((f) => f.state === STATE_OF[m[2]]);
         assert.ok(
-          ownersHere.some((w) => w && m[1].toLowerCase().includes(w.toLowerCase())),
+          ownersHere.some(
+            (f) => m[1].toLowerCase().includes(nameOf(f).toLowerCase()) || m[1].includes(`\`${labelOf(f)}\``),
+          ),
           `${name}: "${m[0]}" names no control that produced a :${STATE_OF[m[2]]} change; truth: ${truth}`,
         );
       }

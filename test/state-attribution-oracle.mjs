@@ -44,7 +44,6 @@ const changeKey = (f) =>
   JSON.stringify([f.state, pseudoOf(f.sub), f.props.map((p) => [p.prop, p.before, p.after]).sort()]);
 const labelOf = (f) => prettyLabel(f.path, f.cls ?? '');
 const tagOf = (p) => (p.split('>').pop() ?? '').trim().replace(/[:.[].*$/, '');
-const classWord = (f) => (f.cls ?? '').split(/[\s_-]/)[0].toLowerCase() || tagOf(f.path);
 
 /** Every element entry in the captures under these directories (base and head), by path. */
 export function elementsIn(...dirs) {
@@ -56,9 +55,16 @@ export function elementsIn(...dirs) {
 }
 
 /** The name a reader tells an owner by: a button's or link's own text, else its class word or tag. */
+/**
+ * The noun a reader tells an owner by: a button's or link's own text plus "button"/"link" ("save
+ * button", "help link"), else its first class as words ("opt", "opt a"), lower case.
+ */
 const nameIn = (elements) => (f) => {
   const entry = elements[f.path];
-  return (entry?.text && /^(?:button|a)$/.test(entry.tag) ? entry.text.trim() : classWord(f)).toLowerCase();
+  if (entry?.text && /^(?:button|a)$/.test(entry.tag))
+    return `${entry.text.trim()} ${entry.tag === 'a' ? 'link' : 'button'}`.toLowerCase();
+  const first = (f.cls ?? '').split(/\s+/)[0];
+  return (first ? first.replace(/[-_]+/g, ' ') : tagOf(f.path)).toLowerCase();
 };
 
 /** The colours an element draws (a border, outline, column rule or text stroke with a style and width). */
@@ -96,6 +102,7 @@ function sourcesOf(findings, nameOf) {
       );
       if (seen) {
         seen.owners.push(owner);
+        seen.names.push(nameOf(changes[0]));
         continue;
       }
       out.push({
@@ -172,14 +179,20 @@ function clausesOf(sentence) {
   return out;
 }
 
-/** Whether an owner phrase names exactly this source's owners: "`x` ×N", "`x`", or the owner's noun. */
-function phraseFits(phrase, source) {
+/**
+ * Whether an owner phrase names exactly this source's owners, as main names them: "`x` ×N" for N
+ * owners of `x`; "`x`" for one; or "the [matching] <noun>" for one owner whose noun (or text) no
+ * other owner of the element shares. A noun another owner shares, or any word added to it ("the
+ * first duo"), is an invented distinction (QA18-01, QA18-02).
+ */
+function phraseFits(phrase, source, sources) {
   const times = / ×(\d+)$/.exec(phrase);
   const count = Number(times?.[1] ?? 1);
   const codes = [...phrase.matchAll(/`([^`]+)`/g)].map((m) => m[1]).sort();
   if (codes.length) return source.owners.length === count && JSON.stringify(codes) === JSON.stringify(source.labels);
-  const lower = phrase.toLowerCase();
-  return !times && source.owners.length === 1 && source.names.some((n) => lower.includes(n));
+  const noun = /^the (?:matching )?(.+)$/i.exec(phrase)?.[1].toLowerCase();
+  if (times || source.owners.length !== 1 || noun !== source.names[0]) return false;
+  return !sources.some((other) => other !== source && other.names.includes(noun));
 }
 
 /** Which source a clause names; null when none (or the wrong kind) fits. */
@@ -187,7 +200,10 @@ function sourceFor(clause, sources, taken) {
   const bare = clause.phrases.includes('');
   const driver = clause.phrases.find(Boolean);
   const fits = (s) =>
-    s.state === clause.state && !taken.has(s) && s.own === bare && (driver ? phraseFits(driver, s) : !s.owners.length);
+    s.state === clause.state &&
+    !taken.has(s) &&
+    s.own === bare &&
+    (driver ? phraseFits(driver, s, sources) : !s.owners.length);
   // The clause's properties pick the source among those its owner words fit.
   const named = Object.entries(PROPERTY_WORDS)
     .filter(([, word]) => clause.text.includes(word))

@@ -147,6 +147,14 @@ for (const [name, expected] of [
     'On the ring2 (Ring two), the text colour changes from green to red and outline colour from green to red when `input.rg` is checked, and the text colour changes from green to red when `input.rg` is checked. At rest it looks the same.',
   ],
   [
+    'QA18-01 lone-owner-beside-x2',
+    'On the opt label (Option 3), the text colour changes from green to red when `input.opt` is checked, and the background changes from white to dark indigo when `input.opt` ×2 is checked. At rest it looks the same.',
+  ],
+  [
+    'QA18-01 lone-save-button-beside-x2',
+    'On the panel (Panel), the text colour changes from green to red when `button.btn` is hovered, and the background changes from white to dark indigo when `button.btn` ×2 is hovered. At rest it looks the same.',
+  ],
+  [
     'QA17-04 own-plus-two-identical',
     'On the Twin link, the background changes from white to dark indigo when hovered, and the background changes from white to dark indigo when `input.twin` ×2 is hovered. At rest it looks the same.',
   ],

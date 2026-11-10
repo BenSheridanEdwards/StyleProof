@@ -359,3 +359,23 @@ for (const [name, build] of Object.entries(OWNER_TRUTH_CASES)) {
     );
   });
 }
+
+// QA18-02 / RV18-03: the oracle itself rejects an owner named apart by an invented word ("the first
+// opt") and a lone owner named by its noun beside a ×N clause of the same selector and noun.
+for (const [name, from, to] of [
+  ['QA12-01b two-controls-same-state', 'when the opt is checked', 'when the first opt is checked'],
+  ['QA18-01 lone-owner-beside-x2', /when `input\.opt` is checked/, 'when the opt is checked'],
+])
+  test(`the oracle rejects ${typeof from === 'string' ? 'an invented ordinal' : 'a noun beside a ×N clause'} (QA18-02)`, (t) => {
+    const root = mkTmp('styleproof-attribution-mutant-');
+    t.after(() => rmTmp(root));
+    const [beforeDir, afterDir] = writeSides(root, OWNER_TRUTH_CASES[name]);
+    const result = generateStructural({ beforeDir, afterDir, outDir: path.join(root, 'report') });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+    const elements = elementsIn(beforeDir, afterDir);
+    assert.deepEqual(attributionCheck(md, json, name, elements), [], 'the real line passes');
+    const mutant = md.replace(from, to);
+    assert.notEqual(mutant, md, 'the mutation applies');
+    assert.ok(attributionCheck(mutant, json, name, elements).length > 0, `the oracle rejects "${to}"`);
+  });

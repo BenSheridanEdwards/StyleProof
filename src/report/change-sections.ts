@@ -333,18 +333,21 @@ function ownerSubject(maps: [StyleMap, StyleMap], finding: StateFinding): Sectio
  * as main heads them.
  */
 function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [StyleMap, StyleMap]): Set<StateSource> {
-  const byNoun = new Map<string, Set<string>>();
-  const nounOf = (source: StateSource) =>
+  // Every owner's noun counts, a ×N clause's owners included: a lone owner never reads "the opt"
+  // beside "`input.opt` ×2" (RV18-01, QA18-01); main heads all of them "**Opt** `input.opt`".
+  const nounOf = (owner: string) =>
     sectionNoun(
       ownerSubject(
         maps,
-        findings.find((f) => f.path === source.owners[0])!,
+        findings.find((f) => f.path === owner)!,
       ),
     );
-  const single = sources.filter((s) => s.owners.length === 1);
-  for (const source of single)
-    byNoun.set(nounOf(source), new Set([...(byNoun.get(nounOf(source)) ?? []), source.owners[0]]));
-  return new Set(single.filter((source) => byNoun.get(nounOf(source))!.size > 1));
+  const byNoun = new Map<string, Set<string>>();
+  for (const owner of sources.flatMap((source) => source.owners))
+    byNoun.set(nounOf(owner), new Set([...(byNoun.get(nounOf(owner)) ?? []), owner]));
+  return new Set(
+    sources.filter((source) => source.owners.length === 1 && byNoun.get(nounOf(source.owners[0]))!.size > 1),
+  );
 }
 
 /** Colour properties that follow `color` when unset; drawn ones are kept apart before summarising. */
