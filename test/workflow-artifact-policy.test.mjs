@@ -49,9 +49,9 @@ test('browser shard upload contains only the three JSON receipts needed by e2e-e
   assert.match(workflow.jobs['e2e-evidence'].steps.at(-1).run, /verify-e2e-shards\.mjs .* 6$/);
 });
 
-test('dogfood inherits the 14-day Action report retention default', () => {
+test('dogfood inherits the 3-day Action report retention default', () => {
   const action = load(fs.readFileSync('action.yml', 'utf8'));
-  assert.equal(action.inputs['report-retention-days'].default, '14');
+  assert.equal(action.inputs['report-retention-days'].default, '3');
   const { workflow } = workflows.find(({ file }) => file === '.github/workflows/styleproof-dogfood.yml');
   for (const step of steps(workflow)) {
     assert.equal(Object.hasOwn(step.with ?? {}, 'report-retention-days'), false);

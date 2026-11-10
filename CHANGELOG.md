@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Report artifacts are kept 3 days by default (was 14), so workflow artifacts stay inside small
+  Actions storage quotas. Set `report-retention-days` to keep them longer.
 - The report writes screenshots for reviewable style changes before advisory content changes.
   Before, `--include-content` could spend the whole crop budget on advisory crops, and every
   style change then read `Crop omitted`.
