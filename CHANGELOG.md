@@ -69,7 +69,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - A before/after pair, and each pair of whole pages, is downscaled together when either side is over the
   per-file size limit, so both sides are always at the same scale.
 - `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
-  and counted, with a note and no crop or Where map. Before, the extra regions collapsed into one union crop.
+  and counted, with no crop or Where map. Before, the extra regions collapsed into one union crop. Every change
+  left without a crop is now stated once, at the top of the report, instead of in a note under each entry:
+  "✂️ **4 changes have no crop**, past the `--max-crops` limit of 8 per surface (2 on `home @ 1280`, 2 on
+  `docs @ 1280`). Each is still listed and counted; raise `--max-crops` to show their crops." Content and
+  Global chrome entries past the limit, and crops past the crop budget (`--max-crop-files` /
+  `--max-crop-bytes`) or too large to fit, are counted in the same line, and the closing "N crop(s) omitted"
+  line is gone. A new or removed page shown only in part (at most 8 screen heights) is also said once at the
+  top, with how to see the rest; each tile caption still gives its pixel range.
 - A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
   otherwise it gives the hex value alone.
 - The PR comment carries every change section from report.md: its name, its line, the Where caption and the
@@ -81,16 +88,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   storage get the sections as text, because no image URL there works for every reader. The branch-storage link
   reads "Open the full visual report →".
 - Each fact in the report and the PR comment is stated once, in plain words: a visible element added or removed
-  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface, a subtree volatile
-  on one side only, a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest
-  of the base was captured; repair that surface on that commit and capture it again.", naming at most 10 surfaces
-  and then "and N more, all listed in report.json"), a reach gate and a frozen-clock drift. Report content never
-  tells the reader to approve; the PR comment's footer gives the approval or certify guidance for its mode. Two
-  footers changed: the clean footer gives only the check status ("The **StyleProof** check is green."), and the
-  partial-baseline footer no longer lists the failed surfaces and SHAs again; it says "Reviewer approval cannot
-  clear the missing baseline surfaces named above; repair them and rerun." The comment points at "the full
-  report" instead of sections it does not carry, and the summary gives no changed-CSS-rule count when a
-  served-CSS record is missing.
+  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface (its tile no longer
+  repeats "No baseline to compare against." / "In the baseline, not captured on head."), a subtree volatile on
+  one side only, a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of
+  the base was captured; repair that surface on that commit and capture it again.", naming at most 10 surfaces
+  and then "and N more, all listed in report.json"), a reach gate, a frozen-clock drift, and every crop limit
+  (see `--max-crops` above). Report content never mentions approval in any form: an incomparable product state
+  reads "… declare a different product state on base and head, so their differences are not compared." The PR
+  comment's footer gives the guidance for its mode, and talks about approval only where approval is the action
+  (review-gate, migration, `require-approval`): in certify and advisory runs the failure footers drop "reviewer
+  approval cannot clear this failure", and the partial-baseline footer reads "The check fails until the missing
+  baseline surfaces named above are captured." Other footer changes: the clean footer gives only the check status
+  ("The **StyleProof** check is green."), and the review-gate partial-baseline footer no longer lists the failed
+  surfaces and SHAs again; it says "Reviewer approval cannot clear the missing baseline surfaces named above;
+  repair them and rerun." The comment points at "the full report" instead of sections it does not carry, and the
+  summary gives no changed-CSS-rule count when a served-CSS record is missing.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
   `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
   in report.json, the Action's `trust-state` output and commit statuses.
