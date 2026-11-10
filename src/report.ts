@@ -247,7 +247,10 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
 /** Every crop left out and every partly shown page, said once at the end of the opening (rule 5). */
 function appendLimitLines(ctx: RenderCtx, md: ReportMarkdown): void {
   const limits = [
-    ...partialPageLines(ctx.partialPages ?? []),
+    // The crop-budget option is given once: by the ✂️ line when it counts budget gaps too (QA12-03).
+    ...partialPageLines(ctx.partialPages ?? [], 8, {
+      budgetAdviceElsewhere: (ctx.cropGaps ?? []).some((gap) => gap.reason === 'budget'),
+    }),
     ...cropGapLines(ctx.cropGaps ?? [], {
       maxCrops: ctx.maxCrops,
       maxFiles: ctx.crops.maxFiles,

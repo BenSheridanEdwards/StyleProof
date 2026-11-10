@@ -544,6 +544,29 @@ const SHAPES = {
     trust: reviewable,
     expect: /## 🧱 Global chrome change — across/,
   },
+  // QA12-04: the budget fits the first section's pair but not its Where map.
+  'crop budget drops a Where map': {
+    before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo }) },
+    after: {
+      'home@1280': page({
+        'body > h1': title(RED),
+        'body > div.promo': { ...promo, style: { ...promo.style, color: RED } },
+      }),
+    },
+    opts: { maxCropFiles: 2 },
+    trust: reviewable,
+    expect: /✂️ \*\*2 changes are missing crops\*\*, past the report's crop budget/,
+  },
+  // QA12-03: a tall new page and change sections both run out of crop budget: one remedy, on the ✂️ line.
+  'tall new page and change sections both past the crop budget': {
+    before: { ...kinds(BLACK) },
+    after: { ...kinds(RED), ...TALL },
+    png: tallPng,
+    opts: { maxCropFiles: 6 },
+    trust: reviewable,
+    expect:
+      /📏 \*\*Only part of 1 page is shown:\*\*[^\n]*crop budget ran out\.\n[\s\S]*✂️[^\n]*raise `--max-crop-files` or `--max-crop-bytes`/,
+  },
   'incomparable product state': {
     before: stated('checkout-loading')(BLACK),
     after: stated('checkout-ready')(RED),

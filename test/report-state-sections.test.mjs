@@ -89,7 +89,12 @@ test('a state that restyles another element names that element and the control d
   assert.match(offers, /^On the offers label, the text colour changes from .+ when the offers check is checked\./m);
   assert.match(offers, /\*\*While checked\*\*/);
   assert.doesNotMatch(offers, /While disabled|While showing its placeholder/);
-  assert.match(offers, /\| `:checked color` \|/, 'the CSS row is the label colour under :checked');
+  // QA12-01: the row names the control that produced it, as the capture records.
+  assert.match(
+    offers,
+    /\| `input\.offers-check:checked color` \|/,
+    "the CSS row is the label colour under the checkbox's :checked",
+  );
   assert.match(sections.Save, /\*\*While disabled\*\*/);
   assert.match(sections.Nickname, /\*\*While showing its placeholder\*\*/);
   // The Where map boxes the label that changed, never the checkbox that drives it.

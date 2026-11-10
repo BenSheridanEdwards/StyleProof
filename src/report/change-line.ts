@@ -24,7 +24,17 @@ export type SectionSubject = {
 };
 
 /** One forced state's summarized prop changes. */
-export type StateChange = { state: string; props: PropChange[] };
+/** One forced state's changes from one source; `driver` is the control that produced them, absent for the element's own state. */
+export type StateChange = { state: string; props: PropChange[]; driver?: StateDriver };
+/**
+ * `count`: distinct controls of this label across the section ("the matching opt", one per element).
+ * `alternatives`: distinct controls of this label behind one element's change ("either of the 2 opts").
+ */
+export type StateDriver = {
+  subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
+  count?: number;
+  alternatives?: number;
+};
 
 export type ChangeLineInput = {
   subject: SectionSubject;
@@ -32,8 +42,7 @@ export type ChangeLineInput = {
   rest: Array<PropChange & { pseudo?: string }>;
   states: StateChange[];
   /** A state owned by another element (a checkbox `:checked` restyling its label). */
-  /** `states`: the states the driver owns; the rest are the subject's own (default: every state). */
-  driver?: { subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>; count?: number; states?: string[] };
+
   dom?: 'added' | 'removed' | 'retagged';
   /** Only size/position values moved: no styling property changed. */
   geometryOnly?: boolean;
@@ -281,12 +290,16 @@ function listClauses(clauses: string[], article: string): string {
 
 /** The forced-state sentences: after a resting change, "Their …"; alone, "On …, the …" plus the resting claim. */
 function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
-  const noun = input.driver ? sectionNoun(input.driver.subject) : '';
-  const driver = !input.driver ? null : (input.driver.count ?? 1) > 1 ? `the matching ${noun} is` : `the ${noun} is`;
-  const drives = (state: string) => !input.driver?.states || input.driver.states.includes(state);
-  const clauses = input.states
-    .filter((st) => st.props.length)
-    .map((st) => stateClause(st, drives(st.state) ? driver : null));
+  // Each clause names its own source: the element's own state, or the control that produced it.
+  const driverPhrase = (driver?: StateDriver): string | null => {
+    if (!driver) return null;
+    const noun = sectionNoun(driver.subject);
+    const alternatives = driver.alternatives ?? 1;
+    // Several controls of one label produce this one change: name them all, never pick one.
+    if (alternatives > 1) return `${alternatives === 2 ? 'either' : 'any'} of the ${alternatives} ${plural(noun)} is`;
+    return (driver.count ?? 1) > 1 ? `the matching ${noun} is` : `the ${noun} is`;
+  };
+  const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driverPhrase(st.driver)));
   if (!clauses.length) return [];
   if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
   const rest = input.restFolded ? [] : [many ? 'At rest they look the same.' : 'At rest it looks the same.'];

@@ -312,7 +312,7 @@ export function cropGapLines(
  * One-sided pages shown only in part, said once for the report: each page by name with how much is
  * shown, why, and what to do. It names nothing the PR comment lacks (no tiles or captions).
  */
-export function partialPageLines(pages: PartialPage[], maxTiles = 8): string[] {
+export function partialPageLines(pages: PartialPage[], maxTiles = 8, { budgetAdviceElsewhere = false } = {}): string[] {
   if (pages.length === 0) return [];
   const list = pages
     .map(
@@ -328,12 +328,13 @@ export function partialPageLines(pages: PartialPage[], maxTiles = 8): string[] {
   ].filter(Boolean);
   const todo = [
     capped ? 'open the full screenshot to review the rest' : '',
-    budget ? 'raise `--max-crop-files` or `--max-crop-bytes` to show more of it' : '',
+    // When the ✂️ line also counts crop-budget gaps, it gives that option once for both (QA12-03).
+    budget && !budgetAdviceElsewhere ? 'raise `--max-crop-files` or `--max-crop-bytes` to show more of it' : '',
   ].filter(Boolean);
   return [
     '',
     `📏 **Only part of ${pages.length === 1 ? '1 page' : `${pages.length} pages`} is shown:** ${list}. ` +
-      `${why.join(', and ').replace(/^./, (c) => c.toUpperCase())}; ${todo.join(', or ')}.`,
+      `${why.join(', and ').replace(/^./, (c) => c.toUpperCase())}${todo.length ? `; ${todo.join(', or ')}` : ''}.`,
   ];
 }
 

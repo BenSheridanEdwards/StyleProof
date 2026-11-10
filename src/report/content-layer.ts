@@ -1,3 +1,4 @@
+import { cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import { captureKeysIn, isUnder, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import { diffContentMaps, type ContentChange } from '../diff.js';
@@ -126,8 +127,12 @@ function pairLines(
   suffix: string,
   pair: NonNullable<ReturnType<typeof renderCropPair>>,
 ): string[] {
-  if (pair.omitted) s.ctx.cropGaps?.push({ reason: pair.omitted, where: surface });
-  return [...contentWhereLines(s, surface, c, suffix), ...pair.md];
+  let whereOmitted = false;
+  const where = contentWhereLines(s, surface, c, suffix, () => (whereOmitted = true));
+  // One gap for the entry, whether its pair or its Where map (QA12-04) was left out.
+  if (pair.omitted || whereOmitted)
+    s.ctx.cropGaps?.push({ reason: pair.omitted ?? cropGapReason(s.ctx.crops), where: surface });
+  return [...where, ...pair.md];
 }
 
 function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
@@ -166,14 +171,20 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
 }
 
 /** Where maps for a content change: on the head page where the element exists there, else on the base page. */
-function contentWhereLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
+function contentWhereLines(
+  s: Sides,
+  surface: string,
+  c: ContentChange,
+  suffix: string,
+  onOmitted?: () => void,
+): string[] {
   const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
   const rect = (entry: ElementEntry | undefined): Rect[] => {
     const r = screenshotRectOf(entry);
     return r ? [r] : [];
   };
   const map =
-    writeWhereMap(s.ctx, { surface, suffix, page: s.pngB, side: 'after', rects: rect(entryB) }) ??
+    writeWhereMap(s.ctx, { surface, suffix, page: s.pngB, side: 'after', rects: rect(entryB), onOmitted }) ??
     (entryB
       ? null
       : writeWhereMap(s.ctx, {
@@ -182,6 +193,7 @@ function contentWhereLines(s: Sides, surface: string, c: ContentChange, suffix: 
           page: s.pngA,
           side: 'before',
           rects: rect(entryA),
+          onOmitted,
         }));
   return map ? ['', whereMapLine(s.ctx, map, '1 changed element')] : [];
 }

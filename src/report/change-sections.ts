@@ -19,7 +19,7 @@ import { cellPair, renderCropChanges } from './markdown.js';
 import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
 import { spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import { whereMapLine, whereReceipt, writeWhereMap, type WhereMap } from './where-map.js';
-import { writeBudgetedPair } from './crop-budget.js';
+import { cropGapReason, writeBudgetedPair } from './crop-budget.js';
 import { cropStem } from './png.js';
 import type { ReportMarkdown } from './sections.js';
 import {
@@ -53,12 +53,53 @@ export type ChangeSection = {
   findings: Finding[];
   /** Pairs to show: resting first when anything changed at rest, then each forced state. */
   states: PairState[];
-  /**
-   * The element whose state restyles these (a checkbox restyling its label); `count` drivers share
-   * its label. `states` are the states it drives; any other state is the elements' own (RV11-01).
-   */
-  driver?: { path: string; entry?: ElementEntry; count: number; states: PairState[] };
 };
+
+/**
+ * One forced state's findings from one source (QA12-01): the elements' own state, or the control
+ * whose state produced them (a checkbox's `:checked` restyling its label). Attribution is per
+ * finding, so a section restyled by its own hover and by two controls names all three.
+ */
+export type StateSource = {
+  state: Exclude<PairState, 'rest'>;
+  /**
+   * The control; absent for the elements' own state. `count`: distinct controls of this label across
+   * the section; `onFirst`: distinct controls of this label behind the first element's findings (two
+   * checkboxes that each restyle one label are both named, never one picked).
+   */
+  owner?: { path: string; entry?: ElementEntry; label: string; count: number; onFirst: number };
+  /** The section's first element's findings from this source in this state. */
+  findings: Extract<Finding, { kind: 'state' }>[];
+};
+
+const isStateFinding = (f: Finding): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state';
+const ownState = (f: Extract<Finding, { kind: 'state' }>): boolean => f.path === subjectPath(f);
+const ownerLabelOf = (maps: [StyleMap, StyleMap], f: Extract<Finding, { kind: 'state' }>): string =>
+  prettyLabel(f.path, entryOf(maps, f.path)?.cls ?? f.cls ?? '');
+
+/** Per state, the elements' own findings first, then each control's, by its selector label. */
+export function stateSources(section: ChangeSection, maps: [StyleMap, StyleMap]): StateSource[] {
+  const all = section.findings.filter(isStateFinding);
+  const first = all.filter((f) => subjectPath(f) === section.paths[0]);
+  return STATE_LAYER_NAMES.flatMap((state) => {
+    const inState = first.filter((f) => f.state === state);
+    const own = inState.filter(ownState);
+    const labels = [...new Set(inState.filter((f) => !ownState(f)).map((f) => ownerLabelOf(maps, f)))].sort();
+    return [
+      ...(own.length ? [{ state, findings: own }] : []),
+      ...labels.map((label) => {
+        const findings = inState.filter((f) => !ownState(f) && ownerLabelOf(maps, f) === label);
+        // Across the section's elements: one control of this label, or one per element ("the matching opt").
+        const owners = new Set(
+          all.filter((f) => f.state === state && !ownState(f) && ownerLabelOf(maps, f) === label).map((f) => f.path),
+        );
+        const path = findings[0].path;
+        const onFirst = new Set(findings.map((f) => f.path)).size;
+        return { state, owner: { path, entry: entryOf(maps, path), label, count: owners.size, onFirst }, findings };
+      }),
+    ];
+  });
+}
 
 /** What the diff writes for the side of a state change the state leaves alone, per side. */
 const GEOMETRY_HINT =
@@ -129,13 +170,14 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
   const groups = new Map<string, string[]>();
   for (const p of [...bySubject.keys()].sort(order)) {
     const entry = entryOf(maps, p);
-    // Driven targets group by what drives them, so each section names one kind of control.
+    // Elements group only when each state comes from the same kind of source (their own state, or a
+    // control of one label), so a line drawn from the first element is true of every element.
     const ownerLabels = [
       ...new Set(
         bySubject
           .get(p)!
-          .filter((f) => f.kind === 'state' && f.path !== p)
-          .map((f) => prettyLabel(f.path, entryOf(maps, f.path)?.cls ?? '')),
+          .filter(isStateFinding)
+          .map((f) => `${f.state}:${ownState(f) ? '' : ownerLabelOf(maps, f)}`),
       ),
     ].sort();
     const key = JSON.stringify([prettyLabel(p, entry?.cls ?? ''), ownerLabels, changeSignature(bySubject.get(p)!)]);
@@ -145,7 +187,6 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
     const entry = entryOf(maps, paths[0]);
     const selector = prettyLabel(paths[0], entry?.cls ?? '');
     const own = paths.flatMap((p) => bySubject.get(p)!);
-    const drivers = [...new Set(own.filter((f) => f.kind === 'state' && f.path !== subjectPath(f)).map((f) => f.path))];
     const page = maps[1].elements[paths[0]] ? maps[1] : maps[0];
     const sameSelectorCount = Object.entries(page.elements).filter(
       ([p, e]) => prettyLabel(p, e.cls) === selector,
@@ -159,10 +200,6 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
       sameSelectorCount: Math.max(sameSelectorCount, paths.length),
     };
     const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
-    // A state is the driver's when every finding for it comes from another element's state.
-    const drivenStates = states.filter((state) =>
-      own.every((f) => f.kind !== 'state' || f.state !== state || f.path !== subjectPath(f)),
-    );
     return {
       title: paths[0] === SURFACE_SUBJECT ? 'Interaction states not compared' : sectionTitle(subject),
       selector,
@@ -170,12 +207,6 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
       sameSelectorCount: subject.sameSelectorCount,
       findings: own,
       states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
-      // Name a driver only for states it drives on its own; a state the elements also change themselves stays theirs.
-      ...(drivers.length && drivenStates.length
-        ? {
-            driver: { path: drivers[0], entry: entryOf(maps, drivers[0]), count: drivers.length, states: drivenStates },
-          }
-        : {}),
     };
   });
 }
@@ -221,36 +252,30 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   // A side the state leaves alone renders the resting value: say that value, not "none".
   const resting = (side: 0 | 1, prop: string, value: string): string =>
     value === STATE_ADDS[side] ? (maps[side].elements[target]?.style?.[prop] ?? value) : value;
-  // Resolve on the longhands, before they fold into a shorthand (four border sides → one colour).
-  const states: StateChange[] = STATE_LAYER_NAMES.flatMap((state) => {
-    const props = first.flatMap((f) =>
-      f.kind === 'state' && f.state === state
-        ? summarizeProps(
-            f.props.map((p) => ({ ...p, before: resting(0, p.prop, p.before), after: resting(1, p.prop, p.after) })),
-          )
-        : [],
+  // One clause per state and source, each naming the control that produced it (QA12-01). Resolve on
+  // the longhands, before they fold into a shorthand (four border sides → one colour).
+  const states: StateChange[] = stateSources(section, maps).flatMap((source) => {
+    const props = source.findings.flatMap((f) =>
+      summarizeProps(
+        f.props.map((p) => ({ ...p, before: resting(0, p.prop, p.before), after: resting(1, p.prop, p.after) })),
+      ),
     );
-    return props.length ? [{ state, props }] : [];
+    const owner = source.owner;
+    const driver = owner?.entry
+      ? {
+          subject: { tag: owner.entry.tag, cls: owner.entry.cls, path: owner.path, texts: [owner.entry.text ?? ''] },
+          count: owner.count,
+          alternatives: owner.onFirst,
+        }
+      : undefined;
+    return props.length ? [{ state: source.state, props, ...(driver ? { driver } : {}) }] : [];
   });
-  const driver = section.driver?.entry
-    ? {
-        subject: {
-          tag: section.driver.entry.tag,
-          cls: section.driver.entry.cls,
-          path: section.driver.path,
-          texts: [section.driver.entry.text ?? ''],
-        },
-        count: section.driver.count,
-        states: section.driver.states,
-      }
-    : undefined;
   return changeLine({
     subject: subjectOf(section, maps),
     ...(isGeometryOnlyGroup(first) ? { geometryOnly: true } : {}),
     ...(folded.some((f) => f.kind !== 'state') ? { restFolded: true } : {}),
     rest,
     states,
-    ...(driver ? { driver } : {}),
     ...(dom ? { dom: dom.change } : {}),
     ...(rest.some((p) => SIZING.test(p.prop)) && !dom ? { size: sharedSizeChange(section, maps) } : {}),
   });
@@ -275,6 +300,15 @@ function colorFirst<T extends PropChange>(rows: T[]): T[] {
   return [...rows.slice(0, at), color, ...rows.slice(at).filter((r) => r !== color)];
 }
 
+/**
+ * A state row names the control that produced it (QA12-01), as the capture records:
+ * `input.opt:checked color`; the element's own state stays `:hover background-color`.
+ */
+function statePrefix(f: Finding): string {
+  if (f.kind !== 'state') return '';
+  return `${ownState(f) ? '' : prettyLabel(f.path, f.cls ?? '')}:${f.state}`;
+}
+
 /** The CSS table rows for one element's findings: rest, pseudo-elements, then states; followers last. */
 export function cssRows(findings: Finding[]): string[][] {
   const rows: string[][] = [];
@@ -286,7 +320,7 @@ export function cssRows(findings: Finding[]): string[][] {
   ];
   for (const f of ordered) {
     if (f.kind === 'dom') continue;
-    const prefix = [f.kind === 'state' ? `:${f.state}` : '', pseudoOf(f) ?? ''].filter(Boolean).join(' ');
+    const prefix = [statePrefix(f), pseudoOf(f) ?? ''].filter(Boolean).join(' ');
     const label = (prop: string) => codeValue(prefix ? `${prefix} ${prop}` : prop);
     for (const row of colorFirst(summarizePropsWithFollowOns(f.props))) {
       rows.push([`${label(row.prop)}${longhandNote(row, f.props)}`, ...cellPair(row.before, row.after)]);
@@ -361,6 +395,7 @@ function cssDetailLines(
     describe: Parameters<typeof renderCropChanges>[2];
     surfaces?: string;
     rules: SectionRegistry['rules'];
+    maps: [StyleMap, StyleMap];
   },
 ): string[] {
   if (section.paths[0] === SURFACE_SUBJECT) return stateLayerFold(section.findings);
@@ -368,9 +403,13 @@ function cssDetailLines(
   const across = extra.surfaces ? ` · the same on ${extra.surfaces}` : '';
   const verb = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom')?.change ?? 'restyled';
   const meta = `${codeValue(section.selector)} · ${counted(section.paths.length, 'element')} ${verb}${ruleMeta(extra.rules)}${across}`;
-  const driver = section.driver
-    ? ` · when ${codeValue(prettyLabel(section.driver.path, section.driver.entry?.cls ?? ''))} is ${section.driver.states
-        .map((s) => codeValue(`:${s}`))
+  // Each control with the states it produced, in state order: "when `input.opt` is `:checked`, `button.toggle` is `:focus`".
+  const byOwner = new Map<string, string[]>();
+  for (const source of stateSources(section, extra.maps))
+    if (source.owner) byOwner.set(source.owner.label, [...(byOwner.get(source.owner.label) ?? []), source.state]);
+  const driver = byOwner.size
+    ? ` · when ${[...byOwner]
+        .map(([label, states]) => `${codeValue(label)} is ${states.map((s) => codeValue(`:${s}`)).join(', ')}`)
         .join(', ')}`
     : '';
   const hasDom = first.some((f) => f.kind === 'dom');
@@ -630,7 +669,14 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput): Render
   const noun = sectionNoun(subjectOf(section, maps));
   const pairs = sectionPairs(ctx, input, section.paths.length > 1 ? `the first ${noun}` : `the ${noun}`);
   const shown = Boolean(pairs.images.after || Object.keys(pairs.stateImages).length);
-  const where = shown ? sectionWhereMaps(ctx, surface, section, maps, input.pngs, input.seq) : [];
+  // A Where map the crop budget leaves out is an omitted crop of this section (QA12-04): recorded
+  // in report.json and counted once in the opening, like a pair the budget leaves out.
+  const where = shown
+    ? sectionWhereMaps(ctx, surface, section, maps, input.pngs, input.seq, () => {
+        if (!pairs.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: surface });
+        pairs.omitted = 'budget';
+      })
+    : [];
   const things = section.paths.length > 1 ? `${section.paths.length} ${plural(noun)}` : `1 ${noun}`;
   const page = formatSurfaceWithContext(surface, ...maps);
   // The Where caption names the page; without a map, a short line does.
@@ -661,6 +707,7 @@ function sectionWhereMaps(
   maps: [StyleMap, StyleMap],
   [pngA, pngB]: [PNG | null, PNG | null],
   seq: { crop: number },
+  onOmitted: () => void,
 ): WhereMap[] {
   const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
     paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
@@ -668,7 +715,8 @@ function sectionWhereMaps(
   const gone = section.paths.filter((p) => !maps[1].elements[p]);
   const suffix = `${seq.crop}`;
   return [
-    pngB && writeWhereMap(ctx, { surface, suffix, page: pngB, side: 'after', rects: rectsOf(onHead, maps[1]) }),
+    pngB &&
+      writeWhereMap(ctx, { surface, suffix, page: pngB, side: 'after', rects: rectsOf(onHead, maps[1]), onOmitted }),
     pngA &&
       writeWhereMap(ctx, {
         surface,
@@ -676,6 +724,7 @@ function sectionWhereMaps(
         page: pngA,
         side: 'before',
         rects: rectsOf(gone, maps[0]),
+        onOmitted,
       }),
   ].filter((m): m is WhereMap => !!m);
 }

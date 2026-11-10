@@ -461,6 +461,12 @@ export function situationCounts(md, json) {
         `says ${total} changes are missing crops, but ${sections} change sections are (pairs counted, not changes?)`,
       );
   }
+  // A section shown with its pair has its Where map, or report.json says a limit left a crop out
+  // (QA12-04): the map is never dropped silently.
+  for (const region of (json.surfaces ?? []).flatMap((s) => s.regions ?? [])) {
+    if (region.images?.after && region.after && !region.where && !region.cropOmitted)
+      out.push(`a section with a pair has no Where map and no cropOmitted (${region.paths?.[0] ?? '?'})`);
+  }
   const visible = md.match(/\*\*(\d+) visible elements? (?:was|were) added or removed\*\*/);
   if (visible && Number(visible[1]) !== (json.reviewableCounts?.dom ?? 0)) {
     out.push(`says ${visible[1]} visible elements changed, report.json counts ${json.reviewableCounts?.dom ?? 0}`);
