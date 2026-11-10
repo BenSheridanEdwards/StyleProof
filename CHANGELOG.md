@@ -7,6 +7,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- The report writes screenshots for reviewable style changes before advisory content changes.
+  Before, `--include-content` could spend the whole crop budget on advisory crops, and every
+  style change then read `Crop omitted`.
+- The **What changed** rows in the PR comment name more of the change. Elements with the same
+  name and the same change share one entry marked `×N`, a row names up to five entries (was
+  three), and a property with no plain-English rule reads as `line-height 42px → 52px` in place
+  of a bare `+1 more`. `report.json` digest elements gain an optional `count`.
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.

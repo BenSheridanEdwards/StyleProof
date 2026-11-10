@@ -336,7 +336,14 @@ function renderContentLayer(
 ) {
   const withContent = mode.includeContent || mode.migration ? contentSurfaces(ctx) : [];
   if (!mode.includeContent) {
-    return { withContent, contentSection: { md: [], count: 0 }, chromeMd: [], globalChrome: 0, total: 0 };
+    return {
+      withContent,
+      contentCount: 0,
+      renderContentMd: () => [],
+      renderChromeMd: () => [],
+      globalChrome: 0,
+      total: 0,
+    };
   }
   // Content chrome hosts only over paired surfaces — unpaired co-hosts must not
   // expand the must-hit set (#767 / #754 residual). Style classifyChrome keeps full surfacePaths.
@@ -347,15 +354,24 @@ function renderContentLayer(
         contentHostingSurfacePaths(ctx.beforeDir, ctx.afterDir, surfacePaths),
         surfaceKeyOf,
       );
-  const contentSection = renderContentSection(ctx, split.rest, {
-    elevatedVisibleStructure,
-  });
+  const contentCount = split.rest.reduce((sum, surface) => sum + surface.changes.length, 0);
   const globalChrome = split.chrome.length;
-  const chromeMd = renderChromeStructureSection(ctx, split.chrome, {
-    elevatedNavigableAdds: elevatedNavigableChromeAdds,
-    elevatedVisibleStructure,
-  });
-  return { withContent, contentSection, chromeMd, globalChrome, total: contentSection.count + globalChrome };
+  // Rendering writes crops, and crops share one budget. The body renders these after the
+  // reviewable style sections, so advisory content crops cannot take the budget first.
+  const renderContentMd = () => renderContentSection(ctx, split.rest, { elevatedVisibleStructure }).md;
+  const renderChromeMd = () =>
+    renderChromeStructureSection(ctx, split.chrome, {
+      elevatedNavigableAdds: elevatedNavigableChromeAdds,
+      elevatedVisibleStructure,
+    });
+  return {
+    withContent,
+    contentCount,
+    renderContentMd,
+    renderChromeMd,
+    globalChrome,
+    total: contentCount + globalChrome,
+  };
 }
 
 type SurfaceKeyOf = (captureKey: string) => string | undefined;
@@ -440,7 +456,7 @@ function renderReportBody(
     countCapturedSurfaceBases(captureKeysIn(ctx.afterDir), surfaceKeyOf),
   );
   md.detail(
-    content.chromeMd,
+    content.renderChromeMd(),
     `- ${content.globalChrome} global chrome element change(s) on every surface base that renders its container`,
   );
   if (migrationGallery) {
@@ -450,10 +466,11 @@ function renderReportBody(
       `- Migration gallery: ${g.changedStyles.length} changed styles, ${g.newSurfaces.length} new surfaces, ${g.newRemovedElements.length} surfaces with element changes`,
     );
   }
-  if (content.contentSection.md.length > 0 && !migrationGallery) {
+  const contentMd = migrationGallery ? [] : content.renderContentMd();
+  if (contentMd.length > 0) {
     md.detail(
-      content.contentSection.md,
-      `- ${content.contentSection.count} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
+      contentMd,
+      `- ${content.contentCount} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
   const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
@@ -552,7 +569,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
     liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
-    contentCount: content.contentSection.count,
+    contentCount: content.contentCount,
     globalChromeCount: content.globalChrome,
     elevatedNavigableChromeAdds: elevation.chrome.count,
     elevatedVisibleStructure: elevation.visible.count,

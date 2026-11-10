@@ -221,3 +221,27 @@ test('zero crop bytes skips encoding and reports an exhausted budget', () => {
   assert.equal(crops.exhausted, true);
   assert.match(cropBudgetNote(crops), /reached its crop budget/);
 });
+
+test('advisory content crops do not take the crop budget from reviewable style crops', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  const map = (color, text) =>
+    makeMap({
+      elements: {
+        'body > div:nth-child(1)': { tag: 'div', cls: 'card', rect: [10, 20, 200, 40], style: { color } },
+        'body > p:nth-child(2)': { tag: 'p', cls: 'lead', rect: [10, 300, 200, 40], text },
+      },
+    });
+  writeCapture(dirs.beforeDir, 'home@1280', map('rgb(0, 0, 0)', 'Original demo copy'), noisePng(400, 400, 1));
+  writeCapture(dirs.afterDir, 'home@1280', map('rgb(255, 0, 0)', 'Updated demo copy'), noisePng(400, 400, 2));
+  const isContent = (file) => file.includes('content');
+  const full = report(dirs, 'full', { includeContent: true, maxCropBytes: Number.MAX_SAFE_INTEGER });
+  const styleFiles = full.files.filter((file) => !isContent(file));
+  assert.ok(styleFiles.length > 0 && full.files.some(isContent), 'the fixture renders style and content crops');
+  const styleBytes = styleFiles.reduce((sum, file) => sum + fs.statSync(path.join(full.outDir, 'crops', file)).size, 0);
+
+  const capped = report(dirs, 'capped', { includeContent: true, maxCropBytes: styleBytes });
+  assert.deepEqual(capped.files, styleFiles, 'the budget goes to the reviewable style change first');
+  assert.equal(capped.json.cropBudget.omitted, 1, 'the advisory content crop is the one left out');
+  assert.match(capped.md, /Updated demo copy/, 'the content change is still listed');
+});

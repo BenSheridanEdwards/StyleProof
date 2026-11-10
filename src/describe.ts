@@ -291,6 +291,17 @@ const LOW_SIGNAL = new Set(
    -webkit-font-smoothing -webkit-box-orient text-overflow word-break overflow-wrap`.split(/\s+/),
 );
 
+// Past this length a raw value pair stops being a glance; the table keeps the values.
+const MAX_PLAIN_VALUES = 60;
+/** The fallback phrase for a property no rule names: `line-height 42px → 52px`. */
+function plainPhrase(c: PropChange, ctx: DescribeCtx): string {
+  const prop = escapeInlineMarkdown(c.prop);
+
+  return c.before.length + c.after.length > MAX_PLAIN_VALUES
+    ? `${prop} changed`
+    : `${prop} ${shift(c.before, c.after, ctx.tokensBefore, ctx.tokensAfter)}`;
+}
+
 /** Build the English phrases for ONE element's deltas, capped so a bullet stays a
  *  glance: the top `cap` rule phrases (rules are priority-ordered), then a single
  *  "+N more" counting the rest (low-signal props excluded — they're in the table). */
@@ -299,6 +310,13 @@ function phrasesFor(props: PropChange[], ctx: DescribeCtx, cap = 4): string[] {
   const used = new Set<string>();
   const mark = (...ps: string[]) => ps.forEach((p) => used.add(p));
   const phrases = RULES.flatMap((rule) => rule(m, mark, ctx));
+  // No rule names these properties. Name the first one, so a bullet never reads as a bare "+N more".
+  const unnamed = [...m.values()].find((c) => !used.has(c.prop) && !LOW_SIGNAL.has(c.prop));
+
+  if (!phrases.length && unnamed) {
+    mark(unnamed.prop);
+    phrases.push(plainPhrase(unnamed, ctx));
+  }
   const rest = [...m.keys()].filter((p) => !used.has(p) && !LOW_SIGNAL.has(p)).length;
   const shown = phrases.slice(0, cap);
   const overflow = phrases.length - shown.length + rest;
