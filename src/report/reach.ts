@@ -92,6 +92,33 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
   return gaps;
 }
 
+const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
+
+/**
+ * A J1 gap from `ledgerGaps` (or the incomplete-ledger gap) in reviewer words, for the one warn
+ * line: the side once, no "(s)", no "ledger". report.json and the gate section keep the exact record.
+ */
+function plainLedgerGap(gap: ReachGap): string {
+  const reason = gap.reason;
+  let m: RegExpMatchArray | null;
+  if ((m = reason.match(/^no (base|head) captures;/)))
+    return `there are no ${m[1]} captures — capture both sides with \`captureReach\``;
+  if ((m = reason.match(/^missing (base|head) ledger on (\d+) capture\(s\);/))) {
+    const n = Number(m[2]);
+    return `${many(n, `${m[1]} capture`)} ${n === 1 ? 'has no record of the CSS it' : 'have no record of the CSS they'} served — recapture with \`captureReach\``;
+  }
+  if ((m = reason.match(/^served CSS reach is unknown on (\d+) (base|head) capture\(s\): (.*)$/))) {
+    return `StyleProof could not read the CSS served on ${many(Number(m[1]), `${m[2]} capture`)} (${m[3]}) — simplify or remove that CSS, then recapture`;
+  }
+  if ((m = reason.match(/^(\d+) unreadable stylesheet\(s\) on (base|head);/))) {
+    const n = Number(m[1]);
+    return `${many(n, 'stylesheet')} on ${m[2]} could not be read — make ${n === 1 ? 'it' : 'them'} readable (same-origin or CORS), then recapture`;
+  }
+  if (reason.startsWith('reach ledger incomplete;'))
+    return 'the record of served CSS is incomplete — recapture with `captureReach`';
+  return `${gap.side ? `${gap.side}: ` : ''}${reason} — ${gap.remedy}`;
+}
+
 /** Opt-in reach evidence: incomplete joins can only add findings, never certify a run. */
 export function assessReachMaps(
   base: StyleMap[],
@@ -276,9 +303,9 @@ function uncheckedLine(reach: ReportReach): string | null {
           `${unmeasured.length} changed CSS rule${unmeasured.length === 1 ? '' : 's'} matched only elements StyleProof does not compare (${namedRules(unmeasured)})`,
         ]
       : []),
-    ...reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => `${gapReason(gap)} — ${gap.remedy}`),
+    ...reach.gaps.filter((gap) => gap.kind === 'ledger').map(plainLedgerGap),
   ];
-  return parts.length ? `⚠️ **Change Reach could not check every changed CSS rule:** ${parts.join(' · ')}.` : null;
+  return parts.length ? `⚠️ **Change Reach could not check every changed CSS rule:** ${parts.join('; ')}.` : null;
 }
 
 function ruleTable(rules: RuleReach[]): string[] {

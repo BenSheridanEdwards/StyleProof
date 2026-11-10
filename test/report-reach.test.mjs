@@ -205,13 +205,13 @@ test('at warn, unmeasured rules and missing or unreadable ledgers get one plain 
       'missing base ledger',
       withoutReach(map()),
       map(rule('.fault', 'h2')),
-      /base: missing base ledger on 1 capture\(s\)/,
+      /1 base capture has no record of the CSS it served — recapture/,
     ],
     [
       'unreadable sheets',
       map(rule('.fault', 'h1', { used: true })),
       unreadable,
-      /head: 2 unreadable stylesheet\(s\) on head/,
+      /2 stylesheets on head could not be read/,
     ],
   ]) {
     const md = visible(report(fixture(t, [base], [head])).md);
@@ -225,6 +225,29 @@ test('at warn, unmeasured rules and missing or unreadable ledgers get one plain 
     report(fixture(t, [map(rule('.ok', 'h1', { used: true }))], [map(rule('.ok', 'h2', { used: true }))])).md,
   );
   assert.doesNotMatch(reached, /Change Reach could not/, 'every changed rule matched: no line');
+});
+
+test('the warn line names each served-CSS gap in plain words, side once, no "(s)" or "ledger" (QA6-03)', (t) => {
+  const head = map(rule('.fault', 'h2', { used: true }));
+  head.reach.unreadable = 3;
+  head.reach.unknown = 'unsupported var() reference';
+  const output = report(fixture(t, [map(rule('.fault', 'h1', { used: true })), map()], [head, withoutReach(map())]));
+  const line = visible(output.md)
+    .split('\n')
+    .find((l) => l.includes('Change Reach could not check every changed CSS rule'));
+  assert.equal(
+    line,
+    '⚠️ **Change Reach could not check every changed CSS rule:** ' +
+      '1 head capture has no record of the CSS it served — recapture with `captureReach`; ' +
+      'StyleProof could not read the CSS served on 1 head capture (unsupported var() reference) — simplify or remove that CSS, then recapture; ' +
+      '3 stylesheets on head could not be read — make them readable (same-origin or CORS), then recapture.',
+  );
+  // The exact gap records stay in report.json.
+  assert.ok(
+    output.json.reach.gaps.some(
+      (gap) => gap.reason === 'missing head ledger on 1 capture(s); changed rules cannot be listed',
+    ),
+  );
 });
 
 test('outside-only changes stay unmeasured in reports and block only the opt-in gate', (t) => {
@@ -399,7 +422,7 @@ test('missing and pre-version-2 ledgers name the affected side and the recapture
   // RV5-02: at warn, a ledger gap gets the one plain line (never silence); the gate's section lists it in full.
   assert.match(
     output.md,
-    /Change Reach could not check every changed CSS rule:\*\* base: missing base ledger on 2 capture\(s\)/,
+    /Change Reach could not check every changed CSS rule:\*\* 2 base captures have no record of the CSS they served/,
   );
   assert.doesNotMatch(output.md, /Reach evidence gaps/);
   assert.equal(output.json.reach.ledger, 'missing');
@@ -438,7 +461,7 @@ test('missing captures produce an explicit reach gap and an empty head still ref
       const output = report(dirs);
       assert.match(
         output.md,
-        /base: no base captures; changed rules cannot be listed — capture both sides/,
+        /there are no base captures — capture both sides with `captureReach`/,
         'never silent (RV5-02)',
       );
       assert.deepEqual(output.json.reach, reach);
