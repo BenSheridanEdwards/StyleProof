@@ -47,6 +47,18 @@ const nameIn = (elements) => (f) => {
   return entry?.text && /^(?:button|a)$/.test(entry.tag) ? entry.text : wordOf(f);
 };
 const labelOf = (f) => ((f.cls ?? '').split(/\s+/)[0] ? `${tagOf(f.path)}.${f.cls.split(/\s+/)[0]}` : tagOf(f.path));
+/** A finding without the colour echoes its line does not state (a drawn border is stated). */
+function statedOf(f, drawsBorder) {
+  const color = f.props.find((p) => p.prop === 'color');
+  if (!color || /::/.test(f.sub)) return f;
+  const echo = (p) =>
+    p !== color &&
+    /color$/.test(p.prop) &&
+    p.before === color.before &&
+    p.after === color.after &&
+    !(drawsBorder && /^border-\w+-color$/.test(p.prop));
+  return { ...f, props: f.props.filter((p) => !echo(p)) };
+}
 const changeKey = (f) =>
   JSON.stringify([
     f.state,
@@ -115,7 +127,12 @@ for (const [name, build] of Object.entries(cases)) {
     assert.equal(sections.length, regions.length, `${name}: ${sections.length} sections, ${regions.length} regions`);
     sections.forEach((section, i) => {
       const target = regions[i].paths[0];
-      const all = findings.filter((f) => strip(f.sub) === target);
+      // The changes the line states: an echo of the text colour is not stated, unless the element
+      // draws it (a painted border); owners whose stated changes match made one change (QA16-01).
+      const drawsBorder = Object.entries(build(false).elements[target]?.style ?? {}).some(
+        ([prop, value]) => /^border-\w+-style$/.test(prop) && !['none', 'hidden'].includes(value),
+      );
+      const all = findings.filter((f) => strip(f.sub) === target).map((f) => statedOf(f, drawsBorder));
       const own = all.filter((f) => f.path === strip(f.sub));
       const mine = all.filter((f) => f.path !== strip(f.sub));
       const nameOf = nameIn(build(false).elements);

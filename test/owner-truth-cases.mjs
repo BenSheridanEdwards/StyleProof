@@ -260,4 +260,16 @@ export const cases = {
       st(p('input', 2), 'checked', p('label', 3), { 'background-color': C(b, W, I) }),
     ),
   }),
+  // QA16-01: two owners whose changes differ only by an echo the label does not draw (no border):
+  // the stated changes match, so the line says one change, "when either of the 2 opts is checked".
+  'QA16-01 echo-only-difference': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('input', 2)]: inp(1), [p('label', 3)]: lab(2) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), {
+        color: C(b, G, R),
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, R)])),
+      }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R) }),
+    ),
+  }),
 };

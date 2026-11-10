@@ -152,6 +152,23 @@ export function sectionsOf(md) {
     .filter((s) => s.fold.length && s.fold.some((l) => /^`[^`]+` · \d+ elements? /.test(l)));
 }
 
+/**
+ * A finding as the line states it: a property that moved exactly like the text colour is an echo
+ * and not stated, unless the element draws it (a border it paints). Owners whose stated changes
+ * match make one change (QA16-01, the CPO's round-17 rule).
+ */
+function stated(f, painted) {
+  const color = f.props.find((p) => p.prop === 'color');
+  if (!color || /::/.test(f.sub)) return f;
+  const echo = (p) =>
+    p !== color &&
+    /color$/.test(p.prop) &&
+    p.before === color.before &&
+    p.after === color.after &&
+    !(painted && /^border-(?:top|right|bottom|left)-color$/.test(p.prop));
+  return { ...f, props: f.props.filter((p) => !echo(p)) };
+}
+
 /** Per report.json region: the first element's state findings and sources, and every element's shapes. */
 export function truthOf(json, elements = {}) {
   const nameOf = nameIn(elements);
@@ -159,12 +176,13 @@ export function truthOf(json, elements = {}) {
     (surface.regions ?? []).map((region) => {
       const states = (surface.findings ?? []).filter((f) => f.kind === 'state');
       const forPath = (p) => states.filter((f) => stripPseudo(f.sub) === p);
+      const saidFor = (p) => forPath(p).map((f) => stated(f, paintedBorder(elements[p])));
       return {
         paths: region.paths,
         painted: paintedBorder(elements[region.paths[0]]),
         findings: forPath(region.paths[0]),
-        sources: sourcesOf(forPath(region.paths[0]), nameOf),
-        shapes: region.paths.map((p) => sourcesOf(forPath(p), nameOf).map(shapeOf).sort()),
+        sources: sourcesOf(saidFor(region.paths[0]), nameOf),
+        shapes: region.paths.map((p) => sourcesOf(saidFor(p), nameOf).map(shapeOf).sort()),
       };
     }),
   );
