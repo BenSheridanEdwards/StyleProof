@@ -142,7 +142,7 @@ test('every changed element and every one-sided surface is named or counted, nev
   const dirs = tmpDirs();
   const many = (color) =>
     Object.fromEntries(
-      [1, 2, 3, 4].map((i) => [
+      [1, 2, 3, 4, 5, 6].map((i) => [
         `body > section:nth-child(${i})`,
         { tag: 'section', cls: `card-${i}`, rect: [0, i * 100, 400, 80], style: { color } },
       ]),
@@ -163,8 +163,8 @@ test('every changed element and every one-sided surface is named or counted, nev
   }
   const { slice, json } = report(dirs, generateStructuralStyleMapReportForTesting);
   const home = json.digest.find((r) => r.surface === 'home@900');
-  assert.equal(home.elements.length, 3);
-  assert.equal(home.more, 2, 'four restyled cards plus one added footer, three shown');
+  assert.equal(home.elements.length, 5);
+  assert.equal(home.more, 2, 'six restyled cards plus one added footer, five shown');
   assert.deepEqual(
     json.digest.filter((r) => r.status !== 'changed').map((r) => [r.surface, r.status]),
     [
@@ -221,4 +221,31 @@ test('an element whose phrase would flood the comment is still named, as restyle
 test('plain-English phrases escape map-supplied CSS values below the cut too', () => {
   const [line] = describeChange([{ label: 'div.box', props: [{ prop: 'opacity', before: '1', after: '0*5 @team' }] }]);
   assert.equal(line, '**`div.box`** — opacity 1 → 0\\*5 @\u200bteam');
+});
+
+test('identical elements share one entry, and a property with no rule is named', () => {
+  const items = (lineHeight) =>
+    Object.fromEntries(
+      [1, 2, 3, 4, 5, 6, 7].map((i) => [
+        `body > nav:nth-child(3) > button:nth-child(${i})`,
+        { tag: 'button', cls: 'nav-item', rect: [0, i * 50, 200, 42], style: { 'line-height': lineHeight } },
+      ]),
+    );
+  const heading = (color) => ({
+    'body > h1:nth-child(4)': { tag: 'h1', cls: 'title', rect: [300, 100, 400, 60], style: { color } },
+  });
+  const { slice, json } = report(
+    pairFixture({
+      surface: 'home@900',
+      before: pageMap({ extra: { ...items('42px'), ...heading('rgb(0, 0, 0)') } }),
+      after: pageMap({ extra: { ...items('52px'), ...heading('rgb(220, 38, 38)') } }),
+    }),
+  );
+  assert.deepEqual(json.digest[0].elements, [
+    { name: 'h1.title', phrase: 'text black (`#000000`) → red (`#dc2626`)' },
+    { name: 'button.nav-item', phrase: 'line-height 42px → 52px', count: 7 },
+  ]);
+  assert.equal(json.digest[0].more, 0);
+  assert.match(slice, /\*\*`h1\.title`\*\* text black .* · \*\*`button\.nav-item`\*\* ×7 line-height 42px → 52px$/m);
+  assert.doesNotMatch(slice, /more element/);
 });

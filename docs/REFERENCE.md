@@ -58,10 +58,11 @@ gate.
 
 Below the headline count, the comment lists **What changed**. Each one-sided
 surface gets a row with its status. Each change gets a row that names up to
-three elements and what happened to them, and counts the rest as
-`+N more element(s)`. After ten rows, `…and N more changes` counts what is left.
+five elements and what happened to them, and counts the rest as
+`+N more element(s)`. Elements with the same name and the same change share one
+entry, marked `×N`. After ten rows, `…and N more changes` counts what is left.
 `report.json` records the same rows under `digest`, as
-`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase }], more }`.
+`{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase, count? }], more }`.
 The key is present only when there is at least one row.
 
 ### A safety policy blocks
