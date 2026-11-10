@@ -107,6 +107,9 @@ for (const [name, banners, cards, descendants] of [
         0,
       );
       assert.equal(shown, cards + Number(descendants));
+      // #1321: identical cards say their value row once (one section, one table); a descendant
+      // keeps its own.
+      assert.equal((md.match(/\| `#ffffff` \| `#ff0000` \|/g) ?? []).length, 1 + Number(descendants));
       assert.doesNotMatch(md, /(?:section\.card|span\.label)[^\n]*(?:removed|added)/);
       assert.equal(certifier.counts.style, cards + Number(descendants));
       assert.equal(report.counts.style, certifier.counts.style);

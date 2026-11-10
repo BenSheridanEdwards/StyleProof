@@ -462,6 +462,15 @@ test('the change reads in plain English above the crop, not only under the fold'
   const above = md.slice(0, img);
   assert.match(above, /background from black to red/, 'the change is readable before the picture');
   assert.ok(!above.includes('<details>'), 'glance is not inside the diamond fold');
+  // #1321: no raw property list repeats the summary, and no property-list line sits before the pair.
+  // The only `<br>` is the Where map line's (image, then its caption); no `<br>`-stacked property list.
+  const broken = md.split('\n').filter((line) => line.includes('<br>'));
+  assert.ok(
+    broken.every((line) => /^<img [^>]*><br><sub>Where: /.test(line)),
+    `no raw property list repeats the summary: ${broken.join(' | ')}`,
+  );
+  const section = above.slice(above.lastIndexOf('### '));
+  assert.doesNotMatch(section, /^`[\w-]+` `[^`]*` → `/m, 'no property-list line before the pair');
   rmTmp(root);
 });
 
