@@ -1,6 +1,6 @@
 ## 🗺️ StyleProof report
 
-**4 changes to review** on `home` at 900px wide: 3 elements.
+**4 changes to review** on `home` and `pricing` at 900px wide: 3 elements.
 
 🆕 **1 new surface** with no baseline to compare: `pricing @ 900`. Review it before it becomes part of the baseline.
 

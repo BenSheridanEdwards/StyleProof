@@ -586,6 +586,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     // A changed-rule count is only true when both sides recorded the CSS they served.
     reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
     surfaceKeyOf,
+    view.missing.map((p) => p.sd.surface),
   );
   const headline = reportHeadline({
     changeGroups: view.changeGroups,

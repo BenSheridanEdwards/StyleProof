@@ -37,3 +37,25 @@ for (const [widths, expected] of [
     assert.match(md.split('\n').find((l) => l.startsWith('**')) ?? md, expected);
   });
 }
+
+test('a new or removed surface is in the summary scope its count includes (RV19-05)', (t) => {
+  const root = mkTmp('styleproof-scope-one-sided-');
+  t.after(() => rmTmp(root));
+  const title = (color) =>
+    makeMap({ elements: { 'body > h1': { tag: 'h1', cls: 'title', rect: [20, 20, 200, 40], style: { color } } } });
+  writeCapture(path.join(root, 'before'), 'home@900', title('rgb(0, 0, 0)'), solidPng(900, 300));
+  writeCapture(path.join(root, 'after'), 'home@900', title('rgb(200, 0, 0)'), solidPng(900, 300));
+  writeCapture(path.join(root, 'after'), 'pricing@900', title('rgb(0, 0, 0)'), solidPng(900, 300));
+  writeCapture(path.join(root, 'before'), 'legacy@1280', title('rgb(0, 0, 0)'), solidPng(1280, 300));
+  const result = generateReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'report'),
+  });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  // One restyled title on home, one new surface and one removed one: three changes on three pages.
+  assert.match(
+    md.split('\n').find((l) => l.startsWith('**')) ?? md,
+    /^\*\*3 changes to review\*\* on `home`, `legacy` and `pricing` at 900 and 1280px wide: 1 element\.$/,
+  );
+});

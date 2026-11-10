@@ -190,12 +190,16 @@ function scopeText(keys: string[], base: (key: string) => string, elements: numb
   return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
 }
 
-/** How many change sections the report shows, and the summary's scope phrase for them. */
+/**
+ * How many change sections the report shows, and the summary's scope phrase for them. The scope
+ * also names the new and removed surfaces (`oneSided`), since the summary's count includes them (RV19-05).
+ */
 export function sectionSummary(
   ctx: RenderCtx,
   groups: ChangeGroup[],
   changedRules?: number,
   surfaceKeyOf: (captureKey: string) => string | undefined = () => undefined,
+  oneSided: string[] = [],
 ): { sectionCount: number; scope: string } {
   let sectionCount = 0;
   let elements = 0;
@@ -210,7 +214,7 @@ export function sectionSummary(
     sectionCount,
     scope: groups.length
       ? scopeText(
-          groups.flatMap((g) => g.surfaces),
+          [...groups.flatMap((g) => g.surfaces), ...oneSided],
           (key) => surfaceKeyOf(key) ?? surfaceBase(key),
           elements,
           changedRules,
