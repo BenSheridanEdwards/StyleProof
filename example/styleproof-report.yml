@@ -53,7 +53,7 @@ jobs:
           fi
           echo "base-capture-failed=$failed" >> "$GITHUB_OUTPUT"
       - if: always()
-        uses: BenSheridanEdwards/StyleProof@v9
+        uses: BenSheridanEdwards/StyleProof@v10
         with:
           baseline-dir: ${{ runner.temp }}/styleproof-maps/base
           fresh-dir: ${{ runner.temp }}/styleproof-maps/head

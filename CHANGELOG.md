@@ -7,6 +7,23 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+## [10.0.0] - 2026-11-08
+
+> **StyleProof 10.0.0: the status check is the review gate**
+>
+> This is the 10.0.0 major. A completed review-gate run now leaves the job
+> green and the `StyleProof` commit status alone gates review, so require that
+> status in branch protection or a ruleset. Generated workflows move to the
+> `@v10` Action. Config discovery refuses unsafe parent folders and config
+> files, capture refuses separately started servers unless told otherwise,
+> and the destructive-action guard reads more label sources and refuses more
+> verbs. Approvals bind to the reviewed diff and trust state and to the
+> approver's run. Capture adds opt-in form states, media states and script
+> reach, and Change Reach joins changed CSS, script ranges and class tokens
+> with captured evidence. Several changes affect what an existing baseline
+> holds: upgrade the package and Action together, refresh the generated
+> workflows, re-tick open approvals, and re-capture the baseline once.
+
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
@@ -60,7 +77,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   App anonymous and eval scripts, including ones containing a sourceURL marker as string data,
   stay named unmeasured.
   Discarded copies of recognised injected sources no longer create timing-dependent self-check gaps.
-- **BREAKING — ships in 10.0.0 (#1283):** Completed review-gate, migration, and
+- **BREAKING (#1283):** Completed review-gate, migration, and
   `require-approval: true` runs no longer fail the job on unapproved changes.
   Require the `StyleProof` status check (`status-context`) in branch protection
   or a ruleset to block merges; approval turns that status green without a job re-run.
@@ -138,34 +155,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Migration
 
-- **Capture refuses separately started servers (#1300).** Capture fails when a Playwright
-  `webServer` URL already responds, even if the config enables reuse. If your app server
-  is started separately, pass `--external-server` or set `BASE_URL` (the only route under
-  `styleproof ci` and the Action). These opt-ins override `reuseExistingServer: false`
-  for that run. Config files are not rewritten. The directory containing the Playwright
-  config must be writable so capture can create and remove its temporary wrapper.
-
-1. **Config discovery trusts only safe parent folders (#1246).** Runs from a
-   subfolder are affected when the parent holding the config is world-writable,
-   owned by another non-root user, or a runner-owned checkout above a root
-   container job. They are also affected when that parent's config file is
-   itself world-writable or owned by another non-root user (#1275). Windows non-git projects run from a subfolder are also affected.
-   A `styleproof: warning:` on stderr names the skipped config and the reason,
-   says the file was not loaded and built-in defaults apply, and gives the next
-   step (#1274). Missing-config and missing-spec errors also name the skipped file.
-   Run StyleProof from the folder that holds the config; on POSIX, alternatively
-   fix ownership or remove world-write permission.
-   There is no config-path option or environment variable.
-2. **JSON compatibility gains `"runtime-only"` (#1273).** Update consumers of
-   `sourceBinding.compatibility` in `styleproof-diff` and `styleproof-report`
-   JSON to handle `"matched" | "runtime-only" | "not-applicable"`. Mixed
-   spec/ad-hoc pairs now report `"runtime-only"` instead of `"matched"`; they
-   remain unverified diagnostics. Two spec or two ad-hoc captures keep
-   `"matched"`, and a missing capture side keeps `"not-applicable"`. Action
-   receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
-   mixed pair with trusted SHAs is refused.
-
-3. **Require the review status check (10.0.0) (#1283).** The job no longer fails on
+1. **Upgrade the package and the Action together.** Install `styleproof@^10` and
+   run `npx styleproof-init --upgrade`, then `npx styleproof-init --check`.
+   `--upgrade` moves the generated workflows to `@v10` and refreshes single and
+   split scaffolds (#1266). Update any hand-written
+   `uses: BenSheridanEdwards/StyleProof@v9` or `styleproof-approve-reusable.yml@v9`
+   pin, and any copy of `example/styleproof-approve.yml`, in the same change: the
+   approve workflow must move with the Action or re-runs after a tick lose the
+   approval (#1262).
+2. **Require the review status check (#1283).** The job no longer fails on
    unapproved changes under review-gate, migration, or `require-approval: true`.
    Require the `StyleProof` status check (or your `status-context` name) in branch
    protection or a ruleset for review approval to block merges. Repositories without
@@ -173,6 +171,46 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    unapproved changes. Config `blocking: true` and `blocking: false` remain
    accepted but no longer affect the job conclusion; `'advisory'` keeps its meaning.
    Capture/setup failures and evidence gates still fail the job.
+3. **Re-tick open approvals (#1145, #1262).** Approvals recorded before upgrading do
+   not carry forward to a re-run. The approve workflow needs `actions: read`.
+4. **Config discovery trusts only safe parent folders (#1246).** Runs from a
+   subfolder are affected when the parent holding the config is world-writable,
+   owned by another non-root user, or a runner-owned checkout above a root
+   container job. They are also affected when that parent's config file is
+   itself world-writable or owned by another non-root user (#1275). Windows non-git
+   projects run from a subfolder are also affected.
+   A `styleproof: warning:` on stderr names the skipped config and the reason,
+   says the file was not loaded and built-in defaults apply, and gives the next
+   step (#1274). Missing-config and missing-spec errors also name the skipped file.
+   Run StyleProof from the folder that holds the config; on POSIX, alternatively
+   fix ownership or remove world-write permission.
+   There is no config-path option or environment variable.
+5. **Capture refuses separately started servers (#1300).** Capture fails when a Playwright
+   `webServer` URL already responds, even if the config enables reuse. If your app server
+   is started separately, pass `--external-server` or set `BASE_URL` (the only route under
+   `styleproof ci` and the Action). These opt-ins override `reuseExistingServer: false`
+   for that run. Config files are not rewritten. The directory containing the Playwright
+   config must be writable so capture can create and remove its temporary wrapper.
+6. **The destructive-action guard refuses more labels (#1143, #1206, #1208, #1212, #1215,
+   #1217).** Discovery, crawls, popups and state recipes refuse submits and more
+   side-effect verbs, read more label sources, and treat more characters as word
+   separators. Rename recipe labels and stateKeys that now throw `StateRecipeError`
+   to describe fixture state, and acknowledge new `unsafe-control` or
+   `destructive-label` crawl skips (exit 6) with a reasoned `incompleteUiExclude`.
+   The entries under Fixed list the exact labels.
+7. **JSON compatibility gains `"runtime-only"` (#1273).** Update consumers of
+   `sourceBinding.compatibility` in `styleproof-diff` and `styleproof-report`
+   JSON to handle `"matched" | "runtime-only" | "not-applicable"`. Mixed
+   spec/ad-hoc pairs now report `"runtime-only"` instead of `"matched"`; they
+   remain unverified diagnostics. Two spec or two ad-hoc captures keep
+   `"matched"`, and a missing capture side keeps `"not-applicable"`. Action
+   receipts never carry `"runtime-only"`: the Action binds trusted SHAs, and a
+   mixed pair with trusted SHAs is refused.
+8. **Re-capture the baseline once.** Pages with a `<details>` element no longer list
+   the browser's own stylesheet in Change Reach (#1223); tighter generated-ID rules can
+   show affected elements as moved once (#1154); renumbered `popup-XX` IDs follow the
+   label guard (#1143, #1212); stored bases miss once when the colocated harness
+   changed (#1135); and private branch storage recaptures the base (#1145).
 
 ### Changed
 
@@ -6527,7 +6565,8 @@ number)`), so each viewport band can capture at its own height. Default remains 
 - `styleproof-diff` CLI: certifies a refactor (exit 0) or names the exact element,
   property, and state that drifted (exit 1).
 
-[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v9.0.0...HEAD
+[Unreleased]: https://github.com/BenSheridanEdwards/StyleProof/compare/v10.0.0...HEAD
+[10.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v9.0.0...v10.0.0
 [9.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.1...v9.0.0
 [8.0.1]: https://github.com/BenSheridanEdwards/StyleProof/compare/v8.0.0...v8.0.1
 [8.0.0]: https://github.com/BenSheridanEdwards/StyleProof/compare/v7.7.0...v8.0.0

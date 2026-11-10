@@ -347,6 +347,25 @@ pin to `@v9` too: the Action runs its own copy of StyleProof, so an `@v8` pin
 keeps the 8.x gate. Then re-capture the baseline once. See the migration list
 in the [9.0.0 changelog](CHANGELOG.md#900---2026-10-29).
 
+### Upgrading to 10.0.0
+
+Upgrade the npm package and the report Action to major 10 together, then
+refresh and verify the generated workflows:
+
+```bash
+npm install --save-dev styleproof@^10
+npx styleproof-init --upgrade
+npx styleproof-init --check
+```
+
+`--upgrade` moves the generated workflows to `@v10`. Update any hand-written
+`uses: BenSheridanEdwards/StyleProof@v9` or `styleproof-approve-reusable.yml@v9`
+pin to `@v10` too, in the same change. A completed review-gate run now leaves
+the job green, so require the `StyleProof` status check in branch protection or
+a ruleset to block merges. Re-tick open approvals, then re-capture the baseline
+once. See the migration list in the
+[10.0.0 changelog](CHANGELOG.md#1000---2026-11-08).
+
 Empty hash home routes (`#/`, `#!/`, including a query) count as the page without a fragment, so home links do not capture the root twice.
 
 For a `defineCrawlCapture` root that lands on a hash route such as `/#/home`,
