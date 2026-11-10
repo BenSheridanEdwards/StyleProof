@@ -1302,6 +1302,142 @@ test('refusal notice stops at the git boundary', { skip: process.platform === 'w
   }
 });
 
+test('nested start searches up to the .git root (win32)', async (t) => {
+  const root = mkTmp();
+  const repo = path.join(root, 'repo');
+  const parent = path.join(repo, 'a');
+  const start = path.join(parent, 'b');
+  const configPath = path.join(repo, 'styleproof.config.mjs');
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  t.after(() => {
+    Object.defineProperty(process, 'platform', platform);
+    t.mock.restoreAll();
+    rmTmp(root);
+  });
+  fs.mkdirSync(start, { recursive: true });
+  fs.mkdirSync(path.join(repo, '.git'));
+  fs.writeFileSync(configPath, "export default { blocking: 'advisory' };");
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  const statSync = fs.statSync;
+  t.mock.method(fs, 'statSync', (candidate, ...args) => {
+    const stat = statSync(candidate, ...args);
+    return candidate === parent || candidate === repo
+      ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: 12345, mode: 0o777 })
+      : stat;
+  });
+  let output = '';
+  t.mock.method(process.stderr, 'write', (chunk) => {
+    output += chunk;
+    return true;
+  });
+  const discovery = discoverStyleProofConfig(start);
+  assert.equal(discovery.location?.path, configPath);
+  assert.deepEqual(discovery.searched, [
+    path.join(start, 'styleproof.config.ts'),
+    path.join(start, 'styleproof.config.mjs'),
+    path.join(start, 'styleproof.config.js'),
+    path.join(start, 'styleproof.config.json'),
+    path.join(parent, 'styleproof.config.ts'),
+    path.join(parent, 'styleproof.config.mjs'),
+    path.join(parent, 'styleproof.config.js'),
+    path.join(parent, 'styleproof.config.json'),
+    path.join(repo, 'styleproof.config.ts'),
+    path.join(repo, 'styleproof.config.mjs'),
+    path.join(repo, 'styleproof.config.js'),
+    path.join(repo, 'styleproof.config.json'),
+  ]);
+  assert.equal((await loadStyleProofConfigAsync(start)).blocking, 'advisory');
+  assert.doesNotMatch(output, /styleproof: warning:/);
+});
+
+test('the walk stops at the nearest .git (win32)', async (t) => {
+  const root = mkTmp();
+  const outer = path.join(root, 'outer');
+  const inner = path.join(outer, 'inner');
+  const start = path.join(inner, 'sub');
+  const configPath = path.join(outer, 'styleproof.config.mjs');
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  t.after(() => {
+    Object.defineProperty(process, 'platform', platform);
+    t.mock.restoreAll();
+    rmTmp(root);
+  });
+  fs.mkdirSync(start, { recursive: true });
+  fs.mkdirSync(path.join(outer, '.git'));
+  fs.writeFileSync(path.join(inner, '.git'), 'gitdir: x\n');
+  fs.writeFileSync(configPath, 'throw new Error("must not execute");');
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  let output = '';
+  t.mock.method(process.stderr, 'write', (chunk) => {
+    output += chunk;
+    return true;
+  });
+  const discovery = discoverStyleProofConfig(start);
+  assert.equal(discovery.location, undefined);
+  assert.deepEqual(discovery.searched, [
+    path.join(start, 'styleproof.config.ts'),
+    path.join(start, 'styleproof.config.mjs'),
+    path.join(start, 'styleproof.config.js'),
+    path.join(start, 'styleproof.config.json'),
+    path.join(inner, 'styleproof.config.ts'),
+    path.join(inner, 'styleproof.config.mjs'),
+    path.join(inner, 'styleproof.config.js'),
+    path.join(inner, 'styleproof.config.json'),
+  ]);
+  assert.equal(discovery.skippedConfig, undefined);
+  assert.deepEqual(await loadStyleProofConfigAsync(start), {});
+  assert.doesNotMatch(output, /styleproof: warning:/);
+});
+
+test('accepted documented Windows limit: planted ancestor .git loads its config without warning', async (t) => {
+  const root = mkTmp();
+  const shared = path.join(root, 'shared');
+  const project = path.join(shared, 'project');
+  const start = path.join(project, 'work');
+  const configPath = path.join(shared, 'styleproof.config.mjs');
+  const platform = Object.getOwnPropertyDescriptor(process, 'platform');
+  t.after(() => {
+    Object.defineProperty(process, 'platform', platform);
+    t.mock.restoreAll();
+    rmTmp(root);
+  });
+  fs.mkdirSync(start, { recursive: true });
+  fs.mkdirSync(path.join(shared, '.git'));
+  fs.writeFileSync(configPath, "export default { blocking: 'advisory' };");
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  const statSync = fs.statSync;
+  t.mock.method(fs, 'statSync', (candidate, ...args) => {
+    const stat = statSync(candidate, ...args);
+    return candidate === project || candidate === shared || candidate === configPath
+      ? Object.assign(Object.create(Object.getPrototypeOf(stat)), stat, { uid: 12345, mode: 0o777 })
+      : stat;
+  });
+  let output = '';
+  t.mock.method(process.stderr, 'write', (chunk) => {
+    output += chunk;
+    return true;
+  });
+  const discovery = discoverStyleProofConfig(start);
+  assert.equal(discovery.location?.path, configPath);
+  assert.deepEqual(discovery.searched, [
+    path.join(start, 'styleproof.config.ts'),
+    path.join(start, 'styleproof.config.mjs'),
+    path.join(start, 'styleproof.config.js'),
+    path.join(start, 'styleproof.config.json'),
+    path.join(project, 'styleproof.config.ts'),
+    path.join(project, 'styleproof.config.mjs'),
+    path.join(project, 'styleproof.config.js'),
+    path.join(project, 'styleproof.config.json'),
+    path.join(shared, 'styleproof.config.ts'),
+    path.join(shared, 'styleproof.config.mjs'),
+    path.join(shared, 'styleproof.config.js'),
+    path.join(shared, 'styleproof.config.json'),
+  ]);
+  assert.equal(discovery.skippedConfig, undefined);
+  assert.equal((await loadStyleProofConfigAsync(start)).blocking, 'advisory');
+  assert.doesNotMatch(output, /styleproof: warning:/);
+});
+
 for (const reason of ['world-writable', 'owned by another user', 'cannot stat folder', 'Windows']) {
   test(`skipped config warning: ${reason}, defaults, remedy and stat-only dedup`, async (t) => {
     const root = mkTmp();
