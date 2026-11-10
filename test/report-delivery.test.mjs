@@ -594,7 +594,16 @@ test('Action metadata, generated comment, and README expose one linked-delivery 
     /--image-base-url/,
   );
 
-  assert.match(readme, /PR comment is the same linked summary for public and private repositories/);
+  // One comment shape for every repository: the summary and every section, then the link; only the
+  // images differ (QA19-03).
+  assert.match(
+    readme,
+    /PR comment carries the report itself: the summary line and every change section, then a link to the full report\./,
+  );
+  assert.match(
+    readme,
+    /on a private repository or with artifact storage the sections are text, and the images are in the linked report/,
+  );
   assert.match(readme, /Every report viewer needs an authenticated GitHub session/);
   assert.match(readme, /If publication or receipt verification fails, StyleProof posts no delivery claim/);
   assert.match(changelog, /Action report delivery now uses one commit-bound GitHub blob link/);
