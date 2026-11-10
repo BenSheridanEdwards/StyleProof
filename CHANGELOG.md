@@ -33,7 +33,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
   the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
   longhands, `currentColor` followers). report.html renders the same report as a browser page with an
-  Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after.
+  Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after. Each page
+  image is inlined once and shared by every Where map and whole-page panel that draws it.
 - A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
   under the label, with the checkbox named as the driver ("when the matching opt is checked" for a list of them),
   and each control's state gets its own section. A new or removed hover/focus style names the resting value
@@ -43,9 +44,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
   digest, the distinct-change tally and "Nothing else". They stay in report.json (`comparability`,
   `baselineProvenance`, `reach`, `digest`). Under `changeReach: 'gate'`, a report whose gate holds findings
-  shows the one "Reach gate" line and the **Changed but never matched** tables, and still no J2/J3 detail. The report still says, in plain words, when a compare cannot
-  certify, when evidence fails, and when a changed CSS rule was never matched or cannot be seen in computed
-  styles. `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
+  shows the one "Reach gate" line under the summary (with or without style changes) and the **Changed but
+  never matched** tables, and still no J2/J3 detail. The report still says, in plain words, when a compare
+  cannot certify, when evidence fails, when a changed CSS rule was never matched or cannot be seen in computed
+  styles, and, in one "Change Reach could not check every changed CSS rule" line, when changed rules matched
+  only uncompared elements or a ledger is missing, old or unreadable. ADR 0009 is amended to match (dated
+  2026-11-10). `styleproof-report` prints an unverified source binding on stderr instead of prefixing a report that
   has changes; an unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`.
 - **BREAKING (report.json):** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean
   crops) instead of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`).
