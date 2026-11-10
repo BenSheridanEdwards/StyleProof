@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commentProblems, htmlText, reportProblems, situationCounts } from './rule5-detector.mjs';
+import { capNoteProblems, commentProblems, htmlText, reportProblems, situationCounts } from './rule5-detector.mjs';
 
 // The detector must fail on each class rule 5 forbids, using shapes earlier rounds shipped.
 const LINK =
@@ -191,4 +191,19 @@ test('the detector sees one change said twice inside a counted clause (QA16-01, 
       reportProblems('report.md', `## Report\n\n### Tag\n\n${fine}\n`).filter((p) => /one change said twice/.test(p)),
       [],
     );
+});
+
+test('the size-cap note must say what to do and count the changes the full report names (QA18-05)', () => {
+  const report = ['## Report', '', '### A', '', 'a', '', '### B', '', 'b', '', '### C', '', 'c', ''].join('\n');
+  const note = (n) =>
+    `_This comment reached GitHub's size limit. ${n} more changes are listed in the full report: open it from the link at the end of this comment._`;
+  const comment = (n) => ['## Report', '', '### A', '', 'a', '', note(n)].join('\n');
+  assert.deepEqual(capNoteProblems(comment(2), report), []);
+  assert.ok(capNoteProblems(comment(3), report).length > 0, 'a count the full report does not bear out');
+  assert.ok(
+    capNoteProblems(['## Report', '', '### A', '', '_…and 2 more changes in the full report._'].join('\n'), report)
+      .length > 0,
+    'a bare "…and N more"',
+  );
+  assert.ok(capNoteProblems(['## Report', '', '### A', '', 'a'].join('\n'), report).length > 0, 'cut without a note');
 });

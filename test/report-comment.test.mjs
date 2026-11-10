@@ -6,6 +6,7 @@ import { PNG } from 'pngjs';
 import { generateStyleMapReport } from '../dist/report.js';
 import { reportCommentSummary, COMMENT_SUMMARY_MAX_CHARS } from '../dist/report-comment.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+import { capNoteProblems } from './rule5-detector.mjs';
 
 // QA1-01: the PR comment carries the approved per-change content (github-comment.md), not
 // only the summary: each section's name, line and CSS; images only behind a verified URL.
@@ -82,7 +83,12 @@ test('the comment stays inside its size budget and counts what it leaves out', (
   ].join('\n');
   const capped = reportCommentSummary(many, { imageBase: BASE });
   assert.ok(capped.length <= COMMENT_SUMMARY_MAX_CHARS, `${capped.length} characters`);
-  assert.match(capped, /^_…and \d+ more changes? in the full report\._$/m);
+  // QA18-05: the note says why and what to do, and its count agrees with the full report.
+  assert.match(
+    capped,
+    /^_This comment reached GitHub's size limit\. \d+ more changes? (?:is|are) listed in the full report: open it from the link at the end of this comment\._$/m,
+  );
+  assert.deepEqual(capNoteProblems(capped, many), []);
   assert.ok(one.length < capped.length);
   assert.equal(sections, 1);
 });
@@ -115,7 +121,10 @@ test('the opening block is capped too, even with no change section (RV2-02)', ()
   const summary = reportCommentSummary(md, { maxChars: 2000 });
   assert.ok(summary.length <= 2000, `${summary.length} characters`);
   assert.match(summary, /^## 🗺️ StyleProof report/);
-  assert.match(summary, /in the full report\._$/);
+  assert.match(
+    summary,
+    /This comment reached GitHub's size limit\. The rest is in the full report: open it from the link at the end of this comment\._$/,
+  );
   assert.doesNotMatch(summary, /Evidence/);
 });
 

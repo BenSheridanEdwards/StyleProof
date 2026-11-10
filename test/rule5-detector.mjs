@@ -438,6 +438,35 @@ export function danglingReferences(report) {
   return out;
 }
 
+/**
+ * The comment's size-cap note against the full report (QA18-05): a bare "…and N more" is never
+ * allowed; a note says what to do, and its N plus the sections the comment shows is exactly the
+ * full report's change sections, each of which the full report names.
+ */
+export function capNoteProblems(comment, reportMd) {
+  const out = [];
+  if (/…and \d+ more|\.\.\.and \d+ more/.test(comment)) out.push('a bare "…and N more" note');
+  const note =
+    /This comment reached GitHub's size limit\. (\d+) more changes? (?:is|are) listed in the full report: open it from the link at the end of this comment\./.exec(
+      comment,
+    );
+  const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => m[1].replace(/\s*<!--.*$/, '').trim());
+  const shown = heads(comment);
+  const all = heads(reportMd);
+  if (!note) {
+    if (/size limit/.test(comment)) out.push('a size-limit note without a count of the changes left out');
+    else if (shown.length !== all.length)
+      out.push(`the comment shows ${shown.length} of ${all.length} sections with no note`);
+    return out;
+  }
+  if (shown.length + Number(note[1]) !== all.length)
+    out.push(
+      `the note says ${note[1]} more, but the full report has ${all.length} sections and the comment shows ${shown.length}`,
+    );
+  for (const heading of new Set(shown)) if (!all.includes(heading)) out.push(`"${heading}" is not in the full report`);
+  return out;
+}
+
 /** The summary line's counts against report.json, and no zero rule claim with a missing record. */
 export function countProblems(md, json) {
   const out = [];

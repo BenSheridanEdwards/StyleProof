@@ -19,7 +19,7 @@ export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 const APPROVAL_BOX = /^\s*- \[[ xX]\]/;
 /** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
 const HEAD_END = /^(?:## |<details>)/;
-const MORE_RESERVE = 64;
+const MORE_RESERVE = 200;
 
 type Section = { title: string; body: string[] };
 
@@ -110,10 +110,15 @@ function cutToBudget(blocks: Block[], maxChars: number): string {
   return body;
 }
 
+/**
+ * The note where the comment stops at GitHub's size limit: it says why, how many changes it left
+ * out, and what to do (QA18-05). The full report names every change. The approval box may sit
+ * between it and the link, so it says where the link is rather than ending on a colon.
+ */
 const moreLine = (left: number): string =>
   left
-    ? `\n\n_…and ${left} more ${left === 1 ? 'change' : 'changes'} in the full report._`
-    : '\n\n_…the rest is in the full report._';
+    ? `\n\n_This comment reached GitHub's size limit. ${left} more ${left === 1 ? 'change is' : 'changes are'} listed in the full report: open it from the link at the end of this comment._`
+    : "\n\n_This comment reached GitHub's size limit. The rest is in the full report: open it from the link at the end of this comment._";
 
 /** The comment's report content, inside `maxChars`. */
 export function reportCommentSummary(

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { capNoteProblems } from './rule5-detector.mjs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
@@ -256,7 +257,13 @@ test('a report with hundreds of sections still fits one GitHub comment (QA1-01)'
   const body = (await executeActionComment({ repositoryPrivate: false, reportMd: huge })).created[0].body;
   assert.ok(body.length <= 65_536, `${body.length} characters`);
   assert.ok(body.startsWith(MARKER));
-  assert.match(body, /^_…and \d+ more changes in the full report\._$/m);
+  // QA18-05: the note says why and what to do, never a bare "…and N more"; the full report names
+  // every change the cap left out.
+  assert.match(
+    body,
+    /^_This comment reached GitHub's size limit\. \d+ more changes are listed in the full report: open it from the link at the end of this comment\._$/m,
+  );
+  assert.deepEqual(capNoteProblems(body, huge), []);
   assert.equal(body.split(reportUrl).length - 1, 1);
   assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
 });
