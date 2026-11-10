@@ -643,3 +643,59 @@ test('a real nth-child shift whose label is renamed to the same length still pai
     { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
   ]);
 });
+
+// Further down a shift chain, the head element at a moved element's old path is the previous
+// shifted sibling, which always has the same shape. That must not read as a rename in place.
+const NOTICE_STYLE = { color: 'rgb(120, 60, 0)', 'background-color': 'rgb(255, 240, 200)' };
+const LABEL_STYLE = { color: 'rgb(20, 20, 20)', 'background-color': 'rgb(255, 255, 255)' };
+const styledToolbarEntry = (className, label) => ({
+  ...toolbarEntry(className, label),
+  style: className === 'notice' ? NOTICE_STYLE : LABEL_STYLE,
+});
+const toolbar = (entries) =>
+  makeMap({
+    elements: Object.fromEntries(
+      entries.map(([className, label], index) => [toolbarSlot(index + 1), styledToolbarEntry(className, label)]),
+    ),
+  });
+
+test('a shift chain whose later labels are renamed to the same length still pairs every label with itself', () => {
+  const before = toolbar([
+    ['label', 'Save'],
+    ['label', 'Load'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Note'],
+    ['label', 'Send'],
+    ['label', 'Read'],
+  ]);
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+    { kind: 'text', path: toolbarSlot(3), cls: 'label', before: 'Load', after: 'Read' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }),
+    [],
+    'certification sees no restyle on the inserted notice',
+  );
+});
+
+test('a shift chain with duplicate labels and a later same-length rename still pairs every label with itself', () => {
+  const before = toolbar([
+    ['label', 'Copy'],
+    ['label', 'Copy'],
+    ['label', 'Load'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Note'],
+    ['label', 'Copy'],
+    ['label', 'Copy'],
+    ['label', 'Read'],
+  ]);
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(4), cls: 'label', before: 'Load', after: 'Read' },
+  ]);
+  assert.deepEqual(diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }), []);
+});

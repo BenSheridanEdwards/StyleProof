@@ -18,8 +18,8 @@ import type { ElementEntry, StyleMap } from './capture.js';
  *      is the same size on both sides (an nth-child shift, never an add/remove),
  *      no member was already placed, or shown in place, by own-text identity, and
  *      no pair has captured own text that differs while the head still holds an
- *      element of the same tag, class and component at the base path (a rename in
- *      place, not a shift).
+ *      element of the same tag, class and component at the base path that no other
+ *      move in the group shifted there (a rename in place, not a shift).
  *      Moves that only permute paths present on both sides (a modifier class
  *      moved between same-shape siblings) are dropped: no sibling shifted.
  *   2. geometry — one-sided elements pair by tag + rect x/y/width + ownTextLength,
@@ -180,11 +180,15 @@ function correspondingPathsByContentSignature(
     // Captured text that differs is explained by a rename in place when the head still holds an
     // element of the same shape at the base path (two renamed labels of equal length): the k-th
     // pairing is then a coincidence. A different occupant there means a sibling was inserted, so
-    // the shift is the only explanation and the pairing stays, renamed text and all.
+    // the shift is the only explanation and the pairing stays, renamed text and all. Further down
+    // a shift chain the occupant is the previous sibling, shifted there by another move: that is
+    // the shift too, not a rename in place.
+    const shiftedOnto = new Set(moves.map(([, afterPath]) => afterPath));
     if (
       moves.some(
         ([beforePath, afterPath]) =>
           ownTextDiffers(before.elements[beforePath], after.elements[afterPath]) &&
+          !shiftedOnto.has(beforePath) &&
           sameElementShape(before.elements[beforePath], after.elements[beforePath]),
       )
     ) {
