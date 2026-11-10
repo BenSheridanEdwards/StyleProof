@@ -2,19 +2,19 @@
 //
 // Truth is the capture's own record, keyed by OWNER PATH, never by selector label or class word:
 // each state finding in report.json is (owner = `path`, state, target = `sub`, props). The clauses
-// the capture supports for one element follow the CPO's round-15 rule:
-//   - one identical change (same state, pseudo-element and props) is one source, whichever owners
-//     made it, the element's own state included (QA14-06);
-//   - one owner's (or the element's own) several changes in one state are one source;
-//   - owners of one selector label whose names read alike cannot be told apart in the report (main
-//     heads them identically), so in each state they are ONE counted source, "one of the N `x`
-//     controls" (QA14-01); a counted source of one identical change from all N reads "either/any of
-//     the N". Owners a reader tells apart by name ("the Save button", "the Help link") keep their own.
+// the capture supports for one element follow the CPO's round-18 fallback, main's own per-owner
+// wording:
+//   - one source per owner path in each state, with that owner's several changes in it;
+//   - owners of one selector that stated the same changes are one source, as main collapses
+//     identical blocks to ×N ("when `input.opt` ×3 is checked");
+//   - the element's own state is always its own source;
+//   - a change the element draws (border, outline, column rule, text stroke) is stated; a colour
+//     that only follows the text colour is an echo and is not.
 // For each change section, the rendered text (report.md or a PR comment) must hold, for its first
 // element:
-//   1. one sentence clause per source, carrying only that source's properties, named by its owner's
-//      name, selector label(s) or count, and the element's own state said as its own ("when hovered");
-//   2. clauses of different sources never read alike;
+//   1. one sentence clause per source, named as main names it (noun, selector label, or label ×N),
+//      naming every change its source made and nothing else; no counted wording and no "and N more"
+//      tail; the element's own state said as its own ("when hovered");
 //   3. in "Show the CSS", one block per owner path (×N only when N owners changed exactly that), its
 //      `:state[ ::pseudo] prop` rows exactly what that owner changed, no row repeated, and identical
 //      blocks one ×N block;
@@ -61,82 +61,57 @@ const nameIn = (elements) => (f) => {
   return (entry?.text && /^(?:button|a)$/.test(entry.tag) ? entry.text.trim() : classWord(f)).toLowerCase();
 };
 
-/** Whether the element draws a border (any side with a style and a width): its colour shows in the crop. */
-function paintedBorder(entry) {
+/** The colours an element draws (a border, outline, column rule or text stroke with a style and width). */
+function drawnColors(entry) {
   const style = entry?.style ?? {};
-  return ['top', 'right', 'bottom', 'left'].some(
-    (side) =>
-      !['none', 'hidden', undefined].includes(style[`border-${side}-style`]) && style[`border-${side}-width`] !== '0px',
-  );
+  const drawn = (part) =>
+    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
+  return (prop) =>
+    (/^border-(?:top|right|bottom|left)-color$/.test(prop) &&
+      ['top', 'right', 'bottom', 'left'].some((side) => drawn(`border-${side}`))) ||
+    (prop === 'outline-color' && drawn('outline')) ||
+    (prop === 'column-rule-color' && drawn('column-rule')) ||
+    (prop === '-webkit-text-stroke-color' && !['0px', undefined].includes(style['-webkit-text-stroke-width']));
 }
 
-/** One state's sources: identical changes merged, then one owner set's changes merged. */
-function stateSourcesOf(findings) {
-  const identical = new Map();
-  for (const f of findings) {
-    const own = f.path === stripPseudo(f.sub);
-    const seen = identical.get(changeKey(f)) ?? { state: f.state, own: false, owners: new Set(), changes: [] };
-    if (own) seen.own = true;
-    else seen.owners.add(f.path);
-    if (!seen.changes.some((c) => changeKey(c) === changeKey(f))) seen.changes.push(f);
-    identical.set(changeKey(f), seen);
-  }
-  const byOwners = new Map();
-  for (const source of identical.values()) {
-    const key = JSON.stringify([source.own, [...source.owners].sort()]);
-    const seen = byOwners.get(key);
-    if (seen) seen.changes.push(...source.changes);
-    else byOwners.set(key, source);
-  }
-  return [...byOwners.values()];
-}
-
-/** The sources the capture records for one element, per the rule above. */
+/**
+ * The sources the capture records for one element, per the CPO's round-18 fallback (main's own
+ * per-owner wording): one per owner path in each state; owners of one selector that stated the same
+ * changes are one source, as main collapses identical blocks to ×N; the element's own state is its
+ * own source. Nothing is counted across owners.
+ */
 function sourcesOf(findings, nameOf) {
-  const driven = findings.filter((f) => f.path !== stripPseudo(f.sub));
-  const ownersOf = new Map();
-  for (const f of driven) ownersOf.set(labelOf(f), new Map([...(ownersOf.get(labelOf(f)) ?? []), [f.path, nameOf(f)]]));
-  const counted = new Map(
-    [...ownersOf]
-      .filter(([, names]) => names.size > 1 && new Set(names.values()).size < names.size)
-      .map(([label, names]) => [label, names.size]),
-  );
   const out = [];
   for (const state of new Set(findings.map((f) => f.state))) {
-    const groups = [];
-    for (const source of stateSourcesOf(findings.filter((f) => f.state === state))) {
-      const label = [...source.owners]
-        .map((p) => labelOf(driven.find((f) => f.path === p)))
-        .find((l) => counted.has(l));
-      const group = label && groups.find((g) => g.counted?.label === label);
-      // The element's own state is its own source, never one of a counted clause's owners (QA16-02).
-      if (label && source.own) groups.push({ ...source, owners: new Set(), changes: [...source.changes] });
-      const part = label && source.own ? { ...source, own: false } : source;
-      if (group) {
-        part.owners.forEach((o) => group.owners.add(o));
-        group.changes.push(...part.changes);
-      } else groups.push({ ...part, ...(label ? { counted: { label, total: counted.get(label) } } : {}) });
+    const byOwner = new Map();
+    for (const f of findings.filter((x) => x.state === state)) {
+      const owner = f.path === stripPseudo(f.sub) ? '' : f.path;
+      byOwner.set(owner, [...(byOwner.get(owner) ?? []), f]);
     }
-    for (const g of groups) {
-      // One identical change from all N owners of a counted selector reads "either/any of the N".
-      if (g.counted && g.changes.length === 1 && g.owners.size === g.counted.total) delete g.counted;
-      const owners = [...g.owners];
-      const ownerFindings = owners.map((p) => driven.find((f) => f.path === p));
+    for (const [owner, changes] of byOwner) {
+      const keys = changes.map(changeKey).sort();
+      const label = owner ? labelOf(changes[0]) : '';
+      const seen = out.find(
+        (s) => s.state === state && owner && s.labels[0] === label && JSON.stringify(s.keys) === JSON.stringify(keys),
+      );
+      if (seen) {
+        seen.owners.push(owner);
+        continue;
+      }
       out.push({
-        state: g.state,
-        own: g.own,
-        owners,
-        counted: g.counted,
-        labels: [...new Set(ownerFindings.map(labelOf))].sort(),
-        names: [...new Set(ownerFindings.map(nameOf))],
-        props: [...new Set(g.changes.flatMap((c) => c.props.map((p) => propWord(p.prop))))],
-        keys: g.changes.map(changeKey).sort(),
+        state,
+        own: !owner,
+        owners: owner ? [owner] : [],
+        labels: owner ? [label] : [],
+        names: owner ? [nameOf(changes[0])] : [],
+        props: [...new Set(changes.flatMap((c) => c.props.map((p) => propWord(p.prop))))],
+        keys,
       });
     }
   }
   return out;
 }
-const shapeOf = (s) => JSON.stringify([s.state, s.own, s.labels, s.owners.length, s.counted?.total ?? 0, s.keys]);
+const shapeOf = (s) => JSON.stringify([s.state, s.own, s.labels, s.owners.length, s.keys]);
 
 /** The change sections in a report.md or a PR comment, in order: title, sentence and fold lines. */
 export function sectionsOf(md) {
@@ -154,18 +129,13 @@ export function sectionsOf(md) {
 
 /**
  * A finding as the line states it: a property that moved exactly like the text colour is an echo
- * and not stated, unless the element draws it (a border it paints). Owners whose stated changes
- * match make one change (QA16-01, the CPO's round-17 rule).
+ * and not stated, unless the element draws it (QA16-01, QA17-03).
  */
-function stated(f, painted) {
+function stated(f, draws) {
   const color = f.props.find((p) => p.prop === 'color');
   if (!color || /::/.test(f.sub)) return f;
   const echo = (p) =>
-    p !== color &&
-    /color$/.test(p.prop) &&
-    p.before === color.before &&
-    p.after === color.after &&
-    !(painted && /^border-(?:top|right|bottom|left)-color$/.test(p.prop));
+    p !== color && /color$/.test(p.prop) && p.before === color.before && p.after === color.after && !draws(p.prop);
   return { ...f, props: f.props.filter((p) => !echo(p)) };
 }
 
@@ -176,10 +146,9 @@ export function truthOf(json, elements = {}) {
     (surface.regions ?? []).map((region) => {
       const states = (surface.findings ?? []).filter((f) => f.kind === 'state');
       const forPath = (p) => states.filter((f) => stripPseudo(f.sub) === p);
-      const saidFor = (p) => forPath(p).map((f) => stated(f, paintedBorder(elements[p])));
+      const saidFor = (p) => forPath(p).map((f) => stated(f, drawnColors(elements[p])));
       return {
         paths: region.paths,
-        painted: paintedBorder(elements[region.paths[0]]),
         findings: forPath(region.paths[0]),
         sources: sourcesOf(saidFor(region.paths[0]), nameOf),
         shapes: region.paths.map((p) => sourcesOf(saidFor(p), nameOf).map(shapeOf).sort()),
@@ -188,45 +157,29 @@ export function truthOf(json, elements = {}) {
   );
 }
 
-/**
- * The sentence's clauses: each "when …" with the property text before it. "when hovered or when the
- * opt is hovered" is one clause with two phrases (the element's own state and an owner, one change).
- * A counted clause with owner groups leads with its trigger ("when one of the 2 `input.opt` controls
- * is checked, one changes …, while the other changes …"): its property text follows it.
- */
+/** The sentence's clauses: each "when …" with the property text before it. */
 function clausesOf(sentence) {
   const out = [];
   let from = 0;
   // The owner phrase (code spans aside) never crosses a comma, a full stop or another "when", so a
   // bare "when hovered" stays its own phrase.
   const pattern = /[Ww]hen (?:((?:`[^`]*`|(?![Ww]hen )[^,.;`])+?) (?:is|are) )?([a-z]+)(?=[ ,.;])/g;
-  const matches = [...sentence.matchAll(pattern)].filter((m) => STATE_BY_WORD[m[2]]);
-  for (const [i, m] of matches.entries()) {
-    const end = m.index + m[0].length;
-    const after = sentence.slice(end, matches[i + 1]?.index ?? sentence.length);
-    const grouped = /^one of the \d+ `/.test(m[1] ?? '') && /^, (?:one|each|\d+ of them) /.test(after);
-    const text = grouped ? after.replace(/(?:, and |\. At rest.*)$/, '') : sentence.slice(from, m.index);
-    const previous = out[out.length - 1];
-    if (!grouped && previous && text.trim() === 'or' && previous.state === STATE_BY_WORD[m[2]]) {
-      previous.phrases.push(m[1] ?? '');
-      previous.said += ` or ${m[0]}`;
-    } else out.push({ text, phrases: [m[1] ?? ''], state: STATE_BY_WORD[m[2]], said: m[0], grouped });
-    from = grouped ? end + after.length : end;
+  for (const m of sentence.matchAll(pattern)) {
+    if (!STATE_BY_WORD[m[2]]) continue;
+    out.push({ text: sentence.slice(from, m.index), phrases: [m[1] ?? ''], state: STATE_BY_WORD[m[2]], said: m[0] });
+    from = m.index + m[0].length;
   }
   return out;
 }
 
-/** Whether an owner phrase names exactly this source's owners. */
+/** Whether an owner phrase names exactly this source's owners: "`x` ×N", "`x`", or the owner's noun. */
 function phraseFits(phrase, source) {
-  const counted = /^one of the (\d+) `([^`]+)` controls$/.exec(phrase);
-  if (counted) return source.counted?.label === counted[2] && source.counted.total === Number(counted[1]);
-  if (source.counted) return false;
-  const several = /^(?:either|any) of the (\d+) /.exec(phrase);
-  if (several) return source.owners.length === Number(several[1]) && source.names.some((n) => phrase.includes(n));
+  const times = / ×(\d+)$/.exec(phrase);
+  const count = Number(times?.[1] ?? 1);
   const codes = [...phrase.matchAll(/`([^`]+)`/g)].map((m) => m[1]).sort();
-  if (codes.length) return JSON.stringify(codes) === JSON.stringify(source.labels);
+  if (codes.length) return source.owners.length === count && JSON.stringify(codes) === JSON.stringify(source.labels);
   const lower = phrase.toLowerCase();
-  return source.owners.length === 1 && source.names.some((n) => lower.includes(n));
+  return !times && source.owners.length === 1 && source.names.some((n) => lower.includes(n));
 }
 
 /** Which source a clause names; null when none (or the wrong kind) fits. */
@@ -242,14 +195,20 @@ function sourceFor(clause, sources, taken) {
   return sources.find((s) => fits(s) && named.every((p) => s.props.includes(p))) ?? sources.find(fits) ?? null;
 }
 
-/** Problems in the sentence: one clause per source, each carrying only its source's properties. */
+/** Problems in the sentence: one clause per source, each naming every change its source made. */
 function sentenceProblems(section, truth) {
   const out = [];
-  // One change said twice inside a clause, or two owner groups that read alike (QA16-01).
   out.push(...repeatedChanges(section.sentence));
-  // The element's own state is never one of a counted clause's owners (QA16-02).
-  if (/when (?:[a-z]+) or when one of the \d+ /.test(section.sentence))
-    out.push(`the element's own state sits under a counted clause: "${section.sentence}"`);
+  // The fallback (CPO, round 18): no counted wording and no tail, so no change can be left uncounted
+  // or merely counted (QA17-01/02/04/05).
+  const counted =
+    /\b(?:one of the \d+|either of the \d+|any of the \d+|each changes|also changes?|and \d+ more)\b/.exec(
+      section.sentence,
+    );
+  if (counted) out.push(`counted or tail wording "${counted[0]}": "${section.sentence}"`);
+  // The element's own state is its own clause, never merged with a control's (QA16-02, QA17-04).
+  if (/when [a-z]+ or when /.test(section.sentence))
+    out.push(`the element's own state shares a control's clause: "${section.sentence}"`);
   const all = truth.findings.map((f) => `${f.path} :${f.state} [${f.props.map((p) => p.prop)}]`).join('; ');
   const clauses = clausesOf(section.sentence);
   const taken = new Set();
@@ -264,25 +223,20 @@ function sentenceProblems(section, truth) {
     for (const [prop, word] of Object.entries(PROPERTY_WORDS))
       if (clause.text.includes(word) && !source.props.includes(prop))
         out.push(`"${clause.said}" carries ${prop}, which ${who} did not change`);
-    // A border the element draws shows in the crop: its colour change is never dropped (QA16-01).
-    // A change the cap counts ("and 1 more change") is not silently dropped.
-    const capped = /\band \d+ more (?:changes?|propert)/.test(clause.text);
-    if (truth.painted && source.props.includes('border-color') && !capped && !clause.text.includes('border colour'))
-      out.push(`"${clause.said}" drops the border colour change the crop shows`);
-    if (
-      source.props.some((p) => PROPERTY_WORDS[p]) &&
-      !source.props.some((p) => clause.text.includes(PROPERTY_WORDS[p] ?? '\0'))
-    )
-      out.push(`"${clause.said}" names none of its source's properties (${source.props})`);
+    // Every change the source made is named in its clause, a drawn colour included (QA17-01/03/05).
+    for (const prop of source.props)
+      if (PROPERTY_WORDS[prop] && !clause.text.includes(PROPERTY_WORDS[prop]))
+        out.push(`"${clause.said}" drops ${who}'s ${prop} change`);
   }
+  // Two clauses in one state read alike only for owners main cannot tell apart: one selector's blocks.
+  const phrases = clauses.filter((c) => c.phrases[0]).map((c) => `${c.state} ${c.phrases[0]}`);
+  for (const phrase of new Set(phrases.filter((p, i) => phrases.indexOf(p) !== i)))
+    if (!/^\S+ `[^`]+`(?: ×\d+)?$/.test(phrase)) out.push(`two owners main tells apart read alike: "${phrase}"`);
   for (const source of truth.sources)
     if (!taken.has(source))
       out.push(
         `no clause for ${[source.own ? "the element's own" : '', ...source.owners].filter(Boolean).join(' + ')} :${source.state} [${source.props}]`,
       );
-  // 2. Clauses of different sources never read alike.
-  const phrases = clauses.filter((c) => c.phrases.some(Boolean)).map((c) => `${c.state} ${c.phrases.join(' / ')}`);
-  if (new Set(phrases).size !== phrases.length) out.push(`two sources read alike: ${JSON.stringify(phrases)}`);
   return out;
 }
 

@@ -272,4 +272,93 @@ export const cases = {
       st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R) }),
     ),
   }),
+  // QA17 live shapes (check/round-17/qa/site-r17, site-r17c). A border, outline the element draws.
+  // QA17-01: three controls, one each: text colour, background, the drawn border's colour.
+  'QA17-01 three-owners-drawn-border': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'tri'),
+      [p('input', 2)]: inp(1, 'tri'),
+      [p('input', 3)]: inp(2, 'tri'),
+      [p('p', 4)]: {
+        tag: 'p',
+        cls: 'chips',
+        text: 'Chip result',
+        rect: [60, 140, 200, 30],
+        style: { 'border-top-style': 'solid', 'border-top-width': '2px' },
+      },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('p', 4), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('p', 4), { 'background-color': C(b, W, I) }),
+      st(p('input', 3), 'checked', p('p', 4), {
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, I)])),
+      }),
+    ),
+  }),
+  // QA17-02: two controls both turn the text red; the first also the drawn border, the second the background.
+  'QA17-02 two-owners-overlapping-drawn': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'duo'),
+      [p('input', 2)]: inp(1, 'duo'),
+      [p('label', 3)]: {
+        tag: 'label',
+        cls: 'pill',
+        text: 'Pill',
+        rect: [60, 100, 80, 24],
+        style: { 'border-top-style': 'solid', 'border-top-width': '2px' },
+      },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), {
+        color: C(b, G, R),
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, R)])),
+      }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R), 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA17-03: one control turns the text red, and the drawn 3px outline follows it.
+  'QA17-03 drawn-outline-one-owner': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'ringon'),
+      [p('span', 2)]: {
+        tag: 'span',
+        cls: 'ring',
+        text: 'Ring',
+        rect: [60, 20, 80, 24],
+        style: { 'outline-style': 'solid', 'outline-width': '3px' },
+      },
+    },
+    states: merge(st(p('input', 1), 'checked', p('span', 2), { color: C(b, G, R), 'outline-color': C(b, G, R) })),
+  }),
+  // QA17-03: both controls turn the text red; only the first also turns the drawn outline red.
+  'QA17-03 drawn-outline-two-owners': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'rg'),
+      [p('input', 2)]: inp(1, 'rg'),
+      [p('span', 3)]: {
+        tag: 'span',
+        cls: 'ring2',
+        text: 'Ring two',
+        rect: [60, 100, 80, 24],
+        style: { 'outline-style': 'solid', 'outline-width': '3px' },
+      },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('span', 3), { color: C(b, G, R), 'outline-color': C(b, G, R) }),
+      st(p('input', 2), 'checked', p('span', 3), { color: C(b, G, R) }),
+    ),
+  }),
+  // QA17-04: the link's own hover and both controls' hovers make one identical change.
+  'QA17-04 own-plus-two-identical': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'twin'),
+      [p('input', 2)]: inp(1, 'twin'),
+      [p('a', 3)]: { tag: 'a', cls: 'twinlink', text: 'Twin', rect: [60, 100, 80, 24] },
+    },
+    states: merge(
+      st(p('a', 3), 'hover', p('a', 3), { 'background-color': C(b, W, I) }),
+      st(p('input', 1), 'hover', p('a', 3), { 'background-color': C(b, W, I) }),
+      st(p('input', 2), 'hover', p('a', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
 };

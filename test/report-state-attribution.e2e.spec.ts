@@ -55,17 +55,21 @@ for (const config of CONFIGS)
 
 // QA13's live shapes (check/round-13/qa/site-break): two `input.opt` controls restyling different
 // properties of one paragraph (QA13-01), `input.pickr` and `select.pickr` sharing a noun (QA13-02),
-// and two `input.tick` controls making one identical change (the only "either of the 2" case). Then
-// QA14-01's live shapes (check/round-14/qa/site-r14): four `input.pair` in two identical pairs, and
-// three `input.chip` restyling one property each. The report cannot tell those apart, so each is
-// one counted clause ("one of the 4 `input.pair` controls"), never "one … another".
+// and two `input.tick` controls making one identical change (main's ×2 block). Then QA14-01's live
+// shapes (check/round-14/qa/site-r14): four `input.pair` in two identical pairs, and three
+// `input.chip` restyling one property each. Main cannot tell those owners apart, so each owner path
+// is its own clause named as main names it, with nothing invented ("one … another").
 const LIVE_QA13_HTML = `<section class="row"><input type="checkbox" id="news" class="opt"><input type="checkbox" id="gift" class="opt"><p class="summary">Your choices</p></section>
 <section class="row"><input type="text" class="pickr"><select class="pickr"><option>One</option></select><p class="note">Pick note</p></section>
 <section class="row"><input type="checkbox" id="one" class="tick"><input type="checkbox" id="two" class="tick"><p class="shared">Shared change</p></section>
 <section class="row"><input type="checkbox" id="pa" class="pair"><input type="checkbox" id="pb" class="pair"><input type="checkbox" id="pc" class="pair"><input type="checkbox" id="pd" class="pair"><p class="pairs">Two pairs</p></section>
 <section class="row"><input type="checkbox" id="qx" class="chip"><input type="checkbox" id="qy" class="chip"><input type="checkbox" id="qz" class="chip"><p class="chips">Chip result</p></section>
 <section class="row"><input type="checkbox" class="opt3"><input type="checkbox" class="opt3"><label class="tag">Badge</label></section>
-<section class="row"><input type="checkbox" class="pick"><input type="checkbox" class="pick"><a class="pill" href="#pill">Pill</a></section>`;
+<section class="row"><input type="checkbox" class="pick"><input type="checkbox" class="pick"><a class="pill" href="#pill">Pill</a></section>
+<section class="row"><input type="checkbox" class="duo"><input type="checkbox" class="duo"><label class="pill2">Pill two</label></section>
+<section class="row"><input type="checkbox" class="twin"><input type="checkbox" class="twin"><a class="twinlink" href="#twin">Twin</a></section>
+<section class="row"><input type="checkbox" class="ringon"><span class="ring">Ring</span></section>
+<section class="row"><input type="checkbox" class="rg"><input type="checkbox" class="rg"><span class="ring2">Ring two</span></section>`;
 const liveQa13Css = (head: boolean) => {
   const [red, yellow] = head ? ['rgb(160, 40, 40)', 'rgb(255, 224, 138)'] : ['rgb(20, 120, 60)', 'rgb(200, 220, 255)'];
   return [
@@ -88,6 +92,18 @@ const liveQa13Css = (head: boolean) => {
     `.opt3:nth-of-type(2):checked ~ .tag { color: ${red}; }`,
     `.pill:hover, .pick:nth-of-type(1):hover ~ .pill { color: ${red}; }`,
     `.pick:nth-of-type(2):hover ~ .pill { background-color: ${yellow}; }`,
+    // QA17 (check/round-17/qa/site-r17, site-r17c): two controls with overlapping changes on a
+    // bordered pill; an own hover beside two identical controls; a drawn outline that follows the
+    // text colour, from one control and from one of two.
+    '.pill2 { display: inline-block; padding: 4px 10px; color: rgb(20, 120, 60); background: #fff; border: 2px solid rgb(20, 120, 60); }',
+    `.duo:nth-of-type(1):checked ~ .pill2 { color: ${red}; border-color: ${red}; }`,
+    `.duo:nth-of-type(2):checked ~ .pill2 { color: ${red}; background-color: ${yellow}; }`,
+    `.twinlink:hover, .twin:hover ~ .twinlink { background-color: ${yellow}; }`,
+    '.ring, .ring2 { display: inline-block; padding: 4px 10px; color: rgb(20, 120, 60); outline: 3px solid; outline-offset: 2px; }',
+    '.ring2 { outline-color: rgb(20, 120, 60); }',
+    `.ringon:checked ~ .ring { color: ${red}; }`,
+    `.rg:nth-of-type(1):checked ~ .ring2 { color: ${red}; outline-color: ${red}; }`,
+    `.rg:nth-of-type(2):checked ~ .ring2 { color: ${red}; }`,
   ];
 };
 
@@ -154,38 +170,48 @@ test('every captured state names the control the capture recorded for it (QA12-0
           states.some((f: { cls?: string }) => f.cls === c.word),
           `${c.word}:${c.state} was captured`,
         ).toBe(true);
-    // QA13-01 / QA14-01: two `input.opt` restyling different properties are one counted clause (the
-    // report cannot tell them apart); QA13-02: the two pickrs by selector; the identical pair alone
-    // reads "either of the 2". Nothing is ever told apart by invented words ("one … another").
     const section = (title: string) => md.split('\n### ').find((s) => s.startsWith(title)) ?? '';
-    // QA15-01: the counted clause names the count once, then each owner's own change, echo pruned
-    // (the first control's border follows its colour) and capped.
-    expect(section('Summary')).toMatch(
-      /when one of the 2 `input\.opt` controls is checked, one changes the text colour from [^,]+ to [^,]+, while the other changes the background from [^,.]+ to [^,.]+\./,
+    // The CPO's round-18 fallback: one clause per owner path, named as main names it (two `input.opt`
+    // read alike, nothing invented), identical owners of one selector as main's ×N, the own state its
+    // own clause, no counted wording and no tail; drawn borders and outlines named (QA17-01…04).
+    const line = (title: string) =>
+      section(title)
+        .split('\n')
+        .find((l) => /^(?:On|The) /.test(l)) ?? '';
+    expect(line('Summary')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ when `input\.opt` is checked, and the background changes from [^,.]+ to [^,.]+ when `input\.opt` is checked\./,
     );
-    const sentence = section('Summary')
-      .split('\n')
-      .find((l) => l.startsWith('On '));
-    expect(sentence).not.toMatch(/either of the 2| or the |border/);
-    expect(section('Pairs')).toMatch(
-      /when one of the 4 `input\.pair` controls is checked, 2 of them change the text colour from [^,]+ to [^,]+, while the other 2 change the background from [^,.]+ to [^,.]+\./,
+    expect(line('Summary')).not.toMatch(/border/);
+    expect(line('Pairs')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ when `input\.pair` ×2 is checked, and the background changes from [^,.]+ to [^,.]+ when `input\.pair` ×2 is checked\./,
     );
-    expect(section('Chip')).toMatch(
-      /when one of the 3 `input\.chip` controls is checked, one changes the [^;]+; one changes the [^;]+; and 1 more change\./,
+    expect(line('Chips')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ when `input\.chip` is checked, the background changes from [^,]+ to [^,]+ when `input\.chip` is checked, and the border colour changes from [^,.]+ to [^,.]+ when `input\.chip` is checked\./,
     );
-    // QA16-01: the shared change is said once and the drawn border is said; QA16-02: the link's own
-    // hover is its own clause.
-    expect(section('Tag')).toMatch(
-      /when one of the 2 `input\.opt3` controls is checked, each changes the text colour from [^,]+ to [^,]+, and one also changes the border colour from [^,.]+ to [^,.]+\./,
+    expect(line('Tag')).toMatch(
+      /the border colour changes from [^,]+ to [^,]+ and text colour from [^,]+ to [^,]+ when `input\.opt3` is checked, and the text colour changes from [^,.]+ to [^,.]+ when `input\.opt3` is checked\./,
     );
-    expect(section('Pill link')).toMatch(
-      /the text colour changes from [^,]+ to [^,]+ when hovered, and when one of the 2 `input\.pick` controls is hovered, one changes the text colour from [^,]+ to [^,]+, while the other changes the background from [^,.]+ to [^,.]+\./,
+    expect(line('Pill link')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ when hovered, the text colour changes from [^,]+ to [^,]+ when `input\.pick` is hovered, and the background changes from [^,.]+ to [^,.]+ when `input\.pick` is hovered\./,
     );
+    expect(line('Pill2')).toMatch(
+      /the border colour changes from [^,]+ to [^,]+ and text colour from [^,]+ to [^,]+ when `input\.duo` is checked, and the background changes from [^,]+ to [^,]+ and text colour from [^,.]+ to [^,.]+ when `input\.duo` is checked\./,
+    );
+    expect(line('Twin link')).toMatch(
+      /the background changes from [^,]+ to [^,]+ when hovered, and the background changes from [^,.]+ to [^,.]+ when `input\.twin` ×2 is hovered\./,
+    );
+    expect(line('Ring')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ and outline colour from [^,.]+ to [^,.]+ when the ringon is checked\./,
+    );
+    expect(line('Ring2')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ and outline colour from [^,]+ to [^,]+ when `input\.rg` is checked, and the text colour changes from [^,.]+ to [^,.]+ when `input\.rg` is checked\./,
+    );
+    expect(md).not.toMatch(/one of the \d+|either of the|any of the|each changes|also change|and \d+ more/);
     expect(md).not.toMatch(/when (?:one|another) `input\.(?:opt|pair|chip)` is/);
     expect(section('Note')).toMatch(
       /when `input\.pickr` is focused, and the background .* when `select\.pickr` is focused/,
     );
-    expect(section('Shared')).toMatch(/when either of the 2 ticks is checked/);
+    expect(line('Shared')).toMatch(/when `input\.tick` ×2 is checked/);
     const elements = elementsIn(path.join(root, 'base'), path.join(root, 'head'));
     const problems = attributionCheck(md, json, 'report.md', elements);
     for (const approved of [false, true]) {
