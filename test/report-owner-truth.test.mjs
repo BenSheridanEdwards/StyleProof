@@ -161,8 +161,8 @@ for (const [name, build] of Object.entries(cases)) {
         );
       }
       // 7. No two different owners share a name (CPO, round 15): a singular name refers to exactly one
-      // owner; a counted name ("one of the N `x` controls") to all N of that selector; and one name
-      // text always refers to one set of owners.
+      // owner; a counted name ("one of the N `x` controls") to all N of that selector; "either/any of
+      // the N" to exactly that clause's N owners; and one name text always refers to one set of owners.
       const referents = new Map();
       for (const m of clauses) {
         const state = STATE_OF[m[2]];
@@ -173,7 +173,20 @@ for (const [name, build] of Object.entries(cases)) {
           (f) =>
             f.state === state && (code ? labelOf(f) === code : m[1].toLowerCase().includes(nameOf(f).toLowerCase())),
         );
-        const set = countedName ? (owners.get(code) ?? new Set()) : new Set(pool.map((f) => f.path));
+        let set = countedName ? (owners.get(code) ?? new Set()) : new Set(pool.map((f) => f.path));
+        // "either/any of the N": that clause's own N owners (QA15-02), never every owner of the selector,
+        // and exactly one such owner set may fit the name.
+        if (several) {
+          const fits = expected.filter(
+            (c) =>
+              c.state === state &&
+              c.sources === 1 &&
+              c.owners.size === Number(several[1]) &&
+              [...c.owners].every((p) => pool.some((f) => f.path === p)),
+          );
+          assert.equal(fits.length, 1, `${name}: "${m[0]}" fits ${fits.length} different owner sets; truth: ${truth}`);
+          set = fits[0].owners;
+        }
         if (countedName)
           assert.ok(
             code && counted.has(code) && set.size === Number(countedName[1]),
