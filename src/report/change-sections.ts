@@ -58,14 +58,15 @@ const STATE_ADDS = ['(state does not change it)', '(state no longer changes it)'
 /** The diff's surface-level finding: a forced-state layer captured on one side only. */
 export const SURFACE_SUBJECT = '(surface)';
 
+const layerName = (prop: string): string => codeValue(`:${prop.replace(/^forced :/, '').replace(/ layer$/, '')}`);
+const layerProps = (findings: Finding[]): PropChange[] => findings.flatMap((f) => (f.kind === 'state' ? f.props : []));
+
 /** "The forced `:checked` state was captured on head only, so it was not compared." */
 function stateLayerLine(findings: Finding[]): string {
-  const layers = findings
-    .flatMap((f) => (f.kind === 'state' ? f.props : []))
-    .map((p) => ({
-      name: codeValue(`:${p.prop.replace(/^forced :/, '').replace(/ layer$/, '')}`),
-      side: p.before === 'captured' ? 'base' : p.after === 'captured' ? 'head' : 'one side',
-    }));
+  const layers = layerProps(findings).map((p) => ({
+    name: layerName(p.prop),
+    side: p.before === 'captured' ? 'base' : p.after === 'captured' ? 'head' : 'one side',
+  }));
   if (layers.length === 1) {
     return `The forced ${layers[0].name} state was captured on ${layers[0].side} only, so it was not compared.`;
   }
@@ -202,14 +203,13 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   // A side the state leaves alone renders the resting value: say that value, not "none".
   const resting = (side: 0 | 1, prop: string, value: string): string =>
     value === STATE_ADDS[side] ? (maps[side].elements[target]?.style?.[prop] ?? value) : value;
+  // Resolve on the longhands, before they fold into a shorthand (four border sides → one colour).
   const states: StateChange[] = STATE_LAYER_NAMES.flatMap((state) => {
     const props = first.flatMap((f) =>
       f.kind === 'state' && f.state === state
-        ? summarizeProps(f.props).map((p) => ({
-            ...p,
-            before: resting(0, p.prop, p.before),
-            after: resting(1, p.prop, p.after),
-          }))
+        ? summarizeProps(
+            f.props.map((p) => ({ ...p, before: resting(0, p.prop, p.before), after: resting(1, p.prop, p.after) })),
+          )
         : [],
     );
     return props.length ? [{ state, props }] : [];
@@ -346,6 +346,7 @@ function cssDetailLines(
     rules: SectionRegistry['rules'];
   },
 ): string[] {
+  if (section.paths[0] === SURFACE_SUBJECT) return stateLayerFold(section.findings);
   const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
   const across = extra.surfaces ? ` · the same on ${extra.surfaces}` : '';
   const verb = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom')?.change ?? 'restyled';
@@ -376,6 +377,24 @@ function cssDetailLines(
     ...(isGeometryOnlyGroup(first) ? ['', GEOMETRY_HINT] : []),
     ...spacingLines(extra.spacing),
     ...folded,
+    '',
+    '</details>',
+  ];
+}
+
+/** The state-layer section's fold: which side captured each layer, in the line's words. */
+function stateLayerFold(findings: Finding[]): string[] {
+  const side = (value: string) => (value === 'captured' ? 'captured' : value.replace(/; not compared$/, ''));
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    'Forced-state layers captured on one side only',
+    '',
+    '| Layer | Base | Head |',
+    '| --- | --- | --- |',
+    ...layerProps(findings).map((p) => `| ${layerName(p.prop)} | ${side(p.before)} | ${side(p.after)} |`),
     '',
     '</details>',
   ];
@@ -667,7 +686,8 @@ function registerSection(
   const meta: SectionMeta = {
     v: 1,
     id: sectionId(registry, section.title),
-    paths: section.paths.slice(0, MAX_META_PATHS),
+    // The surface-level state-layer finding has no element to list.
+    paths: section.paths[0] === SURFACE_SUBJECT ? [] : section.paths.slice(0, MAX_META_PATHS),
     more: Math.max(0, section.paths.length - MAX_META_PATHS),
     pairs,
     where: where.map((map) => ({

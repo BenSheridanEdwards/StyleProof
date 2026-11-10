@@ -122,7 +122,7 @@ test('a list of checkboxes restyling their labels still names the driving contro
   }
   const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
   const labels = sectionsOf(fs.readFileSync(result.reportMdPath, 'utf8'))['Opt labels'];
-  assert.match(labels, /^On both opt labels, the text colour changes from .+ when their opts are checked\./m);
+  assert.match(labels, /^On both opt labels, the text colour changes from .+ when the matching opt is checked\./m);
   assert.match(labels, /· when `input\.opt` is `:checked`/);
 });
 
@@ -143,6 +143,13 @@ test('a state layer captured on one side only gets a plain line, not an unnamed 
   assert.ok(layer, Object.keys(sections).join(', '));
   assert.match(layer, /^The forced `:checked` state was captured on head only, so it was not compared\./m);
   assert.match(md, /\*\*1 change to review\*\* on `home` at 1280px wide\./, 'no element is counted for it');
+  // QA3-04: the fold uses the same words and counts no element either.
+  const shown = layer.replace(/<!-- styleproof-[^\n]*-->/g, '');
+  assert.doesNotMatch(shown, /\(surface\)|element restyled|Interactive-state changes|forced-state capture/);
+  const html = fs.readFileSync(path.join(root, 'report', 'report.html'), 'utf8');
+  assert.doesNotMatch(html, /\(surface\)|Element paths/, 'report.html lists no pseudo element path');
+  assert.match(layer, /^Forced-state layers captured on one side only$/m);
+  assert.match(layer, /^\| `:checked` \| not captured \| captured \|$/m);
 });
 
 for (const [added, expected] of [
@@ -177,6 +184,35 @@ for (const [added, expected] of [
     assert.doesNotMatch(md, /from none|to none/);
   });
 }
+
+test('a new hover border colour names the resting border colour it changes from (QA3-05)', (t) => {
+  const root = mkTmp('styleproof-state-border-');
+  t.after(() => rmTmp(root));
+  const link = 'body > a';
+  const sides = ['top', 'right', 'bottom', 'left'];
+  const border = (value) => Object.fromEntries(sides.map((side) => [`border-${side}-color`, value]));
+  const dirs = ['before', 'after'].map((side) => path.join(root, side));
+  for (const dir of dirs) {
+    const map = makeMap({
+      elements: {
+        [link]: {
+          tag: 'a',
+          cls: 'docs-link',
+          text: 'Docs',
+          rect: [20, 20, 80, 20],
+          style: { color: 'rgb(165, 243, 252)', ...border('rgb(165, 243, 252)') },
+        },
+      },
+      states: dir === dirs[1] ? { [link]: { hover: { [link]: border('rgb(252, 165, 165)') } } } : {},
+    });
+    writeCapture(dir, 'docs@1280', map, solidPng(1280, 300));
+    fs.writeFileSync(path.join(dir, 'docs@1280.hover.png'), solidPng(1280, 300));
+  }
+  const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.match(md, /the border colour changes from `#a5f3fc` to `#fca5a5` when hovered/);
+  assert.doesNotMatch(md, /now changes to/);
+});
 
 test('machine findings keep the state owners', (t) => {
   const { json } = fixture(t);

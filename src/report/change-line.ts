@@ -273,7 +273,7 @@ function listClauses(clauses: string[], article: string): string {
 /** The forced-state sentences: after a resting change, "Their …"; alone, "On …, the …" plus the resting claim. */
 function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
   const noun = input.driver ? sectionNoun(input.driver.subject) : '';
-  const driver = !input.driver ? null : (input.driver.count ?? 1) > 1 ? `their ${plural(noun)} are` : `the ${noun} is`;
+  const driver = !input.driver ? null : (input.driver.count ?? 1) > 1 ? `the matching ${noun} is` : `the ${noun} is`;
   const clauses = input.states.filter((st) => st.props.length).map((st) => stateClause(st, driver));
   if (!clauses.length) return [];
   if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
