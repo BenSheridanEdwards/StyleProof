@@ -1,6 +1,9 @@
 import { test } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { types } from 'node:util';
 import { crawlCoverageError, dedupIdentity, selectCrawlLinks, selectObservedNavs, type CrawlLink } from '../crawl.js';
+import { PRODUCT_STATE_IDENTITY_REASONS, ProductStateIdentityError, validateProductStateIdentity } from '../capture.js';
+import type { ProductStateIdentity } from '../capture/types.js';
 import { captureTestBudgetMs } from '../surface-progress.js';
 import { NAV_OBSERVER_FN, NAV_OBSERVER_SNIPPET } from './browser.js';
 import { withSurfaceFailureTolerance } from './self-check.js';
@@ -136,6 +139,199 @@ function navObserver(
   };
 }
 
+// Captured once, before this module creates any promise. Consumer code runs before every later use
+// (the productState function itself, and a promise hook at each promise StyleProof creates), so
+// reading these from the shared `Reflect` and `util.types` at the point of use would let it replace
+// the very operations the pin and the probe rely on. Every descriptor StyleProof builds has a null
+// prototype: one inheriting from a consumer-polluted `Object.prototype` (an inherited `get` or
+// `value`) would mean something else, or be invalid and throw.
+const { defineProperty, deleteProperty, getOwnPropertyDescriptor, getPrototypeOf, isExtensible, setPrototypeOf } =
+  Reflect;
+const { isPromise } = types;
+
+/**
+ * A descriptor with no prototype. Object-literal fields are defined directly, so a polluted
+ * `Object.prototype` setter never runs while it is built.
+ */
+function ownDescriptor(fields: PropertyDescriptor): PropertyDescriptor {
+  setPrototypeOf(fields, null);
+  return fields;
+}
+
+/**
+ * A native promise (by its internal slot, so a hidden or throwing `then` cannot disguise it) or a
+ * thenable; a non-promise whose `then` cannot be read is treated as not a thenable.
+ */
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  if (isPromise(value)) return true;
+
+  try {
+    return typeof (value as { then?: unknown } | null | undefined)?.then === 'function';
+  } catch {
+    return false;
+  }
+}
+
+// The built-in Promise, confirmed by behaviour: `await` attaches to a promise directly, without
+// reading its `then`, only when its `constructor` is the built-in. Candidates are the constructor
+// on an async function's result prototype and the global, so replacing one before load is not
+// enough to stand in for it. Undefined when neither confirms; then no rejection is handled.
+const INTRINSIC_PROMISE = intrinsicPromise();
+function intrinsicPromise(): PromiseConstructor | undefined {
+  // Only a source of candidates: whatever it reports is confirmed by behaviour below. A hook can give
+  // this promise a prototype whose traps throw, so a failed read just drops the candidate.
+  let fromPrototype: unknown;
+  try {
+    const candidatePrototype = getPrototypeOf((async () => {})());
+    fromPrototype =
+      candidatePrototype === null ? undefined : getOwnPropertyDescriptor(candidatePrototype, 'constructor')?.value;
+  } catch {
+    fromPrototype = undefined;
+  }
+
+  for (const candidate of [fromPrototype, getOwnPropertyDescriptor(globalThis, 'Promise')?.value]) {
+    if (typeof candidate === 'function' && awaitsDirectly(candidate)) return candidate as PromiseConstructor;
+  }
+
+  return undefined;
+}
+
+/** Whether `await` attaches to a fresh promise whose `constructor` is `candidate` without reading its `then`. */
+function awaitsDirectly(candidate: unknown): boolean {
+  const probe = (async () => {})();
+  let thenRead = false;
+  // Full descriptors, so the properties end up non-configurable even if a promise hook created them
+  // first (a partial descriptor keeps an existing property's attributes); a hook running inside the
+  // await then cannot change them. A probe that cannot be set up confirms nothing.
+  const prepared =
+    defineProperty(probe, 'constructor', ownDescriptor({ value: candidate, writable: false, configurable: false })) &&
+    defineProperty(
+      probe,
+      'then',
+      ownDescriptor({
+        configurable: false,
+        get() {
+          thenRead = true;
+          return undefined;
+        },
+      }),
+    );
+
+  if (!prepared) return false;
+  // Resolving with a value that is not the built-in reads its `then` synchronously, inside the await.
+  void (async () => {
+    await probe;
+  })();
+
+  return !thenRead;
+}
+
+/**
+ * Handle a returned native promise's rejection, which would otherwise surface as the consumer's
+ * own unhandled error. `await` attaches to it directly, without calling its own `then`, only when
+ * its `constructor` is the built-in `Promise`, so that is pinned with `Reflect.defineProperty` (no
+ * getter, setter, trap or species lookup runs) and put back once the handler is attached. A promise
+ * that cannot be pinned, or is non-extensible, is not awaited at all, so none of its code runs:
+ * awaiting a non-extensible promise while any promise hook is active makes Node's own hook
+ * bookkeeping add a property to it and throw. A custom thenable holds no rejection of its own, so
+ * its `then` is never called. Nothing here can throw outward. Rejections that cannot be handled: a
+ * non-extensible promise, one whose own `constructor` is not the built-in and cannot be set (a
+ * non-configurable getter or non-writable value), one the function never returns directly (inside
+ * a Proxy or a custom thenable), and every rejection when no built-in Promise could be confirmed at
+ * load.
+ */
+function swallowRejection(value: unknown): void {
+  if (!isPromise(value) || INTRINSIC_PROMISE === undefined) return;
+
+  let original: PropertyDescriptor | undefined;
+  let pinned = false;
+
+  // The wrapper's own promise is created before its body runs. Pinning, checking and awaiting inside
+  // the body leaves no promise creation, so no promise hook, between the pin and the `await` that
+  // reads it. `await` reads the constructor before anything else; a throwaway promise it may create
+  // for hooks comes after that read, so a write-back is too late.
+  void (async () => {
+    if (!isExtensible(value)) return;
+    original = getOwnPropertyDescriptor(value, 'constructor');
+    pinned =
+      original === undefined || original.configurable
+        ? defineProperty(
+            value,
+            'constructor',
+            ownDescriptor({ value: INTRINSIC_PROMISE, writable: true, configurable: true }),
+          )
+        : defineProperty(value, 'constructor', ownDescriptor({ value: INTRINSIC_PROMISE }));
+    // Unpinned, `await` would read the promise's own `constructor` and call its own `then`.
+    if (!pinned) return;
+    try {
+      await value;
+    } catch {
+      // The rejection is consumer data: dropped, never surfaced.
+    }
+  })();
+  // The body ran synchronously up to its `await`, so the handler is attached and the pin can go.
+  if (!pinned) return;
+  if (original === undefined) deleteProperty(value, 'constructor');
+  else defineProperty(value, 'constructor', ownDescriptor({ ...original }));
+}
+
+const PRODUCT_STATE_ERROR_PREFIX = new ProductStateIdentityError('').message;
+
+/**
+ * The validator's own reason for `error`, chosen from its fixed list by exact comparison, so nothing
+ * from the error is ever echoed. The function can forge or reach that error (a replaced built-in can
+ * throw one, a getter can stand in for `message`), so its message is only read and compared.
+ */
+function validatorReason(error: unknown): string {
+  let message: unknown;
+  try {
+    message = typeof error === 'object' && error !== null ? (error as { message?: unknown }).message : undefined;
+  } catch {
+    message = undefined;
+  }
+  for (let index = 0; index < PRODUCT_STATE_IDENTITY_REASONS.length; index++) {
+    if (message === PRODUCT_STATE_ERROR_PREFIX + PRODUCT_STATE_IDENTITY_REASONS[index]) {
+      return PRODUCT_STATE_IDENTITY_REASONS[index];
+    }
+  }
+
+  return PRODUCT_STATE_IDENTITY_REASONS[1];
+}
+
+/**
+ * The declared identity for one crawled link. The function form gets a copy of the link, and a
+ * failure names only that link and a fixed reason, so a large crawl points at its route.
+ */
+export function crawlLinkProductState(
+  productState: CrawlOptions['productState'],
+  link: CrawlLink,
+): ProductStateIdentity | undefined {
+  if (typeof productState !== 'function') return productState;
+
+  let declared: unknown;
+
+  try {
+    declared = productState({ ...link });
+  } catch {
+    // The function's own error is consumer data: never echo it, as the validator never echoes input.
+    throw new ProductStateIdentityError(`crawl link '${link.key}': the productState function threw`);
+  }
+
+  if (isThenable(declared)) {
+    swallowRejection(declared);
+    throw new ProductStateIdentityError(
+      `crawl link '${link.key}': the productState function must return synchronously`,
+    );
+  }
+
+  try {
+    return validateProductStateIdentity(declared);
+  } catch (error) {
+    const reason = validatorReason(error);
+    throw new ProductStateIdentityError(`crawl link '${link.key}': ${reason}`);
+  }
+}
+
 /**
  * Like `defineStyleMapCapture`, but the surface set is DISCOVERED at run time by crawling
  * a page's links (plus routes observed through the history API). One Playwright test does
@@ -153,7 +349,9 @@ export function defineCrawlCapture(options: CrawlOptions): void {
     exclude = {},
     observeNavigation = true,
   } = options;
-  const { widths, height, ignore, variants, liveStates, stateRecipes, popups, mediaStates } = options;
+  const { widths, height, ignore, variants, liveStates, stateRecipes, popups, mediaStates, productState } = options;
+  // A static identity fails when the spec loads, as a declared surface's does.
+  if (typeof productState !== 'function') validateProductStateIdentity(productState);
   if (!dir) return;
 
   const settings = resolveSettings(options);
@@ -190,6 +388,7 @@ export function defineCrawlCapture(options: CrawlOptions): void {
             }
             if (settle) await settle(p);
           },
+          productState: crawlLinkProductState(productState, link),
           widths,
           ignore,
           height,

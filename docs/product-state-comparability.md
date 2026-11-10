@@ -44,7 +44,7 @@ Receipts contain only the capture key, status, required bit, and a bounded reaso
 
 StyleProof 6.2 remains the stable migration line. The 6.x-compatible path is opt-in:
 
-1. Add `productState` to each declared surface and state variant.
+1. Add `productState` to each declared surface and state variant, or to `defineCrawlCapture` (an identity, or a function of the discovered link) for its crawled surfaces.
 2. Capture base and head using the same consumer-owned fixture revision.
 3. Run diff/report with `--require-state-identity`, or set `productState.requireIdentity: true` in `styleproof.config.ts`, or set composite Action input `require-state-identity: true`.
 4. Repair every `unproven` or `incomparable` receipt before treating the run as certifying.
