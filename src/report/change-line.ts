@@ -23,7 +23,14 @@ export type SectionSubject = {
   sameSelectorCount: number;
 };
 
-type StateProp = PropChange & { pseudo?: string };
+/** A change as a line says it; `painted`: a colour the element draws (a visible border), never an echo. */
+export type StateProp = PropChange & { pseudo?: string; painted?: true };
+
+/**
+ * One owner group of a counted clause: the distinct changes these `count` owners all made (and no
+ * other owner group says), `also` when they are some of an earlier group's owners.
+ */
+export type OwnerGroup = { count: number; props: StateProp[]; also?: true };
 
 /**
  * One clause: a forced state's change(s); `driver` is the control that produced them, absent for the
@@ -34,9 +41,11 @@ type StateProp = PropChange & { pseudo?: string };
 export type StateChange = {
   state: string;
   props: StateProp[];
+  /** A counted clause's owner count, for its groups' words ("each", "the other"). */
+  owners?: number;
   driver?: StateDriver;
   ownToo?: true;
-  groups?: Array<{ count: number; props: StateProp[] }>;
+  groups?: OwnerGroup[];
 };
 /**
  * The owner(s) of one clause, as the capture records them (by owner path, never inferred):
@@ -58,7 +67,7 @@ export type StateDriver = {
 export type ChangeLineInput = {
   subject: SectionSubject;
   /** Summarized resting prop changes, `pseudo` set for `::before` / `::after` rows. */
-  rest: Array<PropChange & { pseudo?: string }>;
+  rest: StateProp[];
   states: StateChange[];
   dom?: 'added' | 'removed' | 'retagged';
   /** Only size/position values moved: no styling property changed. */
@@ -230,12 +239,16 @@ function propFragment(change: PropChange & { pseudo?: string }): string {
   return before && after ? `${label} from ${before} to ${after}` : label;
 }
 
-/** Props that moved exactly like `color` read as one colour change in the sentence (the table lists them all). */
-function withoutColorEchoes<T extends PropChange>(props: T[]): T[] {
-  const color = props.find((p) => p.prop === 'color' && !('pseudo' in p && p.pseudo));
+/**
+ * Props that moved exactly like `color` read as one colour change in the sentence (the table lists
+ * them all), unless the element draws them: a visible border turning red with the text is said
+ * (QA16-01). These are the changes a line states.
+ */
+export function withoutColorEchoes<T extends StateProp>(props: T[]): T[] {
+  const color = props.find((p) => p.prop === 'color' && !p.pseudo);
   if (!color) return props;
   return props.filter(
-    (p) => p === color || !/color$/.test(p.prop) || p.before !== color.before || p.after !== color.after,
+    (p) => p === color || p.painted || !/color$/.test(p.prop) || p.before !== color.before || p.after !== color.after,
   );
 }
 
@@ -277,7 +290,7 @@ function stateClause(change: StateChange, driver: string | null): Clause {
     : change.ownToo
       ? `when ${word} or when ${driver} ${word}`
       : `when ${driver} ${word}`;
-  if (change.groups) return { text: `${when}, ${ownerGroups(change.groups)}`, grouped: true };
+  if (change.groups) return { text: `${when}, ${ownerGroups(change.groups, change.owners ?? 0)}`, grouped: true };
   const [first, ...more] = withoutColorEchoes(change.props).map(propFragment);
   return { text: `${fragmentList([withVerb(first), ...more])} ${when}` };
 }
@@ -285,23 +298,24 @@ function stateClause(change: StateChange, driver: string | null): Clause {
 const MAX_GROUPS = 2;
 
 /**
- * A counted clause's owners, each with its own change (QA15-01): "one changes the text colour …,
- * while the other changes the background …". Echoes are pruned and each owner's change is capped
- * like any change line; past two owners, "and N more controls make other changes".
+ * A counted clause's owner groups (QA15-01, QA16-01): each distinct change is said once, under the
+ * owners that made it, with their count: "each changes the text colour …, and one also changes
+ * the border colour …", "one changes the text colour …, while the other changes the background …".
+ * Each group is capped like any change line; past two groups, "and N more changes".
  */
-function ownerGroups(groups: NonNullable<StateChange['groups']>): string {
-  const said = (g: { count: number; props: StateProp[] }, who: string) =>
-    `${who} ${g.count === 1 ? 'changes' : 'change'} ${fragmentList(withoutColorEchoes(g.props).map((p) => `the ${propFragment(p)}`))}`;
-  const who = (g: { count: number }) => (g.count === 1 ? 'one' : `${g.count} of them`);
-  if (groups.length === 2) {
-    const other = groups[1].count === 1 ? 'the other' : `the other ${groups[1].count}`;
-    return `${said(groups[0], who(groups[0]))}, while ${said(groups[1], other)}`;
+function ownerGroups(groups: OwnerGroup[], total: number): string {
+  const said = (g: OwnerGroup, who: string) =>
+    `${who} ${g.also ? 'also ' : ''}${g.count === 1 || g.count === total ? 'changes' : 'change'} ${fragmentList(g.props.map((p) => `the ${propFragment(p)}`))}`;
+  const who = (g: OwnerGroup) => (g.count === total ? 'each' : g.count === 1 ? 'one' : `${g.count} of them`);
+  const [first, second] = groups;
+  if (groups.length === 2 && !second.also && first.count + second.count === total) {
+    const other = second.count === 1 ? 'the other' : `the other ${second.count}`;
+    return `${said(first, who(first))}, while ${said(second, other)}`;
   }
+  if (groups.length === 2) return `${said(first, who(first))}, and ${said(second, who(second))}`;
   const shown = groups.slice(0, MAX_GROUPS).map((g) => said(g, who(g)));
-  const rest = groups.slice(MAX_GROUPS).reduce((sum, g) => sum + g.count, 0);
-  const tail = rest
-    ? [`and ${rest} more ${rest === 1 ? 'control makes another change' : 'controls make other changes'}`]
-    : [];
+  const rest = groups.slice(MAX_GROUPS).reduce((sum, g) => sum + g.props.length, 0);
+  const tail = rest ? [`and ${rest} more ${rest === 1 ? 'change' : 'changes'}`] : [];
   return [...shown, ...tail].join('; ');
 }
 

@@ -13,6 +13,9 @@ import {
   type SectionSubject,
   type StateChange,
   type StateDriver,
+  type StateProp,
+  type OwnerGroup,
+  withoutColorEchoes,
 } from './change-line.js';
 import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
 import { containerOf, paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
@@ -149,14 +152,16 @@ function countShared(sources: StateSource[], shared: Map<string, number>, findin
       out.push(source);
       continue;
     }
+    // The element's own state keeps its own clause, never one of the counted owners (QA16-02).
+    if (source.own) out.push({ state: source.state, own: true, owners: [], changes: [...source.changes] });
     const group = out.find((other) => other.counted?.label === label);
     if (group) {
       source.owners.forEach((owner) => group.owners.push(owner));
       source.changes.forEach((change) => group.changes.push(change));
-      group.own ||= source.own;
     } else
       out.push({
-        ...source,
+        state: source.state,
+        own: false,
         owners: [...source.owners],
         changes: [...source.changes],
         counted: { label, total: shared.get(label)! },
@@ -398,27 +403,62 @@ function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [Sty
   return new Set(single.filter((source) => byNoun.get(nounOf(source))!.size > 1));
 }
 
-type StateProp = StateChange['props'][number];
+/**
+ * A counted clause's owner groups (QA15-01, QA16-01): each distinct change the line states (echoes
+ * pruned, drawn borders kept) is said once, under the set of owners that made it. Owners whose
+ * stated changes are identical share one group with their count; a group whose owners are some of
+ * an earlier group's is said with "also". Largest groups first.
+ */
+function ownerGroups(source: StateSource, firstStates: StateFinding[], propsOf: PropsOf): OwnerGroup[] {
+  const owners = new Map<string, { owners: Set<string>; prop: StateProp }>();
+  for (const owner of source.owners)
+    for (const prop of withoutColorEchoes(
+      propsOf(firstStates.filter((f) => f.path === owner && f.state === source.state)),
+    )) {
+      const key = JSON.stringify([prop.prop, prop.pseudo ?? '', prop.before, prop.after]);
+      const seen = owners.get(key) ?? { owners: new Set<string>(), prop };
+      seen.owners.add(owner);
+      owners.set(key, seen);
+    }
+  const groups = new Map<string, { owners: Set<string>; props: StateProp[] }>();
+  for (const { owners: set, prop } of owners.values()) {
+    const key = [...set].sort().join('\0');
+    const group = groups.get(key) ?? { owners: set, props: [] };
+    group.props.push(prop);
+    groups.set(key, group);
+  }
+  const ordered = [...groups.values()].sort((a, b) => b.owners.size - a.owners.size);
+  return ordered.map((g, i) => ({
+    count: g.owners.size,
+    props: g.props,
+    ...(ordered.slice(0, i).some((earlier) => [...g.owners].every((o) => earlier.owners.has(o)))
+      ? { also: true as const }
+      : {}),
+  }));
+}
+
+/** A change's props with the element's drawn colours marked (`painted`), so they are never pruned as echoes. */
+type PropsOf = (changes: StateFinding[]) => StateProp[];
 
 /**
- * A counted clause's owners, each with its own change in that state (QA15-01): owners that made the
- * same whole change share one group, with their count. Grouped by owner, never flattened into
- * alternatives.
+ * The colours the element draws: a border, outline, column rule or text stroke with a style and a
+ * width. Their colour shows in the crop even when it moves like the text colour (QA16-01).
  */
-function ownerGroups(
-  source: StateSource,
-  firstStates: StateFinding[],
-  propsOf: (changes: StateFinding[]) => StateProp[],
-): Array<{ count: number; props: StateProp[] }> {
-  const groups = new Map<string, { count: number; props: StateProp[] }>();
-  for (const owner of source.owners) {
-    const props = propsOf(firstStates.filter((f) => f.path === owner && f.state === source.state));
-    const key = JSON.stringify(props);
-    const seen = groups.get(key);
-    if (seen) seen.count += 1;
-    else groups.set(key, { count: 1, props });
-  }
-  return [...groups.values()];
+function paintedColors(maps: [StyleMap, StyleMap], target: string): <T extends StateProp>(p: T) => T {
+  const drawn = (style: Record<string, string> = {}, part: string) =>
+    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
+  const draws = (pseudo: string | undefined, prop: string): boolean =>
+    maps.some((map) => {
+      const entry = map.elements[target];
+      const style = (pseudo ? entry?.pseudo?.[pseudo] : entry?.style) ?? {};
+      if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop))
+        return ['top', 'right', 'bottom', 'left'].some((side) => drawn(style, `border-${side}`));
+      if (prop === 'outline-color') return drawn(style, 'outline');
+      if (prop === 'column-rule-color') return drawn(style, 'column-rule');
+      if (prop === '-webkit-text-stroke-color') return !['0px', undefined].includes(style['-webkit-text-stroke-width']);
+      return false;
+    });
+  return (p) => (draws(p.pseudo, p.prop) ? { ...p, painted: true as const } : p);
 }
 
 /** The owner(s) a clause names, or none for the element's own state, as the capture records them. */
@@ -448,10 +488,13 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   if (section.paths[0] === SURFACE_SUBJECT) return stateLayerLine(section.findings);
   const first = section.findings.filter((f) => subjectPath(f) === section.paths[0]);
   const dom = first.find((f): f is Extract<Finding, { kind: 'dom' }> => f.kind === 'dom');
-  const rest = first.flatMap((f) =>
-    f.kind === 'style' ? summarizeProps(f.props).map((p) => ({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) })) : [],
-  );
   const target = section.paths[0];
+  const painted = paintedColors(maps, target);
+  const rest = first.flatMap((f) =>
+    f.kind === 'style'
+      ? summarizeProps(f.props).map((p) => painted({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) }))
+      : [],
+  );
   // A side the state leaves alone renders the resting value: say that value, not "none". A change on
   // `::before`/`::after` rests at the pseudo-element's own value, not the element's (RV15-02).
   const resting = (side: 0 | 1, prop: string, value: string, pseudo?: string): string => {
@@ -473,12 +516,16 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
           before: resting(0, p.prop, p.before, pseudoOf(f)),
           after: resting(1, p.prop, p.after, pseudoOf(f)),
         })),
-      ).map((p) => ({ ...p, ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}) })),
+      ).map((p) => painted({ ...p, ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}) })),
     );
   const states: StateChange[] = sources.flatMap((source) => {
-    const props = propsOf(source.changes);
-    const driver = sourceDriver(section, maps, source, { firstStates, named });
     const groups = source.counted ? ownerGroups(source, firstStates, propsOf) : [];
+    // Every owner of the selector stated the same changes: one identical change, "either of the 2 opts".
+    const same =
+      groups.length === 1 && groups[0].count === source.owners.length && source.owners.length === source.counted?.total;
+    const said = same ? { ...source, counted: undefined } : source;
+    const props = same ? groups[0].props : propsOf(source.changes);
+    const driver = sourceDriver(section, maps, said, { firstStates, named });
     return props.length
       ? [
           {
@@ -486,7 +533,7 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
             props,
             ...(driver ? { driver } : {}),
             ...(driver && source.own ? { ownToo: true } : {}),
-            ...(groups.length > 1 ? { groups } : {}),
+            ...(groups.length > 1 ? { groups, owners: source.owners.length } : {}),
           },
         ]
       : [];
