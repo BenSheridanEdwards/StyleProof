@@ -55,27 +55,31 @@ On the Docs link, the text colour changes from `#a5f3fc` to `#fca5a5` when hover
 
 `a.link` · 1 element restyled
 
-| Property                                              | Before    | After     |
-| ----------------------------------------------------- | --------- | --------- |
-| `:hover color`                                        | `#a5f3fc` | `#fca5a5` |
-| `:focus outline-color`                                | `#5eead4` | `#fca5a5` |
-| `:active color`                                       | `#2dd4bf` | `#f87171` |
-| `:hover caret-color` (follows `color`)                | `#a5f3fc` | `#fca5a5` |
-| `:hover outline-color` (follows `color`)              | `#a5f3fc` | `#fca5a5` |
-| `:hover column-rule-color` (follows `color`)          | `#a5f3fc` | `#fca5a5` |
-| `:hover row-rule-color` (follows `color`)             | `#a5f3fc` | `#fca5a5` |
-| `:hover text-decoration-color` (follows `color`)      | `#a5f3fc` | `#fca5a5` |
-| `:hover text-emphasis-color` (follows `color`)        | `#a5f3fc` | `#fca5a5` |
-| `:hover -webkit-text-fill-color` (follows `color`)    | `#a5f3fc` | `#fca5a5` |
-| `:hover -webkit-text-stroke-color` (follows `color`)  | `#a5f3fc` | `#fca5a5` |
-| `:active caret-color` (follows `color`)               | `#2dd4bf` | `#f87171` |
-| `:active outline-color` (follows `color`)             | `#2dd4bf` | `#f87171` |
-| `:active column-rule-color` (follows `color`)         | `#2dd4bf` | `#f87171` |
-| `:active row-rule-color` (follows `color`)            | `#2dd4bf` | `#f87171` |
-| `:active text-decoration-color` (follows `color`)     | `#2dd4bf` | `#f87171` |
-| `:active text-emphasis-color` (follows `color`)       | `#2dd4bf` | `#f87171` |
-| `:active -webkit-text-fill-color` (follows `color`)   | `#2dd4bf` | `#f87171` |
-| `:active -webkit-text-stroke-color` (follows `color`) | `#2dd4bf` | `#f87171` |
+**Link** `a.link`
+
+Interactive-state changes:
+
+| State     | Property                                       | Before → After        |
+| --------- | ---------------------------------------------- | --------------------- |
+| `:hover`  | `color`                                        | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:focus`  | `outline-color`                                | `#5eead4` → `#fca5a5` |
+| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
 
 </details>
 

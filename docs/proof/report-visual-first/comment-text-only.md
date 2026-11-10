@@ -56,10 +56,14 @@ On all 3 Add to basket buttons, the background changes from dark indigo to red w
 
 `button.btn` · 3 elements restyled · changed rules `.btn:focus-visible`, `.btn:hover` in `/styles.css`
 
-| Property                  | Before    | After     |
-| ------------------------- | --------- | --------- |
-| `:hover background-color` | `#1e46aa` | `#c82828` |
-| `:focus outline-color`    | `#faa000` | `#00a050` |
+**Btn** `button.btn`
+
+Interactive-state changes:
+
+| State    | Property           | Before → After        |
+| -------- | ------------------ | --------------------- |
+| `:hover` | `background-color` | `#1e46aa` → `#c82828` |
+| `:focus` | `outline-color`    | `#faa000` → `#00a050` |
 
 </details>
 

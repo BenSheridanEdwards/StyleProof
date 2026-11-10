@@ -87,27 +87,31 @@ On the Docs link, the text colour changes from `#a5f3fc` to `#fca5a5` when hover
 
 `a.link` · 1 element restyled
 
-| Property                                              | Before    | After     |
-| ----------------------------------------------------- | --------- | --------- |
-| `:hover color`                                        | `#a5f3fc` | `#fca5a5` |
-| `:focus outline-color`                                | `#5eead4` | `#fca5a5` |
-| `:active color`                                       | `#2dd4bf` | `#f87171` |
-| `:hover caret-color` (follows `color`)                | `#a5f3fc` | `#fca5a5` |
-| `:hover outline-color` (follows `color`)              | `#a5f3fc` | `#fca5a5` |
-| `:hover column-rule-color` (follows `color`)          | `#a5f3fc` | `#fca5a5` |
-| `:hover row-rule-color` (follows `color`)             | `#a5f3fc` | `#fca5a5` |
-| `:hover text-decoration-color` (follows `color`)      | `#a5f3fc` | `#fca5a5` |
-| `:hover text-emphasis-color` (follows `color`)        | `#a5f3fc` | `#fca5a5` |
-| `:hover -webkit-text-fill-color` (follows `color`)    | `#a5f3fc` | `#fca5a5` |
-| `:hover -webkit-text-stroke-color` (follows `color`)  | `#a5f3fc` | `#fca5a5` |
-| `:active caret-color` (follows `color`)               | `#2dd4bf` | `#f87171` |
-| `:active outline-color` (follows `color`)             | `#2dd4bf` | `#f87171` |
-| `:active column-rule-color` (follows `color`)         | `#2dd4bf` | `#f87171` |
-| `:active row-rule-color` (follows `color`)            | `#2dd4bf` | `#f87171` |
-| `:active text-decoration-color` (follows `color`)     | `#2dd4bf` | `#f87171` |
-| `:active text-emphasis-color` (follows `color`)       | `#2dd4bf` | `#f87171` |
-| `:active -webkit-text-fill-color` (follows `color`)   | `#2dd4bf` | `#f87171` |
-| `:active -webkit-text-stroke-color` (follows `color`) | `#2dd4bf` | `#f87171` |
+**Link** `a.link`
+
+Interactive-state changes:
+
+| State     | Property                                       | Before → After        |
+| --------- | ---------------------------------------------- | --------------------- |
+| `:hover`  | `color`                                        | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
+| `:hover`  | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
+| `:focus`  | `outline-color`                                | `#5eead4` → `#fca5a5` |
+| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
+| `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
 
 </details>
 
@@ -131,7 +135,9 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 - **The before/after pair** shows the same rectangle of the base and pull-request captures, unedited. Changes to
   `:hover`, `:focus` and `:active` get one pair per state, with both sides in that state.
 - **Show the CSS** lists every changed computed property with its old and new value. Longhands that moved together
-  fold into their shorthand, and properties that follow `currentColor` are marked. The browser report also lists the
+  fold into their shorthand, and properties that follow `currentColor` are marked. Forced-state changes are listed
+  under the element whose state was forced (the element itself for its own `:hover`, a checkbox for its
+  `:checked`), one block per element, as the capture records them. The browser report also lists the
   element paths and the whole page before and after.
 - **Warnings appear only when something blocks or needs you**, such as a page that was not captured, a compare
   that cannot certify, or a changed CSS rule no captured page matched. Diagnostics stay in `report.json`.
