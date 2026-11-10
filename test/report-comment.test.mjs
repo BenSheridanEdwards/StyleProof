@@ -125,3 +125,26 @@ test('keepImages keeps image lines a caller already made resolvable, without an 
   assert.match(comment, /<img src="docs\/readme\/live-report\/crops\/[^"]+-before\.png"/);
   assert.doesNotMatch(comment, /\?raw=1/);
 });
+
+test('an unbound report keeps its source-binding warning and its summary line in the comment (RV18-06)', () => {
+  const note =
+    '> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified. This report did not check that its captures ' +
+    'came from the base and head commits; run it with `--expected-before-sha` and `--expected-after-sha` to check them.';
+  const md = [
+    note,
+    '',
+    '## 🗺️ StyleProof report',
+    '',
+    '**1 change to review** on `home` at 1280px wide: 1 element.',
+    '',
+    '## Changes',
+    '',
+    '### Cta',
+    '',
+    'The cta changes background from black to red.',
+    '',
+  ].join('\n');
+  const comment = reportCommentSummary(md);
+  assert.ok(comment.startsWith(note), comment);
+  assert.match(comment, /^\*\*1 change to review\*\* on `home` at 1280px wide: 1 element\.$/m);
+});

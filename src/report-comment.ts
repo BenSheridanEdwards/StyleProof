@@ -74,7 +74,8 @@ function tidy(lines: string[]): string[] {
 
 /** The summary and blocking lines only: group headings, Evidence and reach tables stay in the report. */
 function openingLines(top: string[]): string[] {
-  const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l));
+  // The report's own title is not a group heading: an unbound report opens with its warning above it.
+  const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l) && !l.startsWith('## 🗺️'));
   return tidy(
     (end < 0 ? top : top.slice(0, end))
       .filter((l) => !l.includes('<!--') && !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
