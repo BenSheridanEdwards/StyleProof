@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { commentProblems, reportProblems, situationCounts } from './rule5-detector.mjs';
 
 // The detector must fail on each class rule 5 forbids, using shapes earlier rounds shipped.
-const LINK = '\n\n### 📊 [**Open the full visual report →**](https://github.com/o/r/blob/x/pr-1/report.md)\n\n---\n';
+const LINK =
+  '\n\n### 📊 [**Open the full visual report →**](https://github.com/BenSheridanEdwards/StyleProof/blob/x/pr-1/report.md)\n\n---\n';
 
 test('a fact said twice in other words is caught (QA9-01 volatile triple)', () => {
   const md = [
