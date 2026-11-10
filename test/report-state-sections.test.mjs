@@ -273,6 +273,44 @@ test('a new hover border colour names the resting border colour it changes from 
   assert.doesNotMatch(md, /now changes to/);
 });
 
+// RV15-02: a state style added to or removed from `::before` names the pseudo-element's own resting
+// value (blue), never the element's (white). A custom checkbox drawn on `label::before` is common.
+for (const [added, expected] of [
+  [true, /the `::before` background changes from blue to red when the opt is checked/],
+  [false, /the `::before` background changes from red to blue when the opt is checked/],
+]) {
+  test(`a :checked style ${added ? 'added to' : 'removed from'} ::before states its own resting value (RV15-02)`, (t) => {
+    const root = mkTmp('styleproof-state-pseudo-rest-');
+    t.after(() => rmTmp(root));
+    const dirs = ['before', 'after'].map((side) => path.join(root, side));
+    for (const dir of dirs) {
+      const styled = (dir === dirs[1]) === added;
+      const map = makeMap({
+        elements: {
+          [checkbox]: { tag: 'input', cls: 'opt', rect: [20, 20, 20, 20] },
+          [label]: {
+            tag: 'label',
+            cls: 'opt-label',
+            text: 'Send offers',
+            rect: [40, 20, 100, 20],
+            style: { 'background-color': 'rgb(255, 255, 255)' },
+            pseudo: { '::before': { 'background-color': 'rgb(37, 99, 235)', content: '""' } },
+          },
+        },
+        states: styled
+          ? { [checkbox]: { checked: { [`${label}::before`]: { 'background-color': 'rgb(220, 38, 38)' } } } }
+          : {},
+      });
+      writeCapture(dir, 'form@390', map, solidPng(390, 180));
+      fs.writeFileSync(path.join(dir, 'form@390.checked.png'), solidPng(390, 180));
+    }
+    const result = generateReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(md, expected);
+    assert.doesNotMatch(md, /background changes from white|to white when/);
+  });
+}
+
 test('machine findings keep the state owners', (t) => {
   const { json } = fixture(t);
   const owners = json.surfaces[0].findings.map((f) => [f.path, f.state, f.sub]).sort();

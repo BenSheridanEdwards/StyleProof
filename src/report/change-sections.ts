@@ -429,9 +429,13 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
     f.kind === 'style' ? summarizeProps(f.props).map((p) => ({ ...p, ...(f.pseudo ? { pseudo: f.pseudo } : {}) })) : [],
   );
   const target = section.paths[0];
-  // A side the state leaves alone renders the resting value: say that value, not "none".
-  const resting = (side: 0 | 1, prop: string, value: string): string =>
-    value === STATE_ADDS[side] ? (maps[side].elements[target]?.style?.[prop] ?? value) : value;
+  // A side the state leaves alone renders the resting value: say that value, not "none". A change on
+  // `::before`/`::after` rests at the pseudo-element's own value, not the element's (RV15-02).
+  const resting = (side: 0 | 1, prop: string, value: string, pseudo?: string): string => {
+    if (value !== STATE_ADDS[side]) return value;
+    const entry = maps[side].elements[target];
+    return (pseudo ? entry?.pseudo?.[pseudo]?.[prop] : entry?.style?.[prop]) ?? value;
+  };
   // One clause per source, each naming the owner path(s) the capture recorded (#1299). Resolve on
   // the longhands, before they fold into a shorthand (four border sides → one colour).
   const sources = stateSources(section, maps);
@@ -441,7 +445,11 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
     // A change on a pseudo-element keeps its pseudo (QA14-05); a counted clause lists each change.
     const props = source.changes.flatMap((f) =>
       summarizeProps(
-        f.props.map((p) => ({ ...p, before: resting(0, p.prop, p.before), after: resting(1, p.prop, p.after) })),
+        f.props.map((p) => ({
+          ...p,
+          before: resting(0, p.prop, p.before, pseudoOf(f)),
+          after: resting(1, p.prop, p.after, pseudoOf(f)),
+        })),
       ).map((p) => ({ ...p, ...(pseudoOf(f) ? { pseudo: pseudoOf(f) } : {}) })),
     );
     const driver = sourceDriver(section, maps, source, { firstStates, named });
