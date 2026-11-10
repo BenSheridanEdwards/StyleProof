@@ -385,4 +385,13 @@ export const cases = {
       st(p('button', 3), 'hover', p('div', 4), { 'background-color': C(b, W, I) }),
     ),
   }),
+  // QA19-01 (live, round-14 "Both" label): one control restyles the label in two states. Its noun
+  // is its own in both clauses ("when the both is focused … when the both is checked").
+  'QA19-01 one-control-two-states': (b) => ({
+    elements: { [p('input', 1)]: inp(0, 'both'), [p('label', 2)]: lab(0, 'both-label', 'Both') },
+    states: merge(
+      st(p('input', 1), 'focus', p('label', 2), { 'background-color': C(b, W, I) }),
+      st(p('input', 1), 'checked', p('label', 2), { color: C(b, G, R) }),
+    ),
+  }),
 };

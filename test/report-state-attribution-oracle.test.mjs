@@ -365,8 +365,9 @@ for (const [name, build] of Object.entries(OWNER_TRUTH_CASES)) {
 for (const [name, from, to] of [
   ['QA12-01b two-controls-same-state', 'when the opt is checked', 'when the first opt is checked'],
   ['QA18-01 lone-owner-beside-x2', /when `input\.opt` is checked/, 'when the opt is checked'],
+  ['QA17-02 two-owners-overlapping-drawn', /when `input\.duo` is checked/, 'when the first duo is checked'],
 ])
-  test(`the oracle rejects ${typeof from === 'string' ? 'an invented ordinal' : 'a noun beside a ×N clause'} (QA18-02)`, (t) => {
+  test(`the oracle rejects ${to.includes('first') ? 'an invented ordinal' : 'a noun beside a ×N clause'}: "${to}" (QA18-02)`, (t) => {
     const root = mkTmp('styleproof-attribution-mutant-');
     t.after(() => rmTmp(root));
     const [beforeDir, afterDir] = writeSides(root, OWNER_TRUTH_CASES[name]);

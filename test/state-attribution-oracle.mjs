@@ -192,7 +192,11 @@ function phraseFits(phrase, source, sources) {
   if (codes.length) return source.owners.length === count && JSON.stringify(codes) === JSON.stringify(source.labels);
   const noun = /^the (?:matching )?(.+)$/i.exec(phrase)?.[1].toLowerCase();
   if (times || source.owners.length !== 1 || noun !== source.names[0]) return false;
-  return !sources.some((other) => other !== source && other.names.includes(noun));
+  // Another owner sharing the noun: the same owner's source in another state is not another owner
+  // (one control in two states keeps its noun; QA19-01).
+  return !sources.some(
+    (other) => other !== source && other.names.includes(noun) && other.owners.some((o) => !source.owners.includes(o)),
+  );
 }
 
 /** Which source a clause names; null when none (or the wrong kind) fits. */
