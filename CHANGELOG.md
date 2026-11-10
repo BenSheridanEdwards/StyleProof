@@ -16,14 +16,14 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The report writes screenshots for reviewable style changes before advisory content changes.
   Before, `--include-content` could spend the whole crop budget on advisory crops, and every
   style change then read `Crop omitted`.
-- The **What changed** rows in the PR comment name more of the change. Elements with the same
-  name and the same change share one entry marked `×N`, a row names up to five entries (was
-  three), and a property with no plain-English rule reads as `line-height 42px → 52px` in place
-  of a bare `+1 more`. `report.json` digest elements gain an optional `count`.
+- The `report.json` `digest` rows name more of each change. Elements with the same name and the same change
+  share one entry with a `count`, a row names up to five elements (was three), and a property with no
+  plain-English rule is named as `line-height 42px → 52px` in place of a bare `+1 more`. (The digest is no
+  longer printed in report.md or the PR comment; see below.)
 - `defineCrawlCapture` accepts `productState` (an identity, or a function of the discovered link), so each crawled
   page can carry product-state identity. Before, only a crawl's `variants` or `liveStates` entries could declare
   one; the crawled page itself could not, so a crawl with neither — such as the `styleproof-init` template for
-  non-Next apps — always reported its pairs as _Product-state identity unproven_.
+  non-Next apps — always reported its pairs as unproven (`comparison.status: 'unproven'`).
 - `ProductStateIdentityError` can no longer be extended: the class is non-extensible, so adding a static property
   or swapping its prototype with `Object.setPrototypeOf` fails (a `TypeError` in strict mode). Subclassing it with
   `extends` still works.
@@ -43,14 +43,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   "when the matching opt is checked" when each grouped element has its own. One identical change is said once,
   whoever made it: "when `input.pickr` or `select.pickr` is focused", "when hovered or when the opt is
   hovered", "when either of the 2 opts is checked". Owners of one selector that the report cannot tell apart
-  (main heads them alike) are one counted clause, never named apart by invented words: "the text colour
-  changes … or the background changes … when one of the 2 `input.opt` controls is checked". Owners whose nouns collide
+  (main heads them alike) are one counted clause that names the count once and then each owner's own change,
+  echo-pruned and capped like any change line, never named apart by invented words: "when one of the 2
+  `input.opt` controls is checked, one changes the text colour …, while the other changes the background …"; past two owners, "… and 2 more controls make other changes". Owners whose nouns collide
   across selectors are named by selector ("when `input.pickr` is focused … when `select.pickr` is focused"),
   and an owner the capture has no element entry for is named by its selector, as main heads it. **Show the
   CSS** heads each owner path's state changes with that owner, as main does, then the preview's
   `` `:hover color` `` rows with colour swatches in report.html and "(follows `color`)" on follower rows;
   identical blocks collapse to ×N. A new or removed hover/focus style names the resting value
-  it changes from or to, never "none". A forced-state layer captured on one side only reads "The forced
+  it changes from or to, never "none"; on `::before`/`::after`, the pseudo-element's own resting value. A forced-state layer captured on one side only reads "The forced
   `:checked` state was captured on head only, so it was not compared." and counts no element.
 - Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
   state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
