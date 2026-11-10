@@ -25,6 +25,7 @@ import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { prettyLabel } from '../dist/change-groups.js';
 import { STATE_WORDS } from '../dist/report/change-line.js';
+import { repeatedChanges } from './rule5-detector.mjs';
 
 const STATE_BY_WORD = Object.fromEntries(Object.entries(STATE_WORDS).map(([state, word]) => [word, state]));
 const stripPseudo = (sub) => sub.replace(/::[\w-]+$/, '');
@@ -59,6 +60,15 @@ const nameIn = (elements) => (f) => {
   const entry = elements[f.path];
   return (entry?.text && /^(?:button|a)$/.test(entry.tag) ? entry.text.trim() : classWord(f)).toLowerCase();
 };
+
+/** Whether the element draws a border (any side with a style and a width): its colour shows in the crop. */
+function paintedBorder(entry) {
+  const style = entry?.style ?? {};
+  return ['top', 'right', 'bottom', 'left'].some(
+    (side) =>
+      !['none', 'hidden', undefined].includes(style[`border-${side}-style`]) && style[`border-${side}-width`] !== '0px',
+  );
+}
 
 /** One state's sources: identical changes merged, then one owner set's changes merged. */
 function stateSourcesOf(findings) {
@@ -99,11 +109,13 @@ function sourcesOf(findings, nameOf) {
         .map((p) => labelOf(driven.find((f) => f.path === p)))
         .find((l) => counted.has(l));
       const group = label && groups.find((g) => g.counted?.label === label);
+      // The element's own state is its own source, never one of a counted clause's owners (QA16-02).
+      if (label && source.own) groups.push({ ...source, owners: new Set(), changes: [...source.changes] });
+      const part = label && source.own ? { ...source, own: false } : source;
       if (group) {
-        source.owners.forEach((o) => group.owners.add(o));
-        group.changes.push(...source.changes);
-        group.own ||= source.own;
-      } else groups.push({ ...source, ...(label ? { counted: { label, total: counted.get(label) } } : {}) });
+        part.owners.forEach((o) => group.owners.add(o));
+        group.changes.push(...part.changes);
+      } else groups.push({ ...part, ...(label ? { counted: { label, total: counted.get(label) } } : {}) });
     }
     for (const g of groups) {
       // One identical change from all N owners of a counted selector reads "either/any of the N".
@@ -149,6 +161,7 @@ export function truthOf(json, elements = {}) {
       const forPath = (p) => states.filter((f) => stripPseudo(f.sub) === p);
       return {
         paths: region.paths,
+        painted: paintedBorder(elements[region.paths[0]]),
         findings: forPath(region.paths[0]),
         sources: sourcesOf(forPath(region.paths[0]), nameOf),
         shapes: region.paths.map((p) => sourcesOf(forPath(p), nameOf).map(shapeOf).sort()),
@@ -168,12 +181,12 @@ function clausesOf(sentence) {
   let from = 0;
   // The owner phrase (code spans aside) never crosses a comma, a full stop or another "when", so a
   // bare "when hovered" stays its own phrase.
-  const pattern = /when (?:((?:`[^`]*`|(?!when )[^,.;`])+?) (?:is|are) )?([a-z]+)(?=[ ,.;])/g;
+  const pattern = /[Ww]hen (?:((?:`[^`]*`|(?![Ww]hen )[^,.;`])+?) (?:is|are) )?([a-z]+)(?=[ ,.;])/g;
   const matches = [...sentence.matchAll(pattern)].filter((m) => STATE_BY_WORD[m[2]]);
   for (const [i, m] of matches.entries()) {
     const end = m.index + m[0].length;
     const after = sentence.slice(end, matches[i + 1]?.index ?? sentence.length);
-    const grouped = /^one of the \d+ `/.test(m[1] ?? '') && /^, (?:one|\d+ of them) changes? /.test(after);
+    const grouped = /^one of the \d+ `/.test(m[1] ?? '') && /^, (?:one|each|\d+ of them) /.test(after);
     const text = grouped ? after.replace(/(?:, and |\. At rest.*)$/, '') : sentence.slice(from, m.index);
     const previous = out[out.length - 1];
     if (!grouped && previous && text.trim() === 'or' && previous.state === STATE_BY_WORD[m[2]]) {
@@ -214,6 +227,11 @@ function sourceFor(clause, sources, taken) {
 /** Problems in the sentence: one clause per source, each carrying only its source's properties. */
 function sentenceProblems(section, truth) {
   const out = [];
+  // One change said twice inside a clause, or two owner groups that read alike (QA16-01).
+  out.push(...repeatedChanges(section.sentence));
+  // The element's own state is never one of a counted clause's owners (QA16-02).
+  if (/when (?:[a-z]+) or when one of the \d+ /.test(section.sentence))
+    out.push(`the element's own state sits under a counted clause: "${section.sentence}"`);
   const all = truth.findings.map((f) => `${f.path} :${f.state} [${f.props.map((p) => p.prop)}]`).join('; ');
   const clauses = clausesOf(section.sentence);
   const taken = new Set();
@@ -228,6 +246,11 @@ function sentenceProblems(section, truth) {
     for (const [prop, word] of Object.entries(PROPERTY_WORDS))
       if (clause.text.includes(word) && !source.props.includes(prop))
         out.push(`"${clause.said}" carries ${prop}, which ${who} did not change`);
+    // A border the element draws shows in the crop: its colour change is never dropped (QA16-01).
+    // A change the cap counts ("and 1 more change") is not silently dropped.
+    const capped = /\band \d+ more (?:changes?|propert)/.test(clause.text);
+    if (truth.painted && source.props.includes('border-color') && !capped && !clause.text.includes('border colour'))
+      out.push(`"${clause.said}" drops the border colour change the crop shows`);
     if (
       source.props.some((p) => PROPERTY_WORDS[p]) &&
       !source.props.some((p) => clause.text.includes(PROPERTY_WORDS[p] ?? '\0'))

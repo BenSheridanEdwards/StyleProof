@@ -210,4 +210,54 @@ export const cases = {
       st(p('input', 2), 'checked', p('label', 3), { 'background-color': C(b, W, I) }),
     ),
   }),
+  // QA16-01 (live, site-r16 section 1): both controls turn the text red; the first also turns the
+  // label's visible 2px border red. Said once, the border never dropped.
+  'QA16-01 visible-border-same-as-colour': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0),
+      [p('input', 2)]: inp(1),
+      [p('label', 3)]: {
+        ...lab(2),
+        style: {
+          color: C(b, G, G),
+          'border-top-style': 'solid',
+          'border-top-width': '2px',
+          ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, G])),
+        },
+      },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), {
+        color: C(b, G, R),
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, R)])),
+      }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R) }),
+    ),
+  }),
+  // QA16-02 (live, site-r16 section 2): the link's own hover and the first control's hover turn its
+  // text red; the second control's hover changes its background. The own hover is its own clause.
+  'QA16-02 own-hover-plus-two-control-hovers': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0, 'pick'),
+      [p('input', 2)]: inp(1, 'pick'),
+      [p('a', 3)]: { tag: 'a', cls: 'chip', text: 'Chip', rect: [60, 100, 80, 24] },
+    },
+    states: merge(
+      st(p('a', 3), 'hover', p('a', 3), { color: C(b, G, R) }),
+      st(p('input', 1), 'hover', p('a', 3), { color: C(b, G, R) }),
+      st(p('input', 2), 'hover', p('a', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // QA16-04: a counted clause after a resting change.
+  'QA16-04 counted-after-resting-change': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0),
+      [p('input', 2)]: inp(1),
+      [p('label', 3)]: { ...lab(2), style: { 'font-size': b ? '12px' : '16px' } },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), { color: C(b, G, R) }),
+      st(p('input', 2), 'checked', p('label', 3), { 'background-color': C(b, W, I) }),
+    ),
+  }),
 };

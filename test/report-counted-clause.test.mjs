@@ -8,6 +8,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
+import { cases } from './owner-truth-cases.mjs';
 
 const G = ['rgb(20, 120, 60)', 'rgb(160, 40, 40)'];
 const W = ['rgb(255, 255, 255)', 'rgb(40, 40, 120)'];
@@ -70,7 +71,7 @@ test('two pairs of identical controls count each pair once (QA14-01 Pairs)', (t)
   );
 });
 
-test('a counted clause is capped: two owners shown, each with at most two phrases, then "and N more" (QA15-01)', (t) => {
+test('a counted clause is capped: two groups shown, then "and N more changes" (QA15-01)', (t) => {
   const line = sentence(t, [
     (i) => ({ color: G[i], 'background-color': W[i], 'font-weight': ['400', '700'][i] }),
     (i) => ({ 'background-color': W[i] }),
@@ -79,7 +80,59 @@ test('a counted clause is capped: two owners shown, each with at most two phrase
   ]);
   assert.equal(
     line,
-    'On the opt label (Option 4), when one of the 4 `input.opt` controls is checked, one changes the background from white to dark indigo, the text colour from green to red and 1 more property; one changes the background from white to dark indigo; and 2 more controls make other changes. At rest it looks the same.',
+    'On the opt label (Option 4), when one of the 4 `input.opt` controls is checked, 2 of them change the background from white to dark indigo; 2 of them change the text weight from `400` to `700`; and 2 more changes. At rest it looks the same.',
   );
-  assert.equal((line.match(/ one changes /g) ?? []).length, 2, 'two owners shown');
 });
+
+test('a counted owner group says at most two of its owner\'s changes, then "and N more properties" (QA15-01)', (t) => {
+  const line = sentence(t, [
+    (i) => ({ color: G[i], 'background-color': W[i], 'font-weight': ['400', '700'][i] }),
+    (i) => ({ 'outline-color': G[i] }),
+  ]);
+  assert.equal(
+    line,
+    'On the opt label (Option 2), when one of the 2 `input.opt` controls is checked, one changes the background from white to dark indigo, the text colour from green to red and 1 more property, while the other changes the outline colour from green to red. At rest it looks the same.',
+  );
+});
+
+/** The first sentence line QA16's live shapes (test/owner-truth-cases.mjs) render. */
+function caseLine(t, build) {
+  const root = mkTmp('styleproof-counted-case-');
+  t.after(() => rmTmp(root));
+  for (const side of ['before', 'after']) {
+    const dir = path.join(root, side);
+    writeCapture(dir, 'form@390', makeMap(build(side === 'before')), solidPng(390, 260));
+    for (const state of ['hover', 'checked'])
+      fs.writeFileSync(path.join(dir, `form@390.${state}.png`), solidPng(390, 260));
+  }
+  const result = generateReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'report'),
+  });
+  return fs
+    .readFileSync(result.reportMdPath, 'utf8')
+    .split('\n')
+    .find((l) => /^(?:On|The) /.test(l));
+}
+
+// QA16-01 / QA16-02 / QA16-04: QA's live Chromium shapes (check/round-16/qa/site-r16). Each distinct
+// change is said once under the owners that made it; a border the label draws is said; the
+// element's own hover is its own clause, never one of the counted owners.
+for (const [name, expected] of [
+  [
+    'QA16-01 visible-border-same-as-colour',
+    'On the opt label (Option 2), when one of the 2 `input.opt` controls is checked, each changes the text colour from green to red, and one also changes the border colour from green to red. At rest it looks the same.',
+  ],
+  [
+    'QA16-02 own-hover-plus-two-control-hovers',
+    'On the Chip link, the text colour changes from green to red when hovered, and when one of the 2 `input.pick` controls is hovered, one changes the text colour from green to red, while the other changes the background from white to dark indigo. At rest it looks the same.',
+  ],
+  [
+    'QA16-04 counted-after-resting-change',
+    'The opt label (Option 2) changes text size from `12px` to `16px`. When one of the 2 `input.opt` controls is checked, one changes the text colour from green to red, while the other changes the background from white to dark indigo.',
+  ],
+])
+  test(`${name} reads as one line with each change once`, (t) => {
+    assert.equal(caseLine(t, cases[name]), expected);
+  });

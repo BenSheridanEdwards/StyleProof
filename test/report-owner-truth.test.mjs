@@ -10,6 +10,7 @@ import { generateStructuralStyleMapReportForTesting as generateReport } from '..
 import { STATE_WORDS } from '../dist/report/change-line.js';
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 import { cases } from './owner-truth-cases.mjs';
+import { repeatedChanges } from './rule5-detector.mjs';
 
 function run(t, build) {
   const root = mkTmp('styleproof-owner-truth-');
@@ -109,7 +110,7 @@ for (const [name, build] of Object.entries(cases)) {
     const sections = md
       .split('\n### ')
       .slice(1)
-      .filter((s) => /when /.test(s));
+      .filter((s) => /\b[Ww]hen /.test(s));
     const regions = (json.surfaces ?? []).flatMap((s) => s.regions ?? []);
     assert.equal(sections.length, regions.length, `${name}: ${sections.length} sections, ${regions.length} regions`);
     sections.forEach((section, i) => {
@@ -120,10 +121,10 @@ for (const [name, build] of Object.entries(cases)) {
       const nameOf = nameIn(build(false).elements);
       const { clauses: expected, counted, owners } = expectedClauses(mine, nameOf);
       const truth = mine.map((f) => `${f.path} :${f.state} [${f.props.map((p) => p.prop)}]`).join('; ');
-      const sentence = section.split('\n').find((l, j) => j > 0 && /^[A-Z]/.test(l) && /when /.test(l)) ?? '';
+      const sentence = section.split('\n').find((l, j) => j > 0 && /^[A-Z]/.test(l) && /\b[Ww]hen /.test(l)) ?? '';
       const clauses = [
         ...sentence.matchAll(
-          new RegExp(`when (?:((?:\`[^\`]*\`|(?!when )[^,.;\`])+?) (?:is|are) )?(${words})(?=[ ,.])`, 'g'),
+          new RegExp(`[Ww]hen (?:((?:\`[^\`]*\`|(?![Ww]hen )[^,.;\`])+?) (?:is|are) )?(${words})(?=[ ,.])`, 'g'),
         ),
       ].filter((m) => m[1]);
       // 1. "either/any of the N" only when N owners each produced the same whole change.
@@ -218,6 +219,15 @@ for (const [name, build] of Object.entries(cases)) {
         new Set(fragments).size,
         fragments.length,
         `${name}: one change is said twice: ${fragments.join(' / ')}`,
+      );
+      // 8b. Inside one clause, no owner group repeats another's changes, and no group says one twice
+      // ("one changes the text colour …, while the other changes the text colour …"; QA16-01/03).
+      assert.deepEqual(repeatedChanges(sentence), [], `${name}: ${sentence}`);
+      // 6b. The element's own state never shares a counted clause's owner groups (QA16-02).
+      assert.doesNotMatch(
+        sentence,
+        new RegExp(`when (?:${words}) or when one of the \\d+ `),
+        `${name}: the element's own state sits under a counted clause: ${sentence}`,
       );
       // 9. A change on a pseudo-element is said as one (QA14-05).
       for (const pseudo of new Set(all.map((f) => (/::[\w-]+$/.exec(f.sub) ?? [''])[0]).filter(Boolean)))

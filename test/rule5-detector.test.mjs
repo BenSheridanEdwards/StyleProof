@@ -174,3 +174,21 @@ test('a comment pointing at tile captions it does not carry is caught (QA11-02)'
     LINK;
   assert.ok(commentProblems('comment', body).some((p) => /captions or tiles/.test(p)));
 });
+
+test('the detector sees one change said twice inside a counted clause (QA16-01, QA16-03)', () => {
+  const live =
+    'On the tag (Badge), when one of the 2 `input.opt` controls is checked, one changes the text colour from green to red, while the other changes the text colour from green to red.';
+  assert.ok(
+    reportProblems('report.md', `## Report\n\n### Tag\n\n${live}\n`).some((p) => /one change said twice/.test(p)),
+    'two owner groups that read alike',
+  );
+  // Different owners with overlapping changes each state their own; a different trigger is another fact.
+  for (const fine of [
+    'On the opt label, when one of the 2 `input.opt` controls is checked, one changes the text colour from green to red and the background from white to dark indigo, while the other changes the text colour from green to red.',
+    'On the Chip link, the text colour changes from green to red when hovered, and when one of the 2 `input.pick` controls is hovered, one changes the text colour from green to red, while the other changes the background from white to light yellow.',
+  ])
+    assert.deepEqual(
+      reportProblems('report.md', `## Report\n\n### Tag\n\n${fine}\n`).filter((p) => /one change said twice/.test(p)),
+      [],
+    );
+});

@@ -63,7 +63,9 @@ const LIVE_QA13_HTML = `<section class="row"><input type="checkbox" id="news" cl
 <section class="row"><input type="text" class="pickr"><select class="pickr"><option>One</option></select><p class="note">Pick note</p></section>
 <section class="row"><input type="checkbox" id="one" class="tick"><input type="checkbox" id="two" class="tick"><p class="shared">Shared change</p></section>
 <section class="row"><input type="checkbox" id="pa" class="pair"><input type="checkbox" id="pb" class="pair"><input type="checkbox" id="pc" class="pair"><input type="checkbox" id="pd" class="pair"><p class="pairs">Two pairs</p></section>
-<section class="row"><input type="checkbox" id="qx" class="chip"><input type="checkbox" id="qy" class="chip"><input type="checkbox" id="qz" class="chip"><p class="chips">Chip result</p></section>`;
+<section class="row"><input type="checkbox" id="qx" class="chip"><input type="checkbox" id="qy" class="chip"><input type="checkbox" id="qz" class="chip"><p class="chips">Chip result</p></section>
+<section class="row"><input type="checkbox" class="opt3"><input type="checkbox" class="opt3"><label class="tag">Badge</label></section>
+<section class="row"><input type="checkbox" class="pick"><input type="checkbox" class="pick"><a class="pill" href="#pill">Pill</a></section>`;
 const liveQa13Css = (head: boolean) => {
   const [red, yellow] = head ? ['rgb(160, 40, 40)', 'rgb(255, 224, 138)'] : ['rgb(20, 120, 60)', 'rgb(200, 220, 255)'];
   return [
@@ -79,6 +81,13 @@ const liveQa13Css = (head: boolean) => {
     `#qx:checked ~ .chips { color: ${red}; }`,
     `#qy:checked ~ .chips { background: ${yellow}; }`,
     `#qz:checked ~ .chips { border-color: ${head ? 'rgb(0, 160, 80)' : 'rgb(0, 0, 0)'}; }`,
+    // QA16 (check/round-16/qa/site-r16): a visible border that turns red with the text, and an own
+    // hover beside two controls' hovers.
+    '.tag, .pill { display: inline-block; padding: 4px 10px; color: rgb(20, 120, 60); background: #fff; border: 2px solid rgb(20, 120, 60); }',
+    `.opt3:nth-of-type(1):checked ~ .tag { color: ${red}; border-color: ${red}; }`,
+    `.opt3:nth-of-type(2):checked ~ .tag { color: ${red}; }`,
+    `.pill:hover, .pick:nth-of-type(1):hover ~ .pill { color: ${red}; }`,
+    `.pick:nth-of-type(2):hover ~ .pill { background-color: ${yellow}; }`,
   ];
 };
 
@@ -162,7 +171,15 @@ test('every captured state names the control the capture recorded for it (QA12-0
       /when one of the 4 `input\.pair` controls is checked, 2 of them change the text colour from [^,]+ to [^,]+, while the other 2 change the background from [^,.]+ to [^,.]+\./,
     );
     expect(section('Chip')).toMatch(
-      /when one of the 3 `input\.chip` controls is checked, one changes the [^;]+; one changes the [^;]+; and 1 more control makes another change\./,
+      /when one of the 3 `input\.chip` controls is checked, one changes the [^;]+; one changes the [^;]+; and 1 more change\./,
+    );
+    // QA16-01: the shared change is said once and the drawn border is said; QA16-02: the link's own
+    // hover is its own clause.
+    expect(section('Tag')).toMatch(
+      /when one of the 2 `input\.opt3` controls is checked, each changes the text colour from [^,]+ to [^,]+, and one also changes the border colour from [^,.]+ to [^,.]+\./,
+    );
+    expect(section('Pill link')).toMatch(
+      /the text colour changes from [^,]+ to [^,]+ when hovered, and when one of the 2 `input\.pick` controls is hovered, one changes the text colour from [^,]+ to [^,]+, while the other changes the background from [^,.]+ to [^,.]+\./,
     );
     expect(md).not.toMatch(/when (?:one|another) `input\.(?:opt|pair|chip)` is/);
     expect(section('Note')).toMatch(
