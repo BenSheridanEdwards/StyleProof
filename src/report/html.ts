@@ -442,7 +442,8 @@ function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
 
 const TITLE_LINE = /^## 🗺️ StyleProof report$/;
 
-const SUMMARY_LINE = /^(?:\*\*\d+ changes? to review\*\*|✓|⚠ UNVERIFIED|Computed-style scope)/;
+/** The verdict's opening: a count to review, a clean or scoped no-change, or what holds the check (RV19-07). */
+const SUMMARY_LINE = /^(?:\*\*\d+ changes? to review\*\*|✓|✗ |🧱 \*\*|⚠️? (?:\*\*|UNVERIFIED)|Computed-style scope)/;
 
 /**
  * The lines above the first heading: the summary line goes to the header, the rest stay as notes.

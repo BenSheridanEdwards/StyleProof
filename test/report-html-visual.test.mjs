@@ -331,3 +331,30 @@ test('an unbound report keeps the header, theme switch and jump links, and opens
   assert.match(unbound, /run it with <code>--expected-before-sha<\/code> and <code>--expected-after-sha<\/code>/);
   assert.ok(warning < unbound.indexOf('<header class="top">'), 'the page opens with the warning, as report.md does');
 });
+
+test('every no-change verdict opening is the header summary, not a note under a title-only header (RV19-07)', () => {
+  const verdicts = [
+    ['✓ No reviewable computed-style changes.', /✓ No reviewable computed-style changes\./],
+    [
+      '✗ **Reach gate** — 1 changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: they hold the check.',
+      /✗ <strong>Reach gate<\/strong> — 1 changed CSS rule/,
+    ],
+    ['🧱 **1 visible element was added or removed** — it needs review.', /🧱 <strong>1 visible element was added/],
+    [
+      '⚠️ **1 surface failed to capture on the base:** `home@1280`. The rest of the base was captured; repair that surface on that commit and capture it again.',
+      /⚠️ <strong>1 surface failed to capture on the base:<\/strong>/,
+    ],
+    [
+      '⚠ **Report consistency failure:** the certification differ found **1 DOM** difference(s).',
+      /⚠ <strong>Report consistency failure:<\/strong>/,
+    ],
+  ];
+  for (const [line, shown] of verdicts) {
+    const html = renderReportHtml(`## 🗺️ StyleProof report\n\n${line}\n\n## Changed but never matched\n\nx`, {
+      outDir: process.env.TMPDIR ?? '.',
+    });
+    const header = html.match(/<header class="top">[\s\S]*?<\/header>/)?.[0] ?? '';
+    assert.match(header, /<p class="summary">/, line);
+    assert.match(header, shown, line);
+  }
+});
