@@ -70,6 +70,7 @@ capture, diff, report, Action, or engine behaviour changes.
     and runs on a clean checkout. Label targets as targets.
 12. **Change rules in the open.** When a constraint is wrong, propose an ADR in
     [`decisions/`](decisions/) and change the rule there.
+13. **Track work in [tasks.md](../tasks.md).** Before starting any work, write it as a task in `tasks.md`; move it between sections as it progresses; link the thread and PR.
 
 Full text: [`AGENT_OPERATING_RULES.md`](AGENT_OPERATING_RULES.md).
 
