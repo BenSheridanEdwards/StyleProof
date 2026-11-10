@@ -38,7 +38,10 @@ test('the guard knows every trust state', () => {
 test('the demo report shows no internal gate code (QA1-02)', () => {
   const md = read('docs/demo/report.md');
   // The demo has visible additions/removals, which used to name STYLE_REVIEW_REQUIRED.
-  assert.match(md, /need review — approve them with the other changes\./);
+  assert.match(
+    md,
+    /visible elements were added or removed\*\* — they need review; approve them with the other changes\./,
+  );
   assertNoCodes('docs/demo/report.md', md);
   assertNoCodes('docs/demo/report.html', read('docs/demo/report.html'));
 });

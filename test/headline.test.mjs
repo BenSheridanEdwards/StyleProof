@@ -69,6 +69,6 @@ test('elevated structure headline counts visible and navigable-chrome elevations
   const md = reportHeadline(
     baseInput({ elevatedVisibleStructure: 1, elevatedNavigableChromeAdds: 1, elevatedStructureDom: 2 }),
   ).join('\n');
-  assert.match(md, /\*\*2 visible element additions\/removals need review\*\*/);
-  assert.match(md, /🧱 \*\*2 visible element addition\(s\)\/removal\(s\)\*\* need review/, 'the note agrees');
+  assert.match(md, /🧱 \*\*2 visible elements were added or removed\*\* — they need review/);
+  assert.equal(md.match(/visible element/g)?.length, 1, 'said once (QA7-01)');
 });

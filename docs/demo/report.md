@@ -4,9 +4,9 @@
 
 🆕 **1 new surface(s)** captured with no baseline to compare: `pricing @ 900`. These are reviewable first-adoption surfaces; approve them before they become the baseline.
 
-🧱 **2 visible element addition(s)/removal(s)** need review — approve them with the other changes.
+🧱 **2 visible elements were added or removed** — they need review; approve them with the other changes.
 
-📝 _3 content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._
+📝 _3 content/structure change(s) below; text and invisible DOM churn stay advisory._
 
 ## One-sided pages, states, or surfaces — review first
 

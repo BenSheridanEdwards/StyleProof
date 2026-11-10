@@ -220,14 +220,16 @@ export function reachGateLine(blocking: number, hasChanges: boolean): string {
   );
 }
 
+/** The one sentence for visible additions/removals that gate the check: said once per report. */
+export function visibleStructureLine(n: number): string {
+  return n === 1
+    ? '🧱 **1 visible element was added or removed** — it needs review; approve it with the other changes.'
+    : `🧱 **${n} visible elements were added or removed** — they need review; approve them with the other changes.`;
+}
+
 function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
   const n = input.elevatedStructureDom;
-  if (n <= 0) return undefined;
-  const title =
-    n === 1
-      ? '**1 visible element addition/removal needs review**'
-      : `**${n} visible element additions/removals need review**`;
-  return [title, '', '_Approve all changes signs these off with the other changes._'];
+  return n > 0 ? [visibleStructureLine(n)] : undefined;
 }
 
 function cleanScopeSummary(input: HeadlineInput): string[] {
@@ -300,40 +302,42 @@ export function reportHeadline(input: HeadlineInput): string[] {
       (appended) => md.push(appended),
     );
   }
-  return [...md, ...contentNoteLines(input)];
+  // A structure-only report leads with the visible-structure line; the notes below never repeat it.
+  return [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
 }
 
-/** Content-layer pointers: shared chrome (#754), visible structure elevation, then advisory count. */
-function contentNoteLines(input: HeadlineInput): string[] {
-  const md: string[] = [];
+/** The shared-chrome note (#754); its verdict clause is left out when the headline already said it. */
+function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[] {
   const chrome = input.globalChromeCount ?? 0;
-  const elevated = input.elevatedNavigableChromeAdds ?? 0;
-  const visibleElevated = input.elevatedVisibleStructure ?? 0;
+  if (chrome <= 0) return [];
+  const gating = (input.elevatedNavigableChromeAdds ?? 0) > 0 || (input.elevatedVisibleStructure ?? 0) > 0;
+  const verdictNote = !gating
+    ? " DOM structure does not change this check's verdict."
+    : structureSaid
+      ? ''
+      : ' Visible additions/removals need review — approve them with the other changes.';
+  return [
+    '',
+    `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below.${verdictNote}`,
+  ];
+}
+
+/** The advisory content count; visible additions/removals were already named above. */
+function contentCountLines(input: HeadlineInput): string[] {
+  if (input.contentCount <= 0 || (input.changeGroups.length === 0 && input.missing.length === 0)) return [];
+  const note =
+    (input.elevatedVisibleStructure ?? 0) > 0
+      ? `📝 _${input.contentCount} content/structure change(s) below; text and invisible DOM churn stay advisory._`
+      : `📝 _${input.contentCount} advisory content change(s) below — they don't affect the check._`;
+  return ['', note];
+}
+
+/** Content-layer pointers: shared chrome, visible structure elevation (said once), then the advisory count. */
+function contentNoteLines(input: HeadlineInput, structureSaid: boolean): string[] {
   // The gating total (visible + navigable chrome, de-duplicated), so the 🧱 note agrees with the headline.
   const structureElevated = input.elevatedStructureDom;
-  if (chrome > 0) {
-    const verdictNote =
-      elevated > 0 || visibleElevated > 0
-        ? `Visible additions/removals need review — approve them with the other changes.`
-        : `DOM structure does not change this check's verdict.`;
-    md.push(
-      '',
-      `🧱 **${chrome} global chrome element change(s)** — added or removed on every surface base that renders its container; listed once under Global chrome below. ${verdictNote}`,
-    );
-  }
-  if (structureElevated > 0 && chrome === 0) {
-    md.push(
-      '',
-      `🧱 **${structureElevated} visible element addition(s)/removal(s)** need review — approve them with the other changes.`,
-    );
-  }
-  if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {
-    // The section below lists visible add/remove as gating; its own count is visible-only.
-    const note =
-      visibleElevated > 0
-        ? `📝 _${input.contentCount} content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._`
-        : `📝 _${input.contentCount} advisory content change(s) below — they don't affect the check._`;
-    md.push('', note);
-  }
-  return md;
+  const chrome = input.globalChromeCount ?? 0;
+  const structure =
+    structureElevated > 0 && chrome === 0 && !structureSaid ? ['', visibleStructureLine(structureElevated)] : [];
+  return [...chromeNoteLines(input, structureSaid), ...structure, ...contentCountLines(input)];
 }
