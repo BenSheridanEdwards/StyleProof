@@ -28,7 +28,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   or swapping its prototype with `Object.setPrototypeOf` fails (a `TypeError` in strict mode). Subclassing it with
   `extends` still works.
 - The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
-  9 elements, 4 changed CSS rules"). Each change is one section: elements that changed the same way, with a
+  9 elements, 4 changed CSS rules"). Its pages and widths include any new or removed surface the count
+  includes. In report.html the header summary is the verdict line, including a Reach-gate or visible-structure
+  line. Each change is one section: elements that changed the same way, with a
   plain-English name and one sentence built from captured data, a small Where map that rings them on the page
   (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
   the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
@@ -68,7 +70,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   only uncompared elements or a ledger is missing, old or unreadable. ADR 0009 is amended to match (dated
   2026-11-10). An unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`; any other unbound report opens,
   as before, with "⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified", now followed by what to do (pass
-  `--expected-before-sha` and `--expected-after-sha`). report.html and the PR comment carry it too.
+  `--expected-before-sha` and `--expected-after-sha`). report.html and the PR comment carry it too; report.html
+  opens with it above the header, which keeps its summary, theme switch and jump links.
 - **BREAKING (report.json):** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean
   crops) instead of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`).
   Change sections replace overlap-merged crop regions, so `regions` holds one entry per section, and a forced
@@ -85,7 +88,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   its parent, as in an inner scroller) the crop is centred on the element as before and can still cut nearby
   text. The Where map still rings only the changed elements.
 - A before/after pair, and each pair of whole pages, is downscaled together when either side is over the
-  per-file size limit, so both sides are always at the same scale.
+  per-file size limit, so both sides are always at the same scale. A downscaled crop pair records its written
+  width and height in the section data, so report.html shows it at that size.
 - `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
   and counted, with no crop or Where map. Before, the extra regions collapsed into one union crop. Every change
   missing some or all of its crops is now stated once, at the top of the report, instead of in a note under each
