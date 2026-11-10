@@ -43,9 +43,13 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   "when the matching opt is checked" when each grouped element has its own. One identical change is said once,
   whoever made it: "when `input.pickr` or `select.pickr` is focused", "when hovered or when the opt is
   hovered", "when either of the 2 opts is checked". Owners of one selector that the report cannot tell apart
-  (main heads them alike) are one counted clause that names the count once and then each owner's own change,
-  echo-pruned and capped like any change line, never named apart by invented words: "when one of the 2
-  `input.opt` controls is checked, one changes the text colour …, while the other changes the background …"; past two owners, "… and 2 more controls make other changes". Owners whose nouns collide
+  (main heads them alike) are one counted clause that names the count once, then says each distinct change once under the owners that
+  made it, with their count, never named apart by invented words: "when one of the 2 `input.opt` controls is
+  checked, one changes the text colour …, while the other changes the background …"; "… each changes the text
+  colour …, and one also changes the border colour …". In every change line, colour echoes are pruned, but a border,
+  outline, column rule or text stroke the element draws is said. Each owner group is capped at two phrases, and past two owner
+  groups the line ends "… and N more changes". The element's own state keeps its own clause beside a counted
+  one ("the text colour changes … when hovered, and when one of the 2 `input.pick` controls is hovered, …"). Owners whose nouns collide
   across selectors are named by selector ("when `input.pickr` is focused … when `select.pickr` is focused"),
   and an owner the capture has no element entry for is named by its selector, as main heads it. **Show the
   CSS** heads each owner path's state changes with that owner, as main does, then the preview's
