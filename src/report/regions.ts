@@ -212,13 +212,14 @@ export function sectionSummary(
   }
   return {
     sectionCount,
-    scope: groups.length
-      ? scopeText(
-          [...groups.flatMap((g) => g.surfaces), ...oneSided],
-          (key) => surfaceKeyOf(key) ?? surfaceBase(key),
-          elements,
-          changedRules,
-        )
-      : '',
+    scope:
+      groups.length || oneSided.length
+        ? scopeText(
+            [...groups.flatMap((g) => g.surfaces), ...oneSided],
+            (key) => surfaceKeyOf(key) ?? surfaceBase(key),
+            elements,
+            changedRules,
+          )
+        : '',
   };
 }

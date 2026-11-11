@@ -59,3 +59,23 @@ test('a new or removed surface is in the summary scope its count includes (RV19-
     /^\*\*3 changes to review\*\* on `home`, `legacy` and `pricing` at 900 and 1280px wide: 1 element\.$/,
   );
 });
+
+test('a summary whose changes are all new or removed surfaces still names their pages and widths (RV20-03)', (t) => {
+  const root = mkTmp('styleproof-scope-one-sided-only-');
+  t.after(() => rmTmp(root));
+  const title = makeMap({
+    elements: { 'body > h1': { tag: 'h1', cls: 'title', rect: [20, 20, 200, 40], style: { color: 'rgb(0, 0, 0)' } } },
+  });
+  for (const side of ['before', 'after']) writeCapture(path.join(root, side), 'home@1280', title, solidPng(1280, 300));
+  writeCapture(path.join(root, 'after'), 'pricing@900', title, solidPng(900, 300));
+  const result = generateReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'report'),
+  });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.match(
+    md.split('\n').find((l) => l.startsWith('**')) ?? md,
+    /^\*\*1 change to review\*\* on `pricing` at 900px wide\.$/,
+  );
+});

@@ -239,7 +239,8 @@ function summaryLines(input: HeadlineInput): string[] {
   const noChange = changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input) : undefined;
   if (noChange) return noChange;
   const md = [
-    verdictToReview(input.sectionCount + missing.length, changeGroups.length ? input.scope : ''),
+    // The scope names the pages of change groups and one-sided surfaces alike (RV20-03).
+    verdictToReview(input.sectionCount + missing.length, input.scope),
     '',
     // Each statement its own paragraph, so report.html never runs two together.
     ...[
