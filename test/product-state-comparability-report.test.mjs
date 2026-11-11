@@ -128,3 +128,56 @@ test('matching explicit identity remains comparable across an ordinary copy edit
   assert.match(md, /## Changes/);
   rmTmp(dirs.root);
 });
+
+// RV21-01 (QA21-01): with no summary paragraph (only volatile or live-region notes), the cannot-certify
+// line opens the report, as on main, and is report.html's header summary.
+{
+  const black = 'rgb(0, 0, 0)';
+  const els = {
+    body: { tag: 'body', rect: [0, 0, 1280, 400], style: { color: black } },
+    'body > h1': { tag: 'h1', cls: 'title', text: 'Welcome', rect: [20, 300, 400, 40], style: { color: black } },
+    'body > p': { tag: 'p', rect: [20, 100, 300, 20], style: { color: black } },
+  };
+  const capture = (id, extra = {}) => ({
+    ...makeMap({ elements: els }),
+    ...(id ? { metadata: { productState: { id, revision: 'v1' } } } : {}),
+    ...extra,
+  });
+  const shapes = [
+    ['a subtree newly volatile on head', capture('loading'), capture('ready', { volatile: ['body > h1'] }), {}],
+    [
+      'a live region and a subtree newly volatile on head',
+      capture('loading', { volatile: ['body > p'] }),
+      capture('ready', { volatile: ['body > p', 'body > h1'] }),
+      {},
+    ],
+    [
+      'a subtree volatile on the base only, with identity required',
+      capture(null, { volatile: ['body > h1'] }),
+      capture(null),
+      { requireStateIdentity: true },
+    ],
+  ];
+  for (const [name, before, after, options] of shapes) {
+    test(`with no summary paragraph the cannot-certify line opens the report: ${name} (RV21-01)`, () => {
+      const dirs = tmpDirs();
+      writeCapture(dirs.beforeDir, 'home@1280', before, solidPng(1280, 400));
+      writeCapture(dirs.afterDir, 'home@1280', after, solidPng(1280, 400));
+      try {
+        const { md } = generate(dirs, options);
+        const lines = md.split('\n');
+        const top = lines.slice(lines.indexOf('## 🗺️ StyleProof report') + 1).filter((l) => l.trim());
+        assert.match(top[0], /^⛔ \*\*This compare cannot certify:\*\*/, top.slice(0, 4).join('\n'));
+        assert.equal(lines[lines.indexOf(top[0]) - 1], '', 'a blank line before it');
+        const next = lines[lines.indexOf(top[0]) + 1];
+        assert.equal(next, '', 'its own paragraph');
+        const html = fs.readFileSync(`${dirs.outDir}/report.html`, 'utf8');
+        const header = html.match(/<header class="top">[\s\S]*?<\/header>/)?.[0] ?? '';
+        assert.match(header, /<p class="summary">⛔ <strong>This compare cannot certify:<\/strong>/);
+        assert.doesNotMatch(header, /volatile|live region/);
+      } finally {
+        rmTmp(dirs.root);
+      }
+    });
+  }
+}

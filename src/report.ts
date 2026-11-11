@@ -77,7 +77,9 @@ import {
   reachGateLine,
   readBaselineInfo,
   reportHeadline,
+  reportOpening,
   type BaselineInfo,
+  type HeadlineInput,
 } from './report/headline.js';
 import { countShownChanges, groupBySignature, sectionSummary } from './report/regions.js';
 import { finishSections } from './report/change-sections.js';
@@ -588,7 +590,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaceKeyOf,
     view.missing.map((p) => p.sd.surface),
   );
-  const headline = reportHeadline({
+  const headlineInput: HeadlineInput = {
     changeGroups: view.changeGroups,
     missing: view.missing,
     sectionCount: summary.sectionCount,
@@ -610,18 +612,16 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparisonBlocked: comparison.blocksCertification,
     reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
-  });
+  };
+  const headline = reportHeadline(headlineInput);
   // A run with no change already leads with the gate line; say it once.
   const gateInHeadline = Boolean(reach?.blocking) && headline.includes(reachGateLine(reach!.blocking, false));
   const reachStrip = reach && !gateInHeadline ? reachHeadlineLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
-  // The summary line leads (SPEC report order); a blocking product-state line follows it (RV11-05).
-  const summaryEnd = headline.indexOf('');
-  const lead = summaryEnd < 0 ? headline : headline.slice(0, summaryEnd);
-  lead.forEach((appended) => md.lines.push(appended));
+  // The summary line leads (SPEC report order); a blocking product-state line follows it (RV11-05),
+  // or opens the report when there is no summary line (RV21-01).
   const productState = productStateWarningLines(comparison, gates.legacyPairs).filter((line) => line !== '');
-  if (productState.length) ['', ...productState].forEach((appended) => md.lines.push(appended));
-  headline.slice(lead.length).forEach((appended) => md.lines.push(appended));
+  reportOpening(headlineInput, headline, productState).forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.

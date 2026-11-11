@@ -370,6 +370,19 @@ export function reportHeadline(input: HeadlineInput): string[] {
   return first < 0 ? [] : lines.slice(first);
 }
 
+/**
+ * The report's opening, in reading order: the summary paragraph, the blocking product-state line, then
+ * the rest of the headline. With no summary paragraph (only volatile or live-region notes), the
+ * product-state line opens the report, as on main (RV21-01).
+ */
+export function reportOpening(input: HeadlineInput, headline: string[], productState: string[]): string[] {
+  if (!productState.length) return headline;
+  if (!summaryLines(input).length) return headline.length ? [...productState, '', ...headline] : productState;
+  const end = headline.indexOf('');
+  const lead = end < 0 ? headline : headline.slice(0, end);
+  return [...lead, '', ...productState, ...headline.slice(lead.length)];
+}
+
 /** The shared-chrome note (#754); its verdict clause is left out when the headline already said it. */
 function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[] {
   const chrome = input.globalChromeCount ?? 0;
