@@ -29,8 +29,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `extends` still works.
 - The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
   9 elements, 4 changed CSS rules"). Its pages and widths include any new or removed surface the count
-  includes, also when those are the only changes, and then it gives only the pages and widths, with no element
-  or rule count. In report.html the header summary is the report's opening verdict line: a count to review, a
+  includes, also when those are the only changes. It never states a count of 0: with no element (only new or
+  removed surfaces, or a state layer captured on one side) it gives only the pages and widths, and a changed-rule
+  count of 0 is left out. In report.html the header summary is the report's opening verdict line: a count to review, a
   no-change line (also when relabelled `UNVERIFIED DIAGNOSTIC`), or a Reach-gate, visible-structure,
   base-capture-failure, consistency, live/age-freeze or cannot-certify line. Every other line keeps report.md's
   order. Each change is one section: elements that changed the same way, with a
@@ -70,7 +71,10 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   never matched** tables, and still no J2/J3 detail. The report still says, in plain words, when a compare
   cannot certify, when evidence fails, when a changed CSS rule was never matched or cannot be seen in computed
   styles, and, in one "Change Reach could not check every changed CSS rule" line, when changed rules matched
-  only uncompared elements or a ledger is missing, old or unreadable. ADR 0009 is amended to match (dated
+  only uncompared elements or a served-CSS record is missing, old or unreadable. A gap both sides share is one
+  line with one remedy ("1 capture on each side has a missing or out-of-date record of the CSS it served —
+  recapture both sides with `captureReach`"), in that warn line and in the gate's **Reach evidence gaps** list,
+  whose heading says once that changed rules there cannot be listed. ADR 0009 is amended to match (dated
   2026-11-10). An unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`; any other unbound report opens,
   as before, with "⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified", now followed by what to do (pass
   `--expected-before-sha` and `--expected-after-sha`). report.html and the PR comment carry it too; report.html
@@ -143,7 +147,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   repair them and rerun." The comment points at "the full report" instead of sections it does not carry, and the
   summary gives no changed-CSS-rule count when a served-CSS record is missing.
   The summary line always comes first; a "⛔ This compare cannot certify" line now follows it instead of
-  preceding it. A report with no summary line (only volatile or live-region notes) still opens with the
+  preceding it. A report with no summary line (only notes about a subtree volatile on one side, with or without a live-region note) still opens with the
   cannot-certify line, as before. The Global chrome callout no longer says its detail is "folded beneath" (it is not), and under
   a small `maxReportBytes` the one-line Changed but never matched entry names the rules that hold the gate.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
