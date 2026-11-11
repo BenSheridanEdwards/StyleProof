@@ -443,7 +443,8 @@ function capturedSection(meta: CapturedMeta, sectionIds: Set<string>): string {
 const TITLE_LINE = /^## 🗺️ StyleProof report$/;
 
 /** The verdict's opening: a count to review, a clean or scoped no-change, or what holds the check (RV19-07). */
-const SUMMARY_LINE = /^(?:\*\*\d+ changes? to review\*\*|✓|✗ |🧱 \*\*|⚠️? (?:\*\*|UNVERIFIED)|Computed-style scope)/;
+const SUMMARY_LINE =
+  /^(?:\*\*\d+ changes? to review\*\*|✓|✗ |⛔ |🧱 \*\*|⚠️? (?:\*\*|UNVERIFIED)|Computed-style scope)/;
 
 /**
  * The lines above the first heading: the summary line goes to the header, the rest stay as notes.
@@ -455,7 +456,10 @@ function topBlock(lines: string[]) {
   if (!titled) return { titled, lead: [] as string[], summary: '', notes: [] as string[], next: 0 };
   const end = lines.findIndex((l, n) => n > title && (/^#{2,3} /.test(l) || decodeCapturedMeta(l) !== null));
   const top = lines.slice(title + 1, end < 0 ? lines.length : end);
-  const at = top.findIndex((l) => SUMMARY_LINE.test(l));
+  // Only the opening paragraph can be the verdict, and only when it is that one line: a later line, or
+  // the lead of a list, stays where report.md puts it, so the page keeps report.md's order (RV20-01).
+  const first = top.findIndex((l) => l.trim());
+  const at = first >= 0 && SUMMARY_LINE.test(top[first]) && !top[first + 1]?.trim() ? first : -1;
   return {
     titled,
     lead: lines.slice(0, title),
