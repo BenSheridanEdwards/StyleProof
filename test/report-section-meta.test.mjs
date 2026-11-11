@@ -37,6 +37,29 @@ test('a section comment round-trips its data', () => {
   assert.deepEqual(decodeSectionMeta(encodeSectionMeta(meta)), meta);
 });
 
+test('a pair or whole page gives both base sizes or neither (RV21-03)', () => {
+  const pair = meta.pairs[0];
+  const page = meta.pages[0];
+  const both = {
+    ...meta,
+    pairs: [{ ...pair, baseWidth: 424, baseHeight: 120 }],
+    pages: [{ ...page, baseWidth: 1280, baseHeight: 600 }],
+  };
+  assert.deepEqual(decodeSectionMeta(encodeSectionMeta(both)), both);
+  for (const half of [{ baseWidth: 424 }, { baseHeight: 120 }]) {
+    assert.equal(
+      decodeSectionMeta(encodeSectionMeta({ ...meta, pairs: [{ ...pair, ...half }] })),
+      null,
+      JSON.stringify(half),
+    );
+    assert.equal(
+      decodeSectionMeta(encodeSectionMeta({ ...meta, pages: [{ ...page, ...half }] })),
+      null,
+      JSON.stringify(half),
+    );
+  }
+});
+
 test('a section comment can never close early or carry markup', () => {
   const line = encodeSectionMeta(meta);
   const body = line.slice('<!-- '.length, -' -->'.length);

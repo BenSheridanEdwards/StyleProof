@@ -103,6 +103,9 @@ export function encodeSectionMeta(meta: SectionMeta): string {
 const isString = (v: unknown): v is string => typeof v === 'string';
 const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 const isTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isNumber);
+/** Both base sizes or neither: a lone one would size the before image with the after side's other dimension (RV21-03). */
+const baseSize = (p: { baseWidth?: number; baseHeight?: number }): boolean =>
+  p.baseWidth === undefined ? p.baseHeight === undefined : isNumber(p.baseWidth) && isNumber(p.baseHeight);
 const isPair = (v: unknown): v is SectionMetaPair => {
   const p = v as SectionMetaPair;
   return (
@@ -110,7 +113,7 @@ const isPair = (v: unknown): v is SectionMetaPair => {
     [p.state, p.before, p.after, p.what].every(isString) &&
     isNumber(p.width) &&
     isNumber(p.height) &&
-    [p.baseWidth, p.baseHeight].every((n) => n === undefined || isNumber(n))
+    baseSize(p)
   );
 };
 const isWhere = (v: unknown): v is SectionMetaWhere => {
@@ -127,12 +130,7 @@ const isWhere = (v: unknown): v is SectionMetaWhere => {
 };
 const isPage = (v: unknown): v is SectionMetaPage => {
   const p = v as SectionMetaPage;
-  return (
-    !!p &&
-    [p.state, p.before, p.after].every(isString) &&
-    [p.width, p.height].every(isNumber) &&
-    [p.baseWidth, p.baseHeight].every((n) => n === undefined || isNumber(n))
-  );
+  return !!p && [p.state, p.before, p.after].every(isString) && [p.width, p.height].every(isNumber) && baseSize(p);
 };
 
 /** The section data in a comment line, or null when the line is not a valid section comment. */
