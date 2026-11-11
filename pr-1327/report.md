@@ -1,20 +1,33 @@
 ## 🗺️ StyleProof report
 
-🧱 **1 visible element was added or removed** — it needs review.
+**1 change to review** on `home` at 320px wide: 1 element.
 
----
+## Changes
 
-## 📝 Content and structure changes
+### Panel
 
-_1 content/structure change(s). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict; the visible additions/removals are named at the top._
+<!-- styleproof-section %7B%22v%22%3A1%2C%22id%22%3A%22panel%22%2C%22paths%22%3A%5B%22body%20%3E%20main%3Anth%2Dchild(1)%22%5D%2C%22more%22%3A0%2C%22pairs%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D320%2D1%2Dbefore.png%22%2C%22after%22%3A%22crops%2Fhome%2D320%2D1%2Dafter.png%22%2C%22width%22%3A320%2C%22height%22%3A180%2C%22what%22%3A%22the%20panel%22%7D%5D%2C%22where%22%3A%5B%7B%22image%22%3A%22crops%2Fhome%2D320%2D1%2Dwhere.png%22%2C%22side%22%3A%22after%22%2C%22page%22%3A%5B320%2C180%5D%2C%22view%22%3A%5B0%2C0%2C320%2C176%5D%2C%22boxes%22%3A%5B%5B24%2C24%2C180%2C80%5D%5D%7D%5D%2C%22pages%22%3A%5B%7B%22state%22%3A%22rest%22%2C%22before%22%3A%22crops%2Fhome%2D320%2Dpage%2Dbase.png%22%2C%22after%22%3A%22crops%2Fhome%2D320%2Dpage%2Dhead.png%22%2C%22width%22%3A320%2C%22height%22%3A180%7D%5D%7D -->
 
-### `home@320` · 1 content/structure change(s)
+The panel changes text colour from black to red.
 
-**`button.action`**
+<img src="crops/home-320-1-where.png" width="320" alt="Where on home @ 320: 1 panel highlighted"><br><sub>Where: 1 panel on home @ 320</sub>
 
-- element added
+| Before | After |
+| --- | --- |
+| <img src="crops/home-320-1-before.png" width="340" alt="Before: the panel"> | <img src="crops/home-320-1-after.png" width="340" alt="After: the panel"> |
 
-_No distinct before/after crop where an element was added: the cropped region matches on both screenshots. That is missing evidence, not a claim that the change has no visible effect._
+<details>
+<summary>Show the CSS</summary>
+
+`main.panel` · 1 element restyled
+
+| Property | Before | After |
+| --- | --- | --- |
+| `color` | `#000000` | `#ff0000` |
+
+</details>
+
+<!-- styleproof-section-end -->
 
 <!-- styleproof-captured %7B%22v%22%3A1%2C%22pages%22%3A%5B%7B%22base%22%3A%22home%22%2C%22widths%22%3A%5B320%5D%2C%22states%22%3A%5B%5D%7D%5D%2C%22recipes%22%3A%5B%5D%2C%22rules%22%3A%5B%5D%7D -->
 
