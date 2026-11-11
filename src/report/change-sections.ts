@@ -16,7 +16,14 @@ import {
   type StateProp,
   withoutColorEchoes,
 } from './change-line.js';
-import { cropNote, MISLEADING_CROP_REASON, renderCropPair, stateLabel, type CropImages } from './crop-pair.js';
+import {
+  cropNote,
+  MISLEADING_CROP_REASON,
+  renderCropPair,
+  stateLabel,
+  type CropImages,
+  type PairSize,
+} from './crop-pair.js';
 import { containerOf, paddedRect, screenshotRectOf, union, unionVisibleBoxes, visible, type Box } from './geometry.js';
 import { cellPair, renderCropChanges } from './markdown.js';
 import { formatSurfaceWithContext, hasExposedChangedEntry, screenshotPair, type RenderCtx } from './shared.js';
@@ -778,7 +785,7 @@ type StatePair = {
   md: string[];
   note?: string;
   images?: CropImages;
-  size?: { w: number; h: number };
+  size?: PairSize;
   /** Why the pair was left out (the crop budget, or the image was too large). */
   omitted?: 'budget' | 'size';
   /** Both screenshots for this state exist. */
@@ -857,6 +864,7 @@ function addStatePair(
       after: pair.images.after,
       width: pair.size.w,
       height: pair.size.h,
+      ...(pair.size.base ? { baseWidth: pair.size.base.w, baseHeight: pair.size.base.h } : {}),
       what: `${what}${stateWhat(state)}`,
     });
   }

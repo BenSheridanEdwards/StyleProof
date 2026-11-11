@@ -58,6 +58,9 @@ function omittedCrop(ctx: RenderCtx) {
   return { md: [], images: {}, omitted: cropGapReason(ctx.crops) };
 }
 
+/** A written pair's size: the after crop, and the before crop's when it differs. */
+export type PairSize = { w: number; h: number; base?: { w: number; h: number } };
+
 /**
  * Write two clean crops and return a GitHub-safe before/after table plus its image paths.
  * Returns null only for `skipIdentical` pairs whose pixels match.
@@ -65,7 +68,7 @@ function omittedCrop(ctx: RenderCtx) {
 export function renderCropPair(
   ctx: RenderCtx,
   spec: CropPairSpec,
-): { md: string[]; images: CropImages; size?: { w: number; h: number }; omitted?: 'budget' | 'size' } | null {
+): { md: string[]; images: CropImages; size?: PairSize; omitted?: 'budget' | 'size' } | null {
   const { box, pngA, pngB } = spec;
   const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
   const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
@@ -108,6 +111,9 @@ export function renderCropPair(
     '| --- | --- |',
     `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
-  // The size written: a pair halved to fit the per-file cap is recorded at its halved size (RV19-06).
-  return { md, images, size: { w: written[0].width, h: written[0].height } };
+  // The sizes written: a pair halved to fit the per-file cap is recorded at its halved size (RV19-06),
+  // and a before crop cut short by a shorter base page records its own size (RV20-05).
+  const [b, a] = written;
+  const base = b.width !== a.width || b.height !== a.height ? { base: { w: b.width, h: b.height } } : {};
+  return { md, images, size: { w: a.width, h: a.height, ...base } };
 }

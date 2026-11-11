@@ -281,18 +281,30 @@ function whereFigure(meta: SectionMeta, index: number, alt: string, caption: str
 
 /** One before/after pair: two clean images side by side (stacked on narrow screens). */
 function pairBlock(
-  pair: { state: string; before: string; after: string; width: number; height: number; what?: string },
+  pair: {
+    state: string;
+    before: string;
+    after: string;
+    width: number;
+    height: number;
+    baseWidth?: number;
+    baseHeight?: number;
+    what?: string;
+  },
   lazy = false,
   label = stateWords(pair.state),
 ) {
   const words = label;
   const tag = words ? `<span class="state">${escapeHtml(words)}</span>` : '';
   const loading = lazy ? ' loading="lazy"' : '';
-  const side = (name: 'before' | 'after', src: string) =>
-    safeCrop(src)
+  const side = (name: 'before' | 'after', src: string) => {
+    const [w, h] =
+      name === 'before' ? [pair.baseWidth ?? pair.width, pair.baseHeight ?? pair.height] : [pair.width, pair.height];
+    return safeCrop(src)
       ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
-        `<img class="shot ${name}" src="${attr(src)}" width="${pair.width}" height="${pair.height}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${(pair.what ?? 'the whole page').replace(/\\\|/g, '|')}`)}"${loading}></figure>`
+          `<img class="shot ${name}" src="${attr(src)}" width="${w}" height="${h}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${(pair.what ?? 'the whole page').replace(/\\\|/g, '|')}`)}"${loading}></figure>`
       : '';
+  };
   return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
 }
 

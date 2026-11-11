@@ -13,9 +13,11 @@ export type SectionMetaPair = {
   state: PairState;
   before: string;
   after: string;
-  /** The crops' size in pixels. */
+  /** The after crop's size in pixels; `baseWidth`/`baseHeight` the before crop's when it differs. */
   width: number;
   height: number;
+  baseWidth?: number;
+  baseHeight?: number;
   /** The noun phrase in the images' alt text: "the first card title while hovered". */
   what: string;
 };
@@ -103,7 +105,13 @@ const isNumber = (v: unknown): v is number => typeof v === 'number' && Number.is
 const isTuple = (v: unknown, n: number): boolean => Array.isArray(v) && v.length === n && v.every(isNumber);
 const isPair = (v: unknown): v is SectionMetaPair => {
   const p = v as SectionMetaPair;
-  return !!p && [p.state, p.before, p.after, p.what].every(isString) && isNumber(p.width) && isNumber(p.height);
+  return (
+    !!p &&
+    [p.state, p.before, p.after, p.what].every(isString) &&
+    isNumber(p.width) &&
+    isNumber(p.height) &&
+    [p.baseWidth, p.baseHeight].every((n) => n === undefined || isNumber(n))
+  );
 };
 const isWhere = (v: unknown): v is SectionMetaWhere => {
   const w = v as SectionMetaWhere;

@@ -89,3 +89,57 @@ test('pair alt text escapes element text once (RV2-18)', (t) => {
   assert.match(md, /alt="Before: the &lt;b&gt;x&lt;\/b&gt; button"/);
   assert.doesNotMatch(md, /&amp;lt;/);
 });
+
+test('a pair whose sides differ in size records the size of each side (RV20-05)', (t) => {
+  const root = mkTmp('styleproof-pair-sides-');
+  t.after(() => rmTmp(root));
+  // The base page is shorter than the crop, so the before crop is cut short and the after crop is not.
+  for (const [side, height] of [
+    ['before', 120],
+    ['after', 600],
+  ]) {
+    const map = makeMap({
+      elements: {
+        'body > h1': {
+          tag: 'h1',
+          cls: 'title',
+          rect: [20, 80, 200, 60],
+          style: { color: side === 'before' ? 'rgb(0, 0, 0)' : 'rgb(200, 0, 0)' },
+        },
+      },
+    });
+    writeCapture(path.join(root, side), 'home@1280', map, solidPng(1280, height));
+  }
+  const result = generateReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'report'),
+  });
+  const dims = (file) => {
+    const png = PNG.sync.read(fs.readFileSync(path.join(root, 'report', file)));
+    return [png.width, png.height];
+  };
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const pair = md
+    .split('\n')
+    .map(decodeSectionMeta)
+    .find((m) => m?.pairs.length).pairs[0];
+  const [bw, bh] = dims(pair.before);
+  const [aw, ah] = dims(pair.after);
+  assert.notEqual(bh, ah, 'the fixture gives the two crops different heights');
+  assert.deepEqual([pair.width, pair.height], [aw, ah], 'width and height are the after crop');
+  assert.deepEqual(
+    [pair.baseWidth ?? pair.width, pair.baseHeight ?? pair.height],
+    [bw, bh],
+    'base size is the before crop',
+  );
+  const html = fs.readFileSync(path.join(root, 'report', 'report.html'), 'utf8');
+  assert.match(
+    html,
+    new RegExp(`<img class="shot before" src="data:image/png;base64,[^"]+" width="${bw}" height="${bh}"`),
+  );
+  assert.match(
+    html,
+    new RegExp(`<img class="shot after" src="data:image/png;base64,[^"]+" width="${aw}" height="${ah}"`),
+  );
+});
