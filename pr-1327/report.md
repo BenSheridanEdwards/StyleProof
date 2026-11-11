@@ -1,20 +1,20 @@
 ## 🗺️ StyleProof report
 
-**1 change to review** on `pricing` at 320px wide.
+**1 change to review** on `about` at 320px wide.
 
-🆕 **1 new surface** with no baseline to compare: `pricing @ 320`. Review it before it becomes part of the baseline.
+⚠️ **1 surface failed to capture on the base:** `about@auto` at `bcdc4c818e989ecf01fad1a5e6de33dc55654b29`. The rest of the base was captured; repair that surface on that commit and capture it again.
 
 ## One-sided pages, states, or surfaces — review first
 
-### `pricing@320` · new surface <!-- styleproof-new -->
+### `about@320` · baseline repair needed ⚠️
 
-_pricing @ 320_
+_about @ 320_
 
-![new surface — after](crops/pricing-320-1-new.png)
+![baseline repair needed — after](crops/about-320-1-new.png)
 
-<sub>after · pricing @ 320</sub>
+<sub>after · about @ 320</sub>
 
-<!-- styleproof-captured %7B%22v%22%3A1%2C%22pages%22%3A%5B%7B%22base%22%3A%22home%22%2C%22widths%22%3A%5B320%5D%2C%22states%22%3A%5B%5D%7D%2C%7B%22base%22%3A%22pricing%22%2C%22widths%22%3A%5B320%5D%2C%22states%22%3A%5B%5D%7D%5D%2C%22recipes%22%3A%5B%5D%2C%22rules%22%3A%5B%5D%7D -->
+<!-- styleproof-captured %7B%22v%22%3A1%2C%22pages%22%3A%5B%7B%22base%22%3A%22about%22%2C%22widths%22%3A%5B320%5D%2C%22states%22%3A%5B%5D%7D%2C%7B%22base%22%3A%22home%22%2C%22widths%22%3A%5B320%5D%2C%22states%22%3A%5B%5D%7D%5D%2C%22recipes%22%3A%5B%5D%2C%22rules%22%3A%5B%5D%7D -->
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
