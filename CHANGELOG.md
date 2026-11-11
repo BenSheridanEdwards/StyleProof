@@ -29,9 +29,11 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `extends` still works.
 - The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
   9 elements, 4 changed CSS rules"). Its pages and widths include any new or removed surface the count
-  includes, also when those are the only changes. In report.html the header summary is the report's opening
-  verdict line (a count to review, a no-change line, or a Reach-gate, visible-structure or cannot-certify line);
-  every other line keeps report.md's order. Each change is one section: elements that changed the same way, with a
+  includes, also when those are the only changes, and then it gives only the pages and widths, with no element
+  or rule count. In report.html the header summary is the report's opening verdict line: a count to review, a
+  no-change line (also when relabelled `UNVERIFIED DIAGNOSTIC`), or a Reach-gate, visible-structure,
+  base-capture-failure, consistency, live/age-freeze or cannot-certify line. Every other line keeps report.md's
+  order. Each change is one section: elements that changed the same way, with a
   plain-English name and one sentence built from captured data, a small Where map that rings them on the page
   (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
   the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
@@ -141,7 +143,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   repair them and rerun." The comment points at "the full report" instead of sections it does not carry, and the
   summary gives no changed-CSS-rule count when a served-CSS record is missing.
   The summary line always comes first; a "⛔ This compare cannot certify" line now follows it instead of
-  preceding it. The Global chrome callout no longer says its detail is "folded beneath" (it is not), and under
+  preceding it. A report with no summary line (only volatile or live-region notes) still opens with the
+  cannot-certify line, as before. The Global chrome callout no longer says its detail is "folded beneath" (it is not), and under
   a small `maxReportBytes` the one-line Changed but never matched entry names the rules that hold the gate.
 - report.md, report.html and the PR comment no longer show internal gate codes such as
   `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
