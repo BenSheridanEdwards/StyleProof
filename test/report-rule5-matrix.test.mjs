@@ -328,6 +328,21 @@ const SHAPES = {
     trust: reviewable,
     expect: /could not check every changed CSS rule/,
   },
+  // RV22-01: a change whose only section is a state layer captured on one side has no element; with
+  // Change Reach on both sides the summary states no zero count.
+  'state layer on one side, Change Reach on both sides': {
+    before: {
+      'home@1280': page({ 'body > h1': title(BLACK) }, { stateLayers: ['hover'], ...reach([rule('.a', 'h1')]) }),
+    },
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(BLACK) },
+        { stateLayers: ['hover', 'checked'], ...reach([rule('.a', 'h1')]) },
+      ),
+    },
+    trust: reviewable,
+    expect: /^\*\*1 change to review\*\* on `home` at 1280px wide\.$/m,
+  },
   'warn-level reach: never matched + unmeasured': {
     before: {
       'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h1'), rule('.ignored', 'h1', { outside: true })])),

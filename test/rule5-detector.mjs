@@ -369,8 +369,17 @@ export function repeatedIdentifiers(text) {
 export const openingBlock = (text) => text.split(/\n(?=#{2,3} (?!🗺️))/)[0];
 
 /** Problems in report.md or report.html text. */
+/** The summary line never states a count of 0 for elements or CSS rules (RV21-02, RV22-01). */
+function zeroCounts(text) {
+  const line = text.split('\n').find((l) => /\d+ changes? to review/.test(l)) ?? '';
+  const zero = line.match(/\b0 (?:elements?|changed CSS rules?)\b/);
+  return zero ? [`the summary line states "${zero[0]}"`] : [];
+}
+
 export function reportProblems(name, text) {
-  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text)].map((p) => `${name}: ${p}`);
+  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text), ...zeroCounts(text)].map(
+    (p) => `${name}: ${p}`,
+  );
   // report.html is rendered from report.md; its block structure is checked there.
   if (name !== 'report.html') out.push(...repeatedIdentifiers(text).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
@@ -390,7 +399,9 @@ export function commentProblems(name, body, { approvalMode = true } = {}) {
   const text = commentText(body);
   const [report, footer = ''] = text.split('\n### 📊');
   const approvalBox = body.includes('- [ ] **Approve all changes**') || body.includes('- [x] **Approve all changes**');
-  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text)].map((p) => `${name}: ${p}`);
+  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text), ...zeroCounts(text)].map(
+    (p) => `${name}: ${p}`,
+  );
   out.push(...repeatedIdentifiers(text.replace('\n### 📊', '\n\n### 📊')).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
   if (code) out.push(`${name}: internal code ${code[0]}`);

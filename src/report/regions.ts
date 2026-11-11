@@ -174,7 +174,10 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   };
 }
 
-/** " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." */
+/**
+ * " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." The summary never states a count of 0:
+ * with no element the scope is pages and widths only, and a rule count of 0 is left out (RV22-01).
+ */
 function scopeText(keys: string[], base: (key: string) => string, elements: number, changedRules?: number): string {
   const bases = [...new Set(keys.map(base))].sort();
   const widths = [...new Set(keys.map(surfaceWidth))].filter(Boolean).sort((a, b) => a - b);
@@ -185,8 +188,8 @@ function scopeText(keys: string[], base: (key: string) => string, elements: numb
       : widths.length <= 3
         ? ` at ${andList(widths.map(String))}px wide`
         : ` at ${widths.length} widths`;
-  const rules = changedRules === undefined ? '' : `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}`;
-  if (!elements && !rules) return ` on ${where}${wide}.`;
+  if (!elements) return ` on ${where}${wide}.`;
+  const rules = changedRules ? `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}` : '';
   return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
 }
 
@@ -218,8 +221,7 @@ export function sectionSummary(
             [...groups.flatMap((g) => g.surfaces), ...oneSided],
             (key) => surfaceKeyOf(key) ?? surfaceBase(key),
             elements,
-            // With no change group there are no elements or rules to count: pages and widths only (RV21-02).
-            groups.length ? changedRules : undefined,
+            changedRules,
           )
         : '',
   };

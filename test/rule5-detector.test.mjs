@@ -241,3 +241,19 @@ test('the size-cap note must say what to do and count the changes the full repor
     'a size-limit note that says neither the count nor where the rest is',
   );
 });
+
+test('a summary line that states a count of 0 is caught (RV22-01)', () => {
+  for (const line of [
+    '**1 change to review** on `home` at 1280px wide: 0 elements, 0 changed CSS rules.',
+    '**1 change to review** on `home` at 1280px wide: 0 elements, 1 changed CSS rule.',
+    '**2 changes to review** on `home` at 1280px wide: 3 elements, 0 changed CSS rules.',
+  ])
+    assert.ok(
+      reportProblems('report.md', `## 🗺️ StyleProof report\n\n${line}\n`).some((p) => /states "0 /.test(p)),
+      line,
+    );
+  assert.deepEqual(
+    reportProblems('report.md', '## 🗺️ StyleProof report\n\n**1 change to review** on `home` at 1280px wide.\n'),
+    [],
+  );
+});

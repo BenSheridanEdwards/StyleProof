@@ -123,3 +123,50 @@ for (const [name, before, after, expected] of [
     assert.match(md.split('\n').find((l) => l.startsWith('**')) ?? md, expected);
   });
 }
+
+// RV22-01: the summary never states a count of 0. A change whose only section is a state layer captured
+// on one side has no element; with Change Reach on both sides the scope gives pages and widths only.
+for (const [name, before, after, expected] of [
+  [
+    'a checked layer on head only, no rule change',
+    [['hover'], [['.a', 'h1']]],
+    [['hover', 'checked'], [['.a', 'h1']]],
+    /^\*\*1 change to review\*\* on `home` at 1280px wide\.$/,
+  ],
+  [
+    'a focus layer on base only, a rule changed',
+    [['hover', 'focus'], [['.a', 'h1']]],
+    [['hover'], [['.a', 'h2', true]]],
+    /^\*\*1 change to review\*\* on `home` at 1280px wide\.$/,
+  ],
+]) {
+  test(`with Change Reach, a state layer captured on one side states no zero count: ${name} (RV22-01)`, (t) => {
+    const root = mkTmp('styleproof-scope-state-layer-');
+    t.after(() => rmTmp(root));
+    const capture = ([layers, rules]) => ({
+      ...makeMap({
+        elements: {
+          'body > h1': { tag: 'h1', cls: 'title', rect: [20, 20, 300, 60], style: { color: 'rgb(0, 0, 0)' } },
+        },
+      }),
+      stateLayers: layers,
+      reach: {
+        version: 2,
+        scope: 'compared',
+        sheets: ['/app.css'],
+        rules: rules.map(([key, hash, used]) => ({ key, hash, sheet: 0, ...(used ? { used: true } : {}) })),
+      },
+    });
+    writeCapture(path.join(root, 'before'), 'home@1280', capture(before), solidPng(1280, 300));
+    writeCapture(path.join(root, 'after'), 'home@1280', capture(after), solidPng(1280, 300));
+    const result = generateReport({
+      beforeDir: path.join(root, 'before'),
+      afterDir: path.join(root, 'after'),
+      outDir: path.join(root, 'report'),
+    });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    const summary = md.split('\n').find((l) => l.startsWith('**')) ?? md;
+    assert.match(summary, expected);
+    assert.doesNotMatch(summary, /\b0 (elements?|changed CSS rules?)\b/);
+  });
+}
