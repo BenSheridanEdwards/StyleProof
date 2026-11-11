@@ -218,7 +218,8 @@ export function sectionSummary(
             [...groups.flatMap((g) => g.surfaces), ...oneSided],
             (key) => surfaceKeyOf(key) ?? surfaceBase(key),
             elements,
-            changedRules,
+            // With no change group there are no elements or rules to count: pages and widths only (RV21-02).
+            groups.length ? changedRules : undefined,
           )
         : '',
   };

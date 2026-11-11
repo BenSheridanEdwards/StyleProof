@@ -79,3 +79,47 @@ test('a summary whose changes are all new or removed surfaces still names their 
     /^\*\*1 change to review\*\* on `pricing` at 900px wide\.$/,
   );
 });
+
+for (const [name, before, after, expected] of [
+  [
+    'a removed surface, no rule change',
+    { 'home@1280': [['.a', 'h1']], 'legacy@900': [['.a', 'h1']] },
+    { 'home@1280': [['.a', 'h1']] },
+    /^\*\*1 change to review\*\* on `legacy` at 900px wide\.$/,
+  ],
+  [
+    'a new surface with changed rules',
+    { 'home@1280': [['.a', 'h1']] },
+    { 'home@1280': [['.a', 'h2']], 'pricing@900': [['.a', 'h2', true]] },
+    /^\*\*1 change to review\*\* on `pricing` at 900px wide\.$/,
+  ],
+]) {
+  test(`with Change Reach, a summary of only new or removed surfaces gives pages and widths, no element or rule count: ${name} (RV21-02)`, (t) => {
+    const root = mkTmp('styleproof-scope-one-sided-reach-');
+    t.after(() => rmTmp(root));
+    const page = (rules) => ({
+      ...makeMap({
+        elements: { 'body > p': { tag: 'p', rect: [20, 100, 300, 20], style: { color: 'rgb(0, 0, 0)' } } },
+      }),
+      reach: {
+        version: 2,
+        scope: 'compared',
+        sheets: ['/app.css'],
+        rules: rules.map(([key, hash, used]) => ({ key, hash, sheet: 0, ...(used ? { used: true } : {}) })),
+      },
+    });
+    for (const [side, caps] of [
+      ['before', before],
+      ['after', after],
+    ])
+      for (const [key, rules] of Object.entries(caps))
+        writeCapture(path.join(root, side), key, page(rules), solidPng(Number(key.split('@')[1]), 300));
+    const result = generateReport({
+      beforeDir: path.join(root, 'before'),
+      afterDir: path.join(root, 'after'),
+      outDir: path.join(root, 'report'),
+    });
+    const md = fs.readFileSync(result.reportMdPath, 'utf8');
+    assert.match(md.split('\n').find((l) => l.startsWith('**')) ?? md, expected);
+  });
+}
