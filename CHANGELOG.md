@@ -29,8 +29,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   `extends` still works.
 - The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
   9 elements, 4 changed CSS rules"). Its pages and widths include any new or removed surface the count
-  includes. In report.html the header summary is the verdict line, including a Reach-gate or visible-structure
-  line. Each change is one section: elements that changed the same way, with a
+  includes, also when those are the only changes. In report.html the header summary is the report's opening
+  verdict line (a count to review, a no-change line, or a Reach-gate, visible-structure or cannot-certify line);
+  every other line keeps report.md's order. Each change is one section: elements that changed the same way, with a
   plain-English name and one sentence built from captured data, a small Where map that rings them on the page
   (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
   the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
@@ -88,8 +89,9 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   its parent, as in an inner scroller) the crop is centred on the element as before and can still cut nearby
   text. The Where map still rings only the changed elements.
 - A before/after pair, and each pair of whole pages, is downscaled together when either side is over the
-  per-file size limit, so both sides are always at the same scale. A downscaled crop pair records its written
-  width and height in the section data, so report.html shows it at that size.
+  per-file size limit, so both sides are always at the same scale. A crop pair records the size of the PNGs it
+  wrote, halved or not, in the section data and in report.html's `<img>` width and height, each side its own
+  when a shorter page cuts one crop short; the page still scales each image to its column.
 - `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
   and counted, with no crop or Where map. Before, the extra regions collapsed into one union crop. Every change
   missing some or all of its crops is now stated once, at the top of the report, instead of in a note under each

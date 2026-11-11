@@ -7,7 +7,8 @@ builds, with Change Reach), then `styleproof-report` on the two map directories.
   report.html at 1280px and 390px wide, light and dark, with every fold open.
 - `comment-public.md`: the change content the Action posts on a public repository with
   `report-storage: branch`, built by `reportCommentSummary` from that run's report.md. Its image
-  URLs point at this folder at commit `3edd599b9`, the last commit that changed it, in the same
+  URLs point at this folder at commit `3edd599b9`, the last commit that changed its images (each linked
+  image there is byte-identical to this one), in the same
   `/blob/<sha>/…?raw=1` form the Action uses with the report's publication SHA. A commit URL keeps
   working after the branch is deleted; a rebase gives that commit a new SHA, so the URLs then need
   pinning again.
