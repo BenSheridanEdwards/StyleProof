@@ -317,6 +317,15 @@ const SHAPES = {
     trust: reviewable,
     expect: /Reach gate/,
   },
+  // RV22-03 (QA22-02): with no served-CSS record on either side, the gap's reason and remedy are said once.
+  'reach gate, no served-CSS record on either side': {
+    opts: { changeReach: 'gate' },
+    before: STYLED(BLACK),
+    after: STYLED(RED),
+    trust: reviewable,
+    expect: /\*\*Reach evidence gaps\*\*/,
+    expectNot: /ledger/,
+  },
   'warn-level reach gaps (one side has no served-CSS record)': {
     before: STYLED(BLACK),
     after: {

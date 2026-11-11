@@ -51,7 +51,7 @@ function report(dirs, options = {}) {
 }
 
 const intro =
-  '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. Reach findings do not change the verdict._';
+  '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the record of served CSS does not include source maps yet. Reach findings do not change the verdict._';
 const table = ['| Rule | Change | Gated by | Source | Why |', '| --- | --- | --- | --- | --- |'];
 const darkRule = '@media (prefers-color-scheme: dark) > .panel';
 
@@ -385,8 +385,13 @@ test('unscoped ledgers retain side-specific gaps and cannot certify legacy match
       output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => gap.side),
       sides,
     );
-    for (const side of sides) assert.ok(output.md.includes(`missing ${side} ledger`));
-    assert.ok(output.md.includes('recapture with `captureReach`'));
+    // Each side with no record is named; a gap both sides share is said once, with one remedy (RV22-03).
+    const said =
+      sides.length === 2
+        ? '1 capture on each side has a missing or out-of-date record of the CSS it served — recapture both sides with `captureReach`'
+        : `1 ${sides[0]} capture has a missing or out-of-date record of the CSS it served — recapture with \`captureReach\``;
+    assert.ok(output.md.includes(said), output.md);
+    assert.equal(output.md.match(/recapture/g)?.length, 1);
     assert.doesNotMatch(output.md, /every changed served CSS rule|Reach complete|✓ No reviewable/);
   }
 });
@@ -401,9 +406,15 @@ test('gate holds missing ledgers even when neither side records reach evidence',
     output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => gap.side),
     ['base', 'head'],
   );
-  assert.match(output.md, /missing base ledger/);
-  assert.match(output.md, /missing head ledger/);
-  assert.ok(output.md.includes('recapture with `captureReach`'));
+  // Both sides lack a record: the reason and the remedy are said once (RV22-03, QA22-02).
+  assert.ok(
+    output.md.includes(
+      '- 1 capture on each side has a missing or out-of-date record of the CSS it served — recapture both sides with `captureReach`',
+    ),
+  );
+  assert.equal(output.md.match(/cannot be listed/g)?.length, 1);
+  assert.equal(output.md.match(/captureReach/g)?.length, 1);
+  assert.doesNotMatch(output.md, /ledger/);
   assert.doesNotMatch(output.md, /✓ No reviewable/);
 });
 
@@ -430,7 +441,10 @@ test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
   assert.equal(output.json.reach.rules.filter((r) => r.status === 'blind-channel').length, 1);
   assert.equal(output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').length, 1);
   assert.match(output.md, /\*\*Changed in a channel computed styles cannot hold\*\*/);
-  assert.match(output.md, /2 unreadable stylesheet\(s\) on head/);
+  assert.match(
+    output.md,
+    /2 stylesheets on head could not be read — make them readable \(same-origin or CORS\), then recapture/,
+  );
   assert.doesNotMatch(output.md, /✓ No reviewable/);
 });
 
@@ -555,8 +569,10 @@ test('an unreadable stylesheet ledger keeps known rules and names the unknown he
   const head = map(rule('.fault', 'h2'));
   head.reach.unreadable = 2;
   const output = report(fixture(t, [map(rule('.fault', 'h1'))], [head]), { changeReach: 'gate' });
-  assert.match(output.md, /head: 2 unreadable stylesheet\(s\) on head; changed rules there cannot be listed/);
-  assert.match(output.md, /make the stylesheets readable \(same-origin or CORS\) and recapture/);
+  assert.match(
+    output.md,
+    /- 2 stylesheets on head could not be read — make them readable \(same-origin or CORS\), then recapture/,
+  );
   assert.ok(output.md.includes('| `.fault` | changed |'));
   assert.equal(output.json.reach.ledger, 'partial');
   assert.equal(output.json.reach.unreadableSheets, 2);
@@ -858,5 +874,34 @@ test('a gate report cut to one-liners still names the held rule where the gate l
     assert.match(md, /^- Changed but never matched: [^\n]*`\.unopened`/m);
   } finally {
     rmTmp(dirs.root);
+  }
+});
+
+test('a served-CSS gap both sides share is said once with one remedy, at warn and in the gate section (RV22-03)', (t) => {
+  // Each side has one capture with a record and one without, and one capture whose CSS could not be read.
+  const unknown = (reason) => {
+    const capture = map(rule('.fault', 'h1', { used: true }));
+    capture.reach.unknown = reason;
+    return capture;
+  };
+  const base = [map(rule('.fault', 'h1', { used: true })), withoutReach(map()), unknown('unsupported var() reference')];
+  const head = [map(rule('.fault', 'h2', { used: true })), withoutReach(map()), unknown('unsupported @layer order')];
+  for (const changeReach of ['warn', 'gate']) {
+    const md = visible(report(fixture(t, base, head), { changeReach }).md);
+    assert.ok(
+      md.includes(
+        '1 capture on each side has a missing or out-of-date record of the CSS it served — recapture both sides with `captureReach`',
+      ),
+      `${changeReach}:\n${md}`,
+    );
+    assert.ok(
+      md.includes(
+        'StyleProof could not read the CSS served on 1 base capture (unsupported var() reference) and 1 head capture (unsupported @layer order) — simplify or remove that CSS, then recapture',
+      ),
+      `${changeReach}:\n${md}`,
+    );
+    assert.equal(md.match(/captureReach/g)?.length, 1, changeReach);
+    assert.equal(md.match(/simplify or remove that CSS/g)?.length, 1, changeReach);
+    assert.doesNotMatch(md, /ledger/, changeReach);
   }
 });

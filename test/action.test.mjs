@@ -1402,8 +1402,10 @@ test('change reach pipeline: opt-in gate names the legacy ledger remedy', (t) =>
   assert.equal(run.diff.reach.blocking, 1);
   assert.equal(run.state, 'CERTIFICATION_FAILED');
   const markdown = fs.readFileSync(path.join(fixture.cwd, 'styleproof-report', 'report.md'), 'utf8');
-  assert.match(markdown, /missing base ledger/);
-  assert.match(markdown, /recapture with `captureReach`/);
+  assert.match(
+    markdown,
+    /1 base capture has a missing or out-of-date record of the CSS it served — recapture with `captureReach`/,
+  );
 });
 
 test('change reach pipeline: Action merge rejects missing or mismatched gate receipts', (t) => {
