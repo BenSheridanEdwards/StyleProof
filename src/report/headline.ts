@@ -341,7 +341,13 @@ export function partialPageLines(pages: PartialPage[], maxTiles = 8, { budgetAdv
 
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
+  return headlineParts(input).lines;
+}
+
+/** The headline's lines, and whether they open with a summary paragraph (`reportOpening` orders by it). */
+export function headlineParts(input: HeadlineInput): { lines: string[]; summarised: boolean } {
   const md = summaryLines(input);
+  const summarised = md.length > 0;
   // Regions volatile on one side only are named in their own block below; count only the others.
   const live = input.volatileCount - (input.headOnlyVolatile?.length ?? 0) - (input.baseOnlyVolatile?.length ?? 0);
   const candidates = input.liveCandidateLabels.length
@@ -367,17 +373,21 @@ export function reportHeadline(input: HeadlineInput): string[] {
   const lines = [...md, ...contentNoteLines(input, md.includes(visibleStructureLine(input.elevatedStructureDom)))];
   // With no summary paragraph (a volatile-only report), the first block opens without a blank line.
   const first = lines.findIndex((line) => line !== '');
-  return first < 0 ? [] : lines.slice(first);
+  return { lines: first < 0 ? [] : lines.slice(first), summarised };
 }
 
 /**
- * The report's opening, in reading order: the summary paragraph, the blocking product-state line, then
- * the rest of the headline. With no summary paragraph (only volatile or live-region notes), the
- * product-state line opens the report, as on main (RV21-01).
+ * The report's opening, in reading order: the summary line, the blocking product-state line, then the
+ * rest of the headline. A report has no summary line only when its headline is notes about a subtree
+ * volatile on one side (with or without a live-region note); then the product-state line opens the
+ * report, as on main (RV21-01, RV22-02).
  */
-export function reportOpening(input: HeadlineInput, headline: string[], productState: string[]): string[] {
+export function reportOpening(
+  { lines: headline, summarised }: { lines: string[]; summarised: boolean },
+  productState: string[],
+): string[] {
   if (!productState.length) return headline;
-  if (!summaryLines(input).length) return headline.length ? [...productState, '', ...headline] : productState;
+  if (!summarised) return headline.length ? [...productState, '', ...headline] : productState;
   const end = headline.indexOf('');
   const lead = end < 0 ? headline : headline.slice(0, end);
   return [...lead, '', ...productState, ...headline.slice(lead.length)];

@@ -76,7 +76,7 @@ import {
   partialPageLines,
   reachGateLine,
   readBaselineInfo,
-  reportHeadline,
+  headlineParts,
   reportOpening,
   type BaselineInfo,
   type HeadlineInput,
@@ -613,7 +613,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
   };
-  const headline = reportHeadline(headlineInput);
+  const headlineSplit = headlineParts(headlineInput);
+  const headline = headlineSplit.lines;
   // A run with no change already leads with the gate line; say it once.
   const gateInHeadline = Boolean(reach?.blocking) && headline.includes(reachGateLine(reach!.blocking, false));
   const reachStrip = reach && !gateInHeadline ? reachHeadlineLines(reach) : [];
@@ -621,7 +622,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // The summary line leads (SPEC report order); a blocking product-state line follows it (RV11-05),
   // or opens the report when there is no summary line (RV21-01).
   const productState = productStateWarningLines(comparison, gates.legacyPairs).filter((line) => line !== '');
-  reportOpening(headlineInput, headline, productState).forEach((appended) => md.lines.push(appended));
+  reportOpening(headlineSplit, productState).forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
