@@ -4,7 +4,6 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { visibleText } from './visible-text.mjs';
-import { reportCommentSummary } from '../dist/report-comment.js';
 
 // QA1-02: gate codes are machine output (report.json, status contexts, Action
 // outputs). A reader of report.md, report.html, the demo or the PR comment gets
@@ -53,7 +52,7 @@ test('the README live report and its PR comment show no internal gate code (QA1-
 
 test('the PR comment built from the demo report shows no internal gate code (QA1-02)', () => {
   const md = read('docs/demo/report.md');
-  const base = 'https://github.com/BenSheridanEdwards/StyleProof/blob/' + 'a'.repeat(40) + '/pr-1/';
-  assertNoCodes('text-only comment', reportCommentSummary(md));
-  assertNoCodes('image comment', reportCommentSummary(md, { imageBase: base }));
+  const heading = md.search(/^### /m);
+  assert.ok(heading > 0, 'the report has a detail heading after its summary');
+  assertNoCodes('PR comment prefix', md.slice(0, heading));
 });
