@@ -7,6 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- **BREAKING:** When a side's served-CSS record is missing, old or unreadable, `reach` in report.json and
+  the report API result now omits `counts`, and omits `rules` when none could be listed, instead of
+  publishing zero counts that read as "no changed CSS". It keeps `ledger`, `complete: false` and the named
+  gap with its fix. The report.md summary line says "not every changed rule could be listed" instead of
+  zero rule counts. The `styleproof-diff --json` gate receipt keeps its counts. See Migration step 4.
+
 - Action comment footers name the remedy for their mode without repeating baseline details.
 
 - Two renamed sibling labels no longer read as one element removed and one added. The content-shift
@@ -208,6 +214,15 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    unapproved changes. Config `blocking: true` and `blocking: false` remain
    accepted but no longer affect the job conclusion; `'advisory'` keeps its meaning.
    Capture/setup failures and evidence gates still fail the job.
+
+4. **report.json `reach` omits counts on a served-CSS gap.** Consumers of `reach` in
+   `styleproof-report` JSON or the `generateStyleMapReport` result: when `reach.gaps` holds a
+   `kind: 'ledger'` gap (a side's served-CSS record missing, written by an older capture, or with an
+   unreadable stylesheet), `reach.counts` is absent, and `reach.rules` is absent when no rule could be
+   listed. Treat a missing `counts` as "unknown", never as zero. Read `reach.ledger`,
+   `reach.complete` and `reach.gaps` for the gap and its fix; recapture with `captureReach` to get
+   counts back. Reports with complete records on both sides are unchanged. The `styleproof-diff --json`
+   receipt's `reach.counts` is unchanged.
 
 ### Changed
 
