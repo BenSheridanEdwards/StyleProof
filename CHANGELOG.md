@@ -251,6 +251,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Fixed
 
+- HTML report tables scroll in their own boxes on narrow screens, with scroll-edge shadows, natural code wrapping and native overflow-only keyboard focus in Chromium and Firefox. (#1285)
+
 - Show the selected Playwright config path in capture validation errors instead of the deleted temporary wrapper.
 
 - Render generated property line breaks in HTML reports instead of showing literal `<br>` text (#1286).
