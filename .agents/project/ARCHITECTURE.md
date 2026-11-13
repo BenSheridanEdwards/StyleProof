@@ -51,11 +51,17 @@ folder of the same name that holds the implementation.
    `coverage.ts` enforces the coverage guard; `verdict.ts` turns the evidence
    into the single certification verdict the CLI, Action, and comment share.
 6. **Report** (`report.ts` → `report/`) — `report/headline.ts`,
-   `report/certification.ts`, `report/regions.ts`, `report/crop-pair.ts`,
+   `report/certification.ts`, `report/regions.ts` (change groups),
+   `report/change-sections.ts` (one section per kind of change: pairs, Where
+   maps, the CSS), `report/change-line.ts` (the plain-English line),
+   `report/crop-pair.ts` and `report/crop-budget.ts` (clean crops),
+   `report/where-map.ts`, `report/section-meta.ts` (the hidden section data
+   report.html reads), `report/captured.ts`, `report/html.ts`, `report/reach.ts`,
    `report/png.ts`, `report/markdown.ts`, `report/content-layer.ts`,
    `report/migration-gallery.ts`, `report/sections.ts`, `report/geometry.ts`,
-   `report/annotation-paths.ts`, `report/shared.ts`. Output must stay
-   byte-identical to `docs/demo/` (`pnpm run demo:report --check`).
+   `report/shared.ts`; `report-comment.ts` cuts the PR comment from report.md.
+   The visual-first files in this list (`change-sections.ts`, `change-line.ts`, `where-map.ts`, `section-meta.ts`, `captured.ts`, `report-comment.ts`) land with the visual-first slices, not with this docs amendment.
+   Output must stay byte-identical to `docs/demo/` (`pnpm run demo:report --check`).
 
 Configuration lives in `config.ts` → `config/` (`schema.ts` is the table-driven
 validator, `load.ts` / `load-ts.ts` discover and evaluate the file, `spec.ts`

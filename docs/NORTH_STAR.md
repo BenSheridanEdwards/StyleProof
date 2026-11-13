@@ -22,16 +22,19 @@ A deterministic visual report that shows **all visual changes with 100% confiden
 
 ## What the report contains
 
-- **Verdict first** — `N change(s) need review`, then the named change cards (human label, selector, surface@width, token story).
-- **One change = one card** — distinct restyles group together; `currentColor` follow-ons nest under the primary property.
-- **One primary before/after** — optional highlight overlay (and zoom) sit under a collapsed toggle, not three duplicate carousels.
+- **Summary first** — `N change(s) to review` with the page, width, element count and changed CSS rules.
+- **One change = one section** — elements that changed the same way share one section with a plain-English name and one sentence; `currentColor` followers are marked under the colour that drove them.
+- **Clean evidence** — the before/after pair is an unedited crop of each capture; the only drawn image is a small Where map that rings the changed elements. The CSS sits behind **Show the CSS**.
+- **Light and dark** — the browser report follows the system theme, with an Auto / Light / Dark switch.
 - **Product-state warning** — when identity is unproven, a plain-language warning sits above the fold next to the verdict; it is omitted when proven.
-- **Evidence collapsed** — green certification stays hidden; only failures/warnings appear, under a default-collapsed Evidence section.
+- **No internal diagnostics** — Change Reach gaps and baseline provenance stay in `report.json`; the report keeps the product-state warning visible and says what blocks certification or needs the reviewer.
 - **Action footer** — review-gate / migration modes keep the existing **Approve all changes** checkbox (no new GitHub APIs). Advisory mode stays non-blocking.
 
 ## The redesign (from the grilling session)
 
 The current report is honest and well-engineered, but it is a **markdown comment**, not a visual report. The content is right; the presentation is wrong for the end state. The redesign:
+
+> The visual-first report described above supersedes items 4, 6 and 7. Highlight boxes appear only on the small Where map, never on the before/after crops (item 4). The PR comment carries every change section, not a one-line summary per change (item 6). Pairs sit side by side and stack on narrow screens; no slider shipped (item 7, explored in `docs/spikes/crop-compare/`). The items below are kept as the record of the grilling session.
 
 1. **Crops are the product.** A reviewer opens the report to see what changed, not to read a status. The crop is the main event — full-width, before/after side by side — with the verdict demoted to a thin strip at the top.
 2. **Confidence strip at the top.** Either `100% confidence` or a plain-language warning about what to fix to improve the result. Not a wall of gate jargon — one line a human can act on.
