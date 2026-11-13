@@ -402,3 +402,15 @@ test('a distant same-counter anchor cannot clear an unanchored resumed interval'
   assert.deepEqual(file.unexecuted, [span(1, 0)]);
   assert.deepEqual(file.mixed, [span(1, 2)]);
 });
+
+test('rooted Windows sourceRoot cannot become relative HTTP source keys', () => {
+  assert.throws(
+    () =>
+      sourceIdentities(
+        { version: 3, sources: ['app.js'], sourceRoot: '\\outside\\', mappings: 'AAAA' },
+        'https://app.test/a.map',
+        '/project',
+      ),
+    /source outside project root/,
+  );
+});

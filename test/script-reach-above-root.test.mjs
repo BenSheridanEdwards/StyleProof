@@ -383,3 +383,45 @@ test('a post-read project root change invalidates the source proof', async (t) =
   assert.equal(calls, 2);
   assert.ok(read.mock.callCount() > 0);
 });
+
+for (const [sourceRoot, source] of [
+  ['/', 'src/App.tsx'],
+  [undefined, '/src/App.tsx'],
+  ['/__parcel_source_root/', 'src/App.tsx'],
+]) {
+  test(`HTTP root-relative map resolves ${sourceRoot ?? source}`, async (t) => {
+    const projectRoot = projectFixture(t, { 'src/App.tsx': 'x' });
+    const script = await capture([source], ['x'], 'http://localhost/app.js.map', { sourceRoot, projectRoot });
+    assert.equal(script.status, 'mapped');
+    assert.equal(script.files[0].sourceKey, 'src/App.tsx');
+    assert.ok(!JSON.stringify(script).includes(projectRoot));
+  });
+}
+
+test('outside-root file source remains unknown on an HTTP map', async (t) => {
+  const projectRoot = projectFixture(t);
+  const script = await capture([new URL('/outside/src/App.tsx', 'file:').href], ['x'], 'http://localhost/app.js.map', {
+    projectRoot,
+  });
+  assert.equal(script.status, 'unknown');
+  assert.ok(!JSON.stringify(script).includes(projectRoot));
+});
+
+for (const useRoot of [false, true]) {
+  test(`existing outside-root HTTP machine path stays unknown (sourceRoot=${useRoot})`, async (t) => {
+    const projectRoot = projectFixture(t);
+    const outside = path.join(projectRoot, '..', 'ui', 'Button.tsx');
+    mkdirSync(path.dirname(outside));
+    writeFileSync(outside, 'x');
+    const sources = [useRoot ? 'Button.tsx' : outside];
+    const sourceRoot = useRoot ? path.dirname(outside) + '/' : undefined;
+    assert.throws(
+      () =>
+        sourceIdentities({ version: 3, sources, sourceRoot, mappings: 'AAAA' }, 'http://localhost/a.map', projectRoot),
+      /source outside project root/,
+    );
+    const script = await capture(sources, ['x'], 'http://localhost/a.map', { projectRoot, sourceRoot });
+    assert.equal(script.status, 'unknown');
+    assert.ok(!JSON.stringify(script).includes(path.dirname(projectRoot)));
+  });
+}

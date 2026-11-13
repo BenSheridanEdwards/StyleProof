@@ -47,10 +47,17 @@ function sourceDirectory(root: string | undefined, mapUrl: string): URL {
   return url;
 }
 
-function filesystemReference(address: string): string | undefined {
+function filesystemReference(address: string, mapUrl: string, projectRoot: string, raw = address): string | undefined {
   const absolute = absoluteBundlerPath(address);
   if (absolute) return absolute;
-  return WINDOWS_PATH.test(address) || path.posix.isAbsolute(address) ? address : undefined;
+  if (WINDOWS_PATH.test(raw)) return raw;
+  if (!path.posix.isAbsolute(address)) return undefined;
+  if (new URL(mapUrl).protocol === 'file:' || filesystemUrlPath(address)) return address;
+  // Existing local paths retain filesystem containment checks on HTTP maps.
+  return (address !== '/' && fs.existsSync(address)) ||
+    isWithinDirectory(path.resolve(projectRoot), path.resolve(address))
+    ? address
+    : undefined;
 }
 
 function resolvedFilesystemPath(source: string, resolved: URL): string | undefined {
@@ -110,12 +117,14 @@ function sourceKey(
   projectRoot: string,
   content: string | null | undefined,
 ): string | undefined {
+  const rawSource = source;
+  const rawRoot = root;
   source = normalizeSourceReference(source);
   root = root === undefined ? undefined : normalizeSourceReference(root);
   const absoluteUrl = SCHEME.test(source) ? resolveSourceUrl(source, mapUrl) : undefined;
-  const filename = filesystemReference(source);
+  const filename = filesystemReference(source, mapUrl, projectRoot, rawSource);
   if (filename) return filesystemKey(filename, projectRoot);
-  const rootPath = root && filesystemReference(root);
+  const rootPath = root && filesystemReference(root, mapUrl, projectRoot, rawRoot);
   if (rootPath && !SCHEME.test(source))
     return filesystemKey((WINDOWS_PATH.test(rootPath) ? path.win32 : path).resolve(rootPath, source), projectRoot);
   const allowClipping = typeof content === 'string' && !(root && (SCHEME.test(root) || root.startsWith('/')));
@@ -125,7 +134,7 @@ function sourceKey(
   const resolvedFile = resolvedFilesystemPath(source, resolved);
   if (resolvedFile) return filesystemKey(resolvedFile, projectRoot);
   if (BUNDLER.test(resolved.href) && !resolved.pathname.replaceAll('/', '')) return undefined;
-  return projectKey(resolved.pathname.replace(/^\//, ''), projectRoot);
+  return projectKey(resolved.pathname.replace(/^\//, '').replace(/^__parcel_source_root\//, ''), projectRoot);
 }
 
 function projectKey(value: string, projectRoot: string): string {
