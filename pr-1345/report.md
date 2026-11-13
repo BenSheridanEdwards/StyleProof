@@ -1,15 +1,31 @@
 ## 🗺️ StyleProof report
 
-✓ No reviewable computed-style changes among semantically matched elements. Content/structure was not evaluated.
+**1 visible element addition/removal needs review**
+
+_Approve all changes signs these off with the other changes._
+
+🧱 **1 visible element addition(s)/removal(s)** need review — approve them with the other changes.
+
+---
+
+## 📝 Content and structure changes
+
+_1 content/structure change(s). **Visible element additions/removals (1) are reviewable** and gate the check; approve them with the other changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
+
+### `home@320` · 1 content/structure change(s)
+
+**`button.action`**
+
+- element added
+
+_No distinct before/after crop for this element added (the cropped region matches on both screenshots). The element itself was added — this is not a claim that the change has no visible effect._
 
 <details>
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Determinism** — ✗ NOT proven (base unproven, head unproven) — a clean diff could be two nondeterministic reads
 - **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Confidence** — ⚠ limited (0 captured, 1 unproven-determinism)
 
 </details>
 
-<!-- styleproof-receipt head-sha:971f8423bf202c6a49774caba889f4a3b3beed03 run-id:43515363425 run-attempt:1 -->
+<!-- styleproof-receipt head-sha:5003f0aa69f96173bffa54544f695965c06c8ced run-id:43517122971 run-attempt:1 -->
