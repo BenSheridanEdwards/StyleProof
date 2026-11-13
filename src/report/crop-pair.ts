@@ -1,3 +1,4 @@
+import { escapeHtmlAttribute } from '../code-span.js';
 import type { PNG } from 'pngjs';
 import type { Rect } from '../capture.js';
 import { pad, unionRects, type Box } from './geometry.js';
@@ -6,7 +7,7 @@ import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
-export type CropImages = { composite?: string; annotated?: string; zoom?: string };
+export type CropImages = { composite?: string; annotated?: string; zoom?: string; before?: string; after?: string };
 
 export const MISLEADING_CROP_REASON =
   'The changed element is not visible in the captured page (it is outside the screenshot canvas, hidden at this breakpoint, or background content behind an active modal), so a before/after crop would be misleading.';
@@ -33,6 +34,7 @@ export type CropPairSpec = {
   /** Caption fragments: the annotated suffix, the zoom suffix. */
   captions: { annotated: string; zoom: (factor: number) => string };
   /** Skip (return null) when the crop renders identically on both sides. */
+  what?: string;
   skipIdentical?: boolean;
 };
 
@@ -42,6 +44,33 @@ function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box
   if (zoomBelow <= 0 || !changed || maxDim <= 0 || maxDim > zoomBelow) return null;
   const box = pad(changed, Math.max(maxDim, 16)); // ~3× the change for context
   return { box, factor: Math.min(8, Math.max(2, Math.round(240 / Math.max(box.w, box.h)))) };
+}
+
+/**
+ * Escape for an attribute in a table cell: the shared attribute escape, plus `|` as `&#124;`, so the
+ * row stays whole and no `|` is left for the pair-row pattern to split on (RV15-03).
+ */
+const escapeCellAttribute = (value: string): string => escapeHtmlAttribute(value).replace(/\|/g, '&#124;');
+
+function cleanPair(ctx: RenderCtx, spec: CropPairSpec, before: PNG, after: PNG) {
+  if (ctx.crops.files + 2 > ctx.crops.maxFiles) {
+    ctx.crops.exhausted = true;
+    return omittedCrop(ctx);
+  }
+  const stem = cropStem(spec.surface, spec.suffix);
+  const beforeRel = `${stem}-before.png`;
+  const afterRel = `${stem}-after.png`;
+  if (!writeBudgetedPng(ctx, beforeRel, before) || !writeBudgetedPng(ctx, afterRel, after)) return omittedCrop(ctx);
+  const image = (rel: string, side: string) =>
+    // The alt is an HTML attribute, where Markdown's `\|` is not unescaped: write the plain `|`.
+    `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${(spec.what ?? 'the changed element').replace(/\\\|/g, '|')}`)}">`;
+  const md = [
+    '',
+    '| Before | After |',
+    '| --- | --- |',
+    `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
+  ];
+  return { md, images: { before: beforeRel, after: afterRel } };
 }
 
 const MAX_CROP_W = 1280;
@@ -102,6 +131,7 @@ export function renderCropPair(
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
 
   if (!cropBudgetOpen(ctx.crops)) return omittedCrop(ctx);
+  if (ctx.layout === 'visual-first') return cleanPair(ctx, spec, before.png, after.png);
   const stem = cropStem(spec.surface, spec.suffix);
   const images: CropImages = { composite: `${stem}-composite.png` };
 

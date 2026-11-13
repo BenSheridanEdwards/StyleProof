@@ -140,3 +140,157 @@ test('renderCropPair crops both panels of a full-width element from the same pag
     rmTmp(outDir);
   }
 });
+
+test('visual-first renderCropPair crops the same page rectangle on both sides when the page grew', () => {
+  const outDir = mkTmp();
+  try {
+    fs.mkdirSync(path.join(outDir, 'crops'));
+    const ctx = {
+      layout: 'visual-first',
+      outDir,
+      img: (rel) => rel,
+      padBy: 0,
+      minWidth: 320,
+      minHeight: 180,
+      maxHeight: 1600,
+      zoomBelow: 0,
+    };
+    ctx.crops = createCropBudget(60, 5_000_000);
+    const result = renderCropPair(ctx, {
+      surface: 'home@800',
+      suffix: '1',
+      box: { x: 100, y: 940, w: 200, h: 40 },
+      pngA: page(800, 1000),
+      pngB: page(800, 1600),
+      what: 'the changed element',
+      rectsA: [],
+      rectsB: [],
+      captions: { annotated: '', zoom: () => '' },
+      skipIdentical: true,
+    });
+    assert.equal(result, null, 'identical content at the same page rectangle is not a change');
+  } finally {
+    rmTmp(outDir);
+  }
+});
+
+test("visual-first renderCropPair still shows a change added below the shorter page's end", () => {
+  const outDir = mkTmp();
+  try {
+    fs.mkdirSync(path.join(outDir, 'crops'));
+    const ctx = {
+      layout: 'visual-first',
+      outDir,
+      img: (rel) => rel,
+      padBy: 0,
+      minWidth: 320,
+      minHeight: 180,
+      maxHeight: 1600,
+      zoomBelow: 0,
+    };
+    const block = { x: 100, y: 1400, w: 200, h: 40 };
+    ctx.crops = createCropBudget(60, 5_000_000);
+    const result = renderCropPair(ctx, {
+      surface: 'home@800',
+      suffix: '1',
+      box: block,
+      pngA: white(800, 1000),
+      pngB: white(800, 1600, block),
+      what: 'the changed element',
+      rectsA: [],
+      rectsB: [],
+      captions: { annotated: '', zoom: () => '' },
+      skipIdentical: true,
+    });
+    assert.ok(result, 'the added block is a visible difference, not an identical pair');
+    const after = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images.after)));
+    let blue = 0;
+    for (let i = 0; i < after.data.length; i += 4) {
+      if (after.data[i] === 0 && after.data[i + 1] === 0 && after.data[i + 2] === 255) blue++;
+    }
+    assert.ok(blue > 0, 'the added block appears in the after crop');
+  } finally {
+    rmTmp(outDir);
+  }
+});
+
+function cleanRowsPair(outDir, box, skipIdentical) {
+  fs.mkdirSync(path.join(outDir, 'crops'));
+  const ctx = {
+    layout: 'visual-first',
+    outDir,
+    img: (rel) => rel,
+    padBy: 12,
+    minWidth: 320,
+    minHeight: 180,
+    maxHeight: 1600,
+    zoomBelow: 0,
+  };
+  ctx.crops = createCropBudget(60, 5_000_000);
+  return renderCropPair(ctx, {
+    surface: 'home@800',
+    suffix: '1',
+    box,
+    pngA: page(800, 1000),
+    pngB: page(800, 1600),
+    what: 'the changed element',
+    rectsA: [],
+    rectsB: [],
+    captions: { annotated: '', zoom: () => '' },
+    skipIdentical,
+  });
+}
+
+test('visual-first renderCropPair crops both panels of a full-width element from the same page y', () => {
+  const outDir = mkTmp();
+  try {
+    const result = cleanRowsPair(outDir, { x: -12, y: 928, w: 824, h: 64 }, false);
+    // Each clean crop's top row is its first page row.
+    const topPageY = (side) => {
+      const crop = PNG.sync.read(fs.readFileSync(path.join(outDir, result.images[side])));
+      return crop.data[0] + (crop.data[1] << 8);
+    };
+    assert.deepEqual({ before: topPageY('before'), after: topPageY('after') }, { before: 820, after: 820 });
+  } finally {
+    rmTmp(outDir);
+  }
+});
+
+for (const limited of [false, true]) {
+  test(`visual-first ${limited ? 'reserves both files' : 'escapes table pipes'}`, (t) => {
+    const outDir = mkTmp();
+    t.after(() => rmTmp(outDir));
+    fs.mkdirSync(path.join(outDir, 'crops'));
+    const ctx = {
+      layout: 'visual-first',
+      outDir,
+      img: (rel) => rel,
+      padBy: 0,
+      minWidth: 320,
+      minHeight: 180,
+      maxHeight: 1600,
+      zoomBelow: 0,
+      crops: createCropBudget(limited ? 1 : 60, 5_000_000),
+    };
+    const result = renderCropPair(ctx, {
+      surface: 'home@800',
+      suffix: '1',
+      box: { x: 0, y: 0, w: 80, h: 40 },
+      pngA: page(800, 1000),
+      pngB: page(800, 1000),
+      what: 'a | b',
+      rectsA: [],
+      rectsB: [],
+      captions: { annotated: '', zoom: () => '' },
+    });
+    if (limited) {
+      assert.equal(result.omitted, true);
+      assert.deepEqual(fs.readdirSync(path.join(outDir, 'crops')), []);
+      assert.equal(ctx.crops.exhausted, true);
+    } else {
+      const row = result.md.at(-1);
+      assert.equal(row.slice(2, -2).split(' | ').length, 2);
+      assert.match(row, /&#124;/);
+    }
+  });
+}
