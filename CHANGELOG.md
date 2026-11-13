@@ -14,6 +14,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   zero rule counts. The `styleproof-diff --json` gate receipt keeps its counts. See Migration step 4.
 - report.md, report.html and the PR comment say gate outcomes in plain words instead of trust-state codes or the `base-capture-failed=false` flag. The codes stay in report.json, commit statuses and Action outputs.
 
+- Document the #1330 rename-in-place limit when equal-length renames and shifts have indistinguishable captured positions; pairing behaviour is unchanged.
+
 - Action comment footers name the remedy for their mode without repeating baseline details.
 
 - Two renamed sibling labels no longer read as one element removed and one added. The content-shift
