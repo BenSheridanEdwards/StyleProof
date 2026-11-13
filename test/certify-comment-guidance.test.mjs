@@ -144,7 +144,7 @@ test('runs that never fail on a diff keep the advisory footer', async () => {
 
 test('a certify evidence failure keeps its own trust guidance', async () => {
   const body = await commentBody({ changed: true, trustState: 'CERTIFICATION_FAILED' });
-  assert.match(body, /reviewer approval cannot clear this failure/);
+  assert.doesNotMatch(body, /approval cannot clear/i);
   assert.doesNotMatch(body, /certify gate/);
 });
 
@@ -196,4 +196,27 @@ test("the comment's certify gate is the Fail on diff condition", () => {
     .match(/STYLEPROOF_CERTIFY_GATE: \$\{\{ (.+?) \}\}/)?.[1];
   assert.equal(gateExpression, CERTIFY_GATE_EXPRESSION);
   assert.equal(failIf, `steps.diff.outputs.changed == 'true' && ${gateExpression}`);
+});
+
+test('trust footers name the action for each mode without repeating baseline details', async () => {
+  for (const mode of ['certify', 'advisory', 'review-gate', 'migration']) {
+    for (const trustState of [
+      'CERTIFICATION_FAILED',
+      'DATA_RESIDUE_UNACKNOWLEDGED',
+      'INVENTORY_REMOVAL_UNACKNOWLEDGED',
+      'PARTIAL_BASELINE',
+      'DEGRADED_BASELINE',
+    ]) {
+      const body = await commentBody({ mode, changed: true, trustState });
+      if (mode === 'certify' || mode === 'advisory') {
+        assert.doesNotMatch(body, /approval cannot clear/i);
+      } else {
+        assert.match(body, /approval cannot clear/i);
+      }
+      if (trustState === 'PARTIAL_BASELINE') {
+        assert.match(body, /missing baseline surfaces named above/);
+        assert.doesNotMatch(body, /listed base SHA/);
+      }
+    }
+  }
 });

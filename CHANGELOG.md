@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Action comment footers name the remedy for their mode without repeating baseline details.
+
 - Two renamed sibling labels no longer read as one element removed and one added. The content-shift
   pairing matched an old and a new label of the same text length as one shifted element. With own
   text captured (`captureText`), such a pairing is now dropped when it reads as a rename in place:

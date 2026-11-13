@@ -179,15 +179,35 @@ test('diff CLI: partial baseline with base-capture-failed=false names surface+SH
   }
 });
 
-test('published Action-copy proof stays in lockstep with the formatters', () => {
+test('published Action-copy proof stays in lockstep with Action footers and status formatters', () => {
   const fixture = JSON.parse(
     fs.readFileSync(path.join(here, '../docs/proof/honest-baseline-attribution/baseline-failures.json'), 'utf8'),
   );
   const proof = fs.readFileSync(path.join(here, '../docs/proof/action-baseline-copy/action-copy.md'), 'utf8');
-  const comment = formatPartialBaselineComment(fixture.baselineFailures);
+  const action = fs.readFileSync(ACTION_YML, 'utf8');
+  const partial = action.match(/PARTIAL_BASELINE: \(useReviewGate\s*\? '([^']*)'\s*: '([^']*)'\)/);
+  assert.ok(partial);
+  const example = (label) => {
+    const start = proof.indexOf(`### ${label}\n`);
+    assert.ok(start >= 0, `published example: ${label}`);
+    return proof.slice(start).match(/```\n([^]*?)\n```/)[1];
+  };
+  assert.equal(example('PARTIAL review-gate comment'), partial[1]);
+  assert.equal(example('PARTIAL certify / advisory comment'), partial[2]);
+  assert.match(action, /formatDegradedBaselineComment\(baseCaptureFailed\)\.replace/);
+  for (const flag of [false, true]) {
+    const comment = formatDegradedBaselineComment(flag);
+    assert.equal(example(`DEGRADED ${flag} review-gate comment`), comment);
+    assert.equal(
+      example(`DEGRADED ${flag} certify / advisory comment`),
+      comment.replace(
+        / Reviewer approval cannot clear this failure\.|; reviewer approval cannot clear this failure/g,
+        '',
+      ),
+    );
+  }
   const status = formatPartialBaselineStatusDescription(fixture.baselineFailures);
   const failEcho = formatPartialBaselineFailEcho(fixture.baselineFailures);
-  assert.match(proof, new RegExp(escapeRegExp(comment)));
   assert.match(proof, new RegExp(escapeRegExp(status)));
   assert.match(proof, new RegExp(escapeRegExp(failEcho)));
   assert.match(proof, new RegExp(escapeRegExp(formatDegradedBaselineComment(false))));
@@ -214,7 +234,6 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
   assert.ok(status.length <= 140, `commit-status description must fit GitHub's 140-char limit: ${status}`);
 
   const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
-  assert.match(actionYml, /formatPartialBaselineComment/);
   assert.match(actionYml, /formatPartialBaselineStatusDescription/);
   assert.match(actionYml, /formatPartialBaselineFailEcho/);
   assert.match(actionYml, /parseBaselineFailureReceipts/);
@@ -224,7 +243,22 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
   assert.ok(commentStep, 'PR comment step present');
   assert.ok(statusStep, 'commit-status step present');
   assert.ok(partialGate, 'partial-baseline fail step present');
-  assert.match(commentStep[0], /formatPartialBaselineComment\(baselineFailures\)/);
+  assert.doesNotMatch(commentStep[0], /formatPartialBaselineComment\(baselineFailures\)/);
+  const partialFooter = commentStep[0].match(/PARTIAL_BASELINE: \(useReviewGate\s*\? '([^']*)'\s*: '([^']*)'\)/);
+  assert.ok(partialFooter, 'partial-baseline footer switches on review-gate policy');
+  assert.equal(
+    partialFooter[1],
+    '_Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun._',
+  );
+  assert.equal(partialFooter[2], '_The check fails until the missing baseline surfaces named above are captured._');
+  for (const footer of partialFooter.slice(1)) {
+    assert.doesNotMatch(footer, /\b[0-9a-f]{40}\b|\bSHA\b/i);
+    assert.doesNotMatch(footer, FALSE_RECAPTURE_CLAIM);
+  }
+  assert.match(
+    commentStep[0],
+    /const useReviewGate = !advisoryMode && \(requireApproval \|\| mode === 'review-gate' \|\| migrationMode\)/,
+  );
   assert.match(statusStep[0], /formatPartialBaselineStatusDescription\(baselineFailures\)/);
   assert.match(partialGate[0], /formatPartialBaselineFailEcho/);
   assert.match(partialGate[0], /report\.baselineFailures/);
@@ -270,16 +304,21 @@ test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the f
 
 test('Action PARTIAL_BASELINE and CERTIFICATION_FAILED copy do not claim recapture', () => {
   const actionYml = fs.readFileSync(ACTION_YML, 'utf8');
-  assert.match(actionYml, /formatPartialBaselineComment/);
   assert.match(actionYml, /formatDegradedBaselineComment/);
 
   // Read complete literals, including escaped quotes, and check the displayed copy.
   const certificationCopy = [...actionYml.matchAll(/CERTIFICATION_FAILED: ('(?:[^'\\]|\\.)*')/g)].map((match) =>
     runInNewContext(match[1]),
   );
-  assert.equal(certificationCopy.length, 2);
-  assert.match(certificationCopy[0], /Change Reach \(`changeReach: 'gate'`\)/);
-  assert.match(certificationCopy[0], /reviewer approval cannot clear this failure/i);
+  assert.equal(certificationCopy.length, 1);
+  assert.equal(certificationCopy[0], 'Evidence incomplete on named surface+SHA — not a base recapture failure');
+  const sharedCopy = actionYml.match(/CERTIFICATION_FAILED: cannotClear\(('(?:[^'\\]|\\.)*')\)/);
+  assert.ok(sharedCopy, 'comment certification copy uses cannotClear');
+  const commentCopy = runInNewContext(sharedCopy[1]);
+  assert.match(commentCopy, /Change Reach \(`changeReach: 'gate'`\)/);
+  assert.doesNotMatch(commentCopy, /approval cannot clear/i);
+  assert.match(actionYml, /useReviewGate \? '; reviewer approval cannot clear this failure' : ''/);
+  certificationCopy.push(commentCopy);
   for (const copy of certificationCopy) {
     assert.match(copy, /not a base recapture failure/i);
     assert.doesNotMatch(copy, FALSE_RECAPTURE_CLAIM);

@@ -1058,23 +1058,30 @@ runs:
               : {};
             const baselineFailures = parseBaselineFailureReceipts(reportJson.baselineFailures);
             const baseCaptureFailed = (process.env.STYLEPROOF_BASE_CAPTURE_FAILED || '').toLowerCase() === 'true';
+            // Approval wording only where approval is the action (review-gate, migration, require-approval):
+            // a certify or advisory comment never talks about approving.
+            const cannotClear = (copy) =>
+              `_${copy}${useReviewGate ? '; reviewer approval cannot clear this failure' : ''}._`;
             const trustGuidance = {
-              DATA_RESIDUE_UNACKNOWLEDGED: '_Captured data fallbacks are unacknowledged — fix or fixture the endpoints; reviewer approval cannot clear this failure._',
-              INVENTORY_REMOVAL_UNACKNOWLEDGED: '_A navigable affordance was removed without acknowledgement — repair or acknowledge it; reviewer approval cannot clear this failure._',
-              CERTIFICATION_FAILED: '_Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report; reviewer approval cannot clear this failure._',
-              PARTIAL_BASELINE: formatPartialBaselineComment(baselineFailures),
-              DEGRADED_BASELINE: formatDegradedBaselineComment(baseCaptureFailed),
+              DATA_RESIDUE_UNACKNOWLEDGED: cannotClear('Captured data fallbacks are unacknowledged — fix or fixture the endpoints'),
+              INVENTORY_REMOVAL_UNACKNOWLEDGED: cannotClear('A navigable affordance was removed without acknowledgement — repair or acknowledge it'),
+              CERTIFICATION_FAILED: cannotClear('Coverage, determinism, report/diff consistency, or Change Reach (`changeReach: \'gate\'`) evidence is incomplete — this is not a base recapture failure. Repair the named evidence in the report'),
+              PARTIAL_BASELINE: (useReviewGate
+                ? '_Reviewer approval cannot clear the missing baseline surfaces named above; repair them and rerun._'
+                : '_The check fails until the missing baseline surfaces named above are captured._'),
+              DEGRADED_BASELINE: (useReviewGate
+                ? formatDegradedBaselineComment(baseCaptureFailed)
+                : formatDegradedBaselineComment(baseCaptureFailed).replace(/ Reviewer approval cannot clear this failure\.|; reviewer approval cannot clear this failure/g, '')),
             }[trustState];
             const contentEvaluated = process.env.STYLEPROOF_INCLUDE_CONTENT === 'true';
             const contentChanges = Number('${{ steps.report.outputs.content-changes }}');
-            const migrationCleanGuidance = `_No reviewable style or structure changes detected — the **${statusContext}** check is green._`;
+            // The report summary above already says what was and was not found; the footer gives the check status once.
+            const migrationCleanGuidance = `_The **${statusContext}** check is green._`;
             const cleanGuidance = migrationMode
               ? migrationCleanGuidance
-              : contentEvaluated
-                ? contentChanges > 0
-                  ? `_No reviewable computed-style changes detected. The report contains **${contentChanges} advisory content/structure change(s)**; they do not affect the **${statusContext}** check._`
-                  : `_No reviewable computed-style or advisory content/structure changes detected — the **${statusContext}** check is green._`
-                : `_No reviewable computed-style changes detected — the **${statusContext}** check is green. Content/structure was not evaluated._`;
+              : contentEvaluated && contentChanges > 0
+                ? `_The **${statusContext}** check is green; advisory content changes do not affect it._`
+                : `_The **${statusContext}** check is green._`;
             const advisoryGuidance = changed
               ? `_Advisory-only mode: StyleProof is advisory for this repository. Review the changed or new surfaces in the report; the **${statusContext}** check remains green._`
               : `_Advisory-only mode: no reviewable changes detected — the **${statusContext}** check remains green._`;
