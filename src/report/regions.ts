@@ -211,7 +211,7 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     if (layers[0] && layers[1]) {
       const packed = regionCrop(a, sf, layers, state);
       packed.md.forEach((appended) => md.push(appended));
-      if (packed.images.composite) stateImages[state] = packed.images;
+      if (packed.images.composite ?? packed.images.before) stateImages[state] = packed.images;
     } else {
       md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
     }
@@ -252,6 +252,10 @@ function regionVisibility(cg: ChangeGroup, regionFindings: Finding[]) {
   return { rest, shownRest, hasDom, stateOnly };
 }
 
+function regionImages(stateOnly: boolean, resting: CropImages, states: Record<string, CropImages>): CropImages {
+  return stateOnly && !(resting.composite ?? resting.before) ? (Object.values(states)[0] ?? {}) : resting;
+}
+
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
@@ -272,7 +276,7 @@ function renderRegion(a: RegionArgs) {
   if (stateOnly && rest.length) {
     flat(a.changes(rest)).forEach((appended) => md.push(appended));
   }
-  const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
+  const images = regionImages(stateOnly, resting.images, states.stateImages);
   if (!md.length) {
     md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
     const note = cropNote(region, ...pngs);

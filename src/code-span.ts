@@ -38,3 +38,15 @@ export function escapeInlineMarkdown(text: string): string {
     .replace(/[\\`*_[\]#!|~]/g, '\\$&')
     .replace(/@/g, '@\u200b');
 }
+
+/**
+ * Escape for an HTML attribute or caption in report Markdown; entities already in the text
+ * (escaped page text) stay single. Shared by the Where map line and the crop table (RV11-13).
+ */
+export function escapeHtmlAttribute(value: string): string {
+  return value
+    .replace(/&(?!(?:amp|lt|gt|quot);)/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}

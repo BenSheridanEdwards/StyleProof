@@ -35,7 +35,11 @@ export function createMapLoader(): MapLoader {
 }
 
 /** Dirs, dimensions and loaders threaded through every render helper. */
+/** @internal Not public API: not in the docs, the CLI or the Action */
+export type ReportLayout = 'legacy' | 'visual-first';
+
 export type RenderCtx = {
+  layout: ReportLayout;
   beforeDir: string;
   afterDir: string;
   outDir: string;
@@ -176,6 +180,7 @@ export function structureGateRenderCtx(beforeDir: string, afterDir: string): Ren
   return {
     beforeDir,
     afterDir,
+    layout: 'legacy',
     outDir: afterDir,
     img: (rel) => rel,
     load: createMapLoader(),

@@ -48,6 +48,7 @@ import {
   type ChangeGroup,
   type PreparedSurface,
   type RenderCtx,
+  type ReportLayout,
   type ReportConsistency,
 } from './report/shared.js';
 import {
@@ -123,6 +124,8 @@ export { MIGRATION_GALLERY_LABELS, type MigrationGallery } from './report/migrat
  */
 
 export type ReportOptions = {
+  /** @internal Not public API: not in the docs, the CLI or the Action */
+  layout?: ReportLayout;
   beforeDir: string;
   afterDir: string;
   outDir: string;
@@ -226,6 +229,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     img: (rel) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel),
     load: createMapLoader(),
     liveText,
+    layout: opts.layout === 'visual-first' ? 'visual-first' : 'legacy',
     padBy: opts.pad ?? 12,
     minWidth: opts.minWidth ?? 320,
     minHeight: opts.minHeight ?? 180,
