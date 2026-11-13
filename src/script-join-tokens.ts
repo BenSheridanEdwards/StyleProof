@@ -7,7 +7,7 @@ const MAX_REGEX_ATTEMPT = 4096;
 
 /** Regex attempts have a fixed budget even on malformed or ambiguous input. */
 function tokenMatch(text: string, start: number, matcher: RegExp): RegExpExecArray | null {
-  if (text.startsWith('/>', start) && (!literalMayStart(text, start) || /[}>]\s*$/.test(text.slice(0, start))))
+  if (text.startsWith('/>', start) && (!literalMayStart(text, start) || /(?:}|(?<!=)>)\s*$/.test(text.slice(0, start))))
     return null;
   const slash = text[start] === '/';
   matcher.lastIndex = slash ? 0 : start;

@@ -242,6 +242,8 @@ test('residual fragments aggregate by file side and reason', () => {
 
 for (const kind of ['ts', 'tsx', 'js']) {
   for (const [source, expected] of [
+    ["const f=ops.filter(o=>/>=/.test(o));el.className=a?'known':'w-1/2';", ['known', 'w-1/2']],
+    ["const f=o=> />/.test(o);el.className='w-1/2 known';", ['w-1/2', 'known']],
     ["if(/>=/.test(op)) el.className=a?'known':'w-1/2';", ['known', 'w-1/2']],
     [String.raw`const h=s.replace(/>\s*</g,'><');el.className='bg-black/50 known';`, ['bg-black/50', 'known']],
   ]) {
