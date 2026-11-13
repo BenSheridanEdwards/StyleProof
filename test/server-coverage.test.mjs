@@ -35,3 +35,8 @@ test('only recognised servers receive coverage and existing env is retained', as
     reuseExistingServer: true,
   });
 });
+
+test('absent server coverage supplies no execution evidence', async () => {
+  const { readServerCoverage } = await import('../bin/server-coverage.mjs');
+  assert.deepEqual(readServerCoverage('/nonexistent-styleproof-coverage', process.cwd()), []);
+});

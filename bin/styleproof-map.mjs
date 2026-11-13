@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { persistServerCoverage } from './server-coverage.mjs';
 // Capture this branch's computed-style map by running Playwright against the
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
 // optionally publish the bundle to the map store branch.
@@ -518,6 +519,7 @@ export default config && typeof config === 'object' ? { ...config, webServer: co
         }
       },
     );
+    persistServerCoverage(targetDir, process.cwd());
     interruptedSignal = result.interruptedSignal;
     for (const stream of ['stdout', 'stderr']) if (pending[stream]) emit(stream, pending[stream]);
     return { ...result, foreignServer, status: foreignServer ? 2 : result.status };
