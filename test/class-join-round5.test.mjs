@@ -166,8 +166,8 @@ test('depth limit outside a class context names the uncaptured remainder on both
   for (const side of ['base', 'head']) {
     const gap = result.gaps.find((g) => g.side === side && /template.*depth.*limit/.test(g.reason));
     assert.ok(gap, JSON.stringify(result.gaps));
-    assert.equal(gap.range.start.line, 1);
-    assert.equal(gap.range.end.line, 2);
+    assert.equal(gap.sampleRanges[0].start.line, 1);
+    assert.equal(gap.sampleRanges[0].end.line, 2);
   }
   assert.ok(result.units.every((u) => u.status !== 'never-rendered'));
 });
