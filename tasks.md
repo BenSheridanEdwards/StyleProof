@@ -14,7 +14,7 @@
 
 ## Waiting
 
-- #1346 and #1347 implemented locally; targeted tests red then green. Full verification failed in ci-cli pending-promise teardown and shared-dist guard; E2E verification pending. Current one-shot T3 thread (ID unavailable); PR intentionally not opened.
+- [Pull request #1350](https://github.com/BenSheridanEdwards/StyleProof/pull/1350): same-origin img `currentSrc` stored as path + query (#1346, #1347); waiting on CI and review.
 
 - [Pull request #1315](https://github.com/BenSheridanEdwards/StyleProof/pull/1315), the 10.0.0 release, held until visual-first merges and a pack-and-install smoke test plus a real capture, diff and report pass; Ben ticks enforcement himself.
 - [Pull request #1267](https://github.com/BenSheridanEdwards/StyleProof/pull/1267) and [pull request #1269](https://github.com/BenSheridanEdwards/StyleProof/pull/1269), the continuous integration enforcement pull requests, deferred until after 10.0.0.
