@@ -182,6 +182,7 @@ function siblingListShapes(map: StyleMap): Map<string, string> {
  * component on both sides. And no move may account for either occupant: an element shifted onto
  * the base path, or the base element at the head path shifted away, means the shift is the
  * explanation.
+ * When an equal-length rename comes with an insertion and a removal, or a reorder, that leaves every position's paths, shapes and styles the same, the capture cannot tell a shift from renames in place; certification reads it as in place (best-effort, #1330).
  */
 function isRenameInPlace(
   before: StyleMap,
@@ -206,6 +207,7 @@ function isRenameInPlace(
 }
 
 /** True when every sibling list from the path's parent up to the root is unchanged. */
+// Assumes every ancestor and sibling of both paths is in the captured map; a capture that omits wrapper elements can make a real shift read as a rename in place.
 function listsUnchangedToRoot(elementPath: string, isUnchangedSiblingList: (parent: string) => boolean): boolean {
   for (let parent = parentPath(elementPath) ?? ''; ; parent = parentPath(parent) ?? '') {
     if (!isUnchangedSiblingList(parent)) return false;

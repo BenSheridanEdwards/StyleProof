@@ -940,3 +940,31 @@ test('renamed labels of equal length with a styled active item certify no restyl
   after.elements[item(5)].style = ACTIVE_STYLE;
   assert.deepEqual(certifiedRestyles(before, after), []);
 });
+
+test('an equal-length rename beside an unanchored insert and removal reads as renames in place (#1330, documented limit)', () => {
+  const links = (items) =>
+    makeMap({
+      elements: Object.fromEntries(
+        items.map(([text, style], index) => [
+          `body > nav:nth-child(1) > a:nth-child(${index + 1})`,
+          { tag: 'a', cls: 'label', text, ownTextLength: text.length, style },
+        ]),
+      ),
+    });
+  const before = links([
+    ['One', DEFAULT_STYLE],
+    ['Two', DEFAULT_STYLE],
+    ['Three', DEFAULT_STYLE],
+    ['Seventh', DEFAULT_STYLE],
+    ['Final', KEPT_STYLE],
+  ]);
+  const after = links([
+    ['One', DEFAULT_STYLE],
+    ['Two', DEFAULT_STYLE],
+    ['Three', DEFAULT_STYLE],
+    ['Hi', DEFAULT_STYLE],
+    ['Changed', KEPT_STYLE],
+  ]);
+  // Every position keeps its computed style; the capture cannot tell this from the #1322 renamed-label case.
+  assert.deepEqual(certifiedRestyles(before, after), []);
+});
