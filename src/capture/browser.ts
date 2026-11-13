@@ -353,7 +353,7 @@ export function capturePage({
       cls: el.getAttribute('class') || '',
       style: snap(usedStyle, defaultFor(tag)),
     };
-    if (el instanceof HTMLImageElement) entry.style['currentSrc'] = el.currentSrc;
+    if (el.tagName.toLowerCase() === 'img' && 'currentSrc' in el) entry.style['currentSrc'] = String(el.currentSrc);
     const animationNames = usedStyle.animationName.split(',').map((name) => name.trim());
     if (animationNames.some((name) => name !== 'none')) {
       const bodies: string[] = [];
