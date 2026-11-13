@@ -10,7 +10,7 @@ import {
   remapBeforeStyleMap,
   sharedPathPrefix,
 } from '../dist/path-correspondence.js';
-import { diffStyleMaps, presentationDiffStyleMaps } from '../dist/diff.js';
+import { diffContentMaps, diffStyleMaps, presentationDiffStyleMaps } from '../dist/diff.js';
 import { makeMap } from './helpers.mjs';
 
 test('correspondenceSignature uses tag + x/y/width + ownTextLength (not height or text)', () => {
@@ -579,4 +579,364 @@ test('certification keeps the DESCENDANTS of an identity-replaced element one-si
     findings.map((f) => [f.kind, f.props.map((p) => p.prop)]),
     [['style', ['color']]],
   );
+});
+
+// Two renamed labels can leave an old and a new text of the same length on different
+// siblings. With own text captured, that coincidence must not read as an nth-child shift.
+const navItems = (labels, withText) =>
+  makeMap({
+    elements: Object.fromEntries(
+      labels.map((label, i) => [
+        `body > nav:nth-child(1) > button:nth-child(${i + 1})`,
+        {
+          tag: 'button',
+          cls: 'nav-item',
+          rect: [0, i * 40, 220, 40],
+          ownTextLength: label.length,
+          ...(withText ? { text: label } : {}),
+        },
+      ]),
+    ),
+  });
+const BASE_LABELS = ['Overview', 'Audit log', 'Members', 'Billing', 'Settings'];
+const HEAD_LABELS = ['Overview', 'Audit trail', 'People', 'Invoices', 'Preferences'];
+const item = (n) => `body > nav:nth-child(1) > button:nth-child(${n})`;
+
+test('renamed labels of equal length are not paired as an nth-child shift when own text is captured', () => {
+  const before = navItems(BASE_LABELS, true);
+  const shifted = correspondContentShiftedPaths(before, navItems(HEAD_LABELS, true));
+  assert.equal(shifted.elements[item(4)].text, 'Billing', 'the fourth item keeps its own path');
+  assert.equal(shifted.elements[item(5)].text, 'Settings', 'the fifth item is not moved onto the fourth');
+  assert.equal(Object.keys(shifted.elements).length, 5, 'no base element is dropped');
+});
+
+test('without captured own text, an equal-length pair still reads as an nth-child shift', () => {
+  const before = navItems(BASE_LABELS, false);
+  const shifted = correspondContentShiftedPaths(before, navItems(HEAD_LABELS, false));
+  assert.equal(shifted.elements[item(4)].ownTextLength, 'Settings'.length, 'length is the only evidence, as before');
+});
+
+// The mirror case: a sibling is inserted before a label, and the shifted label is also
+// renamed to text of the same length. The head no longer holds a label at the old path,
+// so only the shift explains the evidence and the label must still pair with itself.
+const toolbarSlot = (n) => `body > div:nth-child(1) > span:nth-child(${n})`;
+const toolbarEntry = (className, label) => ({
+  tag: 'span',
+  cls: className,
+  rect: [0, 0, 80, 20],
+  ownTextLength: label.length,
+  text: label,
+});
+
+test('a real nth-child shift whose label is renamed to the same length still pairs the label with itself', () => {
+  const before = makeMap({ elements: { [toolbarSlot(1)]: toolbarEntry('label', 'Save') } });
+  const after = makeMap({
+    elements: {
+      [toolbarSlot(1)]: toolbarEntry('notice', 'Help'),
+      [toolbarSlot(2)]: toolbarEntry('label', 'Send'),
+    },
+  });
+  const shifted = correspondContentShiftedPaths(before, after);
+  assert.deepEqual(Object.keys(shifted.elements), [toolbarSlot(2)], 'the label moves onto its shifted path');
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+  ]);
+});
+
+// Further down a shift chain, the head element at a moved element's old path is the previous
+// shifted sibling, which always has the same shape. That must not read as a rename in place.
+const NOTICE_STYLE = { color: 'rgb(120, 60, 0)', 'background-color': 'rgb(255, 240, 200)' };
+const LABEL_STYLE = { color: 'rgb(20, 20, 20)', 'background-color': 'rgb(255, 255, 255)' };
+const styledToolbarEntry = (className, label) => ({
+  ...toolbarEntry(className, label),
+  style: className === 'notice' ? NOTICE_STYLE : LABEL_STYLE,
+});
+const toolbar = (entries) =>
+  makeMap({
+    elements: Object.fromEntries(
+      entries.map(([className, label], index) => [toolbarSlot(index + 1), styledToolbarEntry(className, label)]),
+    ),
+  });
+
+test('a shift chain whose later labels are renamed to the same length still pairs every label with itself', () => {
+  const before = toolbar([
+    ['label', 'Save'],
+    ['label', 'Load'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Note'],
+    ['label', 'Send'],
+    ['label', 'Read'],
+  ]);
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+    { kind: 'text', path: toolbarSlot(3), cls: 'label', before: 'Load', after: 'Read' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }),
+    [],
+    'certification sees no restyle on the inserted notice',
+  );
+});
+
+test('a shift chain with duplicate labels and a later same-length rename still pairs every label with itself', () => {
+  const before = toolbar([
+    ['label', 'Copy'],
+    ['label', 'Copy'],
+    ['label', 'Load'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Note'],
+    ['label', 'Copy'],
+    ['label', 'Copy'],
+    ['label', 'Read'],
+  ]);
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(4), cls: 'label', before: 'Load', after: 'Read' },
+  ]);
+  assert.deepEqual(diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }), []);
+});
+
+// A shift chain can span labels of different text lengths, so the element shifted onto a
+// label's old path can come from another signature group or from own-text identity.
+const RESTYLED_LABEL_STYLE = { color: 'rgb(200, 0, 0)', 'background-color': 'rgb(255, 255, 255)' };
+
+test('a shift chain across text lengths still pairs a renamed label and certifies its restyle', () => {
+  const before = toolbar([
+    ['label', 'Save'],
+    ['label', 'Close'],
+  ]);
+  const after = toolbar([
+    ['notice', 'Notice'],
+    ['label', 'Save'],
+    ['label', 'Clear'],
+  ]);
+  after.elements[toolbarSlot(3)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'notice', change: 'added' },
+    { kind: 'text', path: toolbarSlot(3), cls: 'label', before: 'Close', after: 'Clear' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+      finding.path,
+      finding.props.map((property) => property.prop),
+    ]),
+    [[toolbarSlot(3), ['color']]],
+    'the restyle of the shifted label is certified',
+  );
+});
+
+test('a same-shape sibling of another text length inserted before a renamed label reads as a shift', () => {
+  const before = toolbar([['label', 'Save']]);
+  const after = toolbar([
+    ['label', 'Hi'],
+    ['label', 'Send'],
+  ]);
+  after.elements[toolbarSlot(2)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(diffContentMaps(before, after), [
+    { kind: 'structure', path: toolbarSlot(1), cls: 'label', change: 'added' },
+    { kind: 'text', path: toolbarSlot(2), cls: 'label', before: 'Save', after: 'Send' },
+  ]);
+  assert.deepEqual(
+    diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+      finding.path,
+      finding.props.map((property) => property.prop),
+    ]),
+    [[toolbarSlot(2), ['color']]],
+    'the restyle of the shifted label is certified',
+  );
+});
+
+// An inserted or removed sibling can sit in a group of its own text length, which changes size and
+// contributes no move. The labels that shift past it must still pair as a shift.
+const labelToolbar = (labels) => toolbar(labels.map((label) => ['label', label]));
+const certifiedRestyles = (before, after) =>
+  diffStyleMaps(correspondBeforeMap(before, after), after, { includeStructure: false }).map((finding) => [
+    finding.path,
+    finding.props.map((property) => property.prop),
+  ]);
+
+test('a label inserted before renamed labels of colliding lengths still certifies the restyle main certifies', () => {
+  const before = labelToolbar(['Save', 'Cut', 'Cut', 'Copy']);
+  const after = labelToolbar(['Cut', 'Send', 'Cut', 'Cut', 'Code']);
+  after.elements[toolbarSlot(5)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarSlot(5), ['color']]]);
+});
+
+test('a label removed before renamed labels of colliding lengths still certifies the restyle main certifies', () => {
+  const before = labelToolbar(['Old', 'Save', 'Cut', 'Copy']);
+  const after = labelToolbar(['Send', 'Cat', 'Code']);
+  after.elements[toolbarSlot(3)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarSlot(3), ['color']]]);
+});
+
+test('reordered siblings of different classes keep the base elements that main keeps', () => {
+  const before = toolbar([
+    ['notice', 'a'],
+    ['label', 'b'],
+    ['label', 'c'],
+    ['label', 'dd'],
+  ]);
+  const after = toolbar([
+    ['label', 'h'],
+    ['notice', 'g'],
+    ['label', 'fff'],
+    ['label', 'e'],
+  ]);
+  const shifted = correspondContentShiftedPaths(before, after);
+  assert.deepEqual(
+    Object.entries(shifted.elements).map(([elementPath, element]) => [elementPath, element.text]),
+    [
+      [toolbarSlot(1), 'a'],
+      [toolbarSlot(2), 'b'],
+      [toolbarSlot(4), 'c'],
+    ],
+  );
+});
+
+// Nested markup: an item inserted one level up leaves each label's own parent unchanged, so the
+// list to judge is the one where the two paths diverge.
+const navigationLink = (n) => `body > ul:nth-child(1) > li:nth-child(${n}) > a:nth-child(1)`;
+const navigationList = (labels) =>
+  makeMap({
+    elements: Object.fromEntries(
+      labels.flatMap((label, index) => [
+        [
+          `body > ul:nth-child(1) > li:nth-child(${index + 1})`,
+          { tag: 'li', cls: 'item', rect: [0, index * 40, 220, 40], ownTextLength: 0 },
+        ],
+        [
+          navigationLink(index + 1),
+          { tag: 'a', cls: 'link', rect: [0, index * 40, 220, 40], ownTextLength: label.length, text: label },
+        ],
+      ]),
+    ),
+  });
+
+test('an item inserted above nested links does not pair a renamed link with the inserted one', () => {
+  const textChanges = diffContentMaps(navigationList(['Billing', 'Undo']), navigationList(['Log', 'Profile', 'Add']))
+    .filter((change) => change.kind === 'text')
+    .map((change) => [change.path, change.before, change.after]);
+  assert.deepEqual(textChanges, [[navigationLink(2), 'Billing', 'Profile']]);
+});
+
+// One signature group can span several lists with the same path pattern: a rename in one list
+// must not cancel a real shift in another.
+const toolbarButton = (toolbarIndex, n) => `body > nav:nth-child(${toolbarIndex}) > button:nth-child(${n})`;
+const toolbars = (...lists) =>
+  makeMap({
+    elements: Object.fromEntries(
+      lists.flatMap((labels, toolbarIndex) =>
+        labels.map((label, index) => [
+          toolbarButton(toolbarIndex + 1, index + 1),
+          {
+            tag: 'button',
+            cls: 'tool',
+            rect: [index * 80, toolbarIndex * 40, 80, 40],
+            ownTextLength: label.length,
+            text: label,
+            style: LABEL_STYLE,
+          },
+        ]),
+      ),
+    ),
+  });
+
+test('a rename in one toolbar does not cancel a real shift and its restyle in another', () => {
+  const before = toolbars(['Cut', 'Copy'], ['Copy']);
+  const after = toolbars(['Undo', 'Paste'], ['Hi', 'Copy']);
+  after.elements[toolbarButton(2, 2)].style = RESTYLED_LABEL_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), [[toolbarButton(2, 2), ['color']]]);
+});
+
+// A group spanning two toolbars can pair across them. A removal in one toolbar must keep that move,
+// even when the toolbars' shared ancestor is unchanged, so the shifted sibling still pairs.
+const placedSpan = (elementPath, className, text, rect) => [
+  elementPath,
+  {
+    tag: 'span',
+    cls: className,
+    rect,
+    ownTextLength: text.length,
+    text,
+    style: className.includes('primary') ? RESTYLED_LABEL_STYLE : LABEL_STYLE,
+  },
+];
+
+test('a rename in one toolbar and a removal in another still certify the shifted sibling restyle', () => {
+  // A heading with the same text keeps own-text identity from pairing the shifted label.
+  const heading = placedSpan('body > header:nth-child(1) > span:nth-child(1)', 'title', 'Notice', [0, 0, 120, 20]);
+  const before = makeMap({
+    elements: Object.fromEntries([
+      heading,
+      placedSpan('body > nav:nth-child(2) > span:nth-child(1)', 'label', 'Overview', [0, 40, 80, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(1)', 'label', 'Load', [300, 80, 60, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(2)', 'label primary', 'Notice', [360, 80, 60, 20]),
+    ]),
+  });
+  const after = makeMap({
+    elements: Object.fromEntries([
+      heading,
+      placedSpan('body > nav:nth-child(2) > span:nth-child(1)', 'label', 'Copy', [0, 40, 80, 20]),
+      placedSpan('body > nav:nth-child(3) > span:nth-child(1)', 'label', 'Notice', [360, 80, 60, 20]),
+    ]),
+  });
+  assert.deepEqual(certifiedRestyles(before, after), [['body > nav:nth-child(3) > span:nth-child(1)', ['color']]]);
+});
+
+// A same-shape container inserted above the point where two paths diverge renumbers the old
+// container; the lists up to the root must be unchanged for a move to read as a rename in place.
+const DEFAULT_STYLE = { color: 'rgb(20, 20, 20)' };
+const KEPT_STYLE = { color: 'rgb(0, 100, 0)' };
+const menu = (menuIndex) => [
+  `body > ul:nth-child(${menuIndex})`,
+  { tag: 'ul', cls: 'menu', style: DEFAULT_STYLE, ownTextLength: 0 },
+];
+const menuItem = (menuIndex, itemIndex, text, style = DEFAULT_STYLE, className = 'link') => [
+  [
+    `body > ul:nth-child(${menuIndex}) > li:nth-child(${itemIndex})`,
+    { tag: 'li', cls: 'item', style: DEFAULT_STYLE, ownTextLength: 0 },
+  ],
+  [
+    `body > ul:nth-child(${menuIndex}) > li:nth-child(${itemIndex}) > a:nth-child(1)`,
+    { tag: 'a', cls: className, style, ownTextLength: text.length, text },
+  ],
+];
+const page = (...entries) =>
+  makeMap({
+    elements: Object.fromEntries([
+      ['body', { tag: 'body', cls: '', style: DEFAULT_STYLE, ownTextLength: 0 }],
+      ...entries,
+    ]),
+  });
+
+test('a menu inserted before a reworded menu certifies nothing that main does not', () => {
+  const before = page(
+    menu(1),
+    ...menuItem(1, 1, 'Share'),
+    ...menuItem(1, 2, 'Code', KEPT_STYLE),
+    ...menuItem(1, 3, 'Print'),
+  );
+  const after = page(
+    menu(1),
+    ...menuItem(1, 1, 'Edit'),
+    ...menuItem(1, 2, 'Close'),
+    ...menuItem(1, 3, 'Edit', DEFAULT_STYLE, 'link external'),
+    menu(2),
+    ...menuItem(2, 1, 'Code', KEPT_STYLE),
+    ...menuItem(2, 2, 'Merge'),
+  );
+  assert.deepEqual(certifiedRestyles(before, after), []);
+});
+
+test('renamed labels of equal length with a styled active item certify no restyle of the wrong item', () => {
+  const ACTIVE_STYLE = { color: 'rgb(0, 80, 200)' };
+  const before = navItems(BASE_LABELS, true);
+  const after = navItems(HEAD_LABELS, true);
+  before.elements[item(5)].style = ACTIVE_STYLE;
+  after.elements[item(5)].style = ACTIVE_STYLE;
+  assert.deepEqual(certifiedRestyles(before, after), []);
 });
