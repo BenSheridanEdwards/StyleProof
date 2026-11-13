@@ -9,8 +9,6 @@
 
 ## In progress
 
-- Refresh #1333 Action-copy proof test-first in this one-shot T3 task; PR https://github.com/BenSheridanEdwards/StyleProof/pull/1333.
-
 - Visual-first report (branch `feat/report-visual-first`), round 18 QA passed on c4c33265, review next. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). No pull request yet; it opens unmerged for Ben's crop check.
 - Narrower veto fix for label-rename pairing. Mini thread 0dffec52 (`thread:project:cdcc779a-c17f-4d69-996f-c3904aff19ff:0dffec52-7358-410f-b7e5-b93d80033603`). [Pull request #1322](https://github.com/BenSheridanEdwards/StyleProof/pull/1322).
 
@@ -22,6 +20,8 @@
 - Change Reach clock-control investigation, parked.
 
 ## Done
+
+- Refresh #1333 Action-copy proof test-first in this one-shot T3 task; PR https://github.com/BenSheridanEdwards/StyleProof/pull/1333. Targeted proof/attribution suite: 13 passed; no push.
 
 - Fix stale coverage assertions for [PR #1333](https://github.com/BenSheridanEdwards/StyleProof/pull/1333), one-shot T3 task in fix-1333; 23 targeted tests passed; committed fdb68a230a0e8179729aac0cdc6f8231eafa6c68; no push.
 
