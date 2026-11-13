@@ -82,6 +82,7 @@ test('visual-first crop of a page smaller than the minimum crop is the whole cap
   const sources = [1, 2, 3, 4].map((color) => {
     const png = new PNG({ width: 300, height: 160 });
     png.data.fill(color);
+    for (let i = 3; i < png.data.length; i += 4) png.data[i] = 255;
     return png;
   });
   for (const [index, dir] of [beforeDir, afterDir].entries()) {
