@@ -60,6 +60,7 @@ folder of the same name that holds the implementation.
    `report/png.ts`, `report/markdown.ts`, `report/content-layer.ts`,
    `report/migration-gallery.ts`, `report/sections.ts`, `report/geometry.ts`,
    `report/shared.ts`; `report-comment.ts` cuts the PR comment from report.md.
+   The visual-first files in this list (`change-sections.ts`, `change-line.ts`, `where-map.ts`, `section-meta.ts`, `captured.ts`, `report-comment.ts`) land with the visual-first slices, not with this docs amendment.
    Output must stay byte-identical to `docs/demo/` (`pnpm run demo:report --check`).
 
 Configuration lives in `config.ts` → `config/` (`schema.ts` is the table-driven
