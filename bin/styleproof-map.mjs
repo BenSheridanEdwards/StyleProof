@@ -455,6 +455,7 @@ if (selectedConfig) {
   }
 }
 const runCapture = async (label, extraEnv = {}) => {
+  const runDir = path.normalize(path.isAbsolute(label) ? label : path.join(baseDir, label));
   const wrapper = selectedConfig
     ? path.join(path.dirname(selectedConfig), `.styleproof-capture-${process.pid}-${randomUUID()}.config.mjs`)
     : undefined;
@@ -486,7 +487,7 @@ const runCapture = async (label, extraEnv = {}) => {
           `import imported from ${JSON.stringify(pathToFileURL(selectedConfig).href)};
 import { serverCoverageConfig } from ${JSON.stringify(new URL('./server-coverage.mjs', import.meta.url).href)};
 const config = await (imported?.default ?? imported);
-const instrument = server => serverCoverageConfig(server, ${JSON.stringify(path.join(targetDir, 'server-v8'))}, ${externalServer});
+const instrument = server => serverCoverageConfig(server, ${JSON.stringify(path.join(runDir, 'server-v8'))}, ${externalServer});
 export default config && typeof config === 'object' ? { ...config, webServer: config.webServer && (Array.isArray(config.webServer)
   ? config.webServer.map(instrument)
   : instrument(config.webServer)) } : config;
@@ -519,7 +520,7 @@ export default config && typeof config === 'object' ? { ...config, webServer: co
         }
       },
     );
-    persistServerCoverage(targetDir, process.cwd());
+    persistServerCoverage(runDir, process.cwd());
     interruptedSignal = result.interruptedSignal;
     for (const stream of ['stdout', 'stderr']) if (pending[stream]) emit(stream, pending[stream]);
     return { ...result, foreignServer, status: foreignServer ? 2 : result.status };

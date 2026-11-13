@@ -1,4 +1,4 @@
-import { loadStyleMap, saveStyleMap } from '../dist/capture.js';
+import { loadStyleMap, saveStyleMap } from '../dist/capture/map-io.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
