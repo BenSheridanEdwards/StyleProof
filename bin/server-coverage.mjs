@@ -22,7 +22,15 @@ export function serverCoverageConfig(server, directory, reuseExistingServer) {
     ...server,
     reuseExistingServer,
     ...(!reuseExistingServer && nodeWebServer(server.command)
-      ? { env: { ...server.env, NODE_V8_COVERAGE: directory } }
+      ? {
+          env: {
+            ...server.env,
+            NODE_V8_COVERAGE: directory,
+            NODE_OPTIONS:
+              `${server.env?.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ''} --import=${new URL('./server-coverage-preload.mjs', import.meta.url).href}`.trim(),
+          },
+          gracefulShutdown: server.gracefulShutdown ?? { signal: 'SIGTERM', timeout: 5000 },
+        }
       : {}),
   };
 }

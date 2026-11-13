@@ -15,7 +15,6 @@ test('Node webServer teardown supplies evidence for an unrendered server branch'
 const render = show => show ? offer : home;
 const server = http.createServer((req, res) => res.end(render(false)));
 server.listen(0, '127.0.0.1', () => { fs.writeFileSync('port', String(server.address().port)); console.log('READY'); });
-process.on('SIGTERM', () => server.close(() => process.exit(0)));
 `;
   const bundle = await transform(source, { sourcefile: 'page.mjs', sourcemap: 'external', format: 'esm' });
   fs.writeFileSync(path.join(root, 'page.mjs'), source);
@@ -29,7 +28,7 @@ process.on('SIGTERM', () => server.close(() => process.exit(0)));
   );
   fs.writeFileSync(
     path.join(root, 'playwright.config.cjs'),
-    `module.exports = { testDir: '.', outputDir: 'results', webServer: { ...${JSON.stringify(server)}, wait: { stdout: /READY/ }, gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 } } };`,
+    `module.exports = { testDir: '.', outputDir: 'results', webServer: { ...${JSON.stringify(server)}, wait: { stdout: /READY/ } } };`,
   );
   const playwright = path.resolve('node_modules/@playwright/test');
   fs.writeFileSync(

@@ -23,7 +23,13 @@ test('only recognised servers receive coverage and existing env is retained', as
   const { serverCoverageConfig } = await import('../bin/server-coverage.mjs');
   assert.deepEqual(serverCoverageConfig({ command: 'node server.mjs', env: { PORT: '3000' } }, '/coverage', false), {
     command: 'node server.mjs',
-    env: { PORT: '3000', NODE_V8_COVERAGE: '/coverage' },
+    env: {
+      PORT: '3000',
+      NODE_V8_COVERAGE: '/coverage',
+      NODE_OPTIONS:
+        `${process.env.NODE_OPTIONS ?? ''} --import=${new URL('../bin/server-coverage-preload.mjs', import.meta.url).href}`.trim(),
+    },
+    gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
     reuseExistingServer: false,
   });
   assert.deepEqual(serverCoverageConfig({ command: 'python server.py' }, '/coverage', false), {
