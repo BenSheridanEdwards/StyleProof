@@ -81,7 +81,7 @@ function parameterAngles(nodes: RoleToken[], index: number): boolean {
   const previous = nodes[index - 1]?.text;
   return (
     previous === undefined ||
-    ['=', ':', '(', '=>'].includes(previous) ||
+    (['=', ':', '(', '=>'].includes(previous) && nodes[index - 1]?.kind !== 'group') ||
     ['function', 'class', 'interface', 'type'].includes(nodes[index - 2]?.text)
   );
 }

@@ -209,7 +209,7 @@ function extractionGaps(
   index: LiteralIndex,
   vocabulary: Set<string>,
   opposite: LiteralIndex | undefined,
-  unresolved: (change: ScriptChange, range: SourceSpan) => void,
+  unresolved: (change: ScriptChange, range: SourceSpan, reason?: string) => void,
 ): ClassJoinGap[] {
   const stable = unchangedLiterals(change, index, opposite);
   return literalsInChange(change, index)
@@ -223,16 +223,8 @@ function extractionGaps(
         unresolved(change, literal.range);
         return [];
       }
-      return [
-        {
-          ...classJoinGap(
-            `${change.sourceKey}:${literal.range.start.line}:${literal.range.start.column}: ${literal.residual ?? 'explicit class expression unresolved; no served class tokens'}`,
-            change.side,
-            change.sourceKey,
-          ),
-          range: literal.range,
-        },
-      ];
+      unresolved(change, literal.range, literal.residual);
+      return [];
     });
 }
 

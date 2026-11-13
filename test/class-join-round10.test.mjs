@@ -51,6 +51,7 @@ const change = (text, sourceKey = 'app.ts', side = 'head') => ({
 });
 
 for (const source of [
+  "el.className=Math.abs(n)<lo?'a':n>=hi?'b':'c';",
   "el.className=n<lo?'a':n>=hi?'b':'c';",
   "cn(a<b?'a':'b',c>=d&&'c');",
   "s>>=1;el.className=n<lo?'a':n>=hi?'b':'c';",
@@ -75,6 +76,8 @@ test('unresolved gaps aggregate per file/side with exact counts and bounded dete
     assert.equal(gap.occurrenceCount, 60);
     assert.equal(gap.sampleRanges.length, 10);
     assert.match(gap.reason, /explicit class expression unresolved/);
+    for (const r of gap.sampleRanges)
+      assert.ok(gap.reason.includes(`${r.start.line}:${r.start.column}-${r.end.line}:${r.end.column}`));
     assert.equal(gap.paths.length, 1);
   }
   assert.deepEqual(classifyClassReach([map], [map], input.toReversed(), [{ base: map, head: map }]), result);
@@ -99,7 +102,14 @@ test('unresolved gaps aggregate per file/side with exact counts and bounded dete
   assert.deepEqual(nested.gaps, [], 'a known enclosing class value retains its existing evidence');
 });
 
-test('production array append and maximum calls never spread data into function arguments', () => {
+test('production calls only spread bounded arguments', () => {
+  const bounded = new Set([
+    'browser-preflight.ts:path.join', // Fixed executable path tuple.
+    'describe.ts:mark', // Fixed property alias lists.
+    'map-store/bundle.ts:path.join', // Filesystem path length bounds segment count.
+    'report/regions.ts:cropNote', // Base and head image pair.
+    'report/shared.ts:surfaceContext', // Base and head map pair.
+  ]);
   const base = fileURLToPath(new URL('../src', import.meta.url)),
     pending = [base],
     unsafe = [];
@@ -116,9 +126,8 @@ test('production array append and maximum calls never spread data into function 
       const visit = (node) => {
         if (
           ts.isCallExpression(node) &&
-          ts.isPropertyAccessExpression(node.expression) &&
-          ['push', 'unshift', 'concat', 'max', 'min'].includes(node.expression.name.text) &&
-          node.arguments.some(ts.isSpreadElement)
+          node.arguments.some(ts.isSpreadElement) &&
+          !bounded.has(`${path.relative(base, name)}:${node.expression.getText(tree)}`)
         )
           unsafe.push(path.relative(base, name));
         ts.forEachChild(node, visit);
@@ -216,3 +225,32 @@ test(
     t.diagnostic(JSON.stringify({ bytes: source.length, lines, unresolved: lines * 3 }));
   },
 );
+
+test('self-closing JSX does not swallow later class attributes', () => {
+  const source = '<><A value={x} /><B className="known" /></>';
+  const literals = classLiterals(source, 'app.tsx');
+  assert.ok(literals.some((l) => l.explicit && l.words.some((w) => w.token === 'known')));
+});
+
+test('residual fragments aggregate by file side and reason', () => {
+  const source = "el.className='known '+value;\n".repeat(12);
+  const result = classifyClassReach([map], [map], [change(source)], [{ base: map, head: map }]);
+  const residual = result.gaps.filter((g) => /fragment excluded/.test(g.reason));
+  assert.equal(residual.length, 1);
+  assert.equal(residual[0].occurrenceCount, 12);
+});
+
+for (const kind of ['ts', 'tsx', 'js']) {
+  for (const [source, expected] of [
+    ["const f=ops.filter(o=>/>=/.test(o));el.className=a?'known':'w-1/2';", ['known', 'w-1/2']],
+    ["const f=o=> />/.test(o);el.className='w-1/2 known';", ['w-1/2', 'known']],
+    ["if(/>=/.test(op)) el.className=a?'known':'w-1/2';", ['known', 'w-1/2']],
+    [String.raw`const h=s.replace(/>\s*</g,'><');el.className='bg-black/50 known';`, ['bg-black/50', 'known']],
+  ]) {
+    test(`greater-than regex preserves explicit classes: ${kind} ${source}`, () => {
+      const literals = classLiterals(source, `app.${kind}`);
+      for (const token of expected)
+        assert.ok(literals.some((literal) => literal.explicit && literal.words.some((word) => word.token === token)));
+    });
+  }
+}
