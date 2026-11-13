@@ -42,12 +42,8 @@ function interceptStateProtocol(
 }
 
 function isFormBaselineRead(method: string, parameters: StateProtocolParameters): boolean {
-  const expression = parameters.expression?.split('\n//# sourceURL=')[0];
   return (
-    method === 'Runtime.evaluate' &&
-    !!expression?.startsWith('(function snapSessionBaseline(') &&
-    expression.includes(', false, window[') &&
-    expression.endsWith(', true)')
+    method === 'Runtime.evaluate' && !!parameters.expression?.startsWith('/* styleproof:cdp:form-session-baseline */')
   );
 }
 
@@ -151,7 +147,9 @@ test('pages without form controls retain exactly the legacy force and read cost'
 
       if (
         method === 'Runtime.evaluate' &&
-        String('expression' in parameters ? parameters.expression : '').includes('targetMissing: true')
+        String('expression' in parameters ? parameters.expression : '').match(
+          /^\/\* styleproof:cdp:(?:count|baseline|snapshot) \*\//,
+        )
       )
         scopeReads++;
 

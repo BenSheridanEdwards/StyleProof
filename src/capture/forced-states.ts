@@ -619,7 +619,7 @@ async function sessionBaseline(
   };
   const { result, exceptionDetails } = await context.session.client.send('Runtime.evaluate', {
     expression: captureExpression(
-      `/* styleproof:cdp:session-baseline */(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}], ${formSweep})`,
+      `/* styleproof:cdp:${formSweep ? 'form-session-baseline' : 'session-baseline'} */(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}], ${formSweep})`,
     ),
     returnByValue: true,
   });
