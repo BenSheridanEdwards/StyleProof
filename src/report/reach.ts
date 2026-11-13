@@ -349,6 +349,9 @@ export function reachSectionLines(reach: ReportReach): string[] {
           '**Changed in a channel computed styles cannot hold** (`@keyframes`, `@font-face`, `@property`)',
           '',
           ...ruleTable(blind),
+          ...(blind.some((rule) => /^@font-face\b/i.test(rule.key))
+            ? ['', 'Run with `--pixels` on the affected surface to review the rendered font change.']
+            : []),
         ]
       : []),
     ...(ledger.length

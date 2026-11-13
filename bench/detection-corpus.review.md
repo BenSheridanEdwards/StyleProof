@@ -30,23 +30,20 @@ Each case declares an expectation:
 
 | Outcome   | Score | Meaning                                            |
 | --------- | ----- | -------------------------------------------------- |
-| `detect`  | 46/46 | Every seeded observable change surfaced on target. |
+| `detect`  | 48/48 | Every seeded observable change surfaced on target. |
 | `clean`   | 7/7   | Computed-identical changes produced zero findings. |
-| `blind`   | 3/3   | Documented boundaries held.                        |
+| `blind`   | 1/1   | Documented boundaries held.                        |
 | **Total** | 56/56 | Zero false positives, zero misses.                 |
 
 ## What this proves — and what it doesn't
 
 **Proven:** on a deterministic fixture, the certification diff catches
 realistic color, typography, spacing, layout, forced-state (`:hover`, `:focus`),
-pseudo-element, and `href`-identity changes — named down to the computed
+pseudo-element, referenced keyframe bodies, image current sources, and `href`-identity changes — named down to the computed
 property — and stays silent on computed-identical CSS rewrites.
 
 **Documented boundaries (`blind`, by design):**
 
-- `@keyframes` internals — keyframe bodies are not computed styles.
-- `img src` swaps — element attributes (except identity candidates like `href`)
-  are outside style evidence.
 - `aria-label` — accessibility metadata is outside style evidence.
 
 **Notes:**

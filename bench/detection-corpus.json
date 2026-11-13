@@ -454,7 +454,7 @@
     {
       "id": "blind-keyframes",
       "category": "blind",
-      "expect": "blind",
+      "expect": "detect",
       "sel": ".sp-badge",
       "css": "@keyframes pulse { from { opacity: 0; } to { opacity: 0.2; } }",
       "desc": "@keyframes internals rewritten — animation-name unchanged, bodies are not computed styles"
@@ -462,7 +462,7 @@
     {
       "id": "blind-img-src",
       "category": "blind",
-      "expect": "blind",
+      "expect": "detect",
       "sel": ".sp-img",
       "attr": [
         ".sp-img",
