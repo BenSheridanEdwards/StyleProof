@@ -642,24 +642,26 @@ bundle); spec captures derive it from the coverage ledger; bundles from before
 the ledger existed read `⚠ unknown` and are never blocked retroactively. No
 coverage percentage is ever invented for surfaces that cannot be enumerated.
 The same summary lands machine-readably in `report.json` (`confidence`).
+This confidence strip describes capture completeness, not change reach. The
+separate reach report names changed code without sufficient execution or render
+evidence; a visual PASS does not clear those residuals.
 
 ## The boundary
 
-StyleProof certifies only what it captured: a surface that was never captured
-has no base and no head map, so its change can never appear in a diff and the
-gate stays green having never looked at it. The coverage guard
-(`expected`/`exclude`), the confidence ledger, the inventory guard, the
-data-residue gate, and product-state identity exist to make every one of those
-gaps loud instead of silent — full rules in
-[docs/REFERENCE.md](docs/REFERENCE.md).
+StyleProof compares the states it captured. A conditional branch the fixture
+never drove can still produce identical base and head maps, but **Change Reach
+names the un-exercised-state gap when reach evidence is collected**. A clean
+visual diff alone does not establish that changed code was exercised.
 
-The sharpest form of the boundary: maps prove only the states the spec
-exercises. A restyle confined to a conditional render branch the fixture never
-drove — a fault overlay, an empty state — produces byte-identical honest
-captures on both sides. Every conditional branch whose styling matters needs a
-surface that exercises it; see
-[the un-exercised-state gap](docs/REFERENCE.md#the-un-exercised-state-gap-an-honest-green-gate-can-still-miss-a-real-restyle)
+The reach report separates changed CSS rules (J1), script execution (J2), and
+class-token occurrences (J3). It names unresolved evidence and residuals;
+reaching a rule or running code does not prove a visible style change. Missing
+ledgers, unreadable stylesheets, missing source maps, unsupported changed files,
+and capture omissions remain named limits, not evidence of completeness.
+Every conditional branch whose styling matters still needs a surface that
+exercises it; see [the reach contract](docs/REFERENCE.md#optional-served-rule-ledger-change-reach-opt-in)
 and [what the crawler can and cannot reach](docs/REFERENCE.md#what-the-crawler-can-and-cannot-reach--honestly).
+
 With `captureReach` and `changeReach: 'gate'`, a changed CSS rule no captured
 state matched fails certify mode and needs approval in review-gate mode.
 Captured forced `:checked`, `:disabled`, and `:placeholder-shown` reads count as reached
