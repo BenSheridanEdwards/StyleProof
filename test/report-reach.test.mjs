@@ -172,7 +172,7 @@ test('unscoped ledgers retain side-specific gaps and cannot certify legacy match
   ]) {
     const output = report(fixture(t, [base], [head]), { changeReach: 'gate' });
     assert.equal(output.json.reach.ledger, 'missing');
-    assert.deepEqual(output.json.reach.rules, []);
+    assert.equal(output.json.reach.rules, undefined);
     assert.equal(output.json.reach.blocking, sides.length);
     assert.deepEqual(
       output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').map((gap) => gap.side),
@@ -218,7 +218,8 @@ test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
   head.reach.unreadable = 2;
   const output = report(fixture(t, [side('k1')], [head]), { changeReach: 'gate' });
   assert.equal(output.json.reach.blocking, 2);
-  assert.equal(output.json.reach.counts['blind-channel'], 1);
+  assert.equal(output.json.reach.counts, undefined);
+  assert.equal(output.json.reach.rules.filter((r) => r.status === 'blind-channel').length, 1);
   assert.equal(output.json.reach.gaps.filter((gap) => gap.kind === 'ledger').length, 1);
   assert.match(output.md, /changed in a channel computed styles cannot hold/);
   assert.match(output.md, /2 unreadable stylesheet\(s\) on head/);
@@ -226,12 +227,12 @@ test('gate holds blind-channel changes and incomplete ledger evidence', (t) => {
 });
 
 test('directory reach assessment agrees with the report and does not depend on capture or rule order', async (t) => {
-  const { assessReachDirs, assessReachMaps } = await import('../dist/report/reach.js');
+  const { assessReachDirs, assessReachMaps, publishedReach } = await import('../dist/report/reach.js');
   const base = [map(rule('.zeta', 'h1'), rule('.alpha', 'h1')), withoutReach(map())];
   const head = [map(rule('.zeta', 'h2'), rule('.alpha', 'h2')), map()];
   const dirs = fixture(t, base, head);
   const output = report(dirs, { changeReach: 'gate' });
-  assert.deepEqual(assessReachDirs(dirs.beforeDir, dirs.afterDir, 'gate'), output.json.reach);
+  assert.deepEqual(publishedReach(assessReachDirs(dirs.beforeDir, dirs.afterDir, 'gate')), output.json.reach);
   const reversed = (maps) =>
     [...maps]
       .reverse()
@@ -241,12 +242,14 @@ test('directory reach assessment agrees with the report and does not depend on c
           : capture,
       );
   assert.deepEqual(
-    assessReachMaps(
-      reversed(base),
-      reversed(head),
-      'gate',
-      undefined,
-      base.map((capture, index) => ({ base: capture, head: head[index] })),
+    publishedReach(
+      assessReachMaps(
+        reversed(base),
+        reversed(head),
+        'gate',
+        undefined,
+        base.map((capture, index) => ({ base: capture, head: head[index] })),
+      ),
     ),
     output.json.reach,
   );
@@ -303,7 +306,7 @@ test('missing and pre-version-2 ledgers name the affected side and the recapture
   assert.match(output.md, /\*\*Reach incomplete\*\* — base: missing base ledger on 2 capture\(s\)/);
   assert.match(output.md, /Reach evidence gaps/);
   assert.equal(output.json.reach.ledger, 'missing');
-  assert.deepEqual(output.json.reach.rules, []);
+  assert.equal(output.json.reach.rules, undefined);
   assert.equal(output.json.reach.complete, false);
   assert.deepEqual(output.json.reach.gaps[0], {
     join: 'J1',
@@ -316,7 +319,7 @@ test('missing and pre-version-2 ledgers name the affected side and the recapture
 });
 
 test('missing captures produce an explicit reach gap and an empty head still refuses a report', async (t) => {
-  const { assessReach } = await import('../dist/report/reach.js');
+  const { assessReach, publishedReach } = await import('../dist/report/reach.js');
   const { createMapLoader } = await import('../dist/report/shared.js');
   for (const side of ['base', 'head']) {
     const dirs = fixture(t, side === 'base' ? [] : [map()], side === 'head' ? [] : [map()]);
@@ -341,7 +344,7 @@ test('missing captures produce an explicit reach gap and an empty head still ref
           '- base: no base captures; changed rules cannot be listed — capture both sides with `captureReach`',
         ),
       );
-      assert.deepEqual(output.json.reach, reach);
+      assert.deepEqual(output.json.reach, publishedReach(reach));
     }
   }
 });
@@ -658,4 +661,93 @@ test('script-only captures name unavailable map SHAs rather than inventing a sou
   assert.equal(reach?.complete, false);
   assert.match(reach?.gaps.find((gap) => gap.join === 'J2')?.reason ?? '', /base map SHA unavailable/);
   assert.equal(assessReachMaps([withoutReach(map())], [withoutReach(map())], 'warn'), undefined);
+});
+
+test('served-CSS record on one side only → report.json reach has no counts, keeps ledger, complete:false, named gap', (t) => {
+  for (const side of ['base', 'head'])
+    for (const changeReach of ['warn', 'gate']) {
+      const capture = map(rule('.fault', 'h1'));
+      const output = report(
+        fixture(
+          t,
+          [side === 'base' ? withoutReach(capture) : capture],
+          [side === 'head' ? withoutReach(capture) : capture],
+        ),
+        { changeReach },
+      );
+      assert.equal(Object.hasOwn(output.json.reach, 'counts'), false);
+      assert.equal(Object.hasOwn(output.json.reach, 'rules'), false);
+      assert.equal(Object.hasOwn(output.result.reach, 'counts'), false);
+      assert.equal(output.json.reach.ledger, 'missing');
+      assert.equal(output.json.reach.complete, false);
+      assert.deepEqual(
+        output.json.reach.gaps.filter((g) => g.kind === 'ledger'),
+        [
+          {
+            join: 'J1',
+            status: 'unknown',
+            side,
+            kind: 'ledger',
+            reason: `missing ${side} ledger on 1 capture(s); changed rules cannot be listed`,
+            remedy: 'recapture with `captureReach`',
+          },
+        ],
+      );
+      if (changeReach === 'gate') assert.equal(output.json.reach.blocking, 1);
+      assert.doesNotMatch(JSON.stringify(output.json.reach), /"counts"/);
+    }
+});
+
+test('unreadable stylesheet publishes listed rules without counts', (t) => {
+  const head = map(rule('.fault', 'h2'));
+  head.reach.unreadable = 2;
+  const { json } = report(fixture(t, [map(rule('.fault', 'h1'))], [head]));
+  assert.equal(json.reach.counts, undefined);
+  assert.ok(json.reach.rules.length > 0);
+  assert.equal(json.reach.ledger, 'partial');
+  assert.equal(json.reach.unreadableSheets, 2);
+});
+
+test('complete records retain zero-filled counts and empty rules', (t) => {
+  const { json } = report(fixture(t));
+  assert.deepEqual(json.reach.counts, { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
+  assert.deepEqual(json.reach.rules, []);
+});
+
+test('diff receipt retains counts on a missing record', (t) => {
+  const dirs = fixture(t, [withoutReach(map())], [map(rule('.fault', 'h1'))]);
+  for (const [dir, sha] of [
+    [dirs.beforeDir, 'base-sha'],
+    [dirs.afterDir, 'head-sha'],
+  ])
+    stampCertifyingFixture(dir, fixtureCommitSha(sha));
+  fs.writeFileSync(path.join(dirs.root, 'styleproof.config.json'), JSON.stringify({ changeReach: 'gate' }));
+  const jsonPath = path.join(dirs.root, 'diff.json');
+  const run = spawnSync(
+    process.execPath,
+    [
+      path.resolve('bin/styleproof-diff.mjs'),
+      dirs.beforeDir,
+      dirs.afterDir,
+      '--expected-before-sha',
+      fixtureCommitSha('base-sha'),
+      '--expected-after-sha',
+      fixtureCommitSha('head-sha'),
+      '--json',
+      jsonPath,
+    ],
+    { cwd: dirs.root, encoding: 'utf8' },
+  );
+  assert.equal(run.status, 1, run.stdout + run.stderr);
+  const receipt = JSON.parse(fs.readFileSync(jsonPath, 'utf8'));
+  assert.deepEqual(receipt.reach.counts, { reached: 0, 'never-rendered': 0, unmeasured: 0, 'blind-channel': 0 });
+  assert.equal(receipt.reach.ledger, 'missing');
+  assert.equal(receipt.reach.blocking, 1);
+});
+
+test('missing record summary avoids zero rule counts', (t) => {
+  const { md } = report(fixture(t, [withoutReach(map())], [map()]));
+  const line = md.split('\n').find((line) => line.includes('Changed but never matched:'));
+  assert.match(line, /not every changed rule could be listed, 1 evidence gap\(s\)/);
+  assert.doesNotMatch(line, /0 rule\(s\)/);
 });
