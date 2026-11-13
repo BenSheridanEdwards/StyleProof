@@ -60,7 +60,7 @@ test('long code-like image alt text still participates in the HTML image budget'
   assert.match(renderReportHtml(markdown, { outDir }), /1 image omitted/);
 });
 
-test('script reach input currently emits CSS reach gaps, not a script reach table', () => {
+test('script reach input without source keys reports an evidence gap', () => {
   const capture = {
     ...makeMap(),
     scriptReach: {
@@ -78,8 +78,11 @@ test('script reach input currently emits CSS reach gaps, not a script reach tabl
   };
   const reach = assessReachMaps([capture], [capture], 'warn');
   const markdown = reachSectionLines(reach).join('\n');
-  assert.match(reach.gaps.find((gap) => gap.join === 'J2').reason, /script execution is not joined/);
-  assert.doesNotMatch(markdown, /Script change reach/);
+  assert.match(
+    reach.gaps.find((gap) => gap.join === 'J2').reason,
+    /base script evidence: project-relative sourceKey absent/,
+  );
+  assert.match(markdown, /Script change reach \(J2\)/);
   const html = renderReportHtml(markdown);
   assert.match(html, /<table class="table-scroll" role="table" aria-label="Rule, Change, Gated by, Source, Why">/);
 });

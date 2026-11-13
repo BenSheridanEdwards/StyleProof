@@ -48,7 +48,7 @@ test('wide report tables scroll by keyboard inside a 390px page', async ({ page 
   // Assert the original bug first, rather than failing only on missing new markup.
   expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   const tables = page.getByRole('table');
-  await expect(tables).toHaveCount(4);
+  await expect(tables).toHaveCount(5);
   for (const table of await tables.all()) {
     expect(await table.evaluate((element) => element.getBoundingClientRect().right)).toBeLessThanOrEqual(374);
   }
@@ -69,7 +69,7 @@ for (const width of [768, 1440]) {
   test(`fitting tables keep their native layout at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.setContent(renderReportHtml(reachSectionLines(reach).join('\n')));
-    const table = page.getByRole('table');
+    const table = page.getByRole('table', { name: 'Rule, Change, Gated by, Source, Why', exact: true });
     const bounds = await table.boundingBox();
     expect(await table.evaluate((element) => element.scrollWidth - element.clientWidth)).toBe(0);
     expect(await mainTableBounds(table)).toEqual(bounds);
