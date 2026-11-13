@@ -164,7 +164,7 @@ async function forcePseudoState(
 async function settleForcedState(client: CDPSession, selector: string): Promise<boolean> {
   const { result } = await client.send('Runtime.evaluate', {
     expression: captureExpression(
-      `(() => { const element = document.querySelector(${codeLiteral(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
+      `/* styleproof:cdp:settle */(() => { const element = document.querySelector(${codeLiteral(selector)}); if (!element) return false; getComputedStyle(element).display; return true; })()`,
     ),
     returnByValue: true,
   });
@@ -192,7 +192,9 @@ async function snapStateScopeInSession(
         return { ...${snapshot}, settled };
       })()`;
   const { result, exceptionDetails } = await client.send('Runtime.evaluate', {
-    expression: captureExpression(expression),
+    expression: captureExpression(
+      `/* styleproof:cdp:${args.countOnly ? 'count' : args.saveBaseline ? 'baseline' : 'snapshot'} */${expression}`,
+    ),
     returnByValue: true,
   });
   if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
@@ -617,7 +619,7 @@ async function sessionBaseline(
   };
   const { result, exceptionDetails } = await context.session.client.send('Runtime.evaluate', {
     expression: captureExpression(
-      `(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}], ${formSweep})`,
+      `/* styleproof:cdp:session-baseline */(${snapSessionBaseline.toString()})(${codeLiteral(args)}, ${context.limits.maxForcedStateElements}, ${check}, window[${codeLiteral(context.snapshotKey)}], ${formSweep})`,
     ),
     returnByValue: true,
   });
@@ -680,7 +682,9 @@ export async function captureForcedStates(
     skipSel,
     async (session) => {
       const { exceptionDetails } = await session.client.send('Runtime.evaluate', {
-        expression: captureExpression(`window[${codeLiteral(snapshotKey)}] = ${snapSubtree.toString()}; void 0;`),
+        expression: captureExpression(
+          `/* styleproof:cdp:install */window[${codeLiteral(snapshotKey)}] = ${snapSubtree.toString()}; void 0;`,
+        ),
       });
 
       if (exceptionDetails) throw new Error(`styleproof: forced-state snapshot failed: ${exceptionDetails.text}`);
