@@ -66,7 +66,10 @@ describe('detection corpus receipt', () => {
       'receipt was not generated from this corpus — rerun npm run bench:detection',
     );
     assert.deepEqual(receipt.totals.failed, [], 'receipt records violated expectations');
-    for (const c of receipt.cases) assert.ok(c.ok, `${c.id} failed in committed receipt`);
+    for (const c of receipt.cases) {
+      assert.ok(c.ok, `${c.id} failed in committed receipt`);
+      assert.equal(c.expect, corpus.cases.find((entry) => entry.id === c.id).expect);
+    }
   });
 
   test('receipt totals are internally consistent', () => {

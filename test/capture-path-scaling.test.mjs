@@ -77,6 +77,10 @@ function repeatedTree(size) {
   return { capture, rows, body, html, element, context, descendants };
 }
 
+test('capture tolerates computed styles without animationName', () => {
+  assert.equal(repeatedTree(1).capture().paths.length, 5);
+});
+
 test('capturing repeated keyed rows resolves paths with linear attribute work', () => {
   const small = repeatedTree(40).capture();
   const large = repeatedTree(160).capture();

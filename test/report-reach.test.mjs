@@ -748,3 +748,10 @@ test('missing record summary avoids zero rule counts', (t) => {
   assert.match(line, /not every changed rule could be listed, 1 evidence gap\(s\)/);
   assert.doesNotMatch(line, /0 rule\(s\)/);
 });
+
+test('reached font-face changes recommend pixels', (t) => {
+  const side = (hash) =>
+    map(rule('@font-face', hash, { refs: ['Brand'] }), rule('.badge', 'b', { used: true, refs: ['Brand'] }));
+  const output = report(fixture(t, [side('f1')], [side('f2')]));
+  assert.match(output.md, /--pixels/);
+});

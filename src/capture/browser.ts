@@ -353,6 +353,25 @@ export function capturePage({
       cls: el.getAttribute('class') || '',
       style: snap(usedStyle, defaultFor(tag)),
     };
+    if (el.tagName.toLowerCase() === 'img' && 'currentSrc' in el) entry.style['currentSrc'] = String(el.currentSrc);
+    const animationNames = (usedStyle.animationName ?? 'none').split(',').map((name) => name.trim());
+    if (animationNames.some((name) => name !== 'none')) {
+      const bodies: string[] = [];
+      const visit = (rules: CSSRuleList): void => {
+        for (const rule of Array.from(rules)) {
+          if (rule instanceof CSSKeyframesRule && animationNames.includes(rule.name)) bodies.push(rule.cssText);
+          else if ('cssRules' in rule) visit((rule as CSSGroupingRule).cssRules);
+        }
+      };
+      for (const sheet of Array.from(document.styleSheets)) {
+        try {
+          visit(sheet.cssRules);
+        } catch {
+          // Cross-origin stylesheets do not expose their rules to the page.
+        }
+      }
+      entry.style['animation-keyframes'] = bodies.join('\n');
+    }
     if (!motionOnly) {
       const typedComputedStyle = el.computedStyleMap?.();
       if (typedComputedStyle) {

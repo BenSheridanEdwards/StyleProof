@@ -115,6 +115,7 @@ test('callback tags reject name collisions, missing tags, and unknown tags', asy
 function computedStyle(properties) {
   const names = Object.keys(properties);
   return {
+    animationName: 'none',
     ...properties,
     length: names.length,
     item: (index) => names[index],
@@ -611,6 +612,16 @@ const pageCaptureArgs = {
   captureText: false,
   pseudoReferences: PSEUDO_REFERENCES,
 };
+
+for (const tag of ['p', 'img']) {
+  test(`capture records ${tag} without HTMLImageElement in the VM`, () => {
+    const { context, document, run } = pseudoPageHarness({ tag });
+    assert.equal(runInContext('typeof HTMLImageElement', context), 'undefined');
+    if (tag === 'img') document.querySelector().currentSrc = 'https://example.com/image.png';
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(map.elements.target.style.currentSrc, tag === 'img' ? 'https://example.com/image.png' : undefined);
+  });
+}
 
 const settleEntry = (overrides = {}) => ({
   tag: 'div',

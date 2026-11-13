@@ -654,10 +654,9 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  // GAP CLOSED (#473, opt-in): a change computed styles cannot observe. The two
-  // <img> elements have identical computed styles (same box, same everything) but
-  // different pixels. Without --pixels the gate is green; with it the region is
-  // caught and attributed to the image element.
+  // The images have identical computed CSS, but capture records currentSrc.
+  // A changed source needs review without --pixels; pixel comparison also
+  // catches the changed region and attributes it to the image element.
   const PIXEL_CSS = '.card{display:block;padding:8px}.hero{display:block;width:120px;height:40px}';
   // 1×1 PNGs stretched to 120×40: solid green vs solid red.
   const GREEN =
@@ -673,7 +672,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
   // `page` is a fixture, so the helper above closes over it per test via a let.
   let page: import('@playwright/test').Page;
 
-  test('image content changed with identical computed styles → green without --pixels, exit 1 and attributed with it', async ({
+  test('image content changed at a different currentSrc → exit 1 without --pixels and attributed with it', async ({
     page: p,
   }) => {
     page = p;
@@ -682,14 +681,17 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     writeMap(head, await capWithShots(head, PIXEL_CSS, heroPage(RED)));
 
     const plain = run(DIFF_BIN, ['base', 'head', '--allow-unasserted'], root);
-    expect(plain.status, `computed styles alone cannot see the image change\n${plain.out}`).toBe(0);
+    expect(plain.status, `currentSrc exposes the image change\n${plain.out}`).toBe(1);
+    expect(plain.out).toContain('currentSrc');
+    expect(plain.out).toMatch(/img:nth-child\(\d+\)\s+\(\.hero\)/);
 
     const gated = run(DIFF_BIN, ['base', 'head', '--allow-unasserted', '--pixels', '--json', 'diff.json'], root);
     expect(gated.status, `the pixel gate blocks the image change\n${gated.out}`).toBe(1);
     expect(gated.out).toMatch(/pixel gate: [1-9]\d* changed region/);
     expect(gated.out).toMatch(/img:nth-child\(\d+\)\s+\(\.hero\)/);
     const json = JSON.parse(fs.readFileSync(path.join(root, 'diff.json'), 'utf8'));
-    expect(json.counts, 'style counts stay untouched').toEqual({ dom: 0, style: 0, state: 0 });
+    expect(json.counts).toMatchObject({ dom: 0, state: 0 });
+    expect(json.counts.style, 'currentSrc contributes a style finding').toBeGreaterThan(0);
     expect(json.pixels.blocking).toBe(true);
     expect(json.pixels.surfaces[0].layers[0].comparison.regions[0].elements[0].path).toMatch(/img/);
     fs.rmSync(root, { recursive: true, force: true });

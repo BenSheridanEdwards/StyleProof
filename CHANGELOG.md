@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Capture referenced keyframe bodies and image current sources; recommend `--pixels` for reached font-face changes.
+
 - **BREAKING:** When a side's served-CSS record is missing, old or unreadable, `reach` in report.json and
   the report API result now omits `counts`, and omits `rules` when none could be listed, instead of
   publishing zero counts that read as "no changed CSS". It keeps `ledger`, `complete: false` and the named
