@@ -483,10 +483,12 @@ const runCapture = async (label, extraEnv = {}) => {
         fs.writeFileSync(
           wrapper,
           `import imported from ${JSON.stringify(pathToFileURL(selectedConfig).href)};
+import { serverCoverageConfig } from ${JSON.stringify(new URL('./server-coverage.mjs', import.meta.url).href)};
 const config = await (imported?.default ?? imported);
+const instrument = server => serverCoverageConfig(server, ${JSON.stringify(path.join(targetDir, 'server-v8'))}, ${externalServer});
 export default config && typeof config === 'object' ? { ...config, webServer: config.webServer && (Array.isArray(config.webServer)
-  ? config.webServer.map(server => ({ ...server, reuseExistingServer: ${externalServer} }))
-  : { ...config.webServer, reuseExistingServer: ${externalServer} }) } : config;
+  ? config.webServer.map(instrument)
+  : instrument(config.webServer)) } : config;
 `,
         );
       } catch (error) {
