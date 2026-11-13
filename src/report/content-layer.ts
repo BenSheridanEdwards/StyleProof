@@ -327,7 +327,7 @@ export function renderChromeStructureSection(
   const visibleElevated = opts.elevatedVisibleStructure ?? 0;
   const verdictBlurb =
     elevated > 0 || visibleElevated > 0
-      ? `Visible element additions/removals are reviewable and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Navigable Global chrome additions (${elevated}) elevate via #766; other invisible/zero-size chrome structure stays advisory.`
+      ? `Visible element additions/removals are reviewable and gate the check; approve them with the other changes. Navigable Global chrome additions (${elevated}) need review too; other invisible/zero-size chrome structure stays advisory.`
       : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
   return [
     '',
@@ -395,7 +395,7 @@ export function renderContentSection(
   const blurb =
     elevated > 0
       ? `_${count} content/structure change(s). **Visible element additions/removals (${elevated}) are reviewable** and ` +
-        `gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, ` +
+        `gate the check; approve them with the other changes. Pure text, ` +
         `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
         `computed-style certification and do not affect the check._`;

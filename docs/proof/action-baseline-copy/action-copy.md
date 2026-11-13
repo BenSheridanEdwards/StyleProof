@@ -35,7 +35,7 @@ Does **not** say the base capture failed:
 ### DEGRADED false review-gate comment
 
 ```
-_This is a head-only receipt rather than a comparison — not a base recapture failure (`base-capture-failed=false`). Repair the missing baseline evidence and rerun; reviewer approval cannot clear this failure._
+_This is a head-only receipt rather than a comparison — not a base recapture failure. Repair the missing baseline evidence and rerun; reviewer approval cannot clear this failure._
 ```
 
 ## DEGRADED_BASELINE when `base-capture-failed=true`
@@ -56,7 +56,7 @@ either state.
 ### DEGRADED false certify / advisory comment
 
 ```
-_This is a head-only receipt rather than a comparison — not a base recapture failure (`base-capture-failed=false`). Repair the missing baseline evidence and rerun._
+_This is a head-only receipt rather than a comparison — not a base recapture failure. Repair the missing baseline evidence and rerun._
 ```
 
 ### DEGRADED true certify / advisory comment

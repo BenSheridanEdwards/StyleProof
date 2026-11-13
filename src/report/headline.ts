@@ -103,7 +103,9 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
 export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
   if (failures.length === 0) return [];
   const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: failures });
-  return [`⚠️ **${failures.length} baseline capture failure(s)**: ${attribution.summary}`];
+  return [
+    `⚠️ **${failures.length} baseline capture failure(s)**: ${`these named surface(s) failed on the base SHA and were omitted from the baseline bundle: ${attribution.named}. The base bundle was produced; this is not a base recapture failure. Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.`}`,
+  ];
 }
 
 /** Disclose base capture attempts that were not counted as baseline failures. */
@@ -124,7 +126,7 @@ export function baselineFailureDetailLines(failures: BaselineFailureReceipt[]): 
     '',
     ...failures.map((f) => `- \`${f.key}\` · \`${f.reason}\` · \`${f.sha}\``),
     '',
-    '_Named surface+SHA above. This is not a base recapture failure (`base-capture-failed=false`)._',
+    '_Named surface+SHA above. The base capture itself ran; this is not a failed base recapture._',
     '',
   ];
 }
@@ -174,13 +176,13 @@ const CONSISTENCY_FAILURE = {
     explanation:
       'every delta is a derived/reflow longhand the visual report strips — **no reviewable crops or change sections**.',
     remediation:
-      '_This is **not** a clean no-change and **not** a visual-approval gate. Fail closed (`CERTIFICATION_FAILED`): fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands. This is **not** a base recapture failure (`base-capture-failed=false`)._',
+      '_This is **not** a clean no-change and **not** a visual-approval gate, so StyleProof cannot certify it: fix the reflow source, or re-run with `--include-layout-noise` to inspect the raw longhands. The base capture itself ran._',
   },
   presentation_collapsed_while_raw_reviewable: {
     explanation:
       'report-only path correspondence collapsed every presentation finding — **no reviewable crops or change sections remain**.',
     remediation:
-      '_This is **not** a clean no-change and cannot be approved visually. Fail closed (`CERTIFICATION_FAILED`): inspect the raw path churn or tighten the correspondence signal before trusting this comparison. This is **not** a base recapture failure (`base-capture-failed=false`)._',
+      '_This is **not** a clean no-change and cannot be approved visually, so StyleProof cannot certify it: inspect the raw path churn or tighten the correspondence signal before trusting this comparison. The base capture itself ran._',
   },
 } as const;
 
@@ -212,7 +214,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   }
   if (input.headOnlyVolatile?.length) {
     return [
-      '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below). Fail closed (`CERTIFICATION_FAILED`); not a clean no-change.',
+      '✗ Not certified — a subtree became volatile on head and was excluded from the comparison (see below), so StyleProof cannot certify this compare; not a clean no-change.',
     ];
   }
   if (input.baseOnlyVolatile?.length) {
@@ -222,12 +224,12 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
   }
   if (input.liveTextFreezeViolated) {
     return [
-      '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared. Fail closed (`CERTIFICATION_FAILED`); not a style review.',
+      '✗ Live/age freeze violated — captured age/clock text drifted after a freeze was declared, so StyleProof cannot certify this compare; not a style review.',
     ];
   }
   if (input.reachBlocking > 0) {
     return [
-      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails (\`CERTIFICATION_FAILED\`); review-gate mode needs approval.`,
+      `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails; review-gate mode needs approval.`,
     ];
   }
   const elevated = elevatedStructureSummary(input);
@@ -242,11 +244,7 @@ function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
     n === 1
       ? '**1 visible element addition/removal needs review**'
       : `**${n} visible element additions/removals need review**`;
-  return [
-    title,
-    '',
-    '_Approve all changes clears STYLE_REVIEW_REQUIRED for these structure elevations (with other reviewable changes)._',
-  ];
+  return [title, '', '_Approve all changes signs these off with the other changes._'];
 }
 
 function cleanScopeSummary(input: HeadlineInput): string[] {
@@ -346,7 +344,7 @@ function contentNoteLines(input: HeadlineInput): string[] {
   if (chrome > 0) {
     const verdictNote =
       elevated > 0 || visibleElevated > 0
-        ? `Visible additions/removals need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`
+        ? `Visible additions/removals need review — approve them with the other changes.`
         : `DOM structure does not change this check's verdict.`;
     md.push(
       '',
@@ -356,7 +354,7 @@ function contentNoteLines(input: HeadlineInput): string[] {
   if (structureElevated > 0 && chrome === 0) {
     md.push(
       '',
-      `🧱 **${structureElevated} visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.`,
+      `🧱 **${structureElevated} visible element addition(s)/removal(s)** need review — approve them with the other changes.`,
     );
   }
   if (input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)) {

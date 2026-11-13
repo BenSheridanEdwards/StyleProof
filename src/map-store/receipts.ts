@@ -162,8 +162,8 @@ export function formatDegradedBaselineComment(baseCaptureFailed: boolean): strin
   return wrapActionComment(
     baseCaptureFailed
       ? `${honestBaselineCompareAttribution({ baseCaptureFailed: true }).summary} Reviewer approval cannot clear this failure.`
-      : 'This is a head-only receipt rather than a comparison — not a base recapture failure ' +
-          '(`base-capture-failed=false`). Repair the missing baseline evidence and rerun; ' +
+      : 'This is a head-only receipt rather than a comparison — not a base recapture failure. ' +
+          'Repair the missing baseline evidence and rerun; ' +
           'reviewer approval cannot clear this failure.',
   );
 }
