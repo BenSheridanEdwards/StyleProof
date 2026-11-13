@@ -455,7 +455,7 @@ test('a receipt marker in map-supplied code-span values does not break the read-
   } finally {
     rmTmp(dirs.root);
   }
-  for (const value of ['`:hover x <!', '`#000000` → `x <!', '`url(a.png) x <!', '`4px x <!', '`1fr x <!', '`none x <!'])
+  for (const value of ['`:hover x <!', '`#000000` | `x <!', '`url(a.png) x <!', '`4px x <!', '`1fr x <!', '`none x <!'])
     assert.ok(markdown.includes(value), `${value} reaches report.md as a code span`);
   const published = `${markdown}\n<!-- ${RECEIPT} -->\n`;
   await verifyPublishedReceipt(publishOptions(serveByName({ 'report.md': published, 'report.json': reportJson })));

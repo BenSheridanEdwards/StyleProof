@@ -305,8 +305,13 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     );
     assert.equal(blocked.status, 1, blocked.stderr || blocked.stdout);
     const blockedMd = fs.readFileSync(path.join(undeclaredOut, 'report.md'), 'utf8');
-    assert.match(blockedMd, /⛔ .*\(pair with no product-state declared\)/);
-    assert.match(blockedMd, /not a certified same-state compare|cannot certify|cannot be approved/);
+    assert.match(
+      blockedMd,
+      /⛔ \*\*This compare cannot certify:\*\* 1 paired capture\(s\) are not proven to show the same product state/,
+    );
+    assert.doesNotMatch(blockedMd, /Product-state identity unproven/);
+    const blockedJson = JSON.parse(fs.readFileSync(path.join(undeclaredOut, 'report.json'), 'utf8'));
+    assert.deepEqual(blockedJson.legacyPairs.undeclared, ['home@1280']);
 
     fs.writeFileSync(
       path.join(declared.root, 'declared.json'),
@@ -332,8 +337,8 @@ test('report CLI fails closed on undeclared pairs and stays advisory when declar
     );
     assert.equal(advisory.status, 0, advisory.stderr || advisory.stdout);
     const declaredMd = fs.readFileSync(path.join(declaredOut, 'report.md'), 'utf8');
-    assert.match(declaredMd, /acknowledged pair with no product-state declared/);
-    assert.match(declaredMd, /not a certified same-state compare|visual-only|advisory, not certification/);
+    // Acknowledged, not blocking: the status is report.json data, not a report warning.
+    assert.doesNotMatch(declaredMd, /cannot certify|Product-state identity unproven/);
     const declaredJson = JSON.parse(fs.readFileSync(path.join(declaredOut, 'report.json'), 'utf8'));
     assert.deepEqual(declaredJson.legacyPairs.declared, ['home@1280']);
   } finally {

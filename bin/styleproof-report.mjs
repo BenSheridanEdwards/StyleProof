@@ -21,7 +21,10 @@ const cli = defineCli({
     pad: { value: 'px', help: 'padding around changed rects when cropping (default: 12)' },
     'report-max-bytes': { value: 'bytes', help: 'combined HTML, Markdown and JSON byte ceiling (default: 2000000)' },
     'html-max-bytes': { value: 'bytes', help: 'self-contained HTML byte ceiling (default: 2000000)' },
-    'max-crops': { value: 'n', help: 'max crop regions per surface before collapsing (default: 8)' },
+    'max-crops': {
+      value: 'n',
+      help: 'change sections per changed surface that get crops; later ones are listed without (default: 8)',
+    },
     'max-crop-files': { value: 'n', help: 'whole-report crop file ceiling (default: 60)' },
     'max-crop-bytes': { value: 'bytes', help: 'whole-report crop byte ceiling (default: 900000)' },
     'fold-details-at': {
@@ -119,17 +122,22 @@ fs.writeFileSync(
   result.reportJsonPath,
   `${JSON.stringify({ ...reportJson, ...(migration ? { migration: true } : {}), sourceBinding, evidenceBinding }, null, 2)}\n`,
 );
-// An unverified source binding is a diagnostic, never a certification.
+// An unverified source binding is a diagnostic, never a certification. A clean verdict is
+// relabeled so it can never read as certified; any other report opens with the warning, as main
+// does, in plain words with what to do (RV18-06). report.json keeps `sourceBinding`.
 const sourceBindingFailed = sourceBinding.status !== 'bound';
+const UNBOUND_NOTE =
+  '> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified. This report did not check that its captures ' +
+  'came from the base and head commits; run it with `--expected-before-sha` and `--expected-after-sha` to check them.';
 if (sourceBindingFailed) {
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
   const relabeled = markdown.replace(
     /✓ No reviewable computed-style changes/g,
     '⚠ UNVERIFIED DIAGNOSTIC: No reviewable computed-style changes',
   );
-  const labeled =
-    relabeled === markdown ? `> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified.\n\n${markdown}` : relabeled;
-  fs.writeFileSync(result.reportMdPath, labeled);
+  fs.writeFileSync(result.reportMdPath, relabeled === markdown ? `${UNBOUND_NOTE}\n\n${markdown}` : relabeled);
+  if (relabeled === markdown)
+    console.error('⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified (see sourceBinding in report.json).');
 }
 // Bindings and diagnostic labels change sibling sizes; use their final bytes.
 

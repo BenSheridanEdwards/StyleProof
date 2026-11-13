@@ -9,7 +9,6 @@ import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import { classifyScriptReach, scriptJoinGap } from '../dist/script-join.js';
 import { assessReachMaps } from '../dist/report/reach.js';
 import { budgetScriptReach, reserveScriptNotice } from '../dist/report/script-units.js';
-import { scriptGapLines } from '../dist/report/script-gap-details.js';
 import { readScriptChanges } from '../dist/script-join-git.js';
 import { assertDeterministicScriptReach } from '../dist/runner/self-check.js';
 import { scriptProjectRootPrefix } from '../dist/capture/script-project-root.js';
@@ -128,8 +127,13 @@ test('five thousand unjudged paths cannot evict twenty style findings or overflo
   assert.ok(json.reach.gaps.some((gap) => /J2 gap paths truncated: \d+ more/.test(gap.reason)));
   const markdown = fs.readFileSync(output.reportMdPath, 'utf8');
   assert.ok(Buffer.byteLength(markdown) < 100_000, `${Buffer.byteLength(markdown)} Markdown bytes`);
-  assert.match(markdown, /J2 gap paths truncated/);
-  assert.match(markdown, /1 run-level gap\(s\)/);
+  // J2 is warn-only machine output: report.json holds it; report.md stays free of it.
+  assert.doesNotMatch(markdown, /J2|run-level gap/);
+  assert.equal(
+    json.reach.gaps.filter((gap) => gap.join === 'J2' && !gap.side).length >= 1,
+    true,
+    'the run-level gap stays in report.json',
+  );
 });
 
 test('a self-check rewrite preserves root provenance and cannot drop a healthy surface head line', (t) => {
@@ -319,9 +323,6 @@ test('thousands of separate J2 gaps reserve bounded metadata and name the first 
   const notice = reach.gaps.find((gap) => gap.reason.startsWith('J2 gaps truncated:'));
   assert.match(notice.reason, new RegExp(`first: gap ${String(listed.length).padStart(5, '0')}`));
   assert.ok(listed.length < 5000);
-  const markdown = scriptGapLines(reach.gaps.filter((gap) => gap.join === 'J2')).join('\n');
-  assert.ok(markdown.includes(notice.reason));
-  assert.ok(Buffer.byteLength(markdown) < 64_000);
 });
 
 test('long omitted gap previews cannot exceed the post-findings byte allowance', () => {

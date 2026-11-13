@@ -11,6 +11,7 @@ import { isSameOrDescendant, rectToBox, screenshotRectOf, visible } from './geom
 import { readPng } from './png.js';
 import { codeValue } from '../code-span.js';
 import { createCropBudget, type CropBudget } from './crop-budget.js';
+import type { SectionRegistry } from './section-meta.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 
 /** Loads a surface's style map from a capture dir, cached for the run. */
@@ -45,14 +46,24 @@ export type RenderCtx = {
   minWidth: number;
   minHeight: number;
   maxHeight: number;
-  zoomBelow: number;
   maxCrops: number;
+  /** Every change that got no crop, and why; the report's opening says it once (rule 5). */
+  cropGaps?: CropGap[];
+  /** One-sided pages shown only in part (the tile cap or the crop budget). */
+  partialPages?: PartialPage[];
   crops: CropBudget;
+  /** Change sections of this render (report.html data); absent for renders that draw no sections. */
+  sections?: SectionRegistry;
   foldDetailsAt: number;
   liveText: LiveTextAudit;
   includeNoise: boolean;
   requireStateIdentity: boolean;
 };
+
+/** A change with no crop: past `--max-crops`, past the crop budget, or too large after downscaling. */
+export type CropGap = { reason: 'max-crops' | 'budget' | 'size'; where: string };
+/** A one-sided page shown in part: which capture holds its full screenshot, and whether the crop budget cut it. */
+export type PartialPage = { surface: string; shown: number; captured: number; side: 'head' | 'base'; budget: boolean };
 
 /** The current surface's decoded screenshots, per render ctx: rendering visits one surface at a time. */
 const surfacePngs = new WeakMap<RenderCtx, { surface: string; files: Map<string, PNG | null> }>();
@@ -183,7 +194,6 @@ export function structureGateRenderCtx(beforeDir: string, afterDir: string): Ren
     minWidth: 0,
     minHeight: 0,
     maxHeight: 10_000,
-    zoomBelow: 0,
     maxCrops: 0,
     crops: createCropBudget(0, 0),
     foldDetailsAt: 0,

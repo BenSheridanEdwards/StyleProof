@@ -85,7 +85,9 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     writeCapture(dirs.afterDir, `new-${surface}@1280`, surfaceMap(surface, 0), afterPng);
   }
 
-  const caps = { maxArtifactBytes: 90_000, maxJsonBytes: 18_000, maxReportBytes: 8_000 };
+  // The JSON cap trims findings, never the region skeleton: one region per change section, each with
+  // its Where receipt, so the cap must sit above that skeleton (about 20 KB here) and below the full 32 KB.
+  const caps = { maxArtifactBytes: 90_000, maxJsonBytes: 22_000, maxReportBytes: 8_000 };
   const full = report(dirs, 'full', unlimited);
   assert.ok(artifactBytes(full.outDir) > caps.maxArtifactBytes, 'fixture exceeds the combined artifact budget');
   assert.ok(fs.statSync(full.result.reportJsonPath).size > caps.maxJsonBytes, 'fixture exceeds the JSON budget');
@@ -162,7 +164,9 @@ test('large report artifact budget preserves counts, one-sided entries and deter
     const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
     assert.ok(json.sourceBinding);
     assert.ok(json.evidenceBinding);
-    assert.match(fs.readFileSync(path.join(outDir, 'report.html'), 'utf8'), /UNVERIFIED/);
+    // The unverified binding is stated on stderr and in report.json, never left out silently.
+    assert.notEqual(json.sourceBinding.status, 'bound');
+    assert.match(child.stderr, /UNVERIFIED DIAGNOSTIC: source binding was not verified/);
   });
 });
 
@@ -194,15 +198,15 @@ test('large noise crops are downscaled to at most 300 KB per file', (t) => {
   const capped = report(dirs, 'capped');
   const cropsDir = path.join(capped.outDir, 'crops');
   const files = fs.readdirSync(cropsDir);
-  const composites = files.filter((file) => file.endsWith('-composite.png'));
-  assert.ok(composites.length > 0, 'downscaling must retain a composite');
+  const afters = files.filter((file) => file.endsWith('-after.png'));
+  assert.ok(afters.length > 0, 'downscaling must retain the after crop');
 
   for (const file of files) {
     assert.ok(fs.statSync(path.join(cropsDir, file)).size <= 300_000, `${file} exceeds 300 KB`);
   }
 
-  const composite = PNG.sync.read(fs.readFileSync(path.join(cropsDir, composites[0])));
-  assert.ok(composite.width < 2 * 1280, 'composite must have been downscaled');
+  const after = PNG.sync.read(fs.readFileSync(path.join(cropsDir, afters[0])));
+  assert.ok(after.width < 320, 'the after crop must have been downscaled');
   assert.match(capped.md, /crop\(s\) downscaled.*smaller than 1:1/);
 
   if (capped.json.cropBudget) assert.ok(capped.json.cropBudget.omitted > 0);

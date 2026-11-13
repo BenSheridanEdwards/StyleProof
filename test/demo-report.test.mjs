@@ -41,7 +41,7 @@ test('demo freshness rejects a CSS-only change to the committed HTML', (t) => {
   const root = demoFixture(t);
   const htmlPath = path.join(root, 'docs/demo/report.html');
   const html = fs.readFileSync(htmlPath, 'utf8');
-  const changed = html.replace('color: #1f2328; background: #fff;', 'color: magenta; background: black;');
+  const changed = html.replace('--bg: #f6f7f9; --panel: #fff;', '--bg: magenta; --panel: black;');
   assert.notEqual(changed, html, 'the fixture must change the rendered report CSS');
   fs.writeFileSync(htmlPath, changed);
   const result = checkDemo(root);

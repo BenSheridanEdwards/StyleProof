@@ -47,7 +47,7 @@ const writeMinimalManifest = (dir, surfaceCaptureFailures = []) => {
 };
 
 function extractMdCounts(md) {
-  const baselineFailureMatch = md.match(/(\d+)\s*baseline capture failure/i);
+  const baselineFailureMatch = md.match(/(\d+) surfaces? failed to capture on the base/);
   const changedMatch = md.match(/(\d+)\s*changed/i) || md.match(/changes.*?(\d+)/i);
   const newSurfaceMatch = md.match(/(\d+)\s*new surface/i) || md.match(/new.*?(\d+)/i);
   const identicalMatch = md.match(/identical/i);
@@ -248,8 +248,8 @@ test('report parity: changed surfaces produce consistent counts', async () => {
 
     assert.equal(json.comparison.reviewableCounts.style, 2);
     assert.equal(json.comparison.reviewableChangedSurfaces, 2);
-    assert.match(md, /\*\*2 changes need review\*\*/);
-    assert.match(md, /2 computed-style difference\(s\).*2 changed surface bases/);
+    // The visual-first headline: the count, then the changed pages and widths it covers.
+    assert.match(md, /^\*\*2 changes to review\*\* on `about` and `home` at 1280px wide: 2 elements\.$/m);
   } finally {
     rmTmp(tmp);
   }
@@ -287,7 +287,7 @@ test('report parity: new surfaces (head-only) are classified correctly', async (
     const newSurface = json.surfaces?.find((s) => s.surface === 'brand-new@1280');
     assert.ok(newSurface, 'JSON should list the new surface');
     assert.equal(json.comparison.newSurfaces, 1);
-    assert.match(md, /\*\*1 new surface\(s\)\*\*/);
+    assert.match(md, /^🆕 \*\*1 new surface\*\* with no baseline to compare: `brand-new @ 1280`\./m);
     assert.match(md, /### `brand-new@1280` · new surface/);
   } finally {
     rmTmp(tmp);

@@ -1,25 +1,22 @@
-import type { PNG } from 'pngjs';
-import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
-import type { DiffCounts, Finding } from '../diff.js';
+import type { DiffCounts } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
-import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
-import { annotationPaths } from './annotation-paths.js';
-import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
-  intersects,
-  outermost,
-  paddedRect,
-  screenshotRectOf,
-  union,
-  unionVisibleBoxes,
-  visible,
-  isSameOrDescendant,
-  type Box,
-} from './geometry.js';
-import { cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
+  groupBySignature as groupByWidth,
+  safeKey,
+  summarizeProps,
+  surfaceBase,
+  surfaceWidth,
+} from '../change-groups.js';
 import { codeValue } from '../code-span.js';
-import { cropChangeParts, oneSidedDomPaths, regionHeading, type CropChanges } from './markdown.js';
+import { andList } from './change-line.js';
+import type { StyleMap } from '../capture.js';
+import { buildChangeSections, renderChangeSection, SURFACE_SUBJECT, type ChangeSection } from './change-sections.js';
+
+import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
+import { isSameOrDescendant } from './geometry.js';
+import { MISLEADING_CROP_REASON } from './crop-pair.js';
+import { oneSidedDomPaths, regionHeading, renderCropChanges } from './markdown.js';
 import {
   formatSurfaceListWithContext,
   formatSurfaceWithContext,
@@ -27,54 +24,20 @@ import {
   hasExposedChangedEntry,
   presentationMaps,
   screenshotPair,
-  shortElementName,
   type ChangeGroup,
   type PreparedSurface,
   type RenderCtx,
 } from './shared.js';
 
-/** Crop regions for one change group, rendered top-to-bottom with their crops. */
-
-type Group = { paths: string[]; before: Box | null; after: Box | null };
-
-function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number): Group {
-  return {
-    paths: [pathKey],
-    before: paddedRect(a.elements[pathKey], padBy),
-    after: paddedRect(b.elements[pathKey], padBy),
-  };
-}
-
-const boxesOverlap = (l: Box | null, r: Box | null): boolean => visible(l) && visible(r) && intersects(l, r);
-
-function mergeInto(left: Group, right: Group): void {
-  right.paths.forEach((appended) => left.paths.push(appended));
-  left.before = unionVisibleBoxes(left.before, right.before);
-  left.after = unionVisibleBoxes(left.after, right.after);
-}
-
-const groupsOverlap = (l: Group, r: Group): boolean =>
-  boxesOverlap(l.after, r.after) || boxesOverlap(l.before, r.before);
-
-/** Merge the first overlapping pair and restart until no pair overlaps on either side. */
-function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number): Group[] {
-  const groups = paths.map((p) => groupForPath(p, a, b, padBy));
-  for (let l = 0; l < groups.length; l++) {
-    const r = groups.findIndex((g, i) => i > l && groupsOverlap(groups[l], g));
-    if (r === -1) continue;
-    mergeInto(groups[l], groups[r]);
-    groups.splice(r, 1);
-    l = -1;
+/** A change group's sections, built once for the summary line and the rendering. */
+const builtSections = new WeakMap<ChangeGroup, ChangeSection[]>();
+function groupSections(cg: ChangeGroup, maps: [StyleMap, StyleMap]): ChangeSection[] {
+  let sections = builtSections.get(cg);
+  if (!sections) {
+    sections = buildChangeSections(cg.rep.findings, maps);
+    builtSections.set(cg, sections);
   }
-  return groups;
-}
-
-/** Collapse every group into one merged frame (past maxCrops). */
-function collapseGroups(groups: Group[]): Group[] {
-  const [first, ...rest] = groups;
-  const acc: Group = { paths: [...first.paths], before: first.before, after: first.after };
-  for (const g of rest) mergeInto(acc, g);
-  return [acc];
+  return sections;
 }
 
 type RepresentativeScore = { hasExposedChange: boolean; hasActiveModal: boolean; isPopup: boolean; width: number };
@@ -134,267 +97,132 @@ export function countShownChanges(changeGroups: ChangeGroup[]): DiffCounts {
   return shown;
 }
 
-type Pngs = [PNG | null, PNG | null];
-const flat = (changes: CropChanges): string[] => [...changes.summary, ...changes.details];
-type RegionArgs = {
-  ctx: RenderCtx;
-  g: Group;
-  cg: ChangeGroup;
-  mapA: StyleMap;
-  mapB: StyleMap;
-  describeCtx: DescribeCtx;
-  surfaceList: string;
-  region: Box | null;
-  pngs: Pngs;
-  seq: { crop: number };
-  /** Sibling spacing changes whose run this region shows (#755). */
-  spacing: SiblingSpacingChange[];
-  changes: (findings: Finding[]) => CropChanges;
-};
-
-type CropPack = {
-  md: string[];
-  images: CropImages;
-  omitted?: boolean;
-  visualEvidence?: 'not-rendered';
-  reason?: string;
-};
-
-/** Crop one region's pair (or explain why there is none). */
-function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, state?: string): CropPack {
-  const { g, region, mapA, mapB, cg } = a;
-  if (!region || !pngA || !pngB || !hasExposedChangedEntry(mapA, mapB, g.paths, [pngA, pngB])) {
-    const note = cropNote(region, pngA, pngB);
-    return {
-      md: note ? ['', note] : [],
-      images: {},
-      ...(pngA && pngB && region ? { visualEvidence: 'not-rendered' as const, reason: MISLEADING_CROP_REASON } : {}),
-    };
-  }
-  a.seq.crop++;
-  // Outline the LEAF changed elements on each side, not the merged anchor container.
-  const marked = annotationPaths(findings, mapA, mapB);
-  const rectsOf = (paths: string[], map: StyleMap): Rect[] =>
-    paths.map((p) => screenshotRectOf(map.elements[p])).filter((r): r is Rect => !!r);
-  const entries = [...marked.before.map((p) => mapA.elements[p]), ...marked.after.map((p) => mapB.elements[p])];
-  const changedNames = [...new Set(entries.filter((e): e is ElementEntry => !!e).map(shortElementName))].slice(0, 3);
-  const changedLabel = changedNames.length ? ` — changed: ${changedNames.map(codeValue).join(', ')}` : '';
-  return renderCropPair(a.ctx, {
-    surface: cg.rep.sd.surface,
-    suffix: String(a.seq.crop),
-    // The SAME page rectangle on both sides, so the reviewer compares like-for-like.
-    box: visible(g.before) && visible(g.after) ? union(g.before, g.after) : region,
-    pngA,
-    pngB,
-    rectsA: rectsOf(marked.before, mapA),
-    rectsB: rectsOf(marked.after, mapB),
-    labels: state ? { left: `base :${state}`, right: `head :${state}` } : undefined,
-    captions: {
-      annotated: `magenta boxes mark each change${changedLabel}`,
-      zoom: (factor) => `magnified ${factor}× — change too small to see at 1:1${changedLabel}`,
-    },
-  })!;
-}
-
-function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUsesAll: boolean) {
-  const md: string[] = [];
-  const stateImages: Record<string, CropImages> = {};
-  for (const state of STATE_LAYER_NAMES) {
-    const sf = regionFindings.filter((f) => f.kind === 'state' && f.state === state);
-    if (!sf.length) continue;
-    const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
-    const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
-    md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
-    const changes = a.changes(sf);
-    changes.summary.forEach((appended) => md.push(appended));
-    const layers = screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`);
-    if (layers[0] && layers[1]) {
-      const packed = regionCrop(a, sf, layers, state);
-      packed.md.forEach((appended) => md.push(appended));
-      if (packed.images.composite) stateImages[state] = packed.images;
-    } else {
-      md.push('', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`);
-    }
-
-    changes.details.forEach((appended) => md.push(appended));
-  }
-  return { md, stateImages };
-}
-
 const spacingJson = (spacing: SiblingSpacingChange[]) => (spacing.length ? { spacing } : {});
-
-type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
-
-/**
- * The resting section: heading, plain-English summary, spacing lines, crop, then the
- * folded property tables. A region without one still names its spacing, once, at its end (`trailing`).
- */
-function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
-  if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
-  const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
-  const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
-  const changes = a.changes(cropFindings);
-  changes.summary.forEach((appended) => md.push(appended));
-  spacingLines(a.spacing).forEach((appended) => md.push(appended));
-  const pack = regionCrop(a, cropFindings, a.pngs);
-  pack.md.forEach((appended) => md.push(appended));
-  changes.details.forEach((appended) => md.push(appended));
-  return { md, pack, trailing: [] };
-}
-
-function regionVisibility(cg: ChangeGroup, regionFindings: Finding[]) {
-  const shown = new Set(cg.rep.findings);
-  const rest = regionFindings.filter((f) => f.kind !== 'state');
-  const shownRest = rest.filter((f) => shown.has(f));
-  const hasDom = regionFindings.some((f) => f.kind === 'dom');
-  const stateOnly = !hasDom && shownRest.length === 0 && regionFindings.some((f) => f.kind === 'state');
-
-  return { rest, shownRest, hasDom, stateOnly };
-}
-
-/** One crop region: heading, resting crop, then each forced-state crop. */
-function renderRegion(a: RegionArgs) {
-  const { g, cg, surfaceList, region, pngs } = a;
-
-  const regionFindings = [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
-    g.paths.some((root) => isSameOrDescendant(f.path, root)),
-  );
-
-  const { rest, shownRest, hasDom, stateOnly } = regionVisibility(cg, regionFindings);
-  const md: string[] = [];
-  const cropFindings = hasDom ? regionFindings : rest;
-  const section = restingSection(a, cropFindings, !stateOnly && shownRest.length > 0);
-  const resting = section.pack;
-  section.md.forEach((appended) => md.push(appended));
-  const states = hasDom ? { md: [], stateImages: {} } : stateSections(a, regionFindings, stateOnly);
-  states.md.forEach((appended) => md.push(appended));
-
-  if (stateOnly && rest.length) {
-    flat(a.changes(rest)).forEach((appended) => md.push(appended));
-  }
-  const images = stateOnly && !resting.images.composite ? (Object.values(states.stateImages)[0] ?? {}) : resting.images;
-  if (!md.length) {
-    md.push('', `### ${regionHeading(g.paths, regionFindings)}`, '', surfaceList);
-    const note = cropNote(region, ...pngs);
-    if (note) md.push('', note);
-    flat(a.changes(regionFindings)).forEach((appended) => md.push(appended));
-  }
-  section.trailing.forEach((appended) => md.push(appended));
-  const { visualEvidence, reason } = resting;
-
-  const rendered = {
-    md,
-    regionJson: {
-      paths: g.paths,
-      before: g.before,
-      after: g.after,
-      images,
-      ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
-      ...(visualEvidence ? { visualEvidence, reason } : {}),
-      ...spacingJson(a.spacing),
-    },
-  };
-
-  if (resting.omitted) Object.assign(rendered.regionJson, { cropOmitted: 'budget' });
-
-  return rendered;
-}
 
 export type RenderedGroup = { md: string[]; json: Record<string, unknown>; findingCount: number };
 
-/** One change group: its representative's crop regions (collapsed past maxCrops), top-to-bottom. */
+/** One change group: its representative's change sections, in page order. */
 export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: number }): RenderedGroup {
   const { sd, findings } = cg.rep;
-  // Same correspondence rewrite as prepareReportSurfaces, so crops resolve corresponded head paths.
-  const [mapA, mapB] = presentationMaps(ctx, sd.surface);
-  const describeCtx: DescribeCtx = { tokensBefore: tokenIndex(mapA.tokens), tokensAfter: tokenIndex(mapB.tokens) };
+  // Same correspondence rewrite as prepareReportSurfaces, so sections resolve corresponded head paths.
+  const maps = presentationMaps(ctx, sd.surface);
+  const describeCtx: DescribeCtx = {
+    tokensBefore: tokenIndex(maps[0].tokens),
+    tokensAfter: tokenIndex(maps[1].tokens),
+  };
   const folded = cg.rep.folded ?? [];
-
-  const shownSet = new Set(findings);
-  const foldedSet = new Set(folded);
-
-  const changes = (shown: Finding[]): CropChanges =>
-    cropChangeParts(
-      shown.filter((f) => shownSet.has(f)),
-      ctx.foldDetailsAt,
-      describeCtx,
-      shown.filter((f) => foldedSet.has(f)),
-    );
   const json = { surfaces: cg.surfaces, representative: sd.surface, regions: [] as unknown[], findings };
-  const changedPaths = outermost([...new Set(findings.map((f) => f.path))]);
   const findingCount = findings.length;
   // The raw base: a geometry correspondence can move part of a run and split it.
-  const spacing = siblingSpacingChanges(ctx.load(ctx.beforeDir, sd.surface), mapB);
+  const spacing = siblingSpacingChanges(ctx.load(ctx.beforeDir, sd.surface), maps[1]);
   const surfaceList =
     cg.surfaces.length > 1
       ? `_Identical across ${cg.surfaces.length} surfaces: ${formatSurfaceListWithContext(ctx, cg.surfaces)}_`
-      : `_${formatSurfaceWithContext(sd.surface, mapA, mapB)}_`;
+      : `_${formatSurfaceWithContext(sd.surface, ...maps)}_`;
   const pngs = screenshotPair(ctx, sd.surface);
 
   if (!findings.length && folded.length) {
     const label = regionHeading([...new Set(folded.map((f) => f.path))], folded, true);
-    const md = ['', `### ${label}`, '', surfaceList, ...flat(changes(folded))];
+    const md = ['', `### ${label}`, '', surfaceList, ...renderCropChanges([], ctx.foldDetailsAt, describeCtx, folded)];
 
     return { md, json, findingCount };
   }
-  if (
-    !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
-    !STATE_LAYER_NAMES.some((state) => {
-      const statePaths = findings.filter((f) => f.kind === 'state' && f.state === state).map((f) => f.path);
-      return (
-        statePaths.length > 0 &&
-        hasExposedChangedEntry(mapA, mapB, statePaths, screenshotPair(ctx, sd.surface, `.${state}`))
-      );
-    })
-  ) {
-    const reason = MISLEADING_CROP_REASON;
-    return {
-      md: [
-        // The heading also ends the Action's PR comment summary (#952).
+  const sections = groupSections(cg, maps);
+  const claimed = new Set<SiblingSpacingChange>();
+  const within = (paths: string[]) => (f: { path: string }) => paths.some((root) => isSameOrDescendant(f.path, root));
+  const rendered = sections.map((section, index) =>
+    renderChangeSection(ctx, {
+      section,
+      surface: sd.surface,
+      surfaces: cg.surfaces.length > 1 ? formatSurfaceListWithContext(ctx, cg.surfaces) : undefined,
+      maps,
+      pngs,
+      seq,
+      spacing: claimSpacing(spacing, section.paths, claimed),
+      folded: folded.filter(within(section.paths)),
+      describe: describeCtx,
+      cropsAllowed: index < ctx.maxCrops,
+    }),
+  );
+  // Reflow rows on elements no section shows stay listed once, outside the sections.
+  const outside = folded.filter((f) => !sections.some((section) => within(section.paths)(f)));
+  const outsideMd = outside.length
+    ? [
         '',
-        `### ${regionHeading(changedPaths, findings)}`,
+        '### Folded size/position rows outside the crops',
         '',
         surfaceList,
-        '',
-        `_${reason}_`,
-        ...spacingLines(spacing),
-        '',
-        ...flat(changes([...findings, ...folded])),
-      ],
-      json: {
-        ...json,
-        visualEvidence: 'not-rendered',
-        reason,
-        ...spacingJson(spacing),
-        classification: sd.classification,
-      },
-      findingCount,
-    };
-  }
-  let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
-  if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
-  const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
-  groups.sort((l, r) => topY(l) - topY(r));
-  const claimed = new Set<SiblingSpacingChange>();
-  const rendered = groups.map((g) => {
-    const region = visible(g.after) ? g.after : g.before;
-    const own = claimSpacing(spacing, g.paths, claimed);
-
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
-  });
-  const regions = rendered.map((r) => r.regionJson);
-  // Keep reflow ancestors in one capped table outside the crop budget.
-  const outside = folded.filter((f) => !groups.some((g) => g.paths.some((root) => isSameOrDescendant(f.path, root))));
-
-  const outsideMd = outside.length
-    ? ['', '### Folded size/position rows outside the crops', '', surfaceList, ...flat(changes(outside))]
+        ...renderCropChanges([], ctx.foldDetailsAt, describeCtx, outside),
+      ]
     : [];
-
-  // A changed run no crop region shows is still named, once, under the group.
+  // A changed run no section shows is still named, once, under the group.
   const unclaimed = spacing.filter((change) => !claimed.has(change));
+  // Not shown because a limit left the crops out, or with no screenshot to show it in, is not "not
+  // visible": the surface says so only when a section's own receipt does (RV15-07).
+  const notRendered =
+    !rendered.some((r) => r.shown) && rendered.some((r) => 'visualEvidence' in r.region && r.region.visualEvidence);
   return {
     md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
-    json: { ...json, regions, ...spacingJson(unclaimed), classification: sd.classification },
+    json: {
+      ...json,
+      regions: rendered.map((r) => r.region),
+      ...(notRendered ? { visualEvidence: 'not-rendered', reason: MISLEADING_CROP_REASON } : {}),
+      ...spacingJson(unclaimed),
+      classification: sd.classification,
+    },
     findingCount,
+  };
+}
+
+/**
+ * " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." The summary never states a count of 0:
+ * with no element the scope is pages and widths only, and a rule count of 0 is left out (RV22-01).
+ */
+function scopeText(keys: string[], base: (key: string) => string, elements: number, changedRules?: number): string {
+  const bases = [...new Set(keys.map(base))].sort();
+  const widths = [...new Set(keys.map(surfaceWidth))].filter(Boolean).sort((a, b) => a - b);
+  const where = bases.length <= 3 ? andList(bases.map((base) => codeValue(safeKey(base)))) : `${bases.length} pages`;
+  const wide =
+    widths.length === 0
+      ? ''
+      : widths.length <= 3
+        ? ` at ${andList(widths.map(String))}px wide`
+        : ` at ${widths.length} widths`;
+  if (!elements) return ` on ${where}${wide}.`;
+  const rules = changedRules ? `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}` : '';
+  return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
+}
+
+/**
+ * How many change sections the report shows, and the summary's scope phrase for them. The scope
+ * also names the new and removed surfaces (`oneSided`), since the summary's count includes them (RV19-05).
+ */
+export function sectionSummary(
+  ctx: RenderCtx,
+  groups: ChangeGroup[],
+  changedRules?: number,
+  surfaceKeyOf: (captureKey: string) => string | undefined = () => undefined,
+  oneSided: string[] = [],
+): { sectionCount: number; scope: string } {
+  let sectionCount = 0;
+  let elements = 0;
+  for (const cg of groups) {
+    // A group with only folded size/position rows renders one block.
+    const sections = cg.rep.findings.length ? groupSections(cg, presentationMaps(ctx, cg.rep.sd.surface)) : [];
+    sectionCount += Math.max(1, sections.length);
+    // A state layer captured on one side is a change to review, but not an element.
+    elements += sections.reduce((n, s) => n + (s.paths[0] === SURFACE_SUBJECT ? 0 : s.paths.length), 0);
+  }
+  return {
+    sectionCount,
+    scope:
+      groups.length || oneSided.length
+        ? scopeText(
+            [...groups.flatMap((g) => g.surfaces), ...oneSided],
+            (key) => surfaceKeyOf(key) ?? surfaceBase(key),
+            elements,
+            changedRules,
+          )
+        : '',
   };
 }

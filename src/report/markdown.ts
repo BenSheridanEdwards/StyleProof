@@ -56,7 +56,8 @@ function excerptPair(before: string, after: string): [string, string] {
   return [cut(before), cut(after)];
 }
 
-function cellPair(before: string, after: string): [string, string] {
+/** Before/after table cells: colours as `#hex`, long values trimmed to their difference. */
+export function cellPair(before: string, after: string): [string, string] {
   if (isNonValue(before) || isNonValue(after)) return [cell(before), cell(after)];
   const [b, a] = excerptPair(before, after);
   return [codeValue(toHex(b)), codeValue(toHex(a))];

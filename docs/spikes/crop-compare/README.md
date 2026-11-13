@@ -1,5 +1,9 @@
 # Spike: crop compare layout, slider interaction, and report hosting
 
+> **Historical.** This prototype was built against the report before the visual-first redesign, which replaced
+> composites with two clean crops per pair. The code it cites is pinned to commit `57cf168b3`, and the one crop it took
+> from the demo report is kept in this folder (`crops/`).
+
 A throwaway prototype for [#792](https://github.com/BenSheridanEdwards/StyleProof/issues/792) (side-by-side vs
 slider) and [#793](https://github.com/BenSheridanEdwards/StyleProof/issues/793) (scrubber vs hover-to-reveal). It
 feeds [NORTH_STAR](../../NORTH_STAR.md) § _The redesign_ item 7 and § _Open decisions_ 1 and 2.
@@ -12,7 +16,7 @@ the options so the owner can decide.
 
 Open `docs/spikes/crop-compare/index.html` from a checkout of this repository. It works from a `file:` URL. It is one
 self-contained page with inline CSS and JS, no build step, no network and no libraries. The crops load by relative path
-(`../../demo/crops/…`, `../../proof/…`), so the page must stay inside the checkout.
+(`crops/…`, `../../proof/…`), so the page must stay inside the checkout.
 
 Query parameters, for scripted screenshots:
 
@@ -30,10 +34,11 @@ depends on the slider working.
 
 ## The crops
 
-All four are real images already committed to this repository. None was made for this spike.
+All four are real StyleProof images committed to this repository. None was made for this spike. Crop 1 is a copy of a
+demo report composite, kept here because the visual-first demo no longer has one.
 
-1. **Narrow: `span.content-label` on home@900.** `docs/demo/crops/home-900-content-2-composite.png`, split at
-   runtime. Each side 424×180. **Side-by-side at 1280.** A report crop that fits twice. The change (an `Old` → `New`
+1. **Narrow: `span.content-label` on home@900.** `docs/spikes/crop-compare/crops/home-900-content-2-composite.png`
+   (from `docs/demo/crops/` at `57cf168b3`), split at runtime. Each side 424×180. **Side-by-side at 1280.** A report crop that fits twice. The change (an `Old` → `New`
    label) is small; the demo report adds a 2× zoom for it.
 2. **Hard to find: `::marker` colour.** `docs/proof/issue-447/full-v2-run-1/cases/computed-pseudo-marker-color-v2/`
    `before.png` and `after.png` (#447 benchmark render proof). Each 640×98. **Slider at 1280** (2 × 640 + 16 = 1296 >
@@ -55,8 +60,9 @@ pixels on this side"), so the before side never shows after pixels and the after
 
 ### Split geometry for composites
 
-`docs/demo/crops/*-composite.png` and `crops/*-composite.png` are one image holding both sides. `compositePair` in
-[`src/report/png.ts:65-78`](../../../src/report/png.ts) lays them out with `PAD = 20` and `GAP = 28`:
+The composites are one image holding both sides. `compositePair` in
+[`src/report/png.ts` at `57cf168b3`](https://github.com/BenSheridanEdwards/StyleProof/blob/57cf168b30b5e82a88a8cd88afd4fb320b53bfd0/src/report/png.ts#L92-L106) laid them out with `PAD = 20` and `GAP = 28` (the report no
+longer makes composites):
 
 - each panel is `w = (compositeWidth − 68) / 2` wide and `h = compositeHeight − 40` tall;
 - before starts at `(20, 20)`; after starts at `(20 + w + 28, 20)`.

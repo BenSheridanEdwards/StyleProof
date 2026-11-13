@@ -9,16 +9,7 @@ import {
 import { codeValue } from '../dist/code-span.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { ReportMarkdown } from '../dist/report/sections.js';
-import {
-  makeMap,
-  mkTmp,
-  rmTmp,
-  solidPng,
-  pairFixture,
-  tmpDirs,
-  writeCapture,
-  highlightPixelsBySide,
-} from './helpers.mjs';
+import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture, whereBoxesBySide } from './helpers.mjs';
 
 // ---------------------------------------- bounded report (always GitHub-renderable)
 
@@ -113,14 +104,22 @@ test('a capped report.md accounts for every surface and never drops its Evidence
     writeCapture(afterDir, `zeta-${s}@1280`, map(`rgb(${s + 1}, 0, 3)`), null);
   }
   const report = (name, maxReportBytes) => {
-    const res = generateStyleMapReport({ beforeDir, afterDir, outDir: path.join(root, name), maxReportBytes });
+    // A declared critical state with no evidence is a real failure, so Evidence always has content.
+    const res = generateStyleMapReport({
+      beforeDir,
+      afterDir,
+      outDir: path.join(root, name),
+      maxReportBytes,
+      criticalObligations: { 'checkout-confirmed': { owner: 'payments', reason: 'must stay certified' } },
+      criticalStatesArmed: true,
+    });
     return {
       md: fs.readFileSync(res.reportMdPath, 'utf8'),
       surfaces: JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces.length,
     };
   };
   const EVIDENCE = '<summary>Evidence (warnings & failures)</summary>';
-  // No manifests, so the product-state comparison is unproven and Evidence carries that warning.
+  // The failing critical obligation keeps an Evidence block in every layout.
   const full = report('full', Infinity);
   assert.ok(full.md.includes(EVIDENCE), 'the uncapped report has an Evidence block');
 
@@ -147,7 +146,7 @@ test('a capped report.md accounts for every surface and never drops its Evidence
     assertCapped(
       `capped-${budget}`,
       budget,
-      (md) => md.includes(EVIDENCE) && /Product-state comparison/.test(md.slice(md.indexOf(EVIDENCE))),
+      (md) => md.includes(EVIDENCE) && /Critical state obligations/.test(md.slice(md.indexOf(EVIDENCE))),
     );
   }
 
@@ -295,9 +294,9 @@ test('report headline and global chrome use surface-base counts with variant det
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### '));
-  assert.match(summary, /2 changed surface bases \(4 variants\) with an existing baseline/);
+  assert.match(summary, /changes? to review\*\* on `[^`]+` and `[^`]+` at /, 'the summary names both surface bases');
   assert.doesNotMatch(summary, /Surface base.*@width/);
-  assert.match(summary, /changes need review|change needs review/);
+  assert.match(summary, /changes? to review\*\*/);
   assert.match(md, /## 🧱 Global chrome change — across all 2 captured surface base\(s\)/);
   rmTmp(root);
 });
@@ -332,7 +331,7 @@ test('report headline counts live-state variants under metadata.surfaceKey produ
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const summary = md.slice(0, md.indexOf('\n### ') >= 0 ? md.indexOf('\n### ') : md.length);
-  assert.match(summary, /1 changed surface base \(2 variants\) with an existing baseline/);
+  assert.match(summary, /changes? to review\*\* on `[^`]+` at /, 'live-state variants count under one product base');
   rmTmp(root);
 });
 
@@ -414,9 +413,9 @@ test('end-to-end: a size-changing duplicate style swap keeps annotated proof', (
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  const mapped = report.surfaces[0].regions.filter((region) => region.where);
   assert.ok(report.counts.style >= 2, 'the diff itself still records the restyle');
-  assert.ok(annotatedPaths.length > 0, 'a restyle that could be a swap keeps annotated proof');
+  assert.ok(mapped.length > 0, 'a restyle that could be a swap keeps its Where map');
   rmTmp(root);
 });
 
@@ -450,15 +449,14 @@ test('end-to-end: uniform-shell list insertion leaves unchanged displaced items 
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
-  const highlights = annotatedPaths
-    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+  const highlights = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
     .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
       before: 0,
       after: 0,
     });
-  assert.equal(highlights.before, 0, 'unchanged displaced items must not be boxed on the before side');
-  assert.ok(highlights.after > 0, 'the inserted item itself stays annotated');
+  assert.equal(highlights.before, 0, 'unchanged displaced items must not be boxed as removals');
+  assert.ok(highlights.after > 0, 'the inserted item itself stays boxed on the Where map');
   rmTmp(root);
 });
 
@@ -489,9 +487,15 @@ test('end-to-end: a removal and a distinct addition in different containers both
   });
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
+  const highlights = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
+      before: 0,
+      after: 0,
+    });
   assert.equal(report.counts.dom, 2, 'both structural findings remain in the audit');
-  assert.ok(annotatedPaths.length > 0, 'independent changes in different containers keep visual proof');
+  assert.ok(highlights.before > 0, 'the removal is located on the base page');
+  assert.ok(highlights.after > 0, 'the addition is located on the head page');
   rmTmp(root);
 });
 
@@ -518,10 +522,10 @@ test('end-to-end: a surface captured only on base renders as REMOVED, never as a
   assert.equal(res.oneSidedSurfaces, 1);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.match(md, /REMOVED surface 🗑️/);
-  assert.match(md, /REMOVED surface\(s\)/);
-  assert.match(md, /approving accepts the disappearance/i);
+  assert.match(md, /🗑️ \*\*1 removed surface\*\* — in the baseline, not captured on head/);
+  assert.match(md, /Review it as a removal\./);
   assert.doesNotMatch(md, /pricing.*new surface 🆕/s);
-  assert.doesNotMatch(md, /new surface\(s\)\*\* captured with no baseline/);
+  assert.doesNotMatch(md, /new surfaces?\*\* with no baseline/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   const removedEntry = json.surfaces.find((s) => s.surface === 'pricing@1280');
   assert.equal(removedEntry.isRemoved, true);
@@ -696,7 +700,7 @@ test('end-to-end: Markdown surface labels match classification from report.json 
 
   // baseline failure count in Markdown should match JSON
   const baselineFailureCount = json.baselineFailures.length;
-  const mdFailureCountMatch = md.match(/(\d+)\s+baseline\s+capture\s+failure/i);
+  const mdFailureCountMatch = md.match(/(\d+) surfaces? failed to capture on the base/);
   assert.ok(mdFailureCountMatch, 'Markdown should mention baseline capture failure count');
   assert.equal(parseInt(mdFailureCountMatch[1], 10), baselineFailureCount, 'Markdown failure count should match JSON');
 
@@ -935,7 +939,7 @@ test('findings exhaustiveness: 4-side padding aggregates in counts and Markdown,
   // Markdown should show the shorthand, not longhands
   assert.match(
     md,
-    /^\| `padding` \| `10px` \| `20px` \|$/m,
+    /^\| `padding` \(4 longhands\) \| `10px` \| `20px` \|$/m,
     'Markdown should list the padding shorthand with its values',
   );
   assert.doesNotMatch(md, /padding-(?:top|right|bottom|left)/, 'Markdown should not list the padding longhands');
@@ -1571,7 +1575,7 @@ test('a hostile element path key stays inside its code span in report.md and rep
     const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
     const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
     const headings = md.split('\n').filter((line) => line.includes('Approve here'));
-    assert.ok(headings.length >= 2, 'heading and summary bullet both render the label');
+    assert.ok(headings.length >= 1, 'the section meta line renders the label');
     for (const line of headings) {
       assert.match(line, /``p` \[Approve here\]\(javascript:alert%28document%2Edomain%29\) `\.lede``/);
     }
@@ -1619,10 +1623,15 @@ test('a hostile colour-token name or pseudo-element stays inside its code span i
     generateStyleMapReport({ beforeDir, afterDir, outDir });
     const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
     const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
-    assert.ok(md.includes('`` tok`[Approve](https://evil.example/approve)` ``'), 'token name keeps one code span');
+    // Token names are no longer printed in report.md; the pseudo-element still is, inside one code span.
+    assert.doesNotMatch(md, /\]\(https:\/\/evil\.example\/approve\)(?!`)/, 'token name never renders as a link');
     assert.ok(
-      md.includes('On `` ::before` [Pseudo link](https://evil.example/pseudo) ` ``:'),
-      'pseudo keeps one code span',
+      md.includes('| ``::before` [Pseudo link](https://evil.example/pseudo) ` color`` |'),
+      'pseudo keeps one code span in the CSS table',
+    );
+    assert.ok(
+      md.includes('`` ::before` [Pseudo link](https://evil.example/pseudo) ` `` text colour'),
+      'pseudo keeps one code span in the change line',
     );
     assert.doesNotMatch(html, /href="https:\/\/evil\.example/);
   } finally {

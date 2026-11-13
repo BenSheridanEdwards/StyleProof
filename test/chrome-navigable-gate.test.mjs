@@ -246,7 +246,7 @@ test('the headline counts a visible add plus a navigable chrome add as the gate 
     const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
     assert.equal(json.reviewableCounts.dom, 2);
-    assert.match(md, /\*\*2 visible element additions\/removals need review\*\*/);
+    assert.match(md, /🧱 \*\*2 visible elements were added or removed\*\* — they need review/);
   } finally {
     rmTmp(dirs.root);
   }

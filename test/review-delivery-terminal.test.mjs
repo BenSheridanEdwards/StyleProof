@@ -103,7 +103,8 @@ test('comment re-check exhaustion clears the tick despite a stale read proving a
 });
 
 test('reconciliation of a near-limit multibyte report uses bounded environment values and preserves live content', async () => {
-  const summary = '界'.repeat(64_000);
+  // Under the comment's 50,000-character summary cap (RV2-02), still over 128 KiB in UTF-8.
+  const summary = '界'.repeat(49_000);
   const run = reviewRun({ reportMarkdown: `${summary}\n### Details\n` });
   await run.start();
   await run.runStep('comment');

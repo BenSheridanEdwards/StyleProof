@@ -1,6 +1,6 @@
 # Report delivery contract
 
-StyleProof delivers one reviewable evidence package when publication is needed. The published report is authoritative. The pull-request comment is a bounded summary with a receipt-bound link when a report was published.
+StyleProof delivers one reviewable evidence package when publication is needed. The published report is authoritative. The pull-request comment shows the same change sections, cut from that report and bounded in size, with a receipt-bound link when a report was published.
 
 ## Report storage
 
@@ -28,7 +28,7 @@ Regardless of storage mode, the Action also appends `report.md` to the GitHub jo
 
 The Action upserts one comment identified by `<!-- styleproof-report -->`. It reads every page of the thread and only reuses a comment a bot account wrote, so a person's comment that quotes the marker is never edited. It contains:
 
-- the bounded report summary;
+- the report summary and every change section from `report.md` (its name, its one-line description, the Where caption, the clean before/after pair and the CSS on demand), up to 50,000 characters, then a line counting the sections left out;
 - the approval checkbox when review-gate mode requires one;
 - when published, one canonical link — the commit-bound blob URL in branch mode, the run/artifact URL in artifact mode;
 - after an artifact upload, one digest marker and a disclosure that the report artifact expires `report-retention-days` days after upload;
@@ -38,13 +38,14 @@ When clean-run publication is skipped, the comment has no report link, artifact 
 
 Artifact uploads also emit a `::notice` annotation on the run naming the storage mode, the expiry bound, and the `report-storage: branch` remediation, so an adopter whose effective mode flipped on an Action upgrade learns it from the run rather than from a changed comment link.
 
-The comment does not duplicate crops or per-element tables. This prevents a separately rendered comment from drifting away from the published report.
+The comment is cut from the published `report.md`, never rendered separately, so it cannot drift from the report. Hidden section data, the `## Changes` heading and any approval-box line from the report are dropped; the Action adds its own approval box.
 
 ## Public and private access
 
-Public and private repositories use the same linked-comment shape.
+Public and private repositories use the same linked-comment shape. Only the comment's images differ.
 
 - Branch mode: public viewers open the GitHub blob URL directly; private viewers need repository access and an authenticated GitHub session. Crops use relative paths inside the committed report.
+- Comment images: on a public repository in branch mode, the comment's images point at the same commit-bound blob URL, `https://github.com/<owner>/<repo>/blob/<publication-sha>/pr-<number>/crops/<file>?raw=1`, which GitHub serves to anonymous readers and its image proxy. On a private repository, and in artifact mode, no such URL works for every reader, so the comment carries the sections as text (name, change line, Where caption, CSS) and the linked report holds the images.
 - Artifact mode: viewers follow the artifact entry or run page, download the report, and open `report.html` for the rendered page — GitHub always authenticates artifact downloads, so the link works identically for public and private repositories, and images travel inside the HTML.
 
 StyleProof does not route private images through anonymous `raw.githubusercontent.com` or GitHub Camo fetches.

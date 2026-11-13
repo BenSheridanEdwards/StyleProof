@@ -63,31 +63,43 @@ import {
   type MigrationGallery,
 } from './report/migration-gallery.js';
 import {
-  baselineProvenanceLine,
   certificationLines,
-  comparabilityLine,
   criticalObligationLines,
   evidenceSection,
   liveTextFreezeLines,
   productStateWarningLines,
 } from './report/certification.js';
-import { buildDigest, digestLines } from './report/digest.js';
+import { buildDigest } from './report/digest.js';
 import {
-  baselineFailureDetailLines,
   oneSidedStatus,
+  cropGapLines,
+  partialPageLines,
+  reachGateLine,
   readBaselineInfo,
-  reportHeadline,
+  headlineParts,
+  reportOpening,
   type BaselineInfo,
+  type HeadlineInput,
 } from './report/headline.js';
-import { countShownChanges, groupBySignature } from './report/regions.js';
-import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
+import { countShownChanges, groupBySignature, sectionSummary } from './report/regions.js';
+import { finishSections } from './report/change-sections.js';
+import { capturedComment } from './report/captured.js';
+import { createSectionRegistry } from './report/section-meta.js';
+import {
+  assessReach,
+  publishedReach,
+  reachHeadlineLines,
+  reachSectionLines,
+  reachSummaryLine,
+  type PublishedReach,
+  type ReportReach,
+} from './report/reach.js';
 import {
   ReportMarkdown,
   DEFAULT_MAX_JSON_BYTES,
   DEFAULT_MAX_REPORT_BYTES,
   renderChangedSections,
   renderOneSidedSections,
-  stateCoverageLines,
   writeReportArtifacts,
   buildReportJson,
   type ReportArtifacts,
@@ -127,9 +139,9 @@ export type ReportOptions = {
   minHeight?: number;
   /** Crops taller than this are clamped (default 1600px). */
   maxHeight?: number;
-  /** Changed-element footprint (px) at or below which a magnified zoom crop is added (default 64; 0 disables). */
+  /** Accepted for backward compatibility; no longer has an effect. */
   zoomBelow?: number;
-  /** Max crop regions per surface before collapsing into one union crop (default 8). */
+  /** Change sections per change group that get crops and a Where map; later sections are listed without them (default 8). */
   maxCrops?: number;
   /** Whole-report crop ceilings (default 60 files / 900_000 bytes). Zero disables crops. */
   maxCropFiles?: number;
@@ -206,7 +218,7 @@ export type ReportResult = {
   /** Present only when `migration: true`. */
   migrationGallery?: MigrationGallery;
   /** Change Reach J1 (#996); only when a capture carries a reach ledger. */
-  reach?: ReportReach;
+  reach?: PublishedReach;
 };
 
 function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
@@ -222,13 +234,32 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     minWidth: opts.minWidth ?? 320,
     minHeight: opts.minHeight ?? 180,
     maxHeight: opts.maxHeight ?? 1600,
-    zoomBelow: opts.zoomBelow ?? 64,
     maxCrops: opts.maxCrops ?? 8,
+    cropGaps: [],
+    partialPages: [],
     crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
+    sections: createSectionRegistry(),
     foldDetailsAt: opts.foldDetailsAt ?? 0,
     includeNoise: opts.includeLayoutNoise === true,
     requireStateIdentity: opts.requireStateIdentity === true,
   };
+}
+
+/** Every crop left out and every partly shown page, said once at the end of the opening (rule 5). */
+function appendLimitLines(ctx: RenderCtx, md: ReportMarkdown): void {
+  const limits = [
+    // The crop-budget option is given once: by the ✂️ line when it counts budget gaps too (QA12-03).
+    ...partialPageLines(ctx.partialPages ?? [], 8, {
+      budgetAdviceElsewhere: (ctx.cropGaps ?? []).some((gap) => gap.reason === 'budget'),
+    }),
+    ...cropGapLines(ctx.cropGaps ?? [], {
+      maxCrops: ctx.maxCrops,
+      maxFiles: ctx.crops.maxFiles,
+      maxBytes: ctx.crops.maxBytes,
+    }),
+  ];
+  // The body is queued as blocks until finish(), so these lines still end the opening.
+  limits.forEach((line) => md.lines.push(line));
 }
 
 type Gates = {
@@ -440,12 +471,7 @@ function renderReportBody(
 ) {
   const { view, baseline, content, migrationGallery, reach, surfaceKeyOf } = input;
   const { md } = out;
-  if (baseline.failures.length > 0) {
-    md.detail(
-      baselineFailureDetailLines(baseline.failures),
-      `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
-    );
-  }
+  // The failure line at the top names each surface and commit; full receipts are in report.json.
   const oneSided = renderOneSidedSections(ctx, out, view.missing, baseline.surfaceFailures);
   const changed = renderChangedSections(
     ctx,
@@ -472,7 +498,8 @@ function renderReportBody(
       `- ${content.contentCount} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
-  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
+  // Change Reach is machine output (report.json `reach`); the report shows it only when it blocks.
+  const reachBlock = reach?.blocking ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
   return { oneSided, changed, reachBlock };
 }
 
@@ -480,20 +507,15 @@ function renderReportBody(
 function evidenceLines(input: {
   certIssues: string[];
   liveText: LiveTextAudit;
-  provenanceLine: string;
-  comparison: ReportComparison;
   gates: Gates;
   criticalObligations: DeclaredCriticalObligations | undefined;
 }): string[] {
-  const { certIssues, liveText, provenanceLine, comparison, gates } = input;
-  const comparabilityText = comparabilityLine(comparison, gates.legacyPairs);
-  // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
-  const comparabilityEvidence = /✓ comparable|not required/.test(comparabilityText) ? [] : [comparabilityText, ''];
+  // Failures only. Product-state status and baseline provenance are machine output
+  // (report.json `comparability` / `baselineProvenance`), never repeated in the report.
+  const { certIssues, liveText, gates } = input;
   return [
     ...certIssues,
     ...liveTextFreezeLines(liveText),
-    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
-    ...comparabilityEvidence,
     ...criticalObligationLines(gates.criticalStates, input.criticalObligations),
   ];
 }
@@ -521,6 +543,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   const surfacePaths = surfaceElementPaths(beforeDir, afterDir);
   const view = presentSurfaces(ctx, diff.surfaces, gates, includeStructure, surfacePaths, surfaceKeyOf);
   const reach = assessReach(ctx, opts.changeReach ?? 'warn');
+  // Sections name the changed rules their elements match; report.json keeps the full Change Reach.
+  if (reach && ctx.sections) ctx.sections.rules = reach.rules;
   const baseline = readBaselineInfo(beforeDir, afterDir);
   const elevation = collectStructureElevation({ beforeDir, afterDir, migration, surfacePaths, surfaceKeyOf });
   const comparison = reportComparison(
@@ -558,12 +582,19 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 3. Render report.md: verdict first (above the fold), then the product-state warning when it
   // fires — never the certification checklist first, and never a green product-state peer card.
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
-  const headline = reportHeadline({
+  const summary = sectionSummary(
+    ctx,
+    view.changeGroups,
+    // A changed-rule count is only true when both sides recorded the CSS they served.
+    reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
+    surfaceKeyOf,
+    view.missing.map((p) => p.sd.surface),
+  );
+  const headlineInput: HeadlineInput = {
     changeGroups: view.changeGroups,
     missing: view.missing,
-    shown: view.shown,
-    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
-    whatChanged: digestLines(digest),
+    sectionCount: summary.sectionCount,
+    scope: summary.scope,
     volatileCount: diff.volatile,
     headOnlyVolatile: diff.headOnlyVolatile,
     baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -581,16 +612,21 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     comparisonBlocked: comparison.blocksCertification,
     reachBlocking: reach?.blocking ?? 0,
     liveTextFreezeViolated: comparison.liveTextFreezeViolated,
-  });
-  const reachStrip = reach ? reachStripLines(reach) : [];
+  };
+  const headlineSplit = headlineParts(headlineInput);
+  const headline = headlineSplit.lines;
+  // A run with no change already leads with the gate line; say it once.
+  const gateInHeadline = Boolean(reach?.blocking) && headline.includes(reachGateLine(reach!.blocking, false));
+  const reachStrip = reach && !gateInHeadline ? reachHeadlineLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
-  productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
-  headline.forEach((appended) => md.lines.push(appended));
+  // The summary line leads (SPEC report order); a blocking product-state line follows it (RV11-05),
+  // or opens the report when there is no summary line (RV21-01).
+  const productState = productStateWarningLines(comparison, gates.legacyPairs).filter((line) => line !== '');
+  reportOpening(headlineSplit, productState).forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
-  stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
-  if (reach && !md.lines.includes(reachStrip[1])) {
+  if (reachStrip.length && !md.lines.includes(reachStrip[1])) {
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
   }
 
@@ -604,14 +640,11 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reach,
     surfaceKeyOf,
   });
+  // Whole pages for report.html come last, so they never take the crop budget from evidence.
+  finishSections(ctx, md);
 
-  if (ctx.crops.omitted > 0) {
-    md.append([
-      '',
-      `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
-        `(${ctx.crops.maxFiles} files / ${ctx.crops.maxBytes / 1_000_000} MB, \`--max-crop-files\` / \`--max-crop-bytes\`); every change is still listed and counted; full findings remain in the original diff input (not included in the report artifact)._`,
-    ]);
-  }
+  // Crop limits are known only once the sections are written; their lines end the opening.
+  appendLimitLines(ctx, md);
 
   if (ctx.crops.downscaled > 0) {
     md.append([
@@ -627,18 +660,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     { ledger: confidenceLedger, summary: confidence },
     elevation.chrome.count,
   );
-  // "Nothing else" when restyles exist but no advisory content / inventory issues.
-  const inventoryTouched = certIssues.some((l) => /Inventory/.test(l));
-  if (
-    view.changeGroups.length > 0 &&
-    view.missing.length === 0 &&
-    content.total === 0 &&
-    !migrationGallery &&
-    !inventoryTouched &&
-    !(reach && reachSectionLines(reach).length > 0)
-  ) {
-    md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
-  }
+  // What was captured: hidden data for report.html (pages, widths, forced states, changed rules).
+  md.append(['', capturedComment(ctx, reach)]);
   // 4. Write report.md and report.json, and return the result.
 
   const artifacts: ReportArtifacts = {
@@ -684,11 +707,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reachBlock.full = reachSectionLines(reach);
       reachBlock.summary = reachSummaryLine(reach);
     }
-    const updatedStrip = reachStripLines(reach);
-    for (const [index, line] of reachStrip.entries()) {
-      const position = md.lines.indexOf(line);
-      if (position >= 0 && line) md.lines[position] = updatedStrip[index];
-    }
   }
 
   const findingsNotice =
@@ -706,8 +724,6 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       evidenceLines({
         certIssues,
         liveText,
-        provenanceLine: baselineProvenanceLine(baselineProvenance),
-        comparison,
         gates,
         criticalObligations: opts.criticalObligations,
       }),
@@ -734,7 +750,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
-    ...(reach ? { reach } : {}),
+    ...(reach ? { reach: publishedReach(reach) } : {}),
   };
 }
 

@@ -9,6 +9,7 @@ import {
   summarizeProps,
   prettyLabel,
 } from '../dist/report.js';
+import { decodeCapturedMeta } from '../dist/report/section-meta.js';
 import { escapeInlineMarkdown } from '../dist/code-span.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
@@ -195,13 +196,12 @@ test('end-to-end: crop anchors on the real-change element, not the reflow casual
   rmTmp(root);
 });
 
-test('end-to-end: a tiny change gets a magnified zoom crop and the highlight shows by default', () => {
+test('end-to-end: a tiny change is located by the Where map, never magnified or drawn on', () => {
   const caret = (color) =>
     makeMap({
       elements: {
         body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
-        // 12×16 caret — far below the 64px zoom threshold, so a colour change here
-        // is imperceptible at 1:1 and must get a magnified crop.
+        // 12×16 caret: hard to see at 1:1, so the Where map is how the reviewer finds it.
         'body > span:nth-child(1)': { tag: 'span', cls: 'caret', rect: [40, 40, 12, 16], style: { color } },
       },
     });
@@ -217,49 +217,16 @@ test('end-to-end: a tiny change gets a magnified zoom crop and the highlight sho
   assert.equal(res.changedSurfaces, 1);
 
   const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-  assert.match(region.images.zoom, /-zoom\.png$/, 'a zoom image is recorded for the tiny change');
-  assert.match(region.images.annotated, /-annotated\.png$/);
-  assert.ok(fs.existsSync(path.join(outDir, region.images.zoom)), 'the zoom png is actually written');
+  assert.deepEqual(Object.keys(region.images).sort(), ['after', 'before'], 'no zoom or annotated image');
+  assert.deepEqual(region.where[0].boxes, [[40, 40, 12, 16]], 'the Where map boxes the caret');
 
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  for (const imagePath of Object.values(region.images)) {
+  for (const imagePath of [...Object.values(region.images), region.where[0].image]) {
     assert.match(imagePath, /^crops\//, 'report JSON records crop paths relative to report.md');
-    assert.ok(md.includes(`](${imagePath})`), `report.md references committed relative crop ${imagePath}`);
+    assert.ok(md.includes(`src="${imagePath}"`), `report.md references committed relative crop ${imagePath}`);
+    assert.ok(fs.existsSync(path.join(outDir, imagePath)), `${imagePath} is written`);
   }
-  assert.match(md, /🔬 magnified \d+× — change too small to see at 1:1/, 'zoom is captioned with its factor');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'the highlight overlay is present');
-  assert.match(md, /changed: `span\.caret`/, 'the changed element is named next to the image');
-  assert.match(md, /<summary>Show highlight overlay<\/summary>/, 'highlight sits under an optional toggle');
-  rmTmp(root);
-});
-
-test('end-to-end: a large change gets no zoom crop (visible at 1:1)', () => {
-  const panel = (color) =>
-    makeMap({
-      elements: {
-        body: { tag: 'body', cls: '', rect: [0, 0, 1280, 800], style: {} },
-        'body > div:nth-child(1)': {
-          tag: 'div',
-          cls: 'panel',
-          rect: [0, 0, 400, 300], // well above the zoom threshold
-          style: { 'background-color': color },
-        },
-      },
-    });
-  const { beforeDir, afterDir, outDir, root } = pairFixture({
-    surface: 'home@1280',
-    before: panel('rgb(0, 0, 0)'),
-    after: panel('rgb(255, 0, 0)'),
-    beforePng: solidPng(1280, 800),
-    afterPng: solidPng(1280, 800),
-  });
-
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const region = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-  assert.equal(region.images.zoom, undefined, 'no zoom image for a clearly-visible change');
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.doesNotMatch(md, /🔬 magnified/, 'no zoom caption for a large change');
-  assert.match(md, /🔍 magenta boxes mark each change/, 'highlight overlay still present under the toggle');
+  assert.doesNotMatch(md, /magnified|magenta|Show highlight overlay/, 'no zoom or overlay');
   rmTmp(root);
 });
 
@@ -287,7 +254,7 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Zero counts are dropped from the headline; only the real one shows.
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 1280px wide: 1 element\./);
   assert.doesNotMatch(md, /0 DOM change\(s\)/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
@@ -321,7 +288,8 @@ test('end-to-end: identical siblings in one region collapse to a single block x 
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /\*\*`li\.card`\*\* ×3/);
+  assert.match(md, /`li\.card` · 3 elements restyled/, 'identical siblings share one section');
+  assert.equal(md.match(/^### /gm)?.length, 1);
   rmTmp(root);
 });
 
@@ -344,17 +312,17 @@ test('an identical change across surfaces collapses into one grouped section', (
   }
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /1 changed surface base \(2 variants\) with an existing baseline/);
-  assert.match(md, /Identical across 2 surfaces/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 390 and 1280px wide: 1 element\./);
+  assert.match(md, /the same on s @ (?:390, 1280|1280, 390)/);
   assert.equal(
-    (md.match(/\*\*`div\.box`\*\* — /g) || []).length,
+    (md.match(/`div\.box` · 1 element restyled/g) || []).length,
     1,
-    'the element bullet renders once, not once per surface',
+    'the section renders once, not once per surface',
   );
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-after.png')).length,
     1,
-    'one composite image for the group, not one per surface',
+    'one crop pair for the group, not one per surface',
   );
   rmTmp(root);
 });
@@ -514,7 +482,7 @@ test('a group without an exposed changed element keeps audit details but omits m
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   assert.match(markdown, /before\/after crop would be misleading/);
   assert.match(markdown, /^### /m, 'the group keeps its heading (#952)');
-  assert.match(markdown, /^_page @ 1024_$/m, 'the group names its surface (#952)');
+  assert.match(markdown, /^_On page @ 1024_$/m, 'the group names its surface (#952)');
   assert.doesNotMatch(markdown, /!\[before/);
   assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
   assert.equal(
@@ -549,10 +517,11 @@ test('a change only on a display: none element keeps the PR comment verdict and 
   const lines = markdown.split('\n');
   const headEnd = lines.findIndex((l) => l.startsWith('### '));
   const summary = headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
-  assert.match(summary, /\*\*1 change needs review\*\*/);
-  assert.match(summary, /\*\*What changed\*\*/);
-  assert.match(lines[headEnd], /`nav\.drawer`/, 'the heading names the changed element');
-  assert.match(markdown, /^_settings @ 390_$/m, 'the group names its surface');
+  assert.match(summary, /\*\*1 change to review\*\*/);
+  assert.doesNotMatch(summary, /What changed/);
+  assert.match(lines[headEnd], /^### Drawer$/, 'the heading names the changed element');
+  assert.match(markdown, /`nav\.drawer` · 1 element restyled/);
+  assert.match(markdown, /^_On settings @ 390_$/m, 'the group names its surface');
   assert.match(markdown, /before\/after crop would be misleading/);
   assert.doesNotMatch(markdown, /!\[before/);
   assert.equal(report.surfaces[0].visualEvidence, 'not-rendered');
@@ -584,14 +553,14 @@ test('a mixed group omits only the off-canvas region crop and keeps its audit de
   const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
   const [visibleRegion, offCanvasRegion] = report.surfaces[0].regions;
-  assert.ok(visibleRegion.images.composite, 'the visible finding keeps its screenshot proof');
+  assert.ok(visibleRegion.images.after, 'the visible finding keeps its screenshot proof');
   assert.deepEqual(offCanvasRegion.images, {});
   assert.equal(offCanvasRegion.visualEvidence, 'not-rendered');
   assert.match(offCanvasRegion.reason, /outside the screenshot canvas/);
   assert.match(markdown, /outside the screenshot canvas/);
   assert.match(markdown, /div\.off-canvas-card/);
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((fileName) => fileName.endsWith('-after.png')).length,
     1,
     'the off-canvas finding must not produce a crop of unrelated on-screen pixels',
   );
@@ -630,8 +599,10 @@ test('two far-apart changes become two crop sections, each holding only its own 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
   // One ### section per crop, each headed by the element it is anchored on.
-  assert.match(md, /### (?:\*\*[^*]+\*\* )?`a\.nav-cta` · 1 element restyled/);
-  assert.match(md, /### (?:\*\*[^*]+\*\* )?`div\.card` · 1 element restyled/);
+  assert.match(md, /^### Nav cta$/m);
+  assert.match(md, /^### Card$/m);
+  assert.match(md, /`a\.nav-cta` · 1 element restyled/);
+  assert.match(md, /`div\.card` · 1 element restyled/);
 
   // Split on the headings and assert each section carries ONLY its own property.
   const sections = md.split(/\n### /).slice(1);
@@ -643,9 +614,9 @@ test('two far-apart changes become two crop sections, each holding only its own 
   // Crops read top-to-bottom: the nav-cta (y=20) section precedes the card (y=600).
   assert.ok(md.indexOf('`a.nav-cta`') < md.indexOf('`div.card`'), 'sections are in page order');
   assert.equal(
-    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-composite.png')).length,
+    fs.readdirSync(path.join(outDir, 'crops')).filter((f) => f.endsWith('-after.png')).length,
     2,
-    'one composite per crop',
+    'one crop pair per crop',
   );
   rmTmp(root);
 });
@@ -671,7 +642,7 @@ test('new surfaces are named in the summary that the PR comment slices', () => {
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
-  assert.match(commentSummary, /🆕 \*\*2 new surface\(s\)\*\*/);
+  assert.match(commentSummary, /🆕 \*\*2 new surfaces\*\*/);
   assert.match(commentSummary, /`workspace @ 1280, 390`/);
   assert.doesNotMatch(commentSummary, /shown below for review/);
   rmTmp(root);
@@ -714,14 +685,14 @@ test('new surface details render before existing-surface change groups', () => {
   assert.ok(newIdx < changedIdx, 'new page evidence leads before existing-surface churn');
   const commentSummary = md.slice(0, md.indexOf('\n### '));
   assert.ok(
-    commentSummary.indexOf('🆕 **1 new surface(s)**') < commentSummary.indexOf('**1 distinct change**'),
-    'comment summary leads with the named new surface before aggregate existing-surface churn',
+    commentSummary.indexOf('**2 changes to review**') < commentSummary.indexOf('🆕 **1 new surface**'),
+    'the comment summary states the total, then names the new surface',
   );
   assert.match(commentSummary, /`workspace @ 900`/);
   rmTmp(root);
 });
 
-test('property tables fold under a <details> toggle with an essence line; foldDetailsAt keeps small changes inline', () => {
+test('the CSS sits in a collapsed Show the CSS fold, under a plain line, whatever foldDetailsAt says', () => {
   const map = (radius) =>
     makeMap({
       elements: {
@@ -737,23 +708,21 @@ test('property tables fold under a <details> toggle with an essence line; foldDe
     afterPng: solidPng(1280, 800),
   });
 
-  // Default (foldDetailsAt: 0) folds always: plain-English bullets above, then the
-  // table inside <details>. The blank lines around the table are mandatory or
-  // GitHub renders it as literal text — assert them explicitly.
-  const folded = fs.readFileSync(generateStyleMapReport({ ...f }).reportMdPath, 'utf8');
-  assert.match(folded, /corners fully rounded/, 'plain-English summary above the fold');
-  assert.match(folded, /<details>\n<summary>Show the property change<\/summary>\n\n/, 'blank line after </summary>');
-  assert.match(folded, /\n\n<\/details>/, 'blank line before </details>');
-
-  // foldDetailsAt: Infinity never folds the TABLES — they render inline, with no
-  // "Show … property changes" toggle. (The annotated-image toggle is separate and
-  // always present, so check the table fold specifically.)
-  const inline = fs.readFileSync(
-    generateStyleMapReport({ ...f, outDir: path.join(f.root, 'inline'), foldDetailsAt: Infinity }).reportMdPath,
-    'utf8',
-  );
-  assert.ok(!inline.includes('<summary>Show the property'), 'foldDetailsAt: Infinity keeps the tables out of a fold');
-  assert.match(inline, /\| `border-radius` \| `8px` \| `9999px` \|/, 'table is present inline');
+  // The line says what changed in words; the table sits inside <details>. The blank lines
+  // around the table are mandatory or GitHub renders it as literal text.
+  for (const [outDir, foldDetailsAt] of [
+    [path.join(f.root, 'default'), undefined],
+    [path.join(f.root, 'inline'), Infinity],
+  ]) {
+    const md = fs.readFileSync(generateStyleMapReport({ ...f, outDir, foldDetailsAt }).reportMdPath, 'utf8');
+    assert.match(md, /corner radius from `8px` to `9999px`/, 'plain-English line above the fold');
+    assert.match(md, /<details>\n<summary>Show the CSS<\/summary>\n\n/, 'blank line after </summary>');
+    assert.match(
+      md,
+      /\| `border-radius` \| `8px` \| `9999px` \|\n\n<\/details>/,
+      'table, then a blank line before </details>',
+    );
+  }
   rmTmp(f.root);
 });
 
@@ -852,7 +821,8 @@ test('add-only: headline counts DOM only — head-side inventory is not a restyl
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
   assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 DOM change\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\*/);
+  assert.match(md, /· 1 element added/, 'the head-side inventory is an addition, not a restyle');
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /state-delta difference/);
   assert.match(md, /Style inventory \(head-side — no baseline\)/);
@@ -889,7 +859,7 @@ test('matched-path restyle still counts as a computed-style difference (not inve
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
+  assert.match(md, /\*\*1 change to review\*\* on `s` at 1280px wide: 1 element\./);
   assert.match(md, /1 element restyled/);
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.doesNotMatch(md, /Style inventory \(head-side/);
@@ -942,7 +912,6 @@ test('wrapper path-churn: inventory copy, not restyle differences', () => {
   assert.equal(json.counts.style, 0, 'wrapper path-churn inventories are not style differences');
   assert.equal(json.counts.state, 0);
   assert.ok(json.counts.dom >= 2, 'adds + remove are DOM changes');
-  assert.match(md, /DOM change/);
   assert.doesNotMatch(md, /computed-style difference/);
   assert.doesNotMatch(md, /1 element restyled|elements restyled/);
   assert.match(md, /element(?:s)? added/);
@@ -1049,7 +1018,7 @@ test('correspondence: wrapper insert with true font-size delta shows paired befo
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.ok(json.counts.style >= 1, 'paired leaf contributes computed-style differences');
-  assert.match(md, /computed-style difference/);
+  assert.match(md, /elements? restyled/, 'the paired leaf is a restyle, not an inventory');
   assert.match(md, /\| Property \| Before \| After \|/);
   assert.match(md, /`font-size` \| `12px` \| `13\.3333px`/);
   assert.match(md, /`height` \| `14px` \| `15px`/);
@@ -1237,7 +1206,7 @@ test('correspondence: nesting reparent elevates visible structure rather than re
   assert.equal(res.comparison.hasReviewableEvidence, true);
   assert.ok((res.comparison.reviewableCounts?.dom ?? 0) >= 1);
   assert.deepEqual(json.reportConsistency, { ok: true, reason: 'aligned' });
-  assert.match(md, /visible element addition|needs review|STYLE_REVIEW_REQUIRED/i);
+  assert.match(md, /visible elements? (?:was|were) added or removed\*\* — (?:it needs|they need) review/);
   assert.doesNotMatch(md, /✓ All surfaces identical/);
   assert.doesNotMatch(md, /Report consistency failure/);
   rmTmp(root);
@@ -1306,7 +1275,7 @@ test('captureComponent: an added element names its React component + props', () 
   rmTmp(root);
 });
 
-test('end-to-end: a valid composite PNG of the expected size is written', () => {
+test('end-to-end: clean before/after PNGs of the crop size are written', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -1316,48 +1285,20 @@ test('end-to-end: a valid composite PNG of the expected size is written', () => 
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositeRel = json.surfaces[0].regions[0].images.composite;
-  assert.ok(compositeRel, 'composite image recorded in json');
-  const compositePath = path.join(outDir, compositeRel);
-  assert.ok(fs.existsSync(compositePath), 'composite png on disk');
-  // Re-decode it: proves a real PNG, not an empty/corrupt file.
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
-  // Crop is min 320x180; composite = PAD20 + w + GAP28 + w + PAD20 wide,
-  // PAD20 + h + PAD20 tall (no accent strip). With w=320,h=180: 2*320+68=708 by 220.
-  assert.equal(png.width, 708);
-  assert.equal(png.height, 220);
-  rmTmp(root);
-});
-
-test('end-to-end: composite PNG is pure UI chrome with no in-image direction labels', () => {
-  const { beforeDir, afterDir, outDir, root } = pairFixture({
-    surface: 'home@1280',
-    before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
-    after: sceneMap({ buttonColor: 'rgb(255, 0, 0)', bodyHeight: 800 }),
-    beforePng: solidPng(1280, 800),
-    afterPng: solidPng(1280, 800),
-  });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /◀ before {2}· {2}after ▶/, 'direction lives in the markdown caption');
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-        labelPixels++;
-      }
-    }
+  for (const side of ['before', 'after']) {
+    const rel = json.surfaces[0].regions[0].images[side];
+    assert.ok(rel, `${side} image recorded in json`);
+    // Re-decode it: proves a real PNG, not an empty/corrupt file. Crop is min 320x180, no padding or chrome.
+    const png = PNG.sync.read(fs.readFileSync(path.join(outDir, rel)));
+    assert.equal(png.width, 320);
+    assert.equal(png.height, 180);
   }
-  assert.equal(labelPixels, 0, 'top pad band has no bitmap BEFORE/AFTER glyphs');
+  assert.match(md, /\| Before \| After \|/, 'direction lives in the markdown table header');
   rmTmp(root);
 });
 
-test('end-to-end: narrow crops stay panel-sized with no in-image direction labels', () => {
+test('end-to-end: narrow crops keep the capture size with nothing added', () => {
   const map = (color) =>
     makeMap({
       elements: {
@@ -1378,17 +1319,12 @@ test('end-to-end: narrow crops stay panel-sized with no in-image direction label
     crop: { pad: 0, minWidth: 1, minHeight: 1 },
   });
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  const compositePath = path.join(outDir, json.surfaces[0].regions[0].images.composite);
-  const png = PNG.sync.read(fs.readFileSync(compositePath));
-  // 1×1 panels: PAD20 + 1 + GAP28 + 1 + PAD20 = 70 wide, PAD20 + 1 + PAD20 = 41 tall.
-  assert.equal(png.width, 70);
-  assert.equal(png.height, 41);
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let i = 0; i < png.data.length; i += 4) {
-    if (png.data[i] === label[0] && png.data[i + 1] === label[1] && png.data[i + 2] === label[2]) labelPixels++;
+  for (const side of ['before', 'after']) {
+    const png = PNG.sync.read(fs.readFileSync(path.join(outDir, json.surfaces[0].regions[0].images[side])));
+    // A 1×1 capture gives a 1×1 crop: no panels, padding or glyphs.
+    assert.equal(png.width, 1);
+    assert.equal(png.height, 1);
   }
-  assert.equal(labelPixels, 0, 'narrow composite has no bitmap direction glyphs');
   rmTmp(root);
 });
 
@@ -1416,11 +1352,11 @@ test('end-to-end: a surface missing on one side renders by DIRECTION — head-on
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   // Head-only: a NEW surface, carrying the marker + approve-forward guidance.
   assert.match(md, /### `launch@1280` · new surface <!-- styleproof-new -->/);
-  assert.match(md, /🆕 \*\*1 new surface\(s\)\*\*/);
+  assert.match(md, /🆕 \*\*1 new surface\*\*/);
   // Base-only: a REMOVAL — previously mislabelled "new", inviting reviewers to
   // approve a disappearing feature as an addition.
   assert.match(md, /### `about@1280` · REMOVED surface 🗑️/);
-  assert.match(md, /1 REMOVED surface\(s\)/);
+  assert.match(md, /1 removed surface\*\*/);
   assert.doesNotMatch(md, /about@1280` · new surface/);
   assert.doesNotMatch(md, /0 DOM change\(s\)/); // no contradictory "0 changes" headline
   rmTmp(root);
@@ -1489,7 +1425,7 @@ test('new surfaces render before ordinary element changes', () => {
 
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
   const newSurfaceIndex = md.indexOf('`pricing@1280` · new surface');
-  const changedElementIndex = md.search(/### \*\*.*\*\* `button|### `button/);
+  const changedElementIndex = md.search(/`button\.[\w-]+` · 1 element restyled/);
   assert.ok(newSurfaceIndex >= 0, 'new surface is present');
   assert.ok(changedElementIndex >= 0, 'ordinary changed element is present');
   assert.ok(newSurfaceIndex < changedElementIndex, 'the new page/surface is shown before lower-level element changes');
@@ -1580,7 +1516,12 @@ test('a new surface taller than the tile cap says exactly how much is shown (#75
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(oneSidedImages(md, 'new surface').length, 8);
-  assert.match(md, /showing 800 of 1234px — the remaining 434px below are not shown in this report/);
+  // The last tile caption says how much is shown; the opening says once that the rest is not reviewed.
+  assert.match(md, /part 8 of 8 · 700–800 of 1234px/);
+  assert.match(
+    md,
+    /📏 \*\*Only part of 1 page is shown:\*\* `pricing @ 320` \(800 of 1234px, full screenshot `pricing@320\.png` in the head capture\)\. A new or removed page shows at most 8 screen heights; open the full screenshot to review the rest\./,
+  );
   const entry = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces.find(
     (s) => s.surface === 'pricing@320',
   );
@@ -1684,7 +1625,8 @@ test('end-to-end: a region volatile only on the head is named and never reads as
   ]);
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.doesNotMatch(md, /✓ No reviewable computed-style changes/);
-  assert.match(md, /✗ Not certified — a subtree became volatile on head/);
+  // Rule 5 (QA9-01): the volatile block states it once and says it is not certified.
+  assert.match(md, /✗ \*\*1 subtree\(s\) newly volatile on head\*\*[^\n]*\*\*not certified\*\*/);
   assert.match(md, /1 subtree\(s\) newly volatile on head/);
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
   assert.equal(json.volatility.headOnly.length, 1);
@@ -1752,11 +1694,11 @@ test('end-to-end: state coverage is a separate exact recipe ledger without inven
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
-  assert.match(md, /## State coverage/);
-  assert.match(md, /Captured recipe states: 1 across 1 surface/);
-  assert.match(md, /\| `dashboard` \| `toast-visible` \| `click` \| observation 250 ms \|/);
-  assert.doesNotMatch(md, /State coverage[^#]*%/s);
-  assert.doesNotMatch(md, /Route coverage/);
+  // The recipe ledger is "What was captured" data for report.html, not a table in report.md.
+  const captured = md.split('\n').map(decodeCapturedMeta).find(Boolean);
+  assert.deepEqual(captured.recipes, [{ surface: 'dashboard', state: 'toast-visible', action: 'click' }]);
+  assert.doesNotMatch(md, /State coverage|Route coverage/);
+  assert.doesNotMatch(JSON.stringify(captured), /\d+(\.\d+)?%/, 'no invented percentages');
   rmTmp(root);
 });
 
@@ -1796,7 +1738,7 @@ test('end-to-end: forced-state echoes are suppressed and the change reads in pla
   assert.equal(json.counts.state, 0); // hover echo + (gone) focus delta both suppressed
   assert.equal(json.counts.style, 2); // color + border-color, the real change
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /recoloured/); // plain-English bullet, not a raw prop dump
+  assert.match(md, /changes text colour from light yellow to cyan\./); // plain English; the border-color echo is in the table
   assert.doesNotMatch(md, /\(gone\)/);
   rmTmp(root);
 });

@@ -34,136 +34,88 @@ that state.
 
 ## 🗺️ StyleProof report
 
-**1 change needs review**
+**2 changes to review** on `demo-button` at 900px wide: 2 elements.
 
-**1 distinct change** (2 computed-style difference(s) · 3 state-delta difference(s)) in 1 changed surface base with an existing baseline.
+### Save button
 
-**What changed**
+The Save button changes padding from `14px 28px` to `18px 32px` and background from teal to red. It is now 8px taller and 8px wider.
 
-- `demo-button @ 900` — **`button.btn`** background teal (`#14b8a6`) → red (`#dc2626`), padding adjusted · **`a.link`** interaction states changed: `:hover`, `:focus`, `:active`
+<img src="docs/readme/live-report/crops/demo-button-900-4-where.png" width="320" alt="Where on demo-button @ 900: 1 Save button highlighted"><br><sub>Where: 1 Save button on demo-button @ 900</sub>
 
-## Changes
-
-### `button.btn` · 1 element restyled
-
-_demo-button @ 900_
-
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
-
-<sub>◀ before · after ▶</sub>
+| Before                                                                                                           | After                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-4-before.png" width="340" alt="Before: the Save button"> | <img src="docs/readme/live-report/crops/demo-button-900-4-after.png" width="340" alt="After: the Save button"> |
 
 <details>
-<summary>Show highlight overlay</summary>
+<summary>Show the CSS</summary>
 
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
+`button.btn` · 1 element restyled
 
-<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
+| Property                | Before      | After       |
+| ----------------------- | ----------- | ----------- |
+| `padding` (8 longhands) | `14px 28px` | `18px 32px` |
+| `background-color`      | `#14b8a6`   | `#dc2626`   |
 
 </details>
 
-**Btn** `button.btn`
+### Docs link
 
-Style:
+On the Docs link, the text colour changes from `#a5f3fc` to `#fca5a5` when hovered, the outline colour changes from `#5eead4` to `#fca5a5` when focused, and the text colour changes from `#2dd4bf` to `#f87171` when pressed. At rest it looks the same.
 
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
+<img src="docs/readme/live-report/crops/demo-button-900-3-where.png" width="320" alt="Where on demo-button @ 900: 1 Docs link highlighted"><br><sub>Where: 1 Docs link on demo-button @ 900</sub>
 
-### `a.link` · 1 element restyled `:hover`
+**While hovered**
 
-_demo-button @ 900_
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-1-before.png" width="340" alt="Before: the Docs link while hovered"> | <img src="docs/readme/live-report/crops/demo-button-900-1-after.png" width="340" alt="After: the Docs link while hovered"> |
 
-![base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-composite.png)
+**While focused**
 
-<sub>◀ base :hover · head :hover ▶</sub>
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-2-before.png" width="340" alt="Before: the Docs link while focused"> | <img src="docs/readme/live-report/crops/demo-button-900-2-after.png" width="340" alt="After: the Docs link while focused"> |
+
+**While pressed**
+
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-3-before.png" width="340" alt="Before: the Docs link while pressed"> | <img src="docs/readme/live-report/crops/demo-button-900-3-after.png" width="340" alt="After: the Docs link while pressed"> |
 
 <details>
-<summary>Show highlight overlay</summary>
+<summary>Show the CSS</summary>
 
-![highlighted base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
-
-</details>
+`a.link` · 1 element restyled
 
 **Link** `a.link`
 
-Interactive-state changes:
-
-| State    | Property                                       | Before → After        |
-| -------- | ---------------------------------------------- | --------------------- |
-| `:hover` | `color`                                        | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
-
-### `a.link` · 1 element restyled `:focus`
-
-_demo-button @ 900_
-
-![base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-composite.png)
-
-<sub>◀ base :focus · head :focus ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
+| Property                                              | Before    | After     |
+| ----------------------------------------------------- | --------- | --------- |
+| `:hover color`                                        | `#a5f3fc` | `#fca5a5` |
+| `:focus outline-color`                                | `#5eead4` | `#fca5a5` |
+| `:active color`                                       | `#2dd4bf` | `#f87171` |
+| `:hover caret-color` (follows `color`)                | `#a5f3fc` | `#fca5a5` |
+| `:hover outline-color` (follows `color`)              | `#a5f3fc` | `#fca5a5` |
+| `:hover column-rule-color` (follows `color`)          | `#a5f3fc` | `#fca5a5` |
+| `:hover row-rule-color` (follows `color`)             | `#a5f3fc` | `#fca5a5` |
+| `:hover text-decoration-color` (follows `color`)      | `#a5f3fc` | `#fca5a5` |
+| `:hover text-emphasis-color` (follows `color`)        | `#a5f3fc` | `#fca5a5` |
+| `:hover -webkit-text-fill-color` (follows `color`)    | `#a5f3fc` | `#fca5a5` |
+| `:hover -webkit-text-stroke-color` (follows `color`)  | `#a5f3fc` | `#fca5a5` |
+| `:active caret-color` (follows `color`)               | `#2dd4bf` | `#f87171` |
+| `:active outline-color` (follows `color`)             | `#2dd4bf` | `#f87171` |
+| `:active column-rule-color` (follows `color`)         | `#2dd4bf` | `#f87171` |
+| `:active row-rule-color` (follows `color`)            | `#2dd4bf` | `#f87171` |
+| `:active text-decoration-color` (follows `color`)     | `#2dd4bf` | `#f87171` |
+| `:active text-emphasis-color` (follows `color`)       | `#2dd4bf` | `#f87171` |
+| `:active -webkit-text-fill-color` (follows `color`)   | `#2dd4bf` | `#f87171` |
+| `:active -webkit-text-stroke-color` (follows `color`) | `#2dd4bf` | `#f87171` |
 
 </details>
-
-**Link** `a.link`
-
-Interactive-state changes:
-
-| State    | Property        | Before → After        |
-| -------- | --------------- | --------------------- |
-| `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
-
-### `a.link` · 1 element restyled `:active`
-
-_demo-button @ 900_
-
-![base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-composite.png)
-
-<sub>◀ base :active · head :active ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
-
-</details>
-
-**Link** `a.link`
-
-Interactive-state changes:
-
-| State     | Property                                       | Before → After        |
-| --------- | ---------------------------------------------- | --------------------- |
-| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
-
-_Nothing else — no other element or inventory changes in this compare._
 
 - [ ] **Approve all changes**
+
+### 📊 [**Open the full visual report →**](docs/readme/live-report/report.md)
 
 ---
 
@@ -173,16 +125,20 @@ _Tick **Approve all changes** to turn the **StyleProof** check green — write a
 
 ## What the report tells you
 
-- **The headline** says how many distinct changes need review. Here that is one change, made of 2 computed-style
-  differences and 3 interaction-state differences on one page.
-- **Each card is one changed element.** It names the element (`button.btn`), the page and viewport width it was
-  captured at (`demo-button @ 900`), and the property changes in one line.
-- **The before/after crop** shows the element on the base branch and on the pull request. Cards for `:hover`,
-  `:focus`, and `:active` show both sides in that state. A highlight overlay marking the change is one click away.
-- **The table** lists every changed computed property with its old and new value. Properties that follow
-  `currentColor` are nested under the colour that drove them.
-- **Warnings appear only when something is wrong**, such as a page that was not captured or captures that may not
-  show the same product state. A fully certified run keeps that evidence collapsed.
+- **The summary line** says how many changes need review and where: here two changes on one page at 900px wide.
+- **Each section is one change**: a group of elements that changed the same way. Its name and one plain sentence say
+  what changed, using the captured element text, colour names and values.
+- **The Where map** is a small view of the page with the changed elements ringed. It is the only image StyleProof
+  draws on.
+- **The before/after pair** shows the same rectangle of the base and pull-request captures, unedited. Changes to
+  `:hover`, `:focus` and `:active` get one pair per state, with both sides in that state.
+- **Show the CSS** lists every changed computed property with its old and new value. Longhands that moved together
+  fold into their shorthand, and properties that follow `currentColor` are marked. Forced-state changes are listed
+  under the element whose state was forced (the element itself for its own `:hover`, a checkbox for its
+  `:checked`), one block per element, as the capture records them. The browser report also lists the
+  element paths and the whole page before and after.
+- **Warnings appear only when something blocks or needs you**, such as a page that was not captured, a compare
+  that cannot certify, or a changed CSS rule no captured page matched. Diagnostics stay in `report.json`.
 - **Approve all changes** turns the `StyleProof` check green once a reviewer with write access, other than the PR
   author, ticks it. A later push that changes styles or surfaces reopens it.
 
@@ -191,7 +147,7 @@ pass or fail decision runs on the exact values in the table. Surface-key vocabul
 variants) is in [docs/REFERENCE.md](docs/REFERENCE.md). Declare `mediaStates` to add dark-theme,
 print, or forced-colors captures; see [media environments](docs/REFERENCE.md#media-environments).
 
-**Where the report lives.** On a pull request, the PR comment is the same linked summary for public and private repositories.
+**Where the report lives.** On a pull request, the PR comment carries the report itself: the summary line and every change section, up to 50,000 characters (under GitHub's 65,536-character limit), then a link to the full report. A longer report shows the sections that fit, then a note saying what the full report has beyond them and that its link is at the end of the comment. On a public repository with `report-storage: branch` it also shows the Where maps and crops; on a private repository or with artifact storage the sections are text, and the images are in the linked report.
 Reports publish as workflow artifacts by default. The comment links the artifact on the run, and nothing is written to
 repository git history. Images travel inside the self-contained HTML.
 
@@ -666,7 +622,7 @@ Captured forced `:checked`, `:disabled`, and `:placeholder-shown` reads count as
 when their layer and a compared owner are recorded; omitted layers do not establish forced reach.
 Exact resting form-state matches remain valid with layer metadata present, including inside
 selector functions. Only top-level form-state tokens are relaxed, with every relaxed candidate compared.
-A changed stylesheet no capture loaded, such as a lazy route's or code-split chunk's CSS, is not checked yet: the report labels it **Not checked**, gives capture guidance, and the gate does not hold it.
+A changed stylesheet no capture loaded, such as a lazy route's or code-split chunk's CSS, is not checked yet. Under `changeReach: 'gate'` the report's reach section labels it **Not checked** and gives capture guidance; at warn it is recorded in `report.json`. The gate never holds it.
 A matched rule whose declarations lost the cascade, or changed no computed value StyleProof records, in every captured state still reads reached.
 Reader failures preserve the capture and record reach unknown with no rule evidence, listed under `changeReach: 'warn'` and held only under opt-in `changeReach: 'gate'`.
 Rules matched only outside compared elements stay `unmeasured` and also hold
@@ -703,12 +659,12 @@ build; missing maps read `unmeasured`. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
 does not prove a value rendered. J2 joins changed script ranges against the actual base
 and head map manifests' SHAs, including a reused ancestor baseline. Removed ranges
-use base evidence; added ranges use head evidence. The report names execution, source file, line, side and reason under `reach.scripts`. Markdown and HTML merge only adjacent whole-line findings and show at most 100 table rows. JSON retains bounded J2 detail with full status counts. Executed values stay `unknown` without exact-range J1/J3 rendering proof;
+use base evidence; added ranges use head evidence. The report names execution, source file, line, side and reason under `reach.scripts`. report.md and report.html do not list J2 findings; `report.json` retains bounded J2 detail with full status counts. Executed values stay `unknown` without exact-range J1/J3 rendering proof;
 never/partly run expressions are `never-rendered`. Missing maps, hashes, git or SHAs
-stay `unmeasured`. Coarse mappings retain mixed evidence unless another anchor on the same source and original line represents the hidden state; empty changed lines and line-ending-only changes stay unmeasured. Token length changes and joins retain both sides. Empty edits use a touching token, preferring the left neighbour; unmatched sides and operator-only edits use line scope. Numeric, private-name, unambiguous regex and JSX-text ranges retain their starts. When a range has no anchor, the nearest preceding anchor in that source supplies only labeled negative evidence, including across uninstrumented lines. Only a token-start anchor proves that script token ran; closing delimiters and other punctuation supply negative evidence only. Every tokenful part of a range is accounted for. JSX text takes precedence over comment/template syntax; attribute expressions cannot turn into text tokens. Ambiguous regex/comment tails and quoted or slash-prefixed tails after JSX child expressions or closing tags supply negative evidence only. Template substitutions need their own starts; a live template head cannot prove a folded-away expression ran. An executed preceding start reads unmeasured because it cannot prove this code survived bundling or ran. Leading tokens before a range's first mapped start also retain this negative-only evidence, so a later executed fallback cannot hide an idle template tail. Mixed evidence can be cleared by execution only from the same script URL. Capture explicitly marks resolved vendor-only maps; these add no J2 gap, while missing/failed maps and ambiguous older evidence still do. JSON gives style findings priority, compacts only whole-line units and shares a 64 KB budget across J2/J3 units, gap records and path lists, with named truncation counts. Markdown bounds these lists too and queues reach after chrome and content detail. J2 is always warn-only, including under `changeReach: 'gate'`,
+stay `unmeasured`. Coarse mappings retain mixed evidence unless another anchor on the same source and original line represents the hidden state; empty changed lines and line-ending-only changes stay unmeasured. Token length changes and joins retain both sides. Empty edits use a touching token, preferring the left neighbour; unmatched sides and operator-only edits use line scope. Numeric, private-name, unambiguous regex and JSX-text ranges retain their starts. When a range has no anchor, the nearest preceding anchor in that source supplies only labeled negative evidence, including across uninstrumented lines. Only a token-start anchor proves that script token ran; closing delimiters and other punctuation supply negative evidence only. Every tokenful part of a range is accounted for. JSX text takes precedence over comment/template syntax; attribute expressions cannot turn into text tokens. Ambiguous regex/comment tails and quoted or slash-prefixed tails after JSX child expressions or closing tags supply negative evidence only. Template substitutions need their own starts; a live template head cannot prove a folded-away expression ran. An executed preceding start reads unmeasured because it cannot prove this code survived bundling or ran. Leading tokens before a range's first mapped start also retain this negative-only evidence, so a later executed fallback cannot hide an idle template tail. Mixed evidence can be cleared by execution only from the same script URL. Capture explicitly marks resolved vendor-only maps; these add no J2 gap, while missing/failed maps and ambiguous older evidence still do. JSON gives style findings priority, compacts only whole-line units and shares a 64 KB budget across J2/J3 units, gap records and path lists, with named truncation counts. report.md and report.html show none of these lists. J2 is always warn-only, including under `changeReach: 'gate'`,
 and its unresolved units or gaps prevent reach-complete. Changed paths J2 does not judge remain counted in a run-level gap with a short preview and bounded path detail, including unsupported templates and files without text hunks. Comparison uses the root prefix recorded by capture; missing or mismatched provenance keeps changed lines unmeasured under their git paths. Early returns and self-check rewrites retain provenance; failed root lookups stay named. J3 joins changed class-token occurrences with gained/lost classes on paired compared elements.
 A string is a class source when every word is in the served CSS class vocabulary, or when it is passed to a class attribute/helper; ordinary prose is skipped.
-An occurrence is `never-rendered` only when its token appears on no captured element on its own side (head for additions, base for removals), including unpaired elements, and every map on that side records no capture omissions. Volatile elements, a configured ignore list, untraversed open/closed author roots or embedded documents, omitted head content, html children outside head/body, route-announcer author children, unmatched surfaces, or legacy/version-1 omission facts leave absence unproven (`unknown`). Omission facts are collected and written only with captureReach; default capture output is unchanged. Version-2 facts require CDP and document-boundary verification; older version-2 maps lacking the latter remain unknown; self-check marks changing omission facts unstable and never clears an unknown from a cleaner read. Any presence means `unknown` ("token present on a captured element; not tied to this occurrence"), even with no class-list delta. A class-preserving refactor therefore stays unknown. No per-occurrence render provenance is recorded, so no J3 unit reaches or upgrades J2. Explicit evidence follows a positive syntax allow-list over the existing lexer, with a bounded bracket/work stack and no new runtime dependencies: class attributes and `.className =` values, direct class-helper arguments and their array elements/object keys, ternary result branches and logical (`&&`/`||`/`??`) right-hand results inside positive values, classList.add arguments and the second classList.replace argument. Calls/tags, predicates, lookups, callbacks, unary expressions, type positions and ordinary assignments cannot inherit a positive role. Type mode covers nested generic, tuple, conditional and parenthesized types as well as inline annotations, including compact closer/initializer boundaries; runtime initializers, function bodies, parenthesized arrow returns, ASI statements and labeled blocks resume class discovery. Unsupported lexical forms can still omit a candidate and its gap; an absent J3 row does not establish that a line was checked. Queries/removals/toggles, dataset/data-class and vocabulary-only candidates stay J3-only. Known cva class values and simple framework bindings are supported; plain class properties remain an explicit lexical ambiguity for Vue h() props. Replacement matching preserves unchanged token/role/slot sequences across whole hunks, including extracted constants on other lines. Template depth limits always name the unmeasured remainder, even outside class contexts. `reach.classes`, `classCounts` and named J3 gaps stay warn-only at both levels and prevent reach-complete. Unresolved explicit expressions are summarized per file and side with a full occurrence count and ten sampled ranges; multi-megabyte files retain bounded report detail. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
+An occurrence is `never-rendered` only when its token appears on no captured element on its own side (head for additions, base for removals), including unpaired elements, and every map on that side records no capture omissions. Volatile elements, a configured ignore list, untraversed open/closed author roots or embedded documents, omitted head content, html children outside head/body, route-announcer author children, unmatched surfaces, or legacy/version-1 omission facts leave absence unproven (`unknown`). Omission facts are collected and written only with captureReach; default capture output is unchanged. Version-2 facts require CDP and document-boundary verification; older version-2 maps lacking the latter remain unknown; self-check marks changing omission facts unstable and never clears an unknown from a cleaner read. Any presence means `unknown` ("token present on a captured element; not tied to this occurrence"), even with no class-list delta. A class-preserving refactor therefore stays unknown. No per-occurrence render provenance is recorded, so no J3 unit reaches or upgrades J2. Explicit evidence follows a positive syntax allow-list over the existing lexer, with a bounded bracket/work stack and no new runtime dependencies: class attributes and `.className =` values, direct class-helper arguments and their array elements/object keys, ternary result branches and logical (`&&`/`||`/`??`) right-hand results inside positive values, classList.add arguments and the second classList.replace argument. Calls/tags, predicates, lookups, callbacks, unary expressions, type positions and ordinary assignments cannot inherit a positive role. Type mode covers nested generic, tuple, conditional and parenthesized types as well as inline annotations, including compact closer/initializer boundaries; runtime initializers, function bodies, parenthesized arrow returns, ASI statements and labeled blocks resume class discovery. Unsupported lexical forms can still omit a candidate and its gap; an absent J3 row does not establish that a line was checked. Queries/removals/toggles, dataset/data-class and vocabulary-only candidates stay J3-only. Known cva class values and simple framework bindings are supported; plain class properties remain an explicit lexical ambiguity for Vue h() props. Replacement matching preserves unchanged token/role/slot sequences across whole hunks, including extracted constants on other lines. Template depth limits always name the unmeasured remainder, even outside class contexts. `reach.classes`, `classCounts` and named J3 gaps stay warn-only at both levels and prevent reach-complete. Unresolved explicit expressions are summarized per file and side with a full occurrence count and ten sampled ranges; multi-megabyte files retain bounded report.json detail. See [script evidence](docs/REFERENCE.md#script-execution-evidence-j2). The
 [Change Reach 0.2 receipt](bench/REACH-0.2.md) records capture cost and a limited
 six-PR noise replay, with its exclusions and labelling limits.
 

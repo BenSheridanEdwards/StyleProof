@@ -436,7 +436,8 @@ for (const scenario of scenarios) {
       }
       const json = JSON.parse(fs.readFileSync(report.reportJsonPath, 'utf8'));
       expect(json.reach.scripts.every((unit: { why: string }) => unit.why.includes(scenario.residual))).toBe(true);
-      expect(fs.readFileSync(report.reportMdPath, 'utf8')).toContain(scenario.residual);
+      // J2 is warn-only machine output: report.json carries the residual; report.md stays free of it.
+      expect(fs.readFileSync(report.reportMdPath, 'utf8')).not.toContain(scenario.residual);
     }
   });
 }

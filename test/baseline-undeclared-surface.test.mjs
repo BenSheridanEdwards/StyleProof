@@ -169,7 +169,8 @@ test('a surface the head adds is reviewed as new, not PARTIAL_BASELINE', () => {
     assert.equal(entry.baselineStatus, 'new');
     assert.equal(entry.isNew, true);
     assert.match(report.md, /new surface/i);
-    assert.match(report.md, /never declared/);
+    // RV11-06: the line names the surface, not just a count.
+    assert.match(report.md, /`reports @ 1280` was never declared on the base commit/);
     assert.doesNotMatch(report.md, /baseline repair needed/);
   } finally {
     rmTmp(tmp);

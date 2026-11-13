@@ -25,19 +25,21 @@ Output is `report.md` + `crops/`, capped ~400 KB so GitHub renders it;
 
 ## What a change looks like
 
-Each distinct change is one section: a plain-English summary
-(`background brand-cyan → brand-amber`, `columns: 2 → 3`), a side-by-side
-before/after crop from the same page rectangle, the same crop again with magenta
-boxes marking exactly what moved (under a toggle), then the exact property table
-folded under a toggle. A change
-too small to see at 1:1 also gets a magnified zoom crop, so a sub-pixel tweak
-can't slip past. A clean run still prints a receipt: `No visual changes detected.`
-New surfaces show as `🆕 new surface`.
+Elements that changed the same way form one section: a plain-English name, one
+sentence built from the captured values ("All 3 card titles change text colour
+from dark indigo to dark red."), a small **Where** map that rings them on the
+page (the only image StyleProof draws on), an unedited before/after crop of the
+same page rectangle for each changed state ("While hovered"), and the exact CSS
+under **Show the CSS**. A clean run still prints a receipt: `No visual changes
+detected.` New surfaces show as `🆕 new surface`.
 
-The report **leads with the certification gates** — the coverage, determinism,
-and 📐 inventory verdicts — so a reviewer sees what the green actually asserts
-before the pretty crops. The PR comment itself stays lean (summary + approval
-box) and links to the committed full report.
+The report opens with one summary line (how many changes, on which pages and
+widths) and states in plain words anything that blocks certification. Internal
+diagnostics stay in `report.json`. `report.html` is the same report as a browser
+page with light and dark themes. The PR comment carries the summary and every
+change section; on a public repository with `report-storage: branch` it also
+shows the Where maps and crops, and elsewhere the sections are text with a link
+to the full report.
 
 ## Opt-in advisory layers (never gate)
 

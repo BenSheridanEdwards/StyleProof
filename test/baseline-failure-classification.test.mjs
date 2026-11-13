@@ -198,8 +198,8 @@ test('mixed baseline failure scenario: failures, new surfaces, and changes class
     );
 
     const md = fs.readFileSync(result.reportMdPath, 'utf8');
-    assert.match(md, /baseline capture failure/, 'Markdown should mention baseline failures');
-    assert.match(md, /not a base recapture failure/i);
+    assert.match(md, /failed to capture on the base/, 'Markdown should mention baseline failures');
+    assert.match(md, /The rest of the base was captured/);
   } finally {
     rmTmp(tmp);
   }

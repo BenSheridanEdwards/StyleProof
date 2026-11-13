@@ -2,17 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
 import { isChromeLandmarkPath } from '../change-chrome.js';
-import { captureKeysIn } from '../capture.js';
 import type { DiffCounts } from '../diff.js';
 import type { BaselineProvenance, SurfaceCaptureFailure } from '../map-store.js';
 import type { ReportOptions, ReportResult } from '../report.js';
-import { chromeSpanLabel, safeKey, surfaceBase } from '../change-groups.js';
+import { chromeSpanLabel, safeKey } from '../change-groups.js';
 import { cropPng, cropStem, readPng } from './png.js';
-import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget.js';
+import { cropGapReason, writeBudgetedPng, type CropBudget } from './crop-budget.js';
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
-import type { ReportReach } from './reach.js';
+import { publishedReach, type ReportReach } from './reach.js';
 import { reserveScriptNotice, budgetScriptReach, jsonBytes } from './script-units.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
@@ -32,20 +31,20 @@ const ONE_SIDED: Record<OneSidedStatus, OneSidedText> = {
   removed: {
     heading: (key) => `### \`${key}\` · REMOVED surface 🗑️`,
     alt: 'removed surface',
-    note: () =>
-      `_Present in the baseline but not captured on head. This is a **removal** to review, not an addition; approving accepts the disappearance._`,
+    // The heading and the summary's 🗑️ line say it; the tile adds nothing (rule 5).
+    note: () => '',
   },
   new: {
     heading: (key) => `### \`${key}\` · new surface ${NEW_SURFACE_MARKER}`,
     alt: 'new surface',
-    note: () =>
-      `_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._`,
+    // The heading and the summary's 🆕 line say it; the tile adds nothing (rule 5).
+    note: () => '',
   },
   'capture-failed': {
     heading: (key) => `### \`${key}\` · baseline repair needed ⚠️`,
     alt: 'baseline repair needed',
-    note: (key) =>
-      `_The matching baseline surface capture failed. This is **baseline repair needed**, not first adoption and not a base recapture failure; repair \`${key}\` on the named SHA in the receipt above._`,
+    // The summary names every failed surface and the fix; the tile heading says which this is.
+    note: () => '',
   },
 };
 
@@ -75,6 +74,24 @@ function writeOneSidedTiles(ctx: RenderCtx, png: PNG, surface: string, tileHeigh
   return tiles;
 }
 
+/** A one-sided page shown in part: recorded for the report's one opening line (QA11-02). */
+function notePartialPage(
+  ctx: RenderCtx,
+  surface: string,
+  side: 'before' | 'after',
+  shownPage: { png: PNG; tiles: Tile[]; tileHeight: number; shown: number },
+): void {
+  const { png, tiles, tileHeight, shown } = shownPage;
+  ctx.partialPages?.push({
+    surface,
+    shown,
+    captured: png.height,
+    side: side === 'after' ? 'head' : 'base',
+    // Fewer tiles than the cap allows: the crop budget ran out, not the page-height cap.
+    budget: tiles.length < Math.min(MAX_ONE_SIDED_TILES, Math.ceil(png.height / tileHeight)),
+  });
+}
+
 /** Markdown for the tiles: each part numbered with its pixel range, and any unshown tail said plainly. */
 function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number, alt: string, caption: string) {
   const md: string[] = [];
@@ -85,15 +102,7 @@ function oneSidedTileLines(ctx: RenderCtx, tiles: Tile[], capturedHeight: number
         : '';
     md.push('', `![${alt}](${ctx.img(`${t.stem}.png`)})`, '', `<sub>${caption}${part}</sub>`);
   });
-  const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
-  const omittedPosition = tiles[0].top === 0 && shown === tiles[tiles.length - 1].bottom ? ' below' : '';
-  if (shown < capturedHeight) {
-    md.push(
-      '',
-      `_⚠️ Page capped: showing ${shown} of ${capturedHeight}px — the remaining ${capturedHeight - shown}px${omittedPosition} are ` +
-        `not shown in this report, so approving this surface accepts content not reviewed here._`,
-    );
-  }
+  // How much of the page is shown is said once, in the report's opening (rule 5).
   return md;
 }
 
@@ -132,10 +141,12 @@ function renderOneSided(
       json.image = `${tiles[0].stem}.png`;
       // Additive (#756): every tile, and how much of the captured height they show.
       json.images = tiles.map((t) => `${t.stem}.png`);
-      json.shownHeight = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+      const shown = tiles.reduce((sum, tile) => sum + tile.bottom - tile.top, 0);
+      json.shownHeight = shown;
       json.capturedHeight = png.height;
+      if (shown < png.height) notePartialPage(ctx, p.sd.surface, side, { png, tiles, tileHeight, shown });
     } else {
-      md.push('', cropBudgetNote(ctx.crops));
+      ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: p.sd.surface });
     }
   } else {
     md.push(
@@ -143,7 +154,8 @@ function renderOneSided(
       `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
     );
   }
-  md.push('', text.note(key));
+  const note = text.note(key);
+  if (note) md.push('', note);
   return { md, json };
 }
 
@@ -156,8 +168,7 @@ function chromeCalloutLines(nChrome: number, chromeBases: number, totalBases: nu
     `## 🧱 Global chrome ${nChrome === 1 ? 'change' : 'changes'} — across ${chromeSpanLabel(chromeBases, totalBases)} captured surface base(s)`,
     '',
     `_${nChrome} change(s): the affected element changed on every surface base that renders it` +
-      `${landmark ? ' (inside a nav, header or footer)' : ''}, so it reads as ONE global change, not a ` +
-      `per-view one. The detail is folded beneath — review it once._`,
+      `${landmark ? ' (inside a nav, header or footer)' : ''}, so it is listed once here instead of once per view._`,
   ];
 }
 
@@ -186,8 +197,8 @@ function omittedNoticeLines(budget: number): string[] {
 /** One-liner for a budget-capped change group: name · change count · crop link. */
 function compactChangeSummary(ctx: RenderCtx, cg: ChangeGroup, json: Record<string, unknown>): string {
   const more = cg.surfaces.length > 1 ? ` (+${cg.surfaces.length - 1} more)` : '';
-  const composite = (json.regions as Array<{ images?: { composite?: string } }> | undefined)?.[0]?.images?.composite;
-  const link = composite ? ` — [crop](${ctx.img(composite)})` : '';
+  const after = (json.regions as Array<{ images?: { after?: string } }> | undefined)?.[0]?.images?.after;
+  const link = after ? ` — [crop](${ctx.img(after)})` : '';
   return `- \`${safeKey(cg.rep.sd.surface)}\`${more} · ${cg.rep.findings.length} change(s)${link}`;
 }
 
@@ -232,6 +243,11 @@ export class ReportMarkdown {
     const block = { full: detail, summary };
     this.blocks.push(block);
     return block;
+  }
+
+  /** Rewrite queued lines in place (before finish), so the byte budget sees the final text. */
+  mapQueued(rewrite: (line: string) => string): void {
+    for (const block of this.blocks) block.full = block.full.map(rewrite);
   }
 
   /** Drop trailing lines until the headline itself fits the budget. */
@@ -343,55 +359,6 @@ export function renderChangedSections(
   return { totalFindings };
 }
 
-const inRange = (v: unknown, lo: number, hi: number): v is number =>
-  typeof v === 'number' && Number.isInteger(v) && v >= lo && v <= hi;
-const RECIPE_ACTIONS = new Set(['hover', 'focus', 'press', 'click', 'route']);
-
-/** One coverage-table row for a captured state-recipe variant, or undefined. */
-function stateCoverageRow(ctx: RenderCtx, captureKey: string): string[] | undefined {
-  const metadata = ctx.load(ctx.afterDir, captureKey).metadata;
-  const recipe = metadata?.stateRecipe;
-  if (metadata?.variantKind !== 'state-recipe' || !recipe) return undefined;
-  const action = RECIPE_ACTIONS.has(recipe.action) ? recipe.action : 'unknown';
-  let evidence = 'captured';
-  if (inRange(recipe.observationMs, 50, 5_000)) evidence = `observation ${recipe.observationMs} ms`;
-  else if (action === 'route' && inRange(recipe.status, 400, 599)) evidence = `response ${recipe.status}`;
-  return [
-    safeKey(metadata.surfaceKey || surfaceBase(captureKey)).slice(0, 120),
-    safeKey(recipe.stateKey || metadata.variantKey || captureKey).slice(0, 120),
-    action,
-    evidence,
-  ];
-}
-
-/** Captured state-recipe variants on head, as a coverage table. */
-export function stateCoverageLines(ctx: RenderCtx): string[] {
-  const rows = new Map<string, string[]>();
-  for (const captureKey of captureKeysIn(ctx.afterDir)) {
-    const row = stateCoverageRow(ctx, captureKey);
-    if (row) rows.set(row.join('\0'), row);
-  }
-  if (rows.size === 0) return [];
-  const ordered = [...rows.values()].sort(
-    (a, b) => a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]) || a[2].localeCompare(b[2]),
-  );
-  const surfaceCount = new Set(ordered.map((r) => r[0])).size;
-  return [
-    '',
-    '## State coverage',
-    '',
-    `Captured recipe states: ${ordered.length} across ${surfaceCount} surface${surfaceCount === 1 ? '' : 's'}.`,
-    '',
-    '| Surface | State | Action | Evidence |',
-    '| --- | --- | --- | --- |',
-    ...ordered.map(
-      ([surface, state, action, evidence]) => `| \`${surface}\` | \`${state}\` | \`${action}\` | ${evidence} |`,
-    ),
-    '',
-    '_Discovery outcomes such as skipped, deduplicated, timed out, or requires fixture are recorded by the state harvester; this capture report does not infer them._',
-  ];
-}
-
 export type ReportArtifacts = Pick<
   ReportResult,
   | 'comparison'
@@ -485,7 +452,7 @@ export function buildReportJson(a: ReportArtifacts) {
   const script = budgetScriptReach(a.reach, capped.json.reach, maxBytes - jsonBytes(capped.json));
   return {
     ...capped,
-    json: { ...capped.json, ...(script.reach ? { reach: script.reach } : {}) },
+    json: { ...capped.json, ...(script.reach ? { reach: publishedReach(script.reach) } : {}) },
     scriptUnitsOmitted: script.omitted,
     scriptDetailsOmitted: script.detailsOmitted,
   };

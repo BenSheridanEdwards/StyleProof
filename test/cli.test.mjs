@@ -2039,14 +2039,23 @@ test('report CLI labels an unverified empty report UNVERIFIED in report.html, no
   rmTmp(root);
 });
 
-test('report CLI carries the UNVERIFIED banner into report.html when the report has no ✓ line', () => {
+test('report CLI opens a report with changes with the UNVERIFIED source-binding note, in plain words (RV18-06)', () => {
   const { root, A, B } = differingPair();
   const out = path.join(root, 'out');
   const r = run(REPORT, [A, B, '--out', out]);
   assert.equal(r.status, 1, r.stdout + r.stderr);
   const pair = readReportPair(out);
-  assert.match(pair.md, /^> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  assert.match(r.stderr, /⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified/);
+  // As main shows it, at the top of report.md and report.html, saying what to do.
+  assert.match(
+    pair.md,
+    /^> ⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified\. .*`--expected-before-sha` and `--expected-after-sha`/,
+  );
   assert.match(pair.html, /UNVERIFIED DIAGNOSTIC: source binding was not verified\./);
+  // The warning leads the page and the header still renders: title, theme switch and summary (RV19-01).
+  assert.match(pair.html, /<header class="top"><div class="topbar"><h1>StyleProof report<\/h1><div class="theme"/);
+  assert.match(pair.html, /<p class="summary"><strong>\d+ changes? to review<\/strong>/);
+  assert.notEqual(JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8')).sourceBinding.status, 'bound');
   assertHtmlRendersMd(pair);
   rmTmp(root);
 });

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { captureStyleMap, generateStyleMapReport } from '../dist/index.js';
 import { captureStateLayerScreenshots } from '../dist/capture.js';
+import { reportCommentSummary } from '../dist/report-comment.js';
 import { writeCapture } from './fixture-util.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -65,7 +66,6 @@ const res = generateStyleMapReport({
   foldDetailsAt: Infinity,
   minHeight: 72,
   minWidth: 240,
-  zoomBelow: 0,
 });
 fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
@@ -75,28 +75,32 @@ function restingChangesFirst(markdown) {
   const start = markdown.indexOf(heading);
   if (start === -1) return markdown;
   const bodyStart = start + heading.length;
-  // Only reorder ### change cards. Trailing "Nothing else" / Evidence stay put.
-  const trailMatch = markdown.slice(bodyStart).search(/\n(?=_Nothing else|<details>\n<summary>Evidence)/);
+  // Only reorder ### change sections. The trailing captured-data comment and Evidence stay put.
+  const trailMatch = markdown.slice(bodyStart).search(/\n(?=<!-- styleproof-captured|<details>\n<summary>Evidence)/);
   const bodyEnd = trailMatch === -1 ? markdown.length : bodyStart + trailMatch;
   const body = markdown.slice(bodyStart, bodyEnd);
   const trail = markdown.slice(bodyEnd);
   const blocks = body.split(/(?=^### )/m).filter(Boolean);
-  const resting = blocks.filter(
-    (block) => block.startsWith('### ') && !['`:hover`', '`:focus`', '`:active`'].some((s) => block.includes(s)),
-  );
+  // A state section's CSS fold has rows for `:hover` (or `:focus`, `:active`): "`:hover color`".
+  const resting = blocks.filter((block) => block.startsWith('### ') && !/`:(hover|focus|active)[` ]/.test(block));
   const states = blocks.filter((block) => !resting.includes(block));
   return markdown.slice(0, bodyStart) + [...resting, ...states].join('') + trail;
 }
 
 const report = restingChangesFirst(fs.readFileSync(res.reportMdPath, 'utf8'));
 fs.writeFileSync(res.reportMdPath, report);
-const inlined = report.replaceAll('(crops/', '(docs/readme/live-report/crops/');
+const inlined = report.replaceAll('src="crops/', 'src="docs/readme/live-report/crops/');
+// The Action's comment content, as a public repository gets it (images kept). The crops
+// were repointed above, so they resolve from the README rather than the report branch.
+const summary = reportCommentSummary(inlined, { keepImages: true });
 const comment = [
   '<!-- styleproof-report -->',
   '',
-  inlined.trim(),
+  summary,
   '',
   '- [ ] **Approve all changes**',
+  '',
+  '### 📊 [**Open the full visual report →**](docs/readme/live-report/report.md)',
   '',
   '---',
   '_Tick **Approve all changes** to turn the **StyleProof** check green — write access required, and not the pull request author. One tick signs it off. A new push that changes styles or surfaces re-opens it._',

@@ -148,7 +148,7 @@ test('git paths with whitespace and renames retain source identities and numeric
   );
 });
 
-test('reports retain J2 source ranges and grouped reasons in JSON, Markdown and HTML without holding gate', async (t) => {
+test('reports retain J2 source ranges in report.json, keep them out of report text, and never hold the gate', async (t) => {
   const { generateStyleMapReport } = await import('../dist/report.js');
   const { makeMap, writeCapture } = await import('./helpers.mjs');
   const { sha256 } = await import('../dist/node-util.js');
@@ -217,12 +217,17 @@ test('reports retain J2 source ranges and grouped reasons in JSON, Markdown and 
       assert.equal(json.reach.gaps.filter((gap) => gap.join === 'J2').length, 0);
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
       const html = fs.readFileSync(path.join(f.cwd, 'report/report.html'), 'utf8');
-      assert.match(md, /\*\*unknown\*\*/);
-      assert.match(md, /app.ts:1:10-1:11/);
-      assert.match(md, /value; rendering not proved/);
-      assert.match(html, /Script change reach \(J2\)/);
-      assert.match(html, /app.ts:1:10-1:11/);
-      assert.doesNotMatch(md, /Reach complete/);
+      // J2 never holds the gate: its units and ranges are report.json data, not report text.
+      assert.ok(json.reach.scripts.every((unit) => unit.sourceKey === 'app.ts'));
+      assert.ok(
+        json.reach.scripts.every((unit) => /^value; rendering not proved/.test(unit.why)),
+        'grouped reason kept',
+      );
+      assert.match(JSON.stringify(json.reach.scripts), /1:10-1:11|"line":1,"column":10/, 'source range kept');
+      assert.doesNotMatch(md, /Script change reach|app\.ts:1:10|Reach complete/);
+      assert.doesNotMatch(html, /Script change reach \(J2\)/);
+      assert.doesNotMatch(html, /app\.ts:1:10/);
+      assert.equal(json.reach.blocking, 0, 'J2 never holds the gate');
     }
   } finally {
     process.chdir(previous);

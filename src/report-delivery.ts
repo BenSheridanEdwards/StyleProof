@@ -6,6 +6,12 @@ export type ReportDelivery = Readonly<{
   access: 'public-github-view' | 'authenticated-github-view' | 'authenticated-artifact-download';
   url: string;
   markdown: string;
+  /**
+   * Absolute base for the report's images in the PR comment, or null. Only a public
+   * repository's commit-bound blob URL serves `?raw=1` images to anonymous readers
+   * (GitHub's image proxy); private repositories and artifacts get text-only sections.
+   */
+  imageBase: string | null;
 }>;
 
 export type BuildReportDeliveryOptions = {
@@ -35,13 +41,14 @@ export function buildReportDelivery(options: BuildReportDeliveryOptions): Report
   const canonicalUrl = `https://github.com/${repository}/blob/${publicationSha}/pr-${prNumber}/report.md`;
   if (reportUrl !== canonicalUrl) fail('publication URL is not the canonical report for this pull request');
 
-  const markdown = `### 📊 [**View the side-by-side visual report →**](${canonicalUrl})`;
+  const markdown = `### 📊 [**Open the full visual report →**](${canonicalUrl})`;
   return Object.freeze({
     mode: 'linked-report',
     cropDelivery: 'relative-paths-in-committed-report',
     access: repositoryVisibility === 'private' ? 'authenticated-github-view' : 'public-github-view',
     url: canonicalUrl,
     markdown,
+    imageBase: repositoryVisibility === 'public' ? canonicalUrl.slice(0, -'report.md'.length) : null,
   });
 }
 
@@ -75,5 +82,6 @@ export function buildArtifactReportDelivery(options: BuildArtifactReportDelivery
     access: 'authenticated-artifact-download',
     url: reportUrl,
     markdown,
+    imageBase: null,
   });
 }

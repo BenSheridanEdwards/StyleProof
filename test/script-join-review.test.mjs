@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { changedScriptRanges, readScriptChanges } from '../dist/script-join-git.js';
 import { reachSectionLines, assessReachMaps } from '../dist/report/reach.js';
+import { scriptUnitRanges } from '../dist/report/script-units.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 
 const evidence = (prefix = '', sourceKey = 'app.ts') => ({
@@ -148,7 +149,7 @@ test('without scriptReach there is no manifest or git work and J1 opt-in behavio
   assert.ok(assessReachMaps([evidence()], [evidence()], 'warn'));
 });
 
-test('three thousand adjacent findings render as ranges and a long fragmented table is capped', () => {
+test('three thousand adjacent findings merge into ranges and stay out of report.md (QA3-01)', () => {
   const unit = (line, why = 'value; rendering not proved') => ({
     sourceKey: 'app.ts',
     side: 'head',
@@ -161,16 +162,9 @@ test('three thousand adjacent findings render as ranges and a long fragmented ta
   });
 
   const reach = { level: 'warn', rules: [], gaps: [], scripts: Array.from({ length: 3000 }, (_, i) => unit(i + 1)) };
-  const lines = reachSectionLines(reach);
-  assert.ok(lines.filter((line) => line.startsWith('| `app.ts')).length <= 2);
-
-  const fragmented = reachSectionLines({
-    ...reach,
-    scripts: reach.scripts.map((entry, i) => ({ ...entry, why: String(i) })),
-  }).join('\n');
-
-  assert.match(fragmented, /\+\d+ more/);
-  assert.ok(fragmented.split('\n').filter((line) => line.startsWith('| `app.ts')).length <= 100);
+  assert.ok(scriptUnitRanges(reach.scripts).length <= 2);
+  // Warn-only J2 detail is machine output; report.md never lists it.
+  assert.deepEqual(reachSectionLines(reach), []);
 });
 
 test('git uses one all-path diff and one blob batch, retaining healthy files after a missing blob', (t) => {

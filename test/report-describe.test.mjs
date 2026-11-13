@@ -18,7 +18,8 @@ import {
   pairFixture,
   writeCapture,
   sceneMap,
-  highlightPixelsBySide,
+  whereBoxesBySide,
+  hasWhereRing,
 } from './helpers.mjs';
 
 // ------------------------------------------------- describeChange / colorName
@@ -267,18 +268,14 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
   writeCapture(afterDir, 'agents@1440', map('295px 228px', 'rgb(255, 0, 0)'), solidPng(1440, 400));
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.equal(
-    (md.match(/^### (?:\*\*[^*]+\*\* )?`div\.netgrid`/gm) || []).length,
-    1,
-    'one grouped section, not one per width',
-  );
-  assert.match(md, /Identical across 2 surfaces/);
+  assert.equal((md.match(/^### /gm) || []).length, 1, 'one grouped section, not one per width');
+  assert.match(md, /`div\.netgrid` · 1 element restyled · the same on agents @ /);
   rmTmp(root);
 });
 
 // ---------------------------------------------- annotated crops (1.8.0)
 
-test('end-to-end: each crop shows a clean image plus a highlighted twin by default', () => {
+test('end-to-end: each crop shows clean before/after images and boxes only the Where map', () => {
   const { beforeDir, afterDir, outDir, root } = pairFixture({
     surface: 'home@1280',
     before: sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 }),
@@ -288,22 +285,31 @@ test('end-to-end: each crop shows a clean image plus a highlighted twin by defau
   });
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/[^)]+-composite\.png\)/, 'clean composite shown');
-  assert.match(md, /<summary>Show highlight overlay<\/summary>/, 'highlight sits under an optional toggle');
-  assert.match(md, /!\[highlighted[^\]]*\]\(crops\/[^)]+-annotated\.png\)/, 'highlighted image still emitted');
+  assert.match(
+    md,
+    /\| <img src="crops\/[^"]+-before\.png" width="340" alt="Before: [^"]+"> \| <img src="crops\/[^"]+-after\.png"/,
+  );
+  assert.match(
+    md,
+    /^<img src="crops\/[^"]+-where\.png" width="320" alt="Where on home @ 1280: [^"]+"><br><sub>Where: /m,
+  );
+  assert.doesNotMatch(md, /Show highlight overlay|composite|annotated/, 'no overlay toggle or composite');
   const crops = fs.readdirSync(path.join(outDir, 'crops'));
-  const ann = crops.find((f) => f.endsWith('-annotated.png'));
-  assert.ok(ann && crops.some((f) => f.endsWith('-composite.png')), 'both image files written');
-  // The annotated twin actually contains the magenta highlight outline.
-  const png = PNG.sync.read(fs.readFileSync(path.join(outDir, 'crops', ann)));
-  let hasHilite = false;
-  for (let i = 0; i < png.data.length; i += 4) {
-    if (png.data[i] === 255 && png.data[i + 1] === 0 && png.data[i + 2] === 200) {
-      hasHilite = true;
-      break;
-    }
-  }
-  assert.ok(hasHilite, 'annotated crop contains the highlight colour');
+  const read = (suffix) =>
+    PNG.sync.read(
+      fs.readFileSync(
+        path.join(
+          outDir,
+          'crops',
+          crops.find((f) => f.endsWith(suffix)),
+        ),
+      ),
+    );
+  assert.ok(hasWhereRing(read('-where.png')), 'the Where map carries the ring');
+  assert.ok(
+    !hasWhereRing(read('-before.png')) && !hasWhereRing(read('-after.png')),
+    'before/after crops carry no ring',
+  );
   rmTmp(root);
 });
 
@@ -333,32 +339,27 @@ test('state-only change crops hover vs hover, not rest vs rest', () => {
   fs.writeFileSync(path.join(dirs.beforeDir, 'demo@900.hover.png'), solidPng(400, 200, [165, 243, 252]));
   fs.writeFileSync(path.join(dirs.afterDir, 'demo@900.hover.png'), solidPng(400, 200, [252, 165, 165]));
   const md = fs.readFileSync(generateStyleMapReport(dirs).reportMdPath, 'utf8');
-  assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/, 'the caption names the state on both sides');
-  assert.match(md, /base :hover/);
-  assert.match(md, /head :hover/);
-  assert.ok(!md.includes('◀ before  ·  after ▶'), 'state-only must not use the rest crop');
-  const crops = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((f) => f.endsWith('-composite.png'));
-  assert.equal(crops.length, 1);
-  const png = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', crops[0])));
-  assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/, 'state direction lives in the markdown caption');
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === label[0] && png.data[offset + 1] === label[1] && png.data[offset + 2] === label[2]) {
-        labelPixels++;
-      }
+  assert.match(md, /\*\*While hovered\*\*/, 'the state lives in the markdown label, not in the image');
+  const crops = fs.readdirSync(path.join(dirs.outDir, 'crops'));
+  assert.equal(crops.filter((f) => /-(before|after)\.png$/.test(f)).length, 2, 'one hover pair, no rest pair');
+  const only = (png, rgb) => {
+    for (let i = 0; i < png.data.length; i += 4) {
+      if (png.data[i] !== rgb[0] || png.data[i + 1] !== rgb[1] || png.data[i + 2] !== rgb[2]) return false;
     }
-  }
-  assert.equal(labelPixels, 0, 'state composite has no in-image BASE/HEAD glyphs');
-  let sawCyan = false;
-  let sawPink = false;
-  for (let i = 0; i < png.data.length; i += 4) {
-    if (png.data[i] === 165 && png.data[i + 1] === 243 && png.data[i + 2] === 252) sawCyan = true;
-    if (png.data[i] === 252 && png.data[i + 1] === 165 && png.data[i + 2] === 165) sawPink = true;
-  }
-  assert.ok(sawCyan && sawPink, 'composite is the hover layer (cyan vs pink), not rest');
+    return true;
+  };
+  const read = (suffix) =>
+    PNG.sync.read(
+      fs.readFileSync(
+        path.join(
+          dirs.outDir,
+          'crops',
+          crops.find((f) => f.endsWith(suffix)),
+        ),
+      ),
+    );
+  assert.ok(only(read('-before.png'), [165, 243, 252]), 'before is the base hover layer (cyan), untouched');
+  assert.ok(only(read('-after.png'), [252, 165, 165]), 'after is the head hover layer (pink), untouched');
   rmTmp(dirs.root);
 });
 
@@ -400,17 +401,17 @@ for (const [restingHeight, hoverBeforeHeight, hoverAfterHeight, mixed] of [
       const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const surface = report.surfaces[0];
       const region = surface.regions[0];
-      assert.match(md, /needs review/);
+      assert.match(md, /to review\*\*/);
       if (hoverBeforeHeight > 200 || hoverAfterHeight > 200) {
-        assert.ok(region?.stateImages?.hover?.composite, 'visible hover change keeps its crop');
+        assert.ok(region?.stateImages?.hover?.after, 'visible hover change keeps its crop');
         assert.notEqual(surface.visualEvidence, 'not-rendered');
-        assert.match(md, /◀ base :hover {2}· {2}head :hover ▶/);
+        assert.match(md, /\*\*While hovered\*\*/);
       } else {
         assert.ok(!region?.stateImages?.hover, 'no hover crop of unrelated pixels above the target');
         assert.match(md, /outside the screenshot canvas/);
       }
       if (mixed) {
-        assert.equal(!!region?.images?.composite, restingHeight > 200, 'resting crop keeps its own bounds');
+        assert.equal(!!region?.images?.after, restingHeight > 200, 'resting crop keeps its own bounds');
       }
     } finally {
       rmTmp(dirs.root);
@@ -456,15 +457,20 @@ test('the change reads in plain English above the crop, not only under the fold'
     afterPng: solidPng(1280, 800),
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
-  const img = md.indexOf('![before');
+  const img = md.indexOf('| Before | After |');
   assert.ok(img > 0, 'report still has a crop');
   const above = md.slice(0, img);
+  assert.match(above, /background from black to red/, 'the change is readable before the picture');
+  assert.ok(!above.includes('<details>'), 'glance is not inside the diamond fold');
+  // #1321: no raw property list repeats the summary, and no property-list line sits before the pair.
+  // The only `<br>` is the Where map line's (image, then its caption); no `<br>`-stacked property list.
+  const broken = md.split('\n').filter((line) => line.includes('<br>'));
+  assert.ok(
+    broken.every((line) => /^<img [^>]*><br><sub>Where: /.test(line)),
+    `no raw property list repeats the summary: ${broken.join(' | ')}`,
+  );
   const section = above.slice(above.lastIndexOf('### '));
-  assert.match(section, /^- \*\*`[^`]+`\*\* — background .* → /m, 'the change is readable before the picture');
-  assert.ok(!section.includes('<details>'), 'the summary is not inside the fold');
-  assert.doesNotMatch(md, /<br>/, 'no raw property list repeats the summary');
-  assert.match(section, /^### `[^`]+` · 1 element restyled$/m, 'the heading is the selector and what happened');
-  assert.match(md, /^<sub>◀ before {2}· {2}after ▶<\/sub>$/m, 'the caption only labels the two sides');
+  assert.doesNotMatch(section, /^`[\w-]+` `[^`]*` → `/m, 'no property-list line before the pair');
   rmTmp(root);
 });
 
@@ -563,21 +569,7 @@ test('end-to-end: sibling insertion highlights the real addition, not path-shift
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
-  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
-  const dividerWidth = 12;
-  const halfWidth = (annotated.width - dividerWidth) / 2;
-  let beforeHighlights = 0;
-  let afterHighlights = 0;
-  for (let y = 0; y < annotated.height; y++) {
-    for (let x = 0; x < annotated.width; x++) {
-      const offset = (y * annotated.width + x) * 4;
-      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
-        continue;
-      if (x < halfWidth) beforeHighlights++;
-      else if (x >= halfWidth + dividerWidth) afterHighlights++;
-    }
-  }
+  const { before: beforeHighlights, after: afterHighlights } = whereBoxesBySide(report.surfaces[0].regions[0]);
 
   assert.equal(beforeHighlights, 0, 'unchanged elements displaced to new paths are not boxed as removals');
   assert.ok(afterHighlights > 0, 'the genuinely inserted control remains highlighted');
@@ -611,26 +603,14 @@ test('end-to-end: duplicate siblings that swap styles keep both annotation sides
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
-  assert.match(annotatedPath, /-annotated\.png$/);
-  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
-  const dividerWidth = 12;
-  const halfWidth = (annotated.width - dividerWidth) / 2;
-  let beforeHighlights = 0;
-  let afterHighlights = 0;
-  for (let y = 0; y < annotated.height; y++) {
-    for (let x = 0; x < annotated.width; x++) {
-      const offset = (y * annotated.width + x) * 4;
-      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
-        continue;
-      if (x < halfWidth) beforeHighlights++;
-      else if (x >= halfWidth + dividerWidth) afterHighlights++;
-    }
-  }
+  const { before: beforeHighlights, after: afterHighlights } = report.surfaces[0].regions
+    .map((region) => whereBoxesBySide(region))
+    .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }));
 
   assert.equal(report.counts.style, 2);
-  assert.ok(beforeHighlights > 0, 'a real duplicate restyle keeps its before annotation');
-  assert.ok(afterHighlights > 0, 'a real duplicate restyle keeps its after annotation');
+  // Both items are restyled in place (one section each), so the head-page maps box both; no base map is needed.
+  assert.equal(afterHighlights, 2, 'a real duplicate restyle boxes both items on the Where map');
+  assert.equal(beforeHighlights, 0, 'nothing was removed, so there is no base-page map');
   rmTmp(root);
 });
 
@@ -666,22 +646,7 @@ test('end-to-end: an inserted duplicate sibling remains annotated as an addition
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
-  assert.match(annotatedPath, /-annotated\.png$/);
-  const annotated = PNG.sync.read(fs.readFileSync(path.join(outDir, annotatedPath)));
-  const dividerWidth = 12;
-  const halfWidth = (annotated.width - dividerWidth) / 2;
-  let beforeHighlights = 0;
-  let afterHighlights = 0;
-  for (let y = 0; y < annotated.height; y++) {
-    for (let x = 0; x < annotated.width; x++) {
-      const offset = (y * annotated.width + x) * 4;
-      if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
-        continue;
-      if (x < halfWidth) beforeHighlights++;
-      else if (x >= halfWidth + dividerWidth) afterHighlights++;
-    }
-  }
+  const { before: beforeHighlights, after: afterHighlights } = whereBoxesBySide(report.surfaces[0].regions[0]);
 
   assert.equal(report.counts.dom, 1);
   assert.ok(beforeHighlights === 0, 'the unchanged side of an addition stays unboxed');
@@ -714,9 +679,8 @@ test('end-to-end: duplicate sibling removal keeps one deterministic removal high
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
-  assert.ok(annotatedPath, 'duplicate removal keeps an annotated crop');
-  const highlights = highlightPixelsBySide(path.join(outDir, annotatedPath));
+  assert.ok(report.surfaces[0].regions[0].where, 'duplicate removal keeps a Where map');
+  const highlights = whereBoxesBySide(report.surfaces[0].regions[0]);
   assert.ok(highlights.before > 0, 'one deterministic unmatched removal is highlighted before');
   assert.equal(highlights.after, 0, 'the unchanged after side stays clean');
   assert.equal(report.counts.dom, 1, 'the structural removal remains in the report');
@@ -747,8 +711,10 @@ test('end-to-end: a stable-path forced-state change stays annotated', () => {
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPath = report.surfaces[0].regions[0].images.annotated;
-  assert.ok(annotatedPath, 'a genuine forced-state change keeps an annotated crop');
+  assert.ok(
+    whereBoxesBySide(report.surfaces[0].regions[0]).after > 0,
+    'a genuine forced-state change keeps its Where map box',
+  );
   assert.equal(report.counts.state, 1);
   rmTmp(root);
 });
@@ -807,16 +773,17 @@ test('end-to-end: moved forced-state changes stay annotated', () => {
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
-  assert.ok(annotatedPaths.length > 0, 'a moved forced-state change keeps annotated crops');
-  const highlights = annotatedPaths
-    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+  const mapped = report.surfaces[0].regions.filter((region) => region.where);
+  assert.ok(mapped.length > 0, 'a moved forced-state change keeps a Where map');
+  const highlights = mapped
+    .map((region) => whereBoxesBySide(region))
     .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
       before: 0,
       after: 0,
     });
-  assert.ok(highlights.before > 0, 'the changed before state remains visible in proof');
-  assert.ok(highlights.after > 0, 'the changed after state remains visible in proof');
+  // The moved element still exists on head, so the Where map boxes it where it is now.
+  assert.ok(highlights.after > 0, 'the changed state remains visible in proof');
+  assert.equal(highlights.before, 0, 'a moved element is not drawn as a removal');
   assert.ok(report.counts.state > 0, 'paired moved hover change is counted');
   rmTmp(root);
 });
@@ -903,16 +870,17 @@ test('end-to-end: moved owner pseudo-element state changes stay annotated', () =
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-  const annotatedPaths = report.surfaces[0].regions.map((region) => region.images.annotated).filter(Boolean);
-  assert.ok(annotatedPaths.length > 0, 'a moved pseudo-element state change keeps annotated crops');
-  const highlights = annotatedPaths
-    .map((annotatedPath) => highlightPixelsBySide(path.join(outDir, annotatedPath)))
+  const mapped = report.surfaces[0].regions.filter((region) => region.where);
+  assert.ok(mapped.length > 0, 'a moved pseudo-element state change keeps a Where map');
+  const highlights = mapped
+    .map((region) => whereBoxesBySide(region))
     .reduce((total, current) => ({ before: total.before + current.before, after: total.after + current.after }), {
       before: 0,
       after: 0,
     });
-  assert.ok(highlights.before > 0, 'the changed before pseudo-state remains visible in proof');
-  assert.ok(highlights.after > 0, 'the changed after pseudo-state remains visible in proof');
+  // The moved element still exists on head, so the Where map boxes it where it is now.
+  assert.ok(highlights.after > 0, 'the changed pseudo-state remains visible in proof');
+  assert.equal(highlights.before, 0, 'a moved element is not drawn as a removal');
   assert.ok(report.counts.state > 0, 'paired moved pseudo hover change is counted');
   rmTmp(root);
 });
@@ -939,8 +907,8 @@ test('end-to-end: a highlight outside the crop does not publish the clean image 
 
   const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
-  assert.doesNotMatch(md, /highlighted before/);
-  assert.equal(fs.readdirSync(path.join(outDir, 'crops')).filter((file) => file.endsWith('-annotated.png')).length, 0);
+  assert.doesNotMatch(md, /Where on the page/, 'no Where map for an element off the canvas');
+  assert.equal(fs.readdirSync(path.join(outDir, 'crops')).filter((file) => file.endsWith('-where.png')).length, 0);
   rmTmp(root);
 });
 
@@ -972,16 +940,14 @@ test('end-to-end: annotation boxes the changed CHILD, not its changed container'
     beforePng: solidPng(1280, 800),
     afterPng: solidPng(1280, 800),
   });
-  generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const ann = fs.readdirSync(path.join(outDir, 'crops')).find((f) => f.endsWith('-annotated.png'));
-  const png = PNG.sync.read(fs.readFileSync(path.join(outDir, 'crops', ann)));
-  let hilite = 0;
-  for (let i = 0; i < png.data.length; i += 4) {
-    if (png.data[i] === 255 && png.data[i + 1] === 0 && png.data[i + 2] === 200) hilite++;
-  }
-  // A 40px child box (both sides) is a few hundred px; a 400px container outline
-  // would be thousands. Generous bound that still distinguishes the two.
-  assert.ok(hilite > 0, 'child is highlighted');
-  assert.ok(hilite < 1500, `highlight footprint ${hilite} should be child-sized, not container-sized`);
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const regions = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8')).surfaces[0].regions;
+  // The child's own section boxes only the 40px child, never the 400px container around it.
+  const child = regions.find((region) => region.paths.includes('body > div:nth-child(1) > span:nth-child(1)'));
+  assert.deepEqual(
+    child.where.flatMap((map) => map.boxes),
+    [[30, 30, 40, 40]],
+    'only the child is boxed on its Where map',
+  );
   rmTmp(root);
 });

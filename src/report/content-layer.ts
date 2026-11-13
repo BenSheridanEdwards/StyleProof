@@ -1,3 +1,4 @@
+import { cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import { captureKeysIn, isUnder, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import { diffContentMaps, type ContentChange } from '../diff.js';
@@ -7,6 +8,7 @@ import { countCapturedSurfaceBases, formatSurfaceList, prettyLabel, safeKey, sur
 import { chromeHosted, isChromeLandmarkPath } from '../change-chrome.js';
 import { containerOf, paddedRect, screenshotRectOf, union, type Box } from './geometry.js';
 import { renderCropPair } from './crop-pair.js';
+import { whereMapLine, writeWhereMap } from './where-map.js';
 import { codeValue } from '../code-span.js';
 import { clipText } from './markdown.js';
 import { screenshotPair, type RenderCtx } from './shared.js';
@@ -19,17 +21,18 @@ const NO_PIXEL_DIFFERENCE_NOTE =
 /** One-sided structure: identical crop pixels mean missing evidence, not "no visible effect". */
 function noStructureCropNote(change: 'added' | 'removed'): string {
   return (
-    `_No distinct before/after crop for this element ${change} (the cropped region matches on both ` +
-    `screenshots). The element itself was ${change} — this is not a claim that the change has no visible effect._`
+    `_No distinct before/after crop where an element was ${change}: the cropped region matches on both ` +
+    `screenshots. That is missing evidence, not a claim that the change has no visible effect._`
   );
 }
 
-/** An entry past the `--max-crops` cap names the cap instead of silently showing no crop (#971). */
-function cropCapNote(scope: string, maxCrops: number): string[] {
-  return [
-    '',
-    `_Crop omitted: ${scope} reached the \`--max-crops\` limit (${maxCrops}). The change is still listed and counted._`,
-  ];
+/** Each "no crop" note once per content section: later elements of the same kind need not repeat it. */
+const ONCE_NOTES = new Set([NO_PIXEL_DIFFERENCE_NOTE, noStructureCropNote('added'), noStructureCropNote('removed')]);
+
+/** An entry past `--max-crops` gets no crop and no note here; the report's opening counts it once. */
+function countUncropped(ctx: RenderCtx, where: string): string[] {
+  ctx.cropGaps?.push({ reason: 'max-crops', where });
+  return [];
 }
 
 type StructureChange = Extract<ContentChange, { kind: 'structure' }>;
@@ -116,18 +119,25 @@ function parentStructureBox(s: Sides, pathKey: string, leaf: Box): Box | null {
   return parentBox;
 }
 
+/** A content entry's Where map and pair; a pair a limit left out is one gap for the entry. */
+function pairLines(
+  s: Sides,
+  surface: string,
+  c: ContentChange,
+  suffix: string,
+  pair: NonNullable<ReturnType<typeof renderCropPair>>,
+): string[] {
+  let whereOmitted = false;
+  const where = contentWhereLines(s, surface, c, suffix, () => (whereOmitted = true));
+  // One gap for the entry, whether its pair or its Where map (QA12-04) was left out.
+  if (pair.omitted || whereOmitted)
+    s.ctx.cropGaps?.push({ reason: pair.omitted ?? cropGapReason(s.ctx.crops), where: surface });
+  return [...where, ...pair.md];
+}
+
 function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: string): string[] {
   const box = contentBox(s, c);
   if (!box) return [];
-  const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
-  const rects = (entry: ElementEntry | undefined): Rect[] => {
-    const rect = screenshotRectOf(entry);
-    return rect ? [rect] : [];
-  };
-  const captions = {
-    annotated: 'magenta boxes mark the changed content',
-    zoom: (factor: number) => `magnified ${factor}×: content change too small to read at 1:1`,
-  };
   // Identical pixels on both sides is no evidence; name the absence instead.
   let pair = renderCropPair(s.ctx, {
     surface,
@@ -135,9 +145,7 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
     box,
     pngA: s.pngA,
     pngB: s.pngB,
-    rectsA: rects(entryA),
-    rectsB: rects(entryB),
-    captions,
+    what: 'the changed content',
     skipIdentical: true,
   });
   // One-sided add/remove: if the leaf crop matches on both screenshots, try a shared
@@ -151,17 +159,43 @@ function contentCropLines(s: Sides, surface: string, c: ContentChange, suffix: s
         box: parentBox,
         pngA: s.pngA,
         pngB: s.pngB,
-        rectsA: rects(entryA),
-        rectsB: rects(entryB),
-        captions,
+        what: 'the changed content',
         skipIdentical: true,
       });
     }
-    if (pair) return pair.md;
+    if (pair) return pairLines(s, surface, c, suffix, pair);
     return ['', noStructureCropNote(c.change)];
   }
-  if (pair) return pair.md;
+  if (pair) return pairLines(s, surface, c, suffix, pair);
   return ['', NO_PIXEL_DIFFERENCE_NOTE];
+}
+
+/** Where maps for a content change: on the head page where the element exists there, else on the base page. */
+function contentWhereLines(
+  s: Sides,
+  surface: string,
+  c: ContentChange,
+  suffix: string,
+  onOmitted?: () => void,
+): string[] {
+  const [entryA, entryB] = sidedEntries(c, s.mapA, s.mapB);
+  const rect = (entry: ElementEntry | undefined): Rect[] => {
+    const r = screenshotRectOf(entry);
+    return r ? [r] : [];
+  };
+  const map =
+    writeWhereMap(s.ctx, { surface, suffix, page: s.pngB, side: 'after', rects: rect(entryB), onOmitted }) ??
+    (entryB
+      ? null
+      : writeWhereMap(s.ctx, {
+          surface,
+          suffix: `${suffix}-before`,
+          page: s.pngA,
+          side: 'before',
+          rects: rect(entryA),
+          onOmitted,
+        }));
+  return map ? ['', whereMapLine(s.ctx, map, '1 changed element')] : [];
 }
 
 function withoutRedundantStructuralDescendants(changes: ContentChange[]): ContentChange[] {
@@ -304,7 +338,7 @@ function chromeStructureLines(ctx: RenderCtx, entry: ChromeStructureChange, seq:
     ? []
     : seq < ctx.maxCrops
       ? contentCropLines(sides, surface, c, `chrome-${seq + 1}`)
-      : cropCapNote('Global chrome', ctx.maxCrops);
+      : countUncropped(ctx, 'Global chrome');
   return [
     '',
     `**${codeValue(prettyLabel(c.path, c.cls))}** — element ${c.change} on all ${bases} surface base${bases === 1 ? '' : 's'} ` +
@@ -325,19 +359,21 @@ export function renderChromeStructureSection(
   const n = chrome.length;
   const elevated = opts.elevatedNavigableAdds ?? 0;
   const visibleElevated = opts.elevatedVisibleStructure ?? 0;
+  // The headline already says visible additions/removals need review; this names only what is chrome-specific.
   const verdictBlurb =
-    elevated > 0 || visibleElevated > 0
-      ? `Visible element additions/removals are reviewable and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Navigable Global chrome additions (${elevated}) elevate via #766; other invisible/zero-size chrome structure stays advisory.`
-      : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
+    elevated > 0
+      ? `${elevated === 1 ? '1 navigable addition here needs' : `${elevated} navigable additions here need`} review; invisible/zero-size chrome structure stays advisory.`
+      : visibleElevated > 0
+        ? 'Invisible/zero-size chrome structure stays advisory.'
+        : `DOM structure is outside the computed-style certification, so this does not change the check's verdict.`;
   return [
     '',
     '---',
     '',
     `## 🧱 Global chrome — ${n} element ${n === 1 ? 'change' : 'changes'} on every surface base that renders its container`,
     '',
-    `_Each element below was added or removed identically on every captured surface base that renders its ` +
-      `container${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' (inside a nav, header or footer)' : ''}, ` +
-      `so it is listed once here instead of once per surface — review it once. ${verdictBlurb}_`,
+    // The heading names the scope; the intro adds that the change is identical and why it is listed once.
+    `_Each element${chrome.every(({ change }) => isChromeLandmarkPath(change.path)) ? ' inside a nav, header or footer' : ''} was added or removed identically wherever its container renders, so it is listed once here instead of once per surface. ${verdictBlurb}_`,
     ...chrome.flatMap((entry, seq) => chromeStructureLines(ctx, entry, seq)),
   ];
 }
@@ -372,13 +408,25 @@ function renderContentSurface(ctx: RenderCtx, { surface, changes }: ContentSurfa
       ? []
       : seq - firstSeq < ctx.maxCrops
         ? contentCropLines(sides, surface, c, `content-${seq + 1}`)
-        : cropCapNote('this surface', ctx.maxCrops);
-    if (cropLines.some((line) => line.startsWith('!['))) seq++;
+        : countUncropped(ctx, surface);
+    if (cropLines.some((line) => line.startsWith('| <img '))) seq++;
     md.push('', `**${codeValue(prettyLabel(c.path, c.cls))}**`, '');
     changeLines(ctx, c).forEach((appended) => md.push(appended));
     cropLines.forEach((appended) => md.push(appended));
   }
   return { md, seq };
+}
+
+/** Appends a surface's lines, dropping a "no crop" note (and its blank line) already said in this section. */
+function appendSayingNotesOnce(md: string[], lines: string[], said: Set<string>): void {
+  for (const [i, line] of lines.entries()) {
+    if (!ONCE_NOTES.has(line)) {
+      md.push(line);
+    } else if (!said.has(line)) {
+      said.add(line);
+      md.push(line);
+    } else if (md[md.length - 1] === '' && lines[i - 1] === '') md.pop();
+  }
 }
 
 /** Content/structure section: visible add/remove elevate to the gate; text/invisible/retags stay advisory. */
@@ -394,16 +442,16 @@ export function renderContentSection(
     elevated > 0 ? '## 📝 Content and structure changes' : '## 📝 Content and structure changes (advisory)';
   const blurb =
     elevated > 0
-      ? `_${count} content/structure change(s). **Visible element additions/removals (${elevated}) are reviewable** and ` +
-        `gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, ` +
-        `invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._`
+      ? `_${count} content/structure change(s). Pure text, invisible/zero-size DOM churn, retags, and live/age/clock ` +
+        `text stay advisory and do not alone change the verdict; the visible additions/removals are named at the top._`
       : `_${count} content/structure change(s). **Advisory only** — content and DOM structure are not part of the ` +
         `computed-style certification and do not affect the check._`;
   const md: string[] = ['', '---', '', heading, '', blurb];
   let seq = 0;
+  const said = new Set<string>();
   for (const surface of surfaces) {
     const out = renderContentSurface(ctx, surface, seq);
-    out.md.forEach((appended) => md.push(appended));
+    appendSayingNotesOnce(md, out.md, said);
     seq = out.seq;
   }
   return { md, count };

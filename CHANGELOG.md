@@ -16,17 +16,144 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - The report writes screenshots for reviewable style changes before advisory content changes.
   Before, `--include-content` could spend the whole crop budget on advisory crops, and every
   style change then read `Crop omitted`.
-- The **What changed** rows in the PR comment name more of the change. Elements with the same
-  name and the same change share one entry marked `×N`, a row names up to five entries (was
-  three), and a property with no plain-English rule reads as `line-height 42px → 52px` in place
-  of a bare `+1 more`. `report.json` digest elements gain an optional `count`.
+- The `report.json` `digest` rows name more of each change. Elements with the same name and the same change
+  share one entry with a `count`, a row names up to five elements (was three), and a property with no
+  plain-English rule is named as `line-height 42px → 52px` in place of a bare `+1 more`. (The digest is no
+  longer printed in report.md or the PR comment; see below.)
 - `defineCrawlCapture` accepts `productState` (an identity, or a function of the discovered link), so each crawled
   page can carry product-state identity. Before, only a crawl's `variants` or `liveStates` entries could declare
   one; the crawled page itself could not, so a crawl with neither — such as the `styleproof-init` template for
-  non-Next apps — always reported its pairs as _Product-state identity unproven_.
+  non-Next apps — always reported its pairs as unproven (`comparison.status: 'unproven'`).
 - `ProductStateIdentityError` can no longer be extended: the class is non-extensible, so adding a static property
   or swapping its prototype with `Object.setPrototypeOf` fails (a `TypeError` in strict mode). Subclassing it with
   `extends` still works.
+- The report is visual first. It opens with one summary line ("3 changes to review on `index` at 1280px wide:
+  9 elements, 4 changed CSS rules"). Its pages and widths include any new or removed surface the count
+  includes, also when those are the only changes. It never states a count of 0: with no element (only new or
+  removed surfaces, or a state layer captured on one side) it gives only the pages and widths, and a changed-rule
+  count of 0 is left out. In report.html the header summary is the report's opening verdict line: a count to review, a
+  no-change line (also when relabelled `UNVERIFIED DIAGNOSTIC`), or a Reach-gate, visible-structure,
+  base-capture-failure, consistency, live/age-freeze or cannot-certify line. Every other line keeps report.md's
+  order. Each change is one section: elements that changed the same way, with a
+  plain-English name and one sentence built from captured data, a small Where map that rings them on the page
+  (the only image StyleProof draws on), an unedited before/after crop per changed state ("While hovered"), and
+  the CSS behind **Show the CSS** (selector, element count, the changed rules Change Reach matched, folded
+  longhands, `currentColor` followers). report.html renders the same report as a browser page with an
+  Auto / Light / Dark switch, an SVG Where map, element paths and the whole page before and after. Each page
+  image is inlined once and shared by every Where map and whole-page panel that draws it.
+- A forced state now names the element it changes: a checkbox's `:checked` that restyles its label is shown
+  under the label. Which control drives a state comes only from the capture: each state finding records the
+  owner path whose state was forced (report.json `findings[].path`, the restyled element in `sub`). The change
+  line names each owner, carrying only what it changed: "when hovered" for the element's own state, "when the
+  opt is checked" for one control, "when the Save button is hovered" for a button or link named by its text, and
+  "when the matching opt is checked" when each grouped element has its own. An owner is named by its noun only
+  when no other owner of the element, a ×N clause's owners included, reads the same; otherwise by its selector,
+  as main heads it. Several owners of one element are
+  said as main says them, one clause per owner path: "the text colour changes … when `input.opt` is checked, and
+  the background changes … when `input.opt` is checked" (owners main cannot tell apart read alike, with nothing
+  invented); owners of one selector that made the same change are one clause with main's ×N ("when `input.opt` ×3
+  is checked"). The element's own state is always its own clause, said first ("the background changes … when
+  hovered, and the background changes … when `input.twin` ×2 is hovered"). No line counts owners or ends with
+  "and N more": every change is named in its owner's clause, so a line with several owners is longer. Colour
+  echoes are pruned, but a border, outline, column rule or text stroke the element draws is said. Owners whose nouns collide
+  across selectors are named by selector ("when `input.pickr` is focused … when `select.pickr` is focused"),
+  and an owner the capture has no element entry for is named by its selector, as main heads it. **Show the
+  CSS** heads each owner path's state changes with that owner, as main does, then the preview's
+  `` `:hover color` `` rows with colour swatches in report.html and "(follows `color`)" on follower rows;
+  identical blocks collapse to ×N. A new or removed hover/focus style names the resting value
+  it changes from or to, never "none"; on `::before`/`::after`, the pseudo-element's own resting value. A forced-state layer captured on one side only reads "The forced
+  `:checked` state was captured on head only, so it was not compared." and counts no element.
+- Internal diagnostics leave report.md and report.html: the product-state warning, baseline provenance, the
+  state-coverage table, Change Reach strips and tables that hold nothing, J2/J3 detail, the "What changed"
+  digest, the distinct-change tally and "Nothing else". They stay in report.json (`comparability`,
+  `baselineProvenance`, `reach`, `digest`). Under `changeReach: 'gate'`, a report whose gate holds findings
+  shows the one "Reach gate" line under the summary (with or without style changes) and the **Changed but
+  never matched** tables, and still no J2/J3 detail. The report still says, in plain words, when a compare
+  cannot certify, when evidence fails, when a changed CSS rule was never matched or cannot be seen in computed
+  styles, and, in one "Change Reach could not check every changed CSS rule" line, when changed rules matched
+  only uncompared elements or a served-CSS record is missing, old or unreadable. A gap both sides share is one
+  line with one remedy ("1 capture on each side has a missing or out-of-date record of the CSS it served —
+  recapture both sides with `captureReach`"), in that warn line and in the gate's **Reach evidence gaps** list,
+  whose heading says once that changed rules there cannot be listed. ADR 0009 is amended to match (dated
+  2026-11-10). An unbound clean report is still labelled `UNVERIFIED DIAGNOSTIC`; any other unbound report opens,
+  as before, with "⚠ UNVERIFIED DIAGNOSTIC: source binding was not verified", now followed by what to do (pass
+  `--expected-before-sha` and `--expected-after-sha`). report.html and the PR comment carry it too; report.html
+  opens with it above the header, which keeps its summary, theme switch and jump links.
+- **BREAKING (report.json):** a region's `images` and `stateImages[state]` are now `{ before, after }` (clean
+  crops) instead of `{ composite, annotated, zoom }`, and regions add `where` (`[{ image, side, boxes }]`).
+  Change sections replace overlap-merged crop regions, so `regions` holds one entry per section, and a forced
+  state's region `paths` name the element that changed, not the element that owns the state. Whole-page
+  captures for report.html are written to `crops/` as `*-page-base.png` / `*-page-head.png` inside the crop
+  budget, after every crop. When a side's served-CSS record is missing, old or unreadable, `reach` (in
+  report.json and the report API result) now omits `counts`, and omits `rules` when none could be listed,
+  instead of publishing zero counts; it keeps `ledger`, `complete: false` and the named gap. See Migration
+  step 4.
+- `zoomBelow` is still accepted but has no effect (crops are never magnified). `foldDetailsAt` no longer
+  changes change sections; their CSS is always collapsed.
+- A crop of a small element widens to its enclosing card or component (up to 640 × 480) when one fits and
+  contains it, so its text is not cut in half. Otherwise (no enclosing box fits, or the element paints outside
+  its parent, as in an inner scroller) the crop is centred on the element as before and can still cut nearby
+  text. The Where map still rings only the changed elements.
+- A before/after pair, and each pair of whole pages, is downscaled together when either side is over the
+  per-file size limit, so both sides are always at the same scale. A crop pair records the size of the PNGs it
+  wrote, halved or not, in the section data and in report.html's `<img>` width and height, each side its own
+  when a shorter page cuts one crop short; the page still scales each image to its column.
+- `--max-crops` (default 8) now counts change sections per changed surface: sections past it are still listed
+  and counted, with no crop or Where map. Before, the extra regions collapsed into one union crop. Every change
+  missing some or all of its crops is now stated once, at the top of the report, instead of in a note under each
+  entry, and counted as changes (a section with a resting and a hover pair is one), so it agrees with the
+  summary: "✂️ **4 changes are missing crops**, past the `--max-crops` limit of 8 per surface (2 on
+  `home @ 1280`, 2 on `docs @ 1280`). Each is still listed and counted; raise `--max-crops` to show the
+  crops." Content and Global chrome entries past the limit, and crops past the crop budget (`--max-crop-files`
+  / `--max-crop-bytes`) or too large to fit, are counted in the same line, and the closing "N crop(s) omitted"
+  line is gone. A new or removed page shown only in part is also said once at the top, naming each page, how
+  much is shown and where its full screenshot is: "📏 **Only part of 1 page is shown:** `long @ 1280` (6400 of
+  8000px, full screenshot `long@1280.png` in the head capture). A new or removed page shows at most 8 screen
+  heights; open the full screenshot to review the rest." (When the crop budget cut it, the line says to raise
+  `--max-crop-files` or `--max-crop-bytes` instead.)
+  A Where map the crop budget leaves out counts in that line too, and when a partly shown page and other
+  changes both hit the crop budget, only the ✂️ line gives the option to raise it.
+- A change line names a colour only when the named colour is close to the value ("teal" for `#14b8a6`);
+  otherwise it gives the hex value alone. "White", "black" and "gray" also need the matching lightness, so a
+  light gray such as `#c8c8c8` reads as its hex value, not "white".
+- The PR comment carries every change section from report.md: its name, its line, the Where caption and the
+  CSS on demand, cut at 50,000 characters. Where it is cut, a note says so and what to do: "This comment
+  reached GitHub's size limit. N more changes are listed in the full report: open it from the link at the end
+  of this comment." The note has no count only for a report with no change section whose opening lines alone
+  pass the cap: "This comment reached GitHub's size limit. The rest is in the full report: open it from the link
+  at the end of this comment." Any other cut, even one in the opening lines, gives the count of changes left
+  out. That note is the one place a count stands in for named changes, and the full report it links
+  names every one. The cap covers the whole
+  summary, so a report with no change section (a large Change Reach table, say) still posts one comment with
+  its approval box; group tables and Evidence stay in the linked report. On a public repository with
+  `report-storage: branch` it also shows the Where map and the clean crops, from the report's commit-bound
+  `https://github.com/<owner>/<repo>/blob/<sha>/pr-<n>/crops/…?raw=1` URL. Private repositories and artifact
+  storage get the sections as text, because no image URL there works for every reader. The branch-storage link
+  reads "Open the full visual report →".
+- Each fact in the report and the PR comment is stated once, in plain words: a visible element added or removed
+  ("🧱 1 visible element was added or removed — it needs review."), a new or removed surface (its tile no longer
+  repeats "No baseline to compare against." / "In the baseline, not captured on head."), a subtree volatile on
+  one side only, a new surface never declared on the base (named, with why its base capture is not counted), a surface whose base capture failed ("⚠️ 1 surface failed to capture on the base: … The rest of
+  the base was captured; repair that surface on that commit and capture it again.", naming at most 10 surfaces
+  and then "and N more, all listed in report.json"), a reach gate, a frozen-clock drift, and every crop limit
+  (see `--max-crops` above). Report content never mentions approval in any form: an incomparable product state
+  reads "… declare a different product state on base and head, so their differences are not compared." The PR
+  comment's footer gives the guidance for its mode, and talks about approval only where approval is the action
+  (review-gate, migration, `require-approval`): in certify and advisory runs the failure footers drop "reviewer
+  approval cannot clear this failure", and the partial-baseline footer reads "The check fails until the missing
+  baseline surfaces named above are captured." Other footer changes: the clean footer gives only the check status
+  ("The **StyleProof** check is green."), and the review-gate partial-baseline footer no longer lists the failed
+  surfaces and SHAs again; it says "Reviewer approval cannot clear the missing baseline surfaces named above;
+  repair them and rerun." The comment points at "the full report" instead of sections it does not carry, and the
+  summary gives no changed-CSS-rule count when a served-CSS record is missing.
+  The summary line always comes first; a "⛔ This compare cannot certify" line now follows it instead of
+  preceding it. A report with no summary line (only notes about a subtree volatile on one side, with or without a live-region note) still opens with the
+  cannot-certify line, as before. The Global chrome callout no longer says its detail is "folded beneath" (it is not), and under
+  a small `maxReportBytes` the one-line Changed but never matched entry names the rules that hold the gate.
+- report.md, report.html and the PR comment no longer show internal gate codes such as
+  `STYLE_REVIEW_REQUIRED` or `base-capture-failed=false`; they say what happens in plain words. The codes stay
+  in report.json, the Action's `trust-state` output and commit statuses.
+
 - Change Reach joins changed class-token occurrences with paired element class-list deltas (J3).
   Only absence from every captured element on the occurrence's own side, with no known capture omissions, reads `never-rendered`;
   any token presence stays `unknown`, including class-preserving refactors and unpaired elements.
@@ -193,6 +320,33 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    unapproved changes. Config `blocking: true` and `blocking: false` remain
    accepted but no longer affect the job conclusion; `'advisory'` keeps its meaning.
    Capture/setup failures and evidence gates still fail the job.
+
+4. **report.json regions follow change sections (visual-first report).** Update
+   consumers of `regions[]` in `styleproof-report` JSON:
+   - read the crops from `images.before` / `images.after` and
+     `stateImages[state].before` / `.after`; `composite`, `annotated` and `zoom`
+     are gone and nothing is drawn on the crops;
+   - a region whose crop a limit left out has `cropOmitted: 'budget'` (crop
+     file or byte budget, as before, and also when the budget leaves out its
+     Where map) or the new `cropOmitted: 'max-crops'`;
+     `visualEvidence: 'not-rendered'` now means only that the element is not
+     visible in the capture;
+   - read highlight boxes from the new `where[]` (`{ image, side, boxes }`,
+     `boxes` as `[x, y, width, height]` in page pixels) instead of the
+     annotated crop;
+   - expect one region per change section (elements that share a label and the
+     same change), not one per overlapping crop area, so counts can differ;
+   - for a forced state (`:checked`, `:hover` …) that restyles another element,
+     `paths` now names the restyled element; the element that owns the state
+     is named in report.md as the driver.
+
+   - when a side's served-CSS record is missing, old or unreadable, `reach`
+     has no `counts`, and no `rules` when none could be listed (it keeps
+     `ledger`, `complete: false` and the named gap), so it never reads as zero
+     changed rules; the diff CLI's gate receipt keeps its counts.
+
+   `zoomBelow` is accepted and ignored. The report's Markdown layout changed
+   too: tools that parse report.md should read report.json instead.
 
 ### Changed
 

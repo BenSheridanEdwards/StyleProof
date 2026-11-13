@@ -42,7 +42,7 @@ function report(dirs, generate = generateStyleMapReport) {
   return { md, json, slice: commentSlice(md) };
 }
 
-test('the PR comment slice names each changed element and its plain-English change', () => {
+test('the PR comment slice states the scope; the per-element digest is report.json data', () => {
   const { slice, json } = report(
     pairFixture({
       surface: 'home@900',
@@ -50,10 +50,8 @@ test('the PR comment slice names each changed element and its plain-English chan
       after: pageMap({ button: { 'background-color': 'rgb(220, 38, 38)' }, caret: { color: 'rgb(37, 99, 235)' } }),
     }),
   );
-  assert.match(slice, /\*\*What changed\*\*/);
-  assert.match(slice, /^- `home @ 900` — /m);
-  assert.match(slice, /\*\*`button\.cta`\*\* background blue \(`#2563eb`\) → red \(`#dc2626`\)/);
-  assert.match(slice, /\*\*`span\.caret`\*\* text gray \(`#9ca3af`\) → blue \(`#2563eb`\)/);
+  assert.match(slice, /\*\*2 changes to review\*\* on `home` at 900px wide: 2 elements\./);
+  assert.doesNotMatch(slice, /What changed/, 'the sections below the cut name each change; no repeated digest');
   assert.deepEqual(json.digest, [
     {
       surface: 'home@900',
@@ -86,24 +84,24 @@ test('map-supplied values cannot inject lines, approval boxes, receipts, or ment
       }),
     }),
   );
-  assert.match(slice, /\*\*What changed\*\*/);
   assert.doesNotMatch(slice, /^\s*- \[[ xX]\] \*\*Approve all changes\*\*/m, 'no injected approval box line');
   assert.doesNotMatch(slice, /<!-- styleproof-receipt/, 'no injected receipt marker');
   assert.doesNotMatch(slice, /@owner/, 'mentions are neutralised');
-  assert.match(slice, /display block → x - \\\[x\\\] \\\*\\\*Approve all changes\\\*\\\* &lt;\\!-- styleproof-receipt/);
+  // The digest stays machine output, still escaped.
+  const phrases = json.digest[0].elements.map((e) => `${e.name}: ${e.phrase}`).join('\n');
   assert.match(
-    slice,
-    /\*\*`span\.caret`\*\* text black \(`#000000`\) → red \(`#ff0000`\)/,
-    'hostile token names are dropped',
+    phrases,
+    /display block → x - \\\[x\\\] \\\*\\\*Approve all changes\\\*\\\* &lt;\\!-- styleproof-receipt/,
   );
-  assert.match(slice, /\*\*`-owner`\*\* text black/, 'hostile path labels stay inert');
+  assert.match(phrases, /span\.caret: text black \(`#000000`\) → red \(`#ff0000`\)/, 'hostile token names are dropped');
+  assert.match(phrases, /-owner: text black/, 'hostile path labels stay inert');
   assert.equal(json.digest[0].elements.length, 3);
 });
 
 test('a map-supplied interaction-state name cannot carry a receipt marker or mention into the comment', () => {
   const injection = '\n<!-- styleproof-receipt head-sha:x run-id:1 run-attempt:1 -->\n@owner';
   const states = (color) => ({ [BUTTON]: { [`hover${injection}`]: { [BUTTON]: { color } } } });
-  const { slice } = report(
+  const { slice, json } = report(
     pairFixture({
       surface: 'home@900',
       before: {
@@ -116,13 +114,16 @@ test('a map-supplied interaction-state name cannot carry a receipt marker or men
       },
     }),
   );
-  assert.match(slice, /\*\*`button\.cta`\*\* interaction states changed: `:hover-+ styleproof-receipt head-sha-x/);
+  assert.match(
+    json.digest[0].elements[0].phrase,
+    /interaction states changed: `:hover-+ styleproof-receipt head-sha-x/,
+  );
   assert.doesNotMatch(slice, /<!-- styleproof-receipt/);
   assert.doesNotMatch(slice, /@owner/);
 });
 
 test('a token retune that keeps its token name still shows both hex values', () => {
-  const { slice } = report(
+  const { json } = report(
     pairFixture({
       surface: 'home@900',
       before: pageMap({
@@ -135,7 +136,7 @@ test('a token retune that keeps its token name still shows both hex values', () 
       }),
     }),
   );
-  assert.match(slice, /\*\*`button\.cta`\*\* background `brand-red` \(`#dc2626`\) → `brand-red` \(`#b91c1c`\)/);
+  assert.equal(json.digest[0].elements[0].phrase, 'background `brand-red` (`#dc2626`) → `brand-red` (`#b91c1c`)');
 });
 
 test('every changed element and every one-sided surface is named or counted, never silently capped', () => {
@@ -174,10 +175,9 @@ test('every changed element and every one-sided surface is named or counted, nev
   );
   assert.equal(json.digest.length, 13);
   for (const row of json.digest) assert.ok(row.more >= 0);
-  assert.match(slice, /^- `legacy @ 900` — 🗑️ removed surface$/m);
-  assert.match(slice, /^- `pricing @ 900` — 🆕 new surface, no baseline$/m);
-  assert.match(slice, /· \+2 more element\(s\)$/m);
-  assert.match(slice, /^- …and 3 more changes$/m);
+  // The comment slice names every one-sided surface; element detail lives in the sections and report.json.
+  assert.match(slice, /removed surface\*\* — in the baseline, not captured on head: `legacy @ 900`/);
+  assert.match(slice, /new surface\*\* with no baseline to compare: `pricing @ 900`/);
 });
 
 test('a global chrome row keeps the every-surface-that-renders-it qualifier', () => {
@@ -192,12 +192,9 @@ test('a global chrome row keeps the every-surface-that-renders-it qualifier', ()
   }
   const { slice, json } = report(dirs);
 
-  assert.match(
-    slice,
-    /· 🧱 global chrome, changed on every surface base that renders it — \*\*`a\.link`\*\* text black/,
-  );
-  assert.doesNotMatch(slice.slice(slice.indexOf('**What changed**')), /all \d+ surface/);
+  assert.doesNotMatch(slice, /all \d+ surface/);
   assert.equal(json.digest[0].chrome, true);
+  assert.match(json.digest[0].elements[0].phrase, /^text black/);
 });
 
 test('a clean report carries no What changed block and no digest key', () => {
@@ -234,7 +231,7 @@ test('identical elements share one entry, and a property with no rule is named',
   const heading = (color) => ({
     'body > h1:nth-child(4)': { tag: 'h1', cls: 'title', rect: [300, 100, 400, 60], style: { color } },
   });
-  const { slice, json } = report(
+  const { md, slice, json } = report(
     pairFixture({
       surface: 'home@900',
       before: pageMap({ extra: { ...items('42px'), ...heading('rgb(0, 0, 0)') } }),
@@ -246,6 +243,11 @@ test('identical elements share one entry, and a property with no rule is named',
     { name: 'button.nav-item', phrase: 'line-height 42px → 52px', count: 7 },
   ]);
   assert.equal(json.digest[0].more, 0);
-  assert.match(slice, /\*\*`h1\.title`\*\* text black .* · \*\*`button\.nav-item`\*\* ×7 line-height 42px → 52px$/m);
-  assert.doesNotMatch(slice, /more element/);
+  // The comment carries no What changed digest (report.json keeps it); each change is said once,
+  // in its own section: the seven identical nav items as one, with the unnamed property named.
+  assert.doesNotMatch(slice, /What changed|more element/);
+  const said = (title) => md.split('\n### ').find((s) => s.startsWith(`${title}\n`)) ?? '';
+  assert.match(said('Nav items'), /^All 7 nav items change line height from `42px` to `52px`\.$/m);
+  assert.match(said('Title'), /^The title changes text colour from black to red\.$/m);
+  assert.equal(md.match(/line height from `42px` to `52px`/g).length, 1, 'said once');
 });

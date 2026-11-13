@@ -56,13 +56,21 @@ visual changes and kept the check red. A reviewer ticks **Approve all changes**
 to sign off that commit. Any later push that changes the evidence reopens the
 gate.
 
-Below the headline count, the comment lists **What changed**. Each one-sided
-surface gets a row with its status. Each change gets a row that names up to
-five elements and what happened to them, and counts the rest as
-`+N more element(s)`. Elements with the same name and the same change share one
-entry, marked `×N`. After ten rows, `…and N more changes` counts what is left.
-`report.json` records the same rows under `digest`, as
+Below the title, the comment carries the summary line: how many changes to review, on
+which pages and widths, and how many elements and changed CSS rules they cover. Each
+change follows in its own section: its name, one plain-English line, where it is, and
+the CSS on demand. On a public repository with `report-storage: branch` the sections
+also show the Where map and the clean before/after crops, served from the report's
+commit-bound URL. On a private repository, or with artifact storage, no image URL works
+for every reader, so the sections are text and the linked report holds the images. A
+very large report is cut at 50,000 characters, under GitHub's limit. A note then says how
+many more changes the full report lists, or, for a report with no change section, that the
+rest is in the full report, and that its link is at the end of the comment.
+`report.json` records one row per one-sided surface and per change group under
+`digest`, as
 `{ surface, status, otherSurfaces?, chrome?, elements: [{ name, phrase, count? }], more }`.
+A row names up to five elements; elements with the same name and the same change share
+one entry, and its `count` says how many.
 The key is present only when there is at least one row.
 
 ### A safety policy blocks
@@ -258,16 +266,22 @@ on:
 
 ## What the PR gets
 
-On every PR, StyleProof posts a small summary comment that links to the committed
-full report. GitHub comments cannot carry the crops, so the link is a product
-limit, not a design choice. The README inlines that same report. The report
-groups each distinct visual change with:
+On every PR, StyleProof posts one comment that carries the report: its summary
+line, then each change section, the approval box (in review-gate mode) and a link
+to the committed full report. On a public repository with `report-storage: branch`
+the comment shows the Where maps and crops at the report's commit-bound URL; on a
+private repository or with artifact storage it carries the sections as text, and
+the images are in the linked report. A comment that would pass GitHub's size limit
+stops with a note that says how many more changes the full report lists and where
+the link is. The README inlines a real comment. Each change section has:
 
-- before/after crops from the same page rectangle;
-- highlighted crops that box the changed element;
-- a plain-English summary such as `columns: 2 -> 3` or
-  `background brand-cyan -> brand-amber`;
-- the exact computed CSS properties that changed.
+- a plain-English name and one sentence built from captured values, such as
+  "The cta changes background from blue to red.";
+- a small **Where** map that rings the changed elements on the page (the only
+  image StyleProof draws on);
+- an unedited before/after crop of the same page rectangle for each changed
+  state ("While hovered");
+- the exact computed CSS properties that changed, under **Show the CSS**.
 
 In review-gate mode, one **Approve all changes** checkbox turns the `StyleProof`
 status green for that commit. Clean runs still leave a receipt: `No visual
@@ -280,12 +294,14 @@ opt-in advisory content section.
 
 ### What a report looks like
 
-New pages, states, and surfaces appear before element-level changes. Existing
-surfaces render one distinct change per section, with aligned crops, truthful
-annotations, a one-line summary, and exact properties under a toggle.
+New pages, states, and surfaces appear before element-level changes. On existing
+surfaces, elements that changed the same way share one section: a plain-English
+name and sentence, a small Where map that rings them on the page, an unedited
+before/after crop per changed state, and the exact properties under **Show the
+CSS**.
 
-Headline counts cover **matched-element restyles** ("N computed-style
-difference(s)") and interaction-state differences. One-sided DOM structure has
+The summary counts changes to review: one per change section (matched-element
+restyles and interaction-state differences) plus one per new or removed surface. One-sided DOM structure has
 no like-for-like style baseline for _style_ certification, but a **visible**
 added or removed element on a paired surface is review-required on its own
 (Approve clears it with other reviewable changes). Turn on `--include-content`
@@ -298,9 +314,10 @@ can move with surrounding content without being mistaken for a stylesheet
 change. If the computed value itself changes — including a deliberate `width`,
 `margin`, colour, font, grid, or state change — it remains a blocking finding.
 
-Tiny changes also receive a magnified crop. Structural matching avoids painting
-an unchanged shifted subtree as changed, while ambiguous duplicate elements stay
-explicit rather than receiving invented provenance.
+Tiny changes are found on the Where map; crops are never magnified or drawn on.
+Structural matching avoids marking an unchanged shifted subtree as changed, while
+ambiguous duplicate elements stay explicit rather than receiving invented
+provenance.
 
 **[Open the full generated report](demo/report.md)** ([`report.html`](demo/report.html) — download and open for the rendered page).
 The fixture includes a
@@ -308,17 +325,20 @@ new surface, two real restyles, an added element, and a structural insertion.
 With content comparison off, only the new surface and real restyles appear;
 `pnpm run demo:check` verifies that this default report matches current code.
 
-The report shown at the top of this README renders this exact entry:
+The demo report renders this section for the restyled call-to-action:
 
 ```text
-### `button.cta` · 1 element restyled
-_home @ 900_
+### Cta
 
-- **`button.cta`** — background blue (`#2563eb`) → red (`#dc2626`)
+The cta changes background from blue to red.
 
-▾ Show the property change
-   | Property         | Before  | After   |
-   | background-color | #2563eb | #dc2626 |
+[Where map: 1 cta on home @ 900]
+| Before | After |   (an unedited crop of the cta on each side)
+
+▾ Show the CSS
+   `button.cta` · 1 element restyled
+   | Property         | Before    | After     |
+   | background-color | `#2563eb` | `#dc2626` |
 ```
 
 ## Coverage: what you own, what's discovered
@@ -501,7 +521,7 @@ defineCrawlCapture({
 
 Each discovered link becomes a surface keyed by its URL (`/?tab=overview` → `overview`, hash-router `/#/settings` → `settings`; pass `key` for a different scheme). Rendered `<a href="#/settings">` / `#!/…` links are included; a plain `#anchor` jump is never a surface. Replay, self-check and clock-freeze behave exactly as for explicit surfaces; one Playwright test runs the whole sweep (the link set isn't known until the page renders).
 
-**Product-state identity:** pass `productState: { id, revision }` to stamp every crawled surface with the same consumer-owned fixture identity, or a function of the discovered link that maps it to one of your own fixture identities (`(link) => (link.key === 'checkout' ? checkoutReady : seededApp)`); returning `undefined` leaves that link undeclared. Do not derive `id` from the route or page: like a surface's identity, it is an opaque consumer-owned name. The function must return synchronously. A malformed static identity fails when the spec loads; a malformed result, a returned promise, or a throw fails the crawl with an error that names the link but never echoes what the function threw or returned. A returned native promise has its rejection handled so it is not reported as unhandled, and the promise is left as it was; a custom thenable's `then` is never called. These cases cannot be handled, and StyleProof does not await them: a promise whose own `constructor` is not the built-in `Promise` and cannot be set (a non-configurable getter or non-writable value); any non-extensible (frozen, sealed or `preventExtensions`) promise, which StyleProof never awaits, because awaiting one while any promise hook is active makes Node's own hook bookkeeping throw; a rejection the function never returns directly (for example inside a `Proxy` or a custom thenable); and every rejection when both `Promise.prototype.constructor` and the global `Promise` were replaced before StyleProof loaded, or when a promise hook (`async_hooks`) tampered with the promises StyleProof creates while it loaded. Promise hooks that only observe, such as tracing agents and `AsyncLocalStorage`, are supported and change nothing; once StyleProof has loaded, a hook that rewrites promises, or a productState function that replaces `Reflect` or `util.types`, can at most stop rejections being handled, or crash the process as it could without StyleProof, never make StyleProof await an unpinned promise. None of this holds if `Promise`, `Reflect`, `Object` or `util.types` is replaced, or `Object.prototype` polluted, before StyleProof's module runs, for example by code, or a promise hook, that runs while `import()` is still loading it; like anything else the function writes, their output is the function's own. As for a declared surface, it is validated and StyleProof never infers it, and a pair is `comparable` only when base and head carry the same `{id, revision}`. A variant's or live state's own `productState` still overrides it. A crawled page with no identity reads *Product-state identity unproven*; [the comparability contract](product-state-comparability.md) sets when an unproven pair blocks or certifies.
+**Product-state identity:** pass `productState: { id, revision }` to stamp every crawled surface with the same consumer-owned fixture identity, or a function of the discovered link that maps it to one of your own fixture identities (`(link) => (link.key === 'checkout' ? checkoutReady : seededApp)`); returning `undefined` leaves that link undeclared. Do not derive `id` from the route or page: like a surface's identity, it is an opaque consumer-owned name. The function must return synchronously. A malformed static identity fails when the spec loads; a malformed result, a returned promise, or a throw fails the crawl with an error that names the link but never echoes what the function threw or returned. A returned native promise has its rejection handled so it is not reported as unhandled, and the promise is left as it was; a custom thenable's `then` is never called. These cases cannot be handled, and StyleProof does not await them: a promise whose own `constructor` is not the built-in `Promise` and cannot be set (a non-configurable getter or non-writable value); any non-extensible (frozen, sealed or `preventExtensions`) promise, which StyleProof never awaits, because awaiting one while any promise hook is active makes Node's own hook bookkeeping throw; a rejection the function never returns directly (for example inside a `Proxy` or a custom thenable); and every rejection when both `Promise.prototype.constructor` and the global `Promise` were replaced before StyleProof loaded, or when a promise hook (`async_hooks`) tampered with the promises StyleProof creates while it loaded. Promise hooks that only observe, such as tracing agents and `AsyncLocalStorage`, are supported and change nothing; once StyleProof has loaded, a hook that rewrites promises, or a productState function that replaces `Reflect` or `util.types`, can at most stop rejections being handled, or crash the process as it could without StyleProof, never make StyleProof await an unpinned promise. None of this holds if `Promise`, `Reflect`, `Object` or `util.types` is replaced, or `Object.prototype` polluted, before StyleProof's module runs, for example by code, or a promise hook, that runs while `import()` is still loading it; like anything else the function writes, their output is the function's own. As for a declared surface, it is validated and StyleProof never infers it, and a pair is `comparable` only when base and head carry the same `{id, revision}`. A variant's or live state's own `productState` still overrides it. A crawled page with no identity is unproven: report.json's `comparison.status` is `unproven`, the `styleproof-diff` console prints _product-state identity unproven_, and the report states a blocking one as its cannot-certify line; [the comparability contract](product-state-comparability.md) sets when an unproven pair blocks or certifies.
 
 **Client-routed views (no `<a href>`):** the crawl also observes programmatic navigation — `history.pushState`, `replaceState`, and `popstate`, the APIs every client router funnels through — and adds each newly observed same-origin route to the surface set. A route the app lands on during hydration (a router's default redirect, a `settle` hook that clicks a client-routed tab) is discovered and captured without a router-specific adapter. In-page `<a href="#section">` anchors never call the history API, so anchor noise cannot become surfaces. Discovery is bounded (up to 64 observed routes over up to 3 passes) and each addition is logged (`navigation observer discovered N route(s)`); observed routes join the `expected`/`exclude` reconciliation below. Set `observeNavigation: false` to crawl rendered links only. One boundary stands: a nav that neither links nor navigates during the crawl still exposes nothing.
 
@@ -1371,7 +1391,7 @@ For the GitHub Action, set the equivalent explicit input:
 The report then carries a separate **📝 Content and structure changes
 (advisory)** section. Element additions, removals, and retags are available from
 every capture; with `captureText` on (the default), before/after copy is included
-when `--include-content` is set. Each entry gets a side-by-side crop. The section
+when `--include-content` is set. Each entry gets a Where map and an unedited before/after crop pair. The section
 does **not** affect `changed`, the `StyleProof` status, or the diff exit code, by
 design. With `captureText: false`, structural evidence still renders but text
 values are never stored. Maps captured without text stay positional for pairing
@@ -1474,13 +1494,13 @@ Matches only inside shadow roots, iframes, `ignore` regions or volatile regions 
 
 `classifyRuleReach` compares the ledgers and reports outside-only changed rules, consumers or referrers as `unmeasured`, never `reached`.
 
-When any base or head capture carries a ledger, or `changeReach: 'gate'` is enabled, the report adds a **Reach incomplete** status under the headline and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets produce named evidence gaps with remedies. A run whose changed served CSS rules all matched still names J2 findings or missing script evidence separately and remains reach-incomplete while class occurrences lack render provenance or the changed-stylesheet join remains unbuilt. The source column names the served sheet; source-map resolution is not recorded yet.
+At the default warn level, report.md and report.html show at most three plain warnings under the summary: changed CSS rules no captured page matched, changed rules computed styles cannot show (each names up to five rules), and one "Change Reach could not check every changed CSS rule" line for rules that matched only elements StyleProof does not compare and for ledger gaps (a missing or old ledger, unreadable stylesheets, a side with no captures), each with its remedy. No J1 status other than reached is silent ([ADR 0009](../.agents/decisions/0009-change-reach.md), amended 2026-11-10). When `changeReach: 'gate'` holds findings, they show one "✗ **Reach gate**" line under the summary (in place of the summary when nothing else changed), so the PR comment carries it too, and a **Changed but never matched** section listing unmatched changed rules, their gating at-rules, and their served stylesheet. Changed rules in channels computed styles cannot hold (`@keyframes`, `@font-face`, `@property`) appear separately within that section. Outside-only changed rules, consumers or referrers appear under **Changed but unmeasured** with their reasons; they never count as reached. Missing or old ledgers and unreadable stylesheets appear as named evidence gaps with remedies, and a **Not checked** list follows. J2 and J3 findings, missing script evidence and reach completeness are `report.json` only at both levels (`reach.scripts`, `reach.classes`, `reach.gaps`, `reach.complete`). A run whose changed served CSS rules all matched still records J2 findings or missing script evidence there and stays `complete: false` while class occurrences lack render provenance or the changed-stylesheet join remains unbuilt. The source column names the served sheet; source-map resolution is not recorded yet.
 
 `changeReach: 'warn'` is the default in `styleproof.config.ts` (or JSON): reach findings never change the verdict or exit codes, and the diff CLI output stays unchanged. Reports from captures without either a reach ledger or script evidence stay unchanged too. Opt into `changeReach: 'gate'` to hold changed J1 rules classified as `never-rendered`, `unmeasured` or `blind-channel`, plus J1 ledger gaps: missing or old ledgers, unreadable sheets, a side without captures, or incomplete ledgers. This includes legacy maps under opt-in gate; recapture missing evidence with `captureReach`. Both `styleproof-diff` and `styleproof-report` exit `1` when reach holds the run. Certify mode with `fail-on-diff: true` and without `require-approval: true` yields `CERTIFICATION_FAILED`; review-gate and migration yield `STYLE_REVIEW_REQUIRED`, cleared by the existing Approve box. Advisory mode remains non-blocking for reach findings. Approval clears the verdict, not the reach finding.
 
-The J2 script join stays warn-only; missing script evidence, unavailable J3 class vocabulary/deltas/source ranges, and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They keep the strip at **Reach incomplete**, but do not hold the verdict. The strip and section name changed stylesheets no capture served as "not checked"; `blocking` excludes this gap.
+The J2 script join stays warn-only; missing script evidence, unavailable J3 class vocabulary/deltas/source ranges, and the not-yet-built changed-stylesheet join remain named warn-only gaps under both levels. They are recorded in `report.json` `reach.gaps` and keep `reach.complete` false, but do not hold the verdict. Under gate, the **Not checked** list names changed stylesheets no capture served; `blocking` excludes this gap.
 
-`report.json` and the report API result include `reach` when a capture carries a reach ledger or script evidence, or gate is enabled: `{ level, blocking, complete, ledger, counts, rules, unreadableSheets, scripts, scriptCounts, gaps }`. `blocking` is the held rule and ledger-gap count, always `0` under warn. `counts` has zero-filled `reached`, `never-rendered`, `unmeasured`, and `blind-channel` keys; `rules` keeps every changed rule, including reached ones. Each gap has `{ join, status, side?, kind, reason, remedy }`. `complete` remains false while evidence gaps exist. Under gate, `styleproof-diff --json` includes `reach: { level, ledger, counts, blocking }`; under warn it omits `reach` to preserve the existing receipt. A map with `reach` still diffs identically to one without at the computed-style layer. If `maxReportBytes` cannot fit the reach status, report generation fails with a request to increase the budget instead of hiding the warning. The ledger adds about 23 bytes per served rule to a gzipped map.
+`report.json` and the report API result include `reach` when a capture carries a reach ledger or script evidence, or gate is enabled: `{ level, blocking, complete, ledger, counts, rules, unreadableSheets, scripts, scriptCounts, gaps }`. `blocking` is the held rule and ledger-gap count, always `0` under warn. When both sides' served-CSS records are complete, `counts` has zero-filled `reached`, `never-rendered`, `unmeasured`, and `blind-channel` keys, and `rules` keeps every changed rule, including reached ones. On any ledger gap (a side's record missing, written by an older capture, or with a stylesheet it could not read, listed in `unreadableSheets`), `counts` is omitted, because the changed-rule total cannot be known; `rules` keeps the changed rules that could still be listed and is omitted only when none could. `ledger`, `complete: false` and the named gap with its fix stay. Each gap has `{ join, status, side?, kind, reason, remedy }`. `complete` remains false while evidence gaps exist. Under gate, `styleproof-diff --json` includes `reach: { level, ledger, counts, blocking }`; under warn it omits `reach` to preserve the existing receipt. A map with `reach` still diffs identically to one without at the computed-style layer. If `maxReportBytes` cannot fit the reach status, report generation fails with a request to increase the budget instead of hiding the warning. The ledger adds about 23 bytes per served rule to a gzipped map.
 
 Custom-property fonts resolve by union over every possible declared or registered value, including transitive aliases and fallbacks. A `var()` that can join a family name (for example `font-family: Brand var(--x)` or `font: 15px Brand var(--x)`) records reach unknown. Font shorthands allow substitutions in pre-size and line-height slots, or where the union proves that facing tokens cannot form a family name; fallback text and custom-property values retain the broader adjacency guard. `var()` in animation values, inline custom properties used by fonts, inline font/animation variable readers, font variable readers in other frames and failed registration lookups also record reach unknown. Inline styles are read from Chromium’s parsed declarations, including decoded custom-property names, across document and author shadow roots. Inline font/animation readers and exact closure-name declarations record reach unknown, as do failed CDP reads or a changed count of styled elements. Every read stylesheet records reach unknown on ambiguous unquoted `url()` bodies containing unescaped comment openers, quotes or an opening parenthesis, and on escaped `url()` function names (#1230). CSS whitespace before a quoted URL and benign escapes in literal URL arguments remain supported. This guard also applies to URL text in comments and strings; ledger keys, hashes and version 2 are unchanged; escaped selectors and strings elsewhere are unaffected.
 
@@ -1638,8 +1658,8 @@ It does not parse values or infer rendering. Only an anchor at a script token's 
 `report.json.reach.scripts` retains bounded J2 detail, sorted by code point of source
 key, side, then numeric source positions. `scriptCounts` counts all original source units, including omitted detail,
 separately from J1's existing `counts`. Each unit names its `sourceKey`, `range`,
-base/head `side`, `execution`, unit `status`, `why`, optional `executionScope` (`line` or `preceding-anchor`), optional `changeScope: 'line'` for whole changed lines, and fixed `level: 'warn'`. Missing coverage on some captures reads unmeasured, never "not loaded". Residual naming is skipped above 128 UTF-16 code units to bound backtracking and says so; the unit remains unknown. Markdown/HTML coalesce only adjacent equal whole-line units and cap tables at 100 rows. Token ranges always retain their exact columns. JSON also coalesces only whole-line units, recording their original-unit `count`; `scriptCounts` still counts every original unit. It reserves only short count/preview notices, allocates diff findings first, then shares at most 64 KB across J2/J3 units, gap records and full path detail within the remaining JSON byte budget. A named `J2 units truncated: N more` gap in JSON and Markdown/HTML discloses omitted units. Named `J2 gaps truncated: N more` and `J2 gap paths truncated: N more` gaps disclose omitted gap records and paths. Markdown/HTML bound gap records and path detail independently, with counts for anything omitted. Chrome, gallery and content details receive their display budget before advisory reach detail. Truncation wording says details are omitted from the named artifact; `scriptGapCount` retains the real evidence-gap count, excluding presentation notices. For older reports without that count, summaries add the omitted-record count from `J2 gaps truncated: N` to the listed real gaps; unit and path notices add nothing. The report API assessment retains full units and the serialization gaps; reach-complete remains false.
-Markdown/HTML group them by status and name file:line:column and side:
+base/head `side`, `execution`, unit `status`, `why`, optional `executionScope` (`line` or `preceding-anchor`), optional `changeScope: 'line'` for whole changed lines, and fixed `level: 'warn'`. Missing coverage on some captures reads unmeasured, never "not loaded". Residual naming is skipped above 128 UTF-16 code units to bound backtracking and says so; the unit remains unknown. report.md and report.html do not list J2 units, gaps or truncation notices; J2 detail is `report.json` only. Token ranges always retain their exact columns. JSON coalesces only adjacent equal whole-line units, recording their original-unit `count`; `scriptCounts` still counts every original unit. It reserves only short count/preview notices, allocates diff findings first, then shares at most 64 KB across J2/J3 units, gap records and full path detail within the remaining JSON byte budget. A named `J2 units truncated: N more` gap in JSON discloses omitted units. Named `J2 gaps truncated: N more` and `J2 gap paths truncated: N more` gaps disclose omitted gap records and paths. Truncation wording says details are omitted from `report.json`; `scriptGapCount` retains the real evidence-gap count, excluding presentation notices. The report API assessment retains full units and the serialization gaps; reach-complete remains false.
+Each unit's `status` follows from its execution evidence:
 
 | Execution evidence                                                                 | Unit status                            |
 | ---------------------------------------------------------------------------------- | -------------------------------------- |
@@ -1649,7 +1669,7 @@ Markdown/HTML group them by status and name file:line:column and side:
 
 J2 treats uncertain values as uncorroborated. The block-entry and source-map attribution residuals above
 are never proved by execution; recognizable spellings name the residual in the
-reason, and the capture notes retain the full limits for every source. Every ran/unknown unit also names the general throwing-expression continuation limit, even when the throwing call is on an earlier line; report JSON, Markdown and HTML retain that reason. Recognizable, fully delimited function, arrow, method and constructor parameter defaults name their residual only when the changed range is inside the initializer. Return expressions, arrow bodies and later assignments do not inherit that label; a supplied argument still gives no proof the default evaluated. A bounded four-line context on either side (128 UTF-16 code units each) names multiline parameter defaults, including destructured props. Balanced scanning permits arbitrary parenthesis depth within that context; uncertain or truncated headers retain the general notes. TypeScript `.ts`, `.mts`, `.cts` sources and embedded `lang="ts"`, `lang="typescript"` or `type="text/typescript"` blocks bypass JSX-text lexing; Astro script blocks default to TypeScript. Type-parameter-shaped tags in JSX-capable input supply negative evidence only for the header itself; the following expression keeps its own token-start execution. Whole-line ranges can name a default initializer they overlap. A reached
+reason, and the capture notes retain the full limits for every source. Every ran/unknown unit also names the general throwing-expression continuation limit, even when the throwing call is on an earlier line; `report.json` retains that reason. Recognizable, fully delimited function, arrow, method and constructor parameter defaults name their residual only when the changed range is inside the initializer. Return expressions, arrow bodies and later assignments do not inherit that label; a supplied argument still gives no proof the default evaluated. A bounded four-line context on either side (128 UTF-16 code units each) names multiline parameter defaults, including destructured props. Balanced scanning permits arbitrary parenthesis depth within that context; uncertain or truncated headers retain the general notes. TypeScript `.ts`, `.mts`, `.cts` sources and embedded `lang="ts"`, `lang="typescript"` or `type="text/typescript"` blocks bypass JSX-text lexing; Astro script blocks default to TypeScript. Type-parameter-shaped tags in JSX-capable input supply negative evidence only for the header itself; the following expression keeps its own token-start execution. Whole-line ranges can name a default initializer they overlap. A reached
 J1/J3 unit can corroborate only the exact same source key, side and source range.
 Another value, including one on the same line, never corroborates it. J1 currently
 records served CSS without source ranges, so none supplies this proof yet. J3 is
@@ -2123,19 +2143,19 @@ consumer-owned and are not rewritten; capture still enforces the refusal policy.
 
 `styleproof-report` only:
 
-| Flag                       | Default             | Purpose                                                                                                                                      |
-| -------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                            |
-| `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                        |
-| `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                  |
-| `--max-crops <n>`          | `8`                 | Max crop regions per surface before collapsing.                                                                                              |
-| `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are named; findings stay listed and counted. |
-| `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                          |
-| `--fold-details-at <n>`    | `0`                 | Row count at which a crop's property tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds.                       |
-| `--min-width <px>`         | `320`               | Minimum crop width, for context.                                                                                                             |
-| `--min-height <px>`        | `180`               | Minimum crop height, for context.                                                                                                            |
-| `--include-layout-noise`   | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain.    |
-| `--include-content`        | off                 | Render the advisory content layer; needs captures taken with `captureText` on (the default); never affects the check.                        |
+| Flag                       | Default             | Purpose                                                                                                                                                                                                                                                                                  |
+| -------------------------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--out <dir>`              | `styleproof-report` | Output directory.                                                                                                                                                                                                                                                                        |
+| `--image-base-url <url>`   | relative            | Prefix for image URLs in `report.md`.                                                                                                                                                                                                                                                    |
+| `--pad <px>`               | `12`                | Padding around changed rects when cropping.                                                                                                                                                                                                                                              |
+| `--max-crops <n>`          | `8`                 | Change sections per changed surface that get crops and a Where map. Later sections are still listed and counted, with no images (`cropOmitted: 'max-crops'` in `report.json`); one line at the top of the report gives the number of changes missing crops, the surfaces and the option. |
+| `--max-crop-files <n>`     | `60`                | Whole-report crop file ceiling; non-negative safe integer, `0` disables crops. Budget omissions are counted, with their surfaces, in that same line at the top; findings stay listed and counted.                                                                                        |
+| `--max-crop-bytes <bytes>` | `5000000`           | Hard whole-report crop byte ceiling; non-negative safe integer, `0` disables crops.                                                                                                                                                                                                      |
+| `--fold-details-at <n>`    | `0`                 | Row count at which content-layer and folded-row tables fold under a `<details>` toggle; `0` always folds, `Infinity` never folds. Change sections always keep their CSS under **Show the CSS**.                                                                                          |
+| `--min-width <px>`         | `320`               | Minimum crop width, for context.                                                                                                                                                                                                                                                         |
+| `--min-height <px>`        | `180`               | Minimum crop height, for context.                                                                                                                                                                                                                                                        |
+| `--include-layout-noise`   | off                 | Keep size/position-derived longhands (`height`, `width`, `transform-origin`, `top`, …) that a reflow changes up the whole ancestor chain.                                                                                                                                                |
+| `--include-content`        | off                 | Render the advisory content layer; needs captures taken with `captureText` on (the default); never affects the check.                                                                                                                                                                    |
 
 `styleproof-report` exits `0` when there are no changes, `1` when a report was generated, and `2` on a usage error.
 
@@ -2462,6 +2482,6 @@ A class occurrence never corroborates a different style value on the same line.
 `token`, `explicit` (positive class value versus J3-only candidate), optional token-name `delta` (`gained`/`lost`), `status`, `why`, and `level: 'warn'`, sorted by source code point, side,
 numeric range and token. `classCounts` retains unit counts; `classGapCount` counts run-level gap records before presentation truncation. Explicit expressions with no served class tokens produce one unresolved gap per source file and side, with `occurrenceCount` for distinct unresolved ranges and `sampleRanges` containing the first ten ranges in numeric source order. Exact ranges remain internal for classification, so aggregation does not broaden the gap to unrelated units. Recognized fragment/depth gaps remain separately named. Samples and summaries share the existing detail budget; a truncation notice names any omitted gap records.
 J2/J3 share at most 64 KB of detail after style findings; J3 omissions get a named
-count notice. Markdown/HTML cap J3 at 100 unit rows and 100 bounded gap rows.
+count notice. report.md and report.html do not list J3 units or gaps; J3 detail is `report.json` only.
 All J3 findings and gaps remain advisory under both changeReach levels and keep
 reach incomplete. The changed-stylesheet join remains separately not checked.

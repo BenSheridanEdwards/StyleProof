@@ -149,7 +149,7 @@
         letter-spacing: 0.05em;
       }
 
-      /* One panel cut out of a before|after composite (geometry from compositePair in src/report/png.ts). */
+      /* One panel cut out of a before|after composite (geometry from compositePair in src/report/png.ts at 57cf168b3; the report no longer makes composites). */
       .split {
         inline-size: 100%;
         aspect-ratio: var(--w) / var(--h);
@@ -358,9 +358,9 @@
                   class="split"
                   role="img"
                   aria-label="before: home@900 content crop"
-                  data-src="../../demo/crops/home-900-content-2-composite.png"
+                  data-src="crops/home-900-content-2-composite.png"
                   style="
-                    background-image: url('../../demo/crops/home-900-content-2-composite.png');
+                    background-image: url('crops/home-900-content-2-composite.png');
                     --x: 20;
                     --y: 20;
                     --w: 424;
@@ -376,9 +376,9 @@
                   class="split"
                   role="img"
                   aria-label="after: home@900 content crop"
-                  data-src="../../demo/crops/home-900-content-2-composite.png"
+                  data-src="crops/home-900-content-2-composite.png"
                   style="
-                    background-image: url('../../demo/crops/home-900-content-2-composite.png');
+                    background-image: url('crops/home-900-content-2-composite.png');
                     --x: 472;
                     --y: 20;
                     --w: 424;
@@ -396,8 +396,8 @@
             <code>New</code> (and its colour). The demo report adds a 2× zoom because it is too small to read at 1:1.
           </details>
           <p class="source">
-            Source: <code>docs/demo/crops/home-900-content-2-composite.png</code> (demo report composite, split at
-            runtime).
+            Source: <code>docs/spikes/crop-compare/crops/home-900-content-2-composite.png</code>, a copy of the demo report
+            composite from before the visual-first report (split at runtime).
           </p>
         </section>
 
@@ -522,7 +522,7 @@
       // Spike only. The threshold is code, not a config knob.
       const GAP = 16; // px between the two copies; matches --gap
       const MOBILE_MAX = 600; // available width below this: every crop uses the slider
-      const COMPOSITE_PAD = 20; // compositePair in src/report/png.ts
+      const COMPOSITE_PAD = 20; // compositePair in src/report/png.ts at 57cf168b3
       const COMPOSITE_GAP = 28;
 
       const report = document.getElementById('report');

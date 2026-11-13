@@ -37,8 +37,8 @@ export function buildMigrationGallery(surfaces: SurfaceDiff[], contentSurfaces: 
   return gallery;
 }
 
-function section(heading: string, intro: string, items: string[]): string[] {
-  return items.length ? ['', heading, '', intro, '', ...items] : [];
+function section(heading: string, intro: string, items: string[], count = items.length): string[] {
+  return count ? ['', heading, '', intro, ...(items.length ? ['', ...items] : [])] : [];
 }
 
 export function renderMigrationGallerySections(g: MigrationGallery): string[] {
@@ -50,19 +50,21 @@ export function renderMigrationGallerySections(g: MigrationGallery): string[] {
       '',
       '## 🗺️ StyleProof Migration Report',
       '',
-      '_Migration mode compares two heads where changes are expected. Review the sections below: ' +
-        'Changed styles, New surfaces, and New/removed elements._',
+      '_Migration mode compares two heads where changes are expected._',
     );
   }
+  // The report already shows each style change and names each new surface: point there, never re-list (rule 5).
   section(
     `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
-    `_${g.changedStyles.length} surface(s) with computed-style differences._`,
-    g.changedStyles.map(({ surface, findingCount }) => `- \`${safeKey(surface)}\` · ${findingCount} finding(s)`),
+    `_${g.changedStyles.length} surface(s) with computed-style differences; each change is a section under Changes._`,
+    [],
+    g.changedStyles.length,
   ).forEach((appended) => md.push(appended));
   section(
     `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
-    `_${g.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
-    g.newSurfaces.map(({ surface }) => `- \`${safeKey(surface)}\``),
+    `_${g.newSurfaces.length} surface(s) present only in head capture, named at the top of the report._`,
+    [],
+    g.newSurfaces.length,
   ).forEach((appended) => md.push(appended));
   section(
     `### 🧱 ${MIGRATION_GALLERY_LABELS.newRemovedElements}`,

@@ -7,6 +7,28 @@ import { diffContentMaps, diffContentDirs, diffStyleMaps } from '../dist/diff.js
 import { generateStyleMapReport } from '../dist/report.js';
 import { makeMap, pairFixture, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
 
+/** For each content crop pair: [base-page Where map written, head-page Where map written]. */
+function whereSides(cropDir) {
+  return fs
+    .readdirSync(cropDir)
+    .filter((name) => name.endsWith('-after.png'))
+    .map((name) => name.slice(0, -'-after.png'.length))
+    .map((stem) => [
+      fs.existsSync(path.join(cropDir, `${stem}-before-where.png`)),
+      fs.existsSync(path.join(cropDir, `${stem}-where.png`)),
+    ]);
+}
+
+/** x positions (map pixels) of the Where map's ring. */
+function ringXs(file) {
+  const png = PNG.sync.read(fs.readFileSync(file));
+  const xs = [];
+  for (let i = 0; i < png.data.length; i += 4) {
+    if (png.data[i] === 224 && png.data[i + 1] === 17 && png.data[i + 2] === 157) xs.push((i / 4) % png.width);
+  }
+  return { width: png.width, xs };
+}
+
 // ------------------------------------------------------------- diffContentMaps
 
 test('diffContentMaps reports an element whose own text changed', () => {
@@ -104,7 +126,7 @@ test('generateStyleMapReport renders the content section only when includeConten
   assert.equal(off.contentChanges, 0);
   assert.ok(!fs.readFileSync(off.reportMdPath, 'utf8').includes('Content changes'));
 
-  // Opt-in: advisory section appears, with before/after text and a composite crop…
+  // Opt-in: advisory section appears, with before/after text and a clean crop pair…
   const on = generateStyleMapReport({
     beforeDir: dirs.beforeDir,
     afterDir: dirs.afterDir,
@@ -116,25 +138,10 @@ test('generateStyleMapReport renders the content section only when includeConten
   assert.ok(md.includes('## 📝 Content and structure changes (advisory)'));
   assert.ok(md.includes('Original demo copy'));
   assert.ok(md.includes('Updated demo copy'));
-  const compositePath = path.join(dirs.root, 'on', 'crops', 'landing-1280-content-1-composite.png');
-  assert.ok(fs.existsSync(compositePath));
-  const composite = PNG.sync.read(fs.readFileSync(compositePath));
-  assert.match(md, /◀ before {2}· {2}after ▶/, 'content direction lives in the markdown caption');
-  const label = [139, 148, 158];
-  let labelPixels = 0;
-  for (let y = 0; y < 20; y++) {
-    for (let x = 0; x < composite.width; x++) {
-      const offset = (y * composite.width + x) * 4;
-      if (
-        composite.data[offset] === label[0] &&
-        composite.data[offset + 1] === label[1] &&
-        composite.data[offset + 2] === label[2]
-      ) {
-        labelPixels++;
-      }
-    }
+  for (const side of ['before', 'after']) {
+    assert.ok(fs.existsSync(path.join(dirs.root, 'on', 'crops', `landing-1280-content-1-${side}.png`)));
   }
-  assert.equal(labelPixels, 0, 'content composite has no in-image BEFORE/AFTER glyphs');
+  assert.match(md, /\| Before \| After \|/, 'content direction lives in the markdown table header');
 
   // …and it NEVER gates: styles are identical, so the surface count and exit basis stay 0.
   assert.equal(on.changedSurfaces, 0);
@@ -199,40 +206,27 @@ test('content crops keep a shared control visible and magnify its changed label 
   });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(result.contentChanges, 3);
-  assert.match(md, /magnified \d+×.*content change too small to read at 1:1/);
+  assert.doesNotMatch(md, /magnified|zoom/, 'no magnified copy: the Where map locates small changes');
 
   for (const width of [480, 900, 1440]) {
     const prefix = `workflow-${width}-content-`;
     const crops = fs.readdirSync(path.join(dirs.root, 'out', 'crops')).filter((name) => name.startsWith(prefix));
-    const compositeName = crops.find((name) => name.endsWith('-composite.png'));
-    const annotatedName = crops.find((name) => name.endsWith('-annotated.png'));
-    const zoomName = crops.find((name) => name.endsWith('-zoom.png'));
-    assert.ok(compositeName, `${width}px writes contextual composite evidence`);
-    assert.ok(annotatedName, `${width}px writes outlined evidence`);
-    assert.ok(zoomName, `${width}px writes magnified evidence`);
-
-    const composite = PNG.sync.read(fs.readFileSync(path.join(dirs.root, 'out', 'crops', compositeName)));
-    assert.equal(composite.width, 916, `${width}px retains the full 400px control plus padding on both sides`);
-    let adjacentControlPixels = 0;
-    for (let i = 0; i < composite.data.length; i += 4) {
-      if (composite.data[i] === 16 && composite.data[i + 1] === 185 && composite.data[i + 2] === 129) {
-        adjacentControlPixels++;
+    for (const side of ['before', 'after']) {
+      const name = crops.find((candidate) => candidate.endsWith(`-${side}.png`) && !candidate.includes('where'));
+      assert.ok(name, `${width}px writes clean ${side} evidence`);
+      const crop = PNG.sync.read(fs.readFileSync(path.join(dirs.root, 'out', 'crops', name)));
+      assert.equal(crop.width, 424, `${width}px retains the full 400px control plus padding`);
+      let adjacentControlPixels = 0;
+      for (let i = 0; i < crop.data.length; i += 4) {
+        if (crop.data[i] === 16 && crop.data[i + 1] === 185 && crop.data[i + 2] === 129) adjacentControlPixels++;
       }
+      assert.ok(adjacentControlPixels >= 96 * 40, `${width}px retains the adjacent control ${side}`);
     }
-    assert.ok(adjacentControlPixels >= 96 * 40 * 2, `${width}px retains the adjacent control on both sides`);
-
-    const annotated = PNG.sync.read(fs.readFileSync(path.join(dirs.root, 'out', 'crops', annotatedName)));
-    const highlights = [0, 0];
-    for (let y = 0; y < annotated.height; y++) {
-      for (let x = 0; x < annotated.width; x++) {
-        const offset = (y * annotated.width + x) * 4;
-        if (annotated.data[offset] !== 255 || annotated.data[offset + 1] !== 0 || annotated.data[offset + 2] !== 200)
-          continue;
-        highlights[x < annotated.width / 2 ? 0 : 1]++;
-      }
-    }
-    assert.ok(highlights[0] > 0, `${width}px outlines changed content before`);
-    assert.ok(highlights[1] > 0, `${width}px outlines changed content after`);
+    // The label exists on both sides, so the head-page Where map locates it.
+    assert.ok(
+      crops.some((name) => name.endsWith('-where.png') && !name.endsWith('-before-where.png')),
+      `${width}px locates the changed content on the Where map`,
+    );
   }
 
   const customOut = path.join(dirs.root, 'custom-options');
@@ -250,14 +244,14 @@ test('content crops keep a shared control visible and magnify its changed label 
   const customCrops = fs.readdirSync(path.join(customOut, 'crops'));
   for (const width of [480, 900, 1440]) {
     const name = customCrops.find(
-      (candidate) => candidate.startsWith(`workflow-${width}-content-`) && candidate.endsWith('-composite.png'),
+      (candidate) => candidate.startsWith(`workflow-${width}-content-`) && candidate.endsWith('-after.png'),
     );
     assert.ok(name, `${width}px writes evidence with custom crop options`);
     const crop = PNG.sync.read(fs.readFileSync(path.join(customOut, 'crops', name)));
-    assert.equal(crop.width, 948, `${width}px applies the configured 20px context padding`);
-    assert.equal(crop.height, 160, `${width}px obeys the configured 120px maximum panel height`);
+    assert.equal(crop.width, 440, `${width}px applies the configured 20px context padding`);
+    assert.equal(crop.height, 120, `${width}px obeys the configured 120px maximum panel height`);
   }
-  assert.ok(!customCrops.some((name) => name.endsWith('-zoom.png')), 'zoomBelow=0 keeps magnification disabled');
+  assert.ok(!customCrops.some((name) => name.endsWith('-zoom.png')), 'no magnified copy is written');
 
   rmTmp(dirs.root);
 });
@@ -314,30 +308,18 @@ test('content structure crops highlight additions and removals only where each e
     includeContent: true,
   });
 
-  const annotations = fs
-    .readdirSync(path.join(dirs.outDir, 'crops'))
-    .filter((name) => name.endsWith('-annotated.png'))
-    .map((name) => PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', name))))
-    .map((png) => {
-      const bySide = [0, 0];
-      for (let y = 0; y < png.height; y++) {
-        for (let x = 0; x < png.width; x++) {
-          const offset = (y * png.width + x) * 4;
-          if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
-            bySide[x < png.width / 2 ? 0 : 1]++;
-          }
-        }
-      }
-      return bySide;
-    });
+  const annotations = whereSides(path.join(dirs.outDir, 'crops')).map(([before, after]) => [
+    Number(before),
+    Number(after),
+  ]);
   assert.equal(annotations.length, 2);
   assert.ok(
     annotations.some(([before, after]) => before > 0 && after === 0),
-    'removal is outlined only before',
+    'removal is located only on the base page',
   );
   assert.ok(
     annotations.some(([before, after]) => before === 0 && after > 0),
-    'addition is outlined only after',
+    'addition is located only on the head page',
   );
   rmTmp(dirs.root);
 });
@@ -375,35 +357,17 @@ test('one-sided crops ignore unrelated elements occupying added paths and ancest
   });
 
   const cropDir = path.join(dirs.outDir, 'crops');
-  const cropNames = fs.readdirSync(cropDir);
-  const names = cropNames.filter((name) => name.endsWith('-annotated.png'));
-  const composites = cropNames.filter((name) => name.endsWith('-composite.png'));
-  assert.equal(names.length, 1, 'the shifted same-metadata sibling is not reported as a second addition');
-  assert.equal(composites.length, 1);
+  const afters = fs.readdirSync(cropDir).filter((name) => name.endsWith('-after.png'));
+  assert.equal(whereSides(cropDir).length, 1, 'the shifted same-metadata sibling is not reported as a second addition');
   assert.deepEqual(
-    composites.map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))).width),
-    [708],
+    afters.map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))).width),
+    [320],
   );
-  for (const name of names) {
-    const png = PNG.sync.read(fs.readFileSync(path.join(cropDir, name)));
-    const highlights = [0, 0];
-    for (let y = 0; y < png.height; y++) {
-      for (let x = 0; x < png.width; x++) {
-        const offset = (y * png.width + x) * 4;
-        if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
-          highlights[x < png.width / 2 ? 0 : 1]++;
-        }
-      }
-    }
-    assert.deepEqual(
-      highlights.map((count) => count > 0),
-      [false, true],
-    );
-  }
+  assert.deepEqual(whereSides(cropDir), [[false, true]], 'the addition is located only on the head page');
   rmTmp(dirs.root);
 });
 
-test('shifted text changes annotate both corresponding sides instead of the reused raw path', () => {
+test('shifted text changes locate the corresponding element instead of the reused raw path', () => {
   const dirs = pairFixture({
     surface: 'shifted-text@500',
     before: makeMap({
@@ -449,25 +413,14 @@ test('shifted text changes annotate both corresponding sides instead of the reus
   });
 
   const cropDir = path.join(dirs.outDir, 'crops');
-  const annotations = fs
-    .readdirSync(cropDir)
-    .filter((name) => name.endsWith('-annotated.png'))
-    .map((name) => PNG.sync.read(fs.readFileSync(path.join(cropDir, name))))
-    .map((png) => {
-      const bySide = [0, 0];
-      for (let y = 0; y < png.height; y++) {
-        for (let x = 0; x < png.width; x++) {
-          const offset = (y * png.width + x) * 4;
-          if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
-            bySide[x < png.width / 2 ? 0 : 1]++;
-          }
-        }
-      }
-      return bySide.map((count) => count > 0);
-    });
+  const md = fs.readFileSync(path.join(dirs.outDir, 'report.md'), 'utf8');
+  const where = md.split('**`div.label`**')[1]?.match(/<img src="crops\/([^"]+-where\.png)"/)?.[1];
+  assert.ok(where, 'the shifted text change has a Where map');
+  // The label sits at x=40 on head; the inserted element at the reused raw path sits at x=330.
+  const { width, xs } = ringXs(path.join(cropDir, where));
   assert.ok(
-    annotations.some(([before, after]) => before && after),
-    'the shifted text change is outlined on both sides',
+    xs.length > 0 && xs.every((x) => x < width / 2),
+    'the ring marks the corresponding label, not the raw path',
   );
   rmTmp(dirs.root);
 });
@@ -523,25 +476,10 @@ test('one-sided annotations preserve a removed element displaced by a shifted si
 
   assert.equal(result.contentChanges, 1, 'the shifted same-metadata sibling is not reported as a second removal');
   const cropDir = path.join(dirs.outDir, 'crops');
-  const names = fs.readdirSync(cropDir).filter((name) => name.endsWith('-annotated.png'));
-  assert.equal(names.length, 1);
-  const compositeName = fs.readdirSync(cropDir).find((name) => name.endsWith('-composite.png'));
-  assert.ok(compositeName);
-  assert.equal(PNG.sync.read(fs.readFileSync(path.join(cropDir, compositeName))).width, 708);
-  const png = PNG.sync.read(fs.readFileSync(path.join(cropDir, names[0])));
-  const highlights = [0, 0];
-  for (let y = 0; y < png.height; y++) {
-    for (let x = 0; x < png.width; x++) {
-      const offset = (y * png.width + x) * 4;
-      if (png.data[offset] === 255 && png.data[offset + 1] === 0 && png.data[offset + 2] === 200) {
-        highlights[x < png.width / 2 ? 0 : 1]++;
-      }
-    }
-  }
-  assert.deepEqual(
-    highlights.map((count) => count > 0),
-    [true, false],
-  );
+  const afterName = fs.readdirSync(cropDir).find((name) => name.endsWith('-after.png'));
+  assert.ok(afterName);
+  assert.equal(PNG.sync.read(fs.readFileSync(path.join(cropDir, afterName))).width, 320);
+  assert.deepEqual(whereSides(cropDir), [[true, false]], 'the removal is located only on the base page');
   rmTmp(dirs.root);
 });
 
@@ -573,13 +511,18 @@ test('maxCrops bounds advisory content image sets without hiding textual finding
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   const names = fs.readdirSync(path.join(dirs.outDir, 'crops')).sort();
   assert.equal(result.contentChanges, 3);
-  assert.equal(names.filter((name) => name.endsWith('-composite.png')).length, 1);
-  assert.equal(names.filter((name) => name.endsWith('-annotated.png')).length, 1);
+  assert.equal(names.filter((name) => name.endsWith('-after.png')).length, 1);
+  assert.equal(names.filter((name) => name.endsWith('-where.png')).length, 1);
   assert.match(md, /Old one/);
   assert.match(md, /Old two/);
   assert.match(md, /Old three/);
-  // #971: the two uncropped entries say why they have no crop.
-  assert.equal(md.split('_Crop omitted: this surface reached the `--max-crops` limit (1).').length - 1, 2);
+  // #971: the two uncropped entries are counted, with why.
+  // #971 + rule 5: the two uncropped entries are counted once, in the opening, with the option.
+  assert.match(
+    md,
+    /✂️ \*\*2 changes are missing crops\*\*, past the `--max-crops` limit of 1 per surface \(2 on `[^`]+`\)/,
+  );
+  assert.equal(md.split('--max-crops').length - 1, 2, 'the note is said once');
   rmTmp(dirs.root);
 });
 
@@ -605,7 +548,7 @@ function twoSurfaceAdditions(opts = {}) {
     );
   });
   const result = generateStyleMapReport({ ...dirs, includeContent: true, zoomBelow: 0, ...opts });
-  const composites = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((name) => name.endsWith('-composite.png'));
+  const composites = fs.readdirSync(path.join(dirs.outDir, 'crops')).filter((name) => name.endsWith('-after.png'));
   return { dirs, result, composites, md: fs.readFileSync(result.reportMdPath, 'utf8') };
 }
 
@@ -624,12 +567,16 @@ test('#971: a content change past the per-surface crop cap carries an omission n
   const full = twoSurfaceAdditions();
   const capped = twoSurfaceAdditions({ maxCrops: 3 });
   assert.equal(capped.composites.length, 6, '3 crops on each surface');
-  const note =
-    '_Crop omitted: this surface reached the `--max-crops` limit (3). The change is still listed and counted._';
+  // Rule 5: one opening line counts both uncropped additions on each surface; no entry repeats it.
+  assert.match(
+    capped.md,
+    /✂️ \*\*4 changes are missing crops\*\*, past the `--max-crops` limit of 3 per surface \(2 on `first @ 500`, 2 on `second @ 500`\)\. Each is still listed and counted; raise `--max-crops` to show the crops\./,
+  );
+  assert.equal(capped.md.split('--max-crops').length - 1, 2, 'the note is said once');
   for (const surface of ['first@500', 'second@500']) {
     const section = capped.md.split(`### \`${surface}\``)[1].split('\n### ')[0];
     assert.equal(section.split('element added').length - 1, 5, `${surface} still lists all 5 additions`);
-    assert.equal(section.split(note).length - 1, 2, `${surface} names both uncropped additions`);
+    assert.doesNotMatch(section, /max-crops/, `${surface} carries no per-entry note`);
   }
   assert.deepEqual(capped.result.comparison.reviewableCounts, full.result.comparison.reviewableCounts);
   assert.equal(capped.result.comparison.hasReviewableEvidence, true);
@@ -696,7 +643,11 @@ test('content evidence obeys the existing report budget without dropping generat
   assert.ok(a.md.length < 1_200, `content detail stays bounded near the report ceiling (was ${a.md.length})`);
   assert.match(a.md, /display budget/);
   assert.match(a.md, /1 advisory content\/structure change\(s\); full image evidence remains/);
-  assert.deepEqual(a.crops, ['budget-480-content-1-annotated.png', 'budget-480-content-1-composite.png']);
+  assert.deepEqual(a.crops, [
+    'budget-480-content-1-after.png',
+    'budget-480-content-1-before.png',
+    'budget-480-content-1-where.png',
+  ]);
   assert.equal(a.md, b.md, 'the capped advisory report is byte-deterministic');
   assert.deepEqual(a.crops, b.crops, 'the capped artifact set is deterministic');
   rmTmp(a.dirs.root);
@@ -729,9 +680,9 @@ test('body is never selected as content context even when its captured rect fits
     zoomBelow: 0,
   });
   const composite = PNG.sync.read(
-    fs.readFileSync(path.join(dirs.outDir, 'crops', 'body-fallback-480-content-1-composite.png')),
+    fs.readFileSync(path.join(dirs.outDir, 'crops', 'body-fallback-480-content-1-after.png')),
   );
-  assert.equal(composite.width, 468, 'the body shell does not replace the 200px leaf-centred crop');
+  assert.equal(composite.width, 200, 'the body shell does not replace the 200px leaf-centred crop');
   rmTmp(dirs.root);
 });
 
@@ -768,9 +719,9 @@ test('a full-page non-body shell is not selected as content context', () => {
     zoomBelow: 0,
   });
   const composite = PNG.sync.read(
-    fs.readFileSync(path.join(dirs.outDir, 'crops', 'full-page-fallback-480-content-1-composite.png')),
+    fs.readFileSync(path.join(dirs.outDir, 'crops', 'full-page-fallback-480-content-1-after.png')),
   );
-  assert.equal(composite.width, 468, 'the inset 98%-wide and 96%-tall page shell does not replace the leaf crop');
+  assert.equal(composite.width, 200, 'the inset 98%-wide and 96%-tall page shell does not replace the leaf crop');
   rmTmp(dirs.root);
 });
 
@@ -815,11 +766,9 @@ test('oversized content ancestors retain the configured leaf-centred crop', () =
     minHeight: 80,
     maxHeight: 100,
   });
-  const composite = PNG.sync.read(
-    fs.readFileSync(path.join(dirs.outDir, 'crops', 'fallback-480-content-1-composite.png')),
-  );
-  assert.equal(composite.width, 468, 'the 460px-wide oversized ancestor does not replace the 200px leaf crop');
-  assert.equal(composite.height, 120, 'the configured 80px leaf crop remains below maxHeight');
+  const composite = PNG.sync.read(fs.readFileSync(path.join(dirs.outDir, 'crops', 'fallback-480-content-1-after.png')));
+  assert.equal(composite.width, 200, 'the 460px-wide oversized ancestor does not replace the 200px leaf crop');
+  assert.equal(composite.height, 80, 'the configured 80px leaf crop remains below maxHeight');
   rmTmp(dirs.root);
 });
 
@@ -917,7 +866,7 @@ test('content report names a pixel-identical location instead of an identical be
   // has no visible effect — that wording is reserved for paired text/style crops.
   assert.ok(!md.includes('renders identically before and after'));
   assert.ok(md.includes('No distinct before/after crop') || md.includes('element itself was removed'));
-  assert.ok(!md.includes('landing-1280-content-1-composite.png'));
+  assert.ok(!md.includes('landing-1280-content-1-after.png'));
   assert.deepEqual(
     fs.readdirSync(path.join(dirs.root, 'out', 'crops')),
     [],

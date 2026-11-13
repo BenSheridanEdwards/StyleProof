@@ -2,136 +2,88 @@
 
 ## 🗺️ StyleProof report
 
-**1 change needs review**
+**2 changes to review** on `demo-button` at 900px wide: 2 elements.
 
-**1 distinct change** (2 computed-style difference(s) · 3 state-delta difference(s)) in 1 changed surface base with an existing baseline.
+### Save button
 
-**What changed**
+The Save button changes padding from `14px 28px` to `18px 32px` and background from teal to red. It is now 8px taller and 8px wider.
 
-- `demo-button @ 900` — **`button.btn`** background teal (`#14b8a6`) → red (`#dc2626`), padding adjusted · **`a.link`** interaction states changed: `:hover`, `:focus`, `:active`
+<img src="docs/readme/live-report/crops/demo-button-900-4-where.png" width="320" alt="Where on demo-button @ 900: 1 Save button highlighted"><br><sub>Where: 1 Save button on demo-button @ 900</sub>
 
-## Changes
-
-### `button.btn` · 1 element restyled
-
-_demo-button @ 900_
-
-![before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-composite.png)
-
-<sub>◀ before · after ▶</sub>
+| Before                                                                                                           | After                                                                                                          |
+| ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-4-before.png" width="340" alt="Before: the Save button"> | <img src="docs/readme/live-report/crops/demo-button-900-4-after.png" width="340" alt="After: the Save button"> |
 
 <details>
-<summary>Show highlight overlay</summary>
+<summary>Show the CSS</summary>
 
-![highlighted before ◀ │ ▶ after](docs/readme/live-report/crops/demo-button-900-4-annotated.png)
+`button.btn` · 1 element restyled
 
-<sub>🔍 magenta boxes mark each change — changed: `button.btn`</sub>
+| Property                | Before      | After       |
+| ----------------------- | ----------- | ----------- |
+| `padding` (8 longhands) | `14px 28px` | `18px 32px` |
+| `background-color`      | `#14b8a6`   | `#dc2626`   |
 
 </details>
 
-**Btn** `button.btn`
+### Docs link
 
-Style:
+On the Docs link, the text colour changes from `#a5f3fc` to `#fca5a5` when hovered, the outline colour changes from `#5eead4` to `#fca5a5` when focused, and the text colour changes from `#2dd4bf` to `#f87171` when pressed. At rest it looks the same.
 
-| Property           | Before      | After       |
-| ------------------ | ----------- | ----------- |
-| `padding`          | `14px 28px` | `18px 32px` |
-| `background-color` | `#14b8a6`   | `#dc2626`   |
+<img src="docs/readme/live-report/crops/demo-button-900-3-where.png" width="320" alt="Where on demo-button @ 900: 1 Docs link highlighted"><br><sub>Where: 1 Docs link on demo-button @ 900</sub>
 
-### `a.link` · 1 element restyled `:hover`
+**While hovered**
 
-_demo-button @ 900_
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-1-before.png" width="340" alt="Before: the Docs link while hovered"> | <img src="docs/readme/live-report/crops/demo-button-900-1-after.png" width="340" alt="After: the Docs link while hovered"> |
 
-![base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-composite.png)
+**While focused**
 
-<sub>◀ base :hover · head :hover ▶</sub>
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-2-before.png" width="340" alt="Before: the Docs link while focused"> | <img src="docs/readme/live-report/crops/demo-button-900-2-after.png" width="340" alt="After: the Docs link while focused"> |
+
+**While pressed**
+
+| Before                                                                                                                       | After                                                                                                                      |
+| ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| <img src="docs/readme/live-report/crops/demo-button-900-3-before.png" width="340" alt="Before: the Docs link while pressed"> | <img src="docs/readme/live-report/crops/demo-button-900-3-after.png" width="340" alt="After: the Docs link while pressed"> |
 
 <details>
-<summary>Show highlight overlay</summary>
+<summary>Show the CSS</summary>
 
-![highlighted base :hover ◀ │ ▶ head :hover](docs/readme/live-report/crops/demo-button-900-1-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
-
-</details>
+`a.link` · 1 element restyled
 
 **Link** `a.link`
 
-Interactive-state changes:
-
-| State    | Property                                       | Before → After        |
-| -------- | ---------------------------------------------- | --------------------- |
-| `:hover` | `color`                                        | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `caret-color` _(currentColor)_               | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `outline-color` _(currentColor)_             | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `column-rule-color` _(currentColor)_         | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `row-rule-color` _(currentColor)_            | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-decoration-color` _(currentColor)_     | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `text-emphasis-color` _(currentColor)_       | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#a5f3fc` → `#fca5a5` |
-| `:hover` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#a5f3fc` → `#fca5a5` |
-
-### `a.link` · 1 element restyled `:focus`
-
-_demo-button @ 900_
-
-![base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-composite.png)
-
-<sub>◀ base :focus · head :focus ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted base :focus ◀ │ ▶ head :focus](docs/readme/live-report/crops/demo-button-900-2-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
+| Property                                              | Before    | After     |
+| ----------------------------------------------------- | --------- | --------- |
+| `:hover color`                                        | `#a5f3fc` | `#fca5a5` |
+| `:focus outline-color`                                | `#5eead4` | `#fca5a5` |
+| `:active color`                                       | `#2dd4bf` | `#f87171` |
+| `:hover caret-color` (follows `color`)                | `#a5f3fc` | `#fca5a5` |
+| `:hover outline-color` (follows `color`)              | `#a5f3fc` | `#fca5a5` |
+| `:hover column-rule-color` (follows `color`)          | `#a5f3fc` | `#fca5a5` |
+| `:hover row-rule-color` (follows `color`)             | `#a5f3fc` | `#fca5a5` |
+| `:hover text-decoration-color` (follows `color`)      | `#a5f3fc` | `#fca5a5` |
+| `:hover text-emphasis-color` (follows `color`)        | `#a5f3fc` | `#fca5a5` |
+| `:hover -webkit-text-fill-color` (follows `color`)    | `#a5f3fc` | `#fca5a5` |
+| `:hover -webkit-text-stroke-color` (follows `color`)  | `#a5f3fc` | `#fca5a5` |
+| `:active caret-color` (follows `color`)               | `#2dd4bf` | `#f87171` |
+| `:active outline-color` (follows `color`)             | `#2dd4bf` | `#f87171` |
+| `:active column-rule-color` (follows `color`)         | `#2dd4bf` | `#f87171` |
+| `:active row-rule-color` (follows `color`)            | `#2dd4bf` | `#f87171` |
+| `:active text-decoration-color` (follows `color`)     | `#2dd4bf` | `#f87171` |
+| `:active text-emphasis-color` (follows `color`)       | `#2dd4bf` | `#f87171` |
+| `:active -webkit-text-fill-color` (follows `color`)   | `#2dd4bf` | `#f87171` |
+| `:active -webkit-text-stroke-color` (follows `color`) | `#2dd4bf` | `#f87171` |
 
 </details>
-
-**Link** `a.link`
-
-Interactive-state changes:
-
-| State    | Property        | Before → After        |
-| -------- | --------------- | --------------------- |
-| `:focus` | `outline-color` | `#5eead4` → `#fca5a5` |
-
-### `a.link` · 1 element restyled `:active`
-
-_demo-button @ 900_
-
-![base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-composite.png)
-
-<sub>◀ base :active · head :active ▶</sub>
-
-<details>
-<summary>Show highlight overlay</summary>
-
-![highlighted base :active ◀ │ ▶ head :active](docs/readme/live-report/crops/demo-button-900-3-annotated.png)
-
-<sub>🔍 magenta boxes mark each change — changed: `a.link`</sub>
-
-</details>
-
-**Link** `a.link`
-
-Interactive-state changes:
-
-| State     | Property                                       | Before → After        |
-| --------- | ---------------------------------------------- | --------------------- |
-| `:active` | `color`                                        | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `caret-color` _(currentColor)_               | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `outline-color` _(currentColor)_             | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `column-rule-color` _(currentColor)_         | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `row-rule-color` _(currentColor)_            | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-decoration-color` _(currentColor)_     | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `text-emphasis-color` _(currentColor)_       | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `-webkit-text-fill-color` _(currentColor)_   | `#2dd4bf` → `#f87171` |
-| `:active` | ↳ `-webkit-text-stroke-color` _(currentColor)_ | `#2dd4bf` → `#f87171` |
-
-_Nothing else — no other element or inventory changes in this compare._
 
 - [ ] **Approve all changes**
+
+### 📊 [**Open the full visual report →**](docs/readme/live-report/report.md)
 
 ---
 

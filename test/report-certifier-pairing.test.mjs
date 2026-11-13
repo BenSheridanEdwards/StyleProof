@@ -50,7 +50,7 @@ test('#1141 a restyle on a card shifted by an inserted banner is in report.md', 
     assert.equal(json.reportConsistency.ok, true);
     assert.match(md, /div\.banner[^\n]*added/, 'the banner add is reported');
     // The certifier pairs the shifted cards and counts card 3's restyle; the report must agree.
-    assert.match(md, /`#ffffff` \| `#ff0000`/, `report.md does not show card 3's restyle:\n${md}`);
+    assert.match(md, /\| `#ffffff` \| `#ff0000` \|/, `report.md does not show card 3's restyle:\n${md}`);
     assert.doesNotMatch(md, /section\.card[^\n]*removed/, 'no card was removed');
   } finally {
     rmTmp(root);
@@ -101,9 +101,15 @@ for (const [name, banners, cards, descendants] of [
       const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
       const report = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
-      // Identical cards fold into one `×N` table block; a descendant keeps its own block.
-      assert.equal((md.match(/`#ffffff` \| `#ff0000`/g) ?? []).length, 1 + Number(descendants));
-      if (cards > 1) assert.match(md, new RegExp(`section\\.card\`\\*\\* ×${cards}`));
+      // Every certifier restyle is shown: sections count their elements in the CSS meta line.
+      const shown = [...md.matchAll(/`(?:section\.card|span\.label)` · (\d+) elements? restyled/g)].reduce(
+        (sum, match) => sum + Number(match[1]),
+        0,
+      );
+      assert.equal(shown, cards + Number(descendants));
+      // #1321: identical cards say their value row once (one section, one table); a descendant
+      // keeps its own.
+      assert.equal((md.match(/\| `#ffffff` \| `#ff0000` \|/g) ?? []).length, 1 + Number(descendants));
       assert.doesNotMatch(md, /(?:section\.card|span\.label)[^\n]*(?:removed|added)/);
       assert.equal(certifier.counts.style, cards + Number(descendants));
       assert.equal(report.counts.style, certifier.counts.style);

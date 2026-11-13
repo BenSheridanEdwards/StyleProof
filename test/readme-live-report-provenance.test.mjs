@@ -39,7 +39,7 @@ test('every edit the script makes is disclosed in the README preamble (#479)', (
     [/example\/demo\/index\.html/, /example\/demo\/index\.html/, 'the input is the static demo page'],
     [/function restingChangesFirst/, /sections reordered/, 'element-level sections are reordered'],
     [/rmSync\(res\.reportJsonPath/, /`report\.json` left out/, 'report.json is dropped from the bundle'],
-    [/replaceAll\('\(crops\/'/, /crop links repointed/, 'crop links are rewritten'],
+    [/replaceAll\('src="crops\/'/, /crop links repointed/, 'crop links are rewritten'],
     [/'- \[ \] \*\*Approve all changes\*\*'/, /is that comment/, 'the block is the PR comment, not the report'],
   ];
   for (const [inScript, inReadme, what] of disclosures) {
@@ -52,7 +52,7 @@ test('the disclosure count matches the edits the script makes to the report (#47
   // Reorder, drop report.json, repoint crops. Appending the approval box is covered
   // separately by "the block is that comment". If someone adds a fourth edit, this
   // fails until the prose is updated to match.
-  const edits = [/function restingChangesFirst/, /rmSync\(res\.reportJsonPath/, /replaceAll\('\(crops\/'/];
+  const edits = [/function restingChangesFirst/, /rmSync\(res\.reportJsonPath/, /replaceAll\('src="crops\/'/];
   const applied = edits.filter((pattern) => pattern.test(script)).length;
   assert.equal(applied, 3, 'the script should still make exactly these three edits');
   assert.match(preamble, /three edits for this page/);

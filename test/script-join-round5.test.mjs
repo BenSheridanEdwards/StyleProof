@@ -147,7 +147,7 @@ for (const reverse of [false, true]) {
   }
 }
 
-test('legacy reach summaries add omitted gap records without counting unit or path notices', () => {
+test('legacy reach summaries keep J2 gap records in report.json and out of report.md (QA3-01)', () => {
   const map = capture('const x = 1;', 10);
   const reach = assessReachMaps([map], [map], 'warn', { changes: [], gaps: [] });
   delete reach.scriptGapCount;
@@ -157,7 +157,10 @@ test('legacy reach summaries add omitted gap records without counting unit or pa
     scriptJoinGap('J2 units truncated: 99 more omitted from report.json'),
     scriptJoinGap('J2 gap paths truncated: 1000 more omitted from report.json'),
   ];
-  assert.match(reachSummaryLine(reach), /8 run-level gap\(s\)/);
-  reach.scriptGapCount = 42;
-  assert.match(reachSummaryLine(reach), /42 run-level gap\(s\)/);
+  // The warn-only J2 count was Markdown only; report.md no longer states it, at either level.
+  for (const count of [undefined, 42]) {
+    reach.scriptGapCount = count;
+    assert.doesNotMatch(reachSummaryLine(reach), /J2|run-level gap/);
+  }
+  assert.equal(reach.gaps.filter((gap) => gap.join === 'J2').length, 4, 'every record stays in report.json');
 });

@@ -53,7 +53,7 @@ test('a healthy bundle hides all-green certification (verdict first)', () => {
   assert.doesNotMatch(md, /Coverage.*✓ complete/);
   assert.doesNotMatch(md, /Determinism.*✓ proven/);
   assert.doesNotMatch(md, /Inventory.*✓ navigable set unchanged/);
-  assert.match(md, /No reviewable computed-style changes|change needs review|changes need review/);
+  assert.match(md, /No reviewable computed-style changes|changes? to review/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -317,7 +317,12 @@ test('an unasserted registry renders ⚠ unasserted — no percentage, no comple
     md,
     /\*\*Confidence\*\* — ⚠ unasserted \(no `expected` registry — certifies only the 1 captured surface\(s\)/,
   );
-  assert.doesNotMatch(md, /\d+(\.\d+)?%/);
+  // StyleProof's hidden report.html data is percent-encoded; the visible text has no percentage.
+  const visible = md
+    .split('\n')
+    .filter((line) => !line.startsWith('<!-- styleproof-'))
+    .join('\n');
+  assert.doesNotMatch(visible, /\d+(\.\d+)?%/);
   fs.rmSync(root, { recursive: true, force: true });
 });
 

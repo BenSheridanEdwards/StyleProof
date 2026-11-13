@@ -2,8 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readInventories, readResidue } from '../capture.js';
 import type { ComparabilitySummary } from '../diff.js';
-import type { BaselineProvenance } from '../map-store.js';
-import { liveTextFreezeError, type LiveTextAudit } from '../live-text.js';
+import type { LiveTextAudit } from '../live-text.js';
 import type { LegacyPairAudit } from '../legacy-pairs.js';
 import type { CriticalObligationAudit, DeclaredCriticalObligations } from '../critical-obligations.js';
 import { auditCoverage, auditDeterminism, type CoverageLedger, type CoverageVerdict } from '../coverage.js';
@@ -211,27 +210,12 @@ export function liveTextFreezeLines(audit: LiveTextAudit): string[] {
     );
   return [
     '',
-    '⚠ **Live/age freeze violated** — fail closed (`CERTIFICATION_FAILED`). A freeze was declared but captured age/clock text still drifted. This is not a stylesheet regression and cannot be approved as one. Fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
+    // The headline says the compare cannot be certified; this names the drift and the fix once.
+    '⚠ **To fix:** fixture timestamps so ages use the frozen clock, or declare `liveText` without `freeze` so age-only drift stays advisory.',
     '',
     ...samples,
     '',
-    `_${liveTextFreezeError(audit)}_`,
-    '',
   ];
-}
-
-/** Hex-filtered commit label: the sidecar is plain JSON on disk, so never trust its spelling. */
-const safeShaLabel = (sha: string | undefined): string =>
-  (sha ?? '').replace(/[^0-9a-f]/gi, '').slice(0, 12) || 'unknown';
-
-/** Where the baseline maps came from (#367): '' without a provenance sidecar. */
-export function baselineProvenanceLine(p: BaselineProvenance | null): string {
-  if (!p) return '';
-  const requested = safeShaLabel(p.requestedSha);
-  if (p.baseline === 'ancestor-reuse')
-    return `**Baseline** — ♻ restored from nearest ancestor \`${safeShaLabel(p.restoredSha)}\` of base \`${requested}\` (${p.changedPathCount ?? 0} path(s) changed between them, none capture-relevant)`;
-  if (p.baseline === 'exact-restore') return `**Baseline** — ✓ restored from the exact base commit \`${requested}\``;
-  return `**Baseline** — ✓ captured fresh at base commit \`${requested}\``;
 }
 
 export function criticalObligationLines(
@@ -267,58 +251,25 @@ export function criticalObligationLines(
  * Empty when identity is proven (comparable) or not required — never shown as a peer restyle card.
  */
 export function productStateWarningLines(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string[] {
-  if (comparison.status === 'comparable' || comparison.status === 'not-required') return [];
-  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0) {
-    return [
-      '⛔ **Product-state identity unproven** (pair with no product-state declared). Treat as visual-only, not a certified same-state compare. Declare `productState {id, revision}` or record it in `styleproof.product-state.json`.',
-      '',
-    ];
-  }
-  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification) {
-    return [
-      '⚠️ **Product-state identity unproven** (acknowledged pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
-      '',
-    ];
-  }
-  if (!comparison.blocksCertification) {
-    return [
-      '⚠️ **Product-state identity unproven** (pair with no product-state declared). Base and head used the same surface key, but product-state identity is unproven — treat the diff as visual-only, not a certified same-state compare.',
-      '',
-    ];
-  }
-  const counts = comparison.counts;
-  const reasons = [
-    counts.incomparable ? `${counts.incomparable} incomparable` : '',
-    counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
-    counts.globalRequiredUnproven ? `${counts.globalRequiredUnproven} globally required-unproven` : '',
+  // Product-state status is machine output (report.json `comparability`, the CLI); the report
+  // only says so when it stops certification, in plain words.
+  const undeclared = legacyPairs?.armed ? legacyPairs.undeclared.length : 0;
+  if (!comparison.blocksCertification && undeclared === 0) return [];
+  const { incomparable, requiredUnproven, globalRequiredUnproven, unproven } = comparison.counts;
+  const declare =
+    'Declare `productState {id, revision}` on both sides, or record it in `styleproof.product-state.json`.';
+  const lines = [
+    incomparable
+      ? `${incomparable} paired capture(s) declare a different product state on base and head, so their differences are not compared.`
+      : '',
+    requiredUnproven + globalRequiredUnproven || undeclared
+      ? `${requiredUnproven + globalRequiredUnproven || undeclared || unproven} paired capture(s) are not proven to show the same product state on both sides. ${declare}`
+      : '',
   ].filter(Boolean);
   return [
-    `⛔ **Product-state identity unproven.** ${comparison.status}; ${reasons.join(', ')} paired capture(s). Treat the diff as visual-only, not a certified same-state compare — raw detector evidence is diagnostic only, is not approval evidence, and cannot be approved as one.`,
+    `⛔ **This compare cannot certify:** ${lines.join(' ') || `${unproven} paired capture(s) are not proven to show the same product state on both sides. ${declare}`}`,
     '',
   ];
-}
-
-/** One product-state comparison line for the collapsed Evidence section (caller adds blank after). */
-export function comparabilityLine(comparison: ComparabilitySummary, legacyPairs?: LegacyPairAudit): string {
-  const counts = comparison.counts;
-  // Proven / not-required stay out of the above-the-fold warning; Evidence may still note them briefly.
-  if (comparison.status === 'comparable')
-    return `**Product-state comparison** — ✓ comparable on ${counts.comparable} paired capture(s) using explicit consumer-owned identity.`;
-  if (comparison.status === 'not-required')
-    return '**Product-state comparison** — not required; there are no paired capture obligations.';
-  // Failures/warnings already shown above the fold via productStateWarningLines — keep a short Evidence echo.
-  if (legacyPairs?.armed && legacyPairs.undeclared.length > 0)
-    return `⛔ **Product-state comparison** — ${legacyPairs.undeclared.length} paired capture(s) with no product-state declared.`;
-  if (legacyPairs?.armed && legacyPairs.declared.length > 0 && !comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — ${legacyPairs.declared.length} acknowledged paired capture(s) with no product-state declared on the record.`;
-  if (!comparison.blocksCertification)
-    return `⚠️ **Product-state comparison** — unproven on ${counts.unproven} paired capture(s) with no product-state declared.`;
-  const reasons = [
-    counts.incomparable ? `${counts.incomparable} incomparable` : '',
-    counts.requiredUnproven ? `${counts.requiredUnproven} required-unproven` : '',
-    counts.globalRequiredUnproven ? `${counts.globalRequiredUnproven} globally required-unproven` : '',
-  ].filter(Boolean);
-  return `⛔ **Product-state comparison** — ${comparison.status}; ${reasons.join(', ')} paired capture(s).`;
 }
 
 /** Fold Evidence (certification issues, receipts) under a collapsed <details> by default. */

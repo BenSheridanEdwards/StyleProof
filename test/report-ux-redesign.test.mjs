@@ -80,29 +80,26 @@ test('report skeleton is verdict-first with one primary crop and collapsed evide
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
 
   // Verdict first — before any Certification / Evidence fold.
-  assert.match(md, /\*\*1 change needs review\*\*/);
-  assert.ok(md.indexOf('**1 change needs review**') < md.indexOf('## Changes'));
+  assert.match(md, /\*\*1 change to review\*\*/);
+  assert.ok(md.indexOf('**1 change to review**') < md.indexOf('## Changes'));
   assert.doesNotMatch(md.slice(0, md.indexOf('## Changes')), /\*\*Certification\*\*/);
 
-  // Human label before selector.
-  assert.match(md, /\*\*Page title\*\* `div\.page-title`/);
+  // Human name as the heading; the selector sits in the CSS fold.
+  assert.match(md, /^### Page title$/m);
+  assert.match(md, /`div\.page-title` · 1 element restyled/);
 
   // No mid-report glossary.
   assert.doesNotMatch(md, /Surface base.*=.*product UI state/);
 
-  // One primary before/after; highlight overlay is optional/collapsed.
-  assert.match(md, /!\[before ◀ │ ▶ after\]\(crops\/.+-composite\.png\)/);
-  assert.match(md, /<summary>Show highlight overlay<\/summary>/);
-  // Annotated must not appear as a peer carousel above the fold.
-  const beforeDetails = md.slice(0, md.indexOf('<summary>Show highlight overlay</summary>'));
-  assert.doesNotMatch(beforeDetails, /-annotated\.png/);
-  assert.doesNotMatch(beforeDetails, /-zoom\.png/);
+  // One primary clean before/after pair; no overlay, annotated twin or zoom anywhere.
+  assert.equal(md.match(/^\| Before \| After \|$/gm)?.length, 1);
+  assert.doesNotMatch(md, /Show highlight overlay|-annotated\.png|-zoom\.png/);
 
   // Nothing else line when only this restyle exists.
-  assert.match(md, /Nothing else — no other element or inventory changes/);
+  assert.doesNotMatch(md, /Nothing else/, 'no filler line after the changes');
 
-  // Evidence collapsed by default.
-  assert.match(md, /<summary>Evidence \(warnings & failures\)<\/summary>/);
+  // No failure, so no Evidence block: product-state status is report.json data, not a report warning.
+  assert.doesNotMatch(md, /Evidence \(warnings & failures\)|Product-state/);
 
   fs.rmSync(root, { recursive: true, force: true });
 });
@@ -143,6 +140,6 @@ test('proven product-state identity does not emit the above-the-fold warning', (
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
   assert.equal(result.comparison.status, 'comparable');
   assert.doesNotMatch(md, /Product-state identity unproven/);
-  assert.match(md, /\*\*1 change needs review\*\*/);
+  assert.match(md, /\*\*1 change to review\*\*/);
   fs.rmSync(root, { recursive: true, force: true });
 });

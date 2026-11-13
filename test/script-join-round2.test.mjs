@@ -8,7 +8,8 @@ import { mapScriptCoverage } from '../dist/script-reach.js';
 import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import { classifyScriptReach } from '../dist/script-join.js';
 import { changedScriptRanges, readScriptChanges } from '../dist/script-join-git.js';
-import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
+import { assessReachMaps } from '../dist/report/reach.js';
+import { scriptUnitRanges } from '../dist/report/script-units.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { DEFAULT_MAX_JSON_BYTES } from '../dist/report/sections.js';
 import { sha256 } from '../dist/node-util.js';
@@ -184,7 +185,11 @@ for (const tokenScoped of [false, true])
       const retained = json.reach.scripts.reduce((sum, unit) => sum + (unit.count ?? 1), 0);
       assert.ok(retained < 3000);
       assert.ok(json.reach.gaps.some((gap) => gap.reason.includes(`J2 units truncated: ${3000 - retained} more`)));
-      assert.match(fs.readFileSync(output.reportMdPath, 'utf8'), /J2 units truncated: \d+ more/);
+      assert.doesNotMatch(
+        fs.readFileSync(output.reportMdPath, 'utf8'),
+        /J2 units truncated/,
+        'J2 detail is report.json data',
+      );
     } else {
       assert.equal(json.reach.scripts.length, 2);
       assert.equal(
@@ -336,12 +341,12 @@ test('token-scoped units keep their exact columns instead of merging across adja
     why: 'value; rendering not proved',
     level: 'warn',
   });
-  const rows = reachSectionLines({ level: 'warn', rules: [], gaps: [], scripts: [unit(1), unit(2)] }).filter((row) =>
-    row.startsWith('| `app.ts'),
+  const rows = scriptUnitRanges([unit(1), unit(2)]).map(
+    ({ range: r }) => `app.ts:${r.start.line}:${r.start.column}-${r.end.line}:${r.end.column}`,
   );
   assert.equal(rows.length, 2);
-  assert.ok(rows.some((row) => row.includes('app.ts:1:10-1:11')));
-  assert.ok(rows.some((row) => row.includes('app.ts:2:10-2:11')));
+  assert.ok(rows.includes('app.ts:1:10-1:11'));
+  assert.ok(rows.includes('app.ts:2:10-2:11'));
 });
 
 test('a side without coverage still lists its changed lines using the other side root provenance', (t) => {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { assessReachMaps, reachSectionLines, reachStripLines, reachSummaryLine } from '../dist/report/reach.js';
+import { assessReachMaps, reachHeadlineLines, reachSectionLines, reachSummaryLine } from '../dist/report/reach.js';
 import { changedScriptRanges } from '../dist/script-join-git.js';
 import { reserveScriptNotice, budgetScriptReach, jsonBytes } from '../dist/report/script-units.js';
 const map = (cls) => ({
@@ -19,7 +19,7 @@ const assess = (level = 'warn', now = 'new') => {
     head = map(now);
   return assessReachMaps([base], [head], level, { changes, gaps: [] }, [{ base, head }]);
 };
-test('J3 is listed in human and JSON reporting, warn-only at both levels', () => {
+test('J3 is listed in JSON reporting only, warn-only at both levels (QA3-01)', () => {
   for (const level of ['warn', 'gate']) {
     const reach = assess(level);
     assert.equal(reach.classes.length, 2);
@@ -28,11 +28,12 @@ test('J3 is listed in human and JSON reporting, warn-only at both levels', () =>
     assert.equal(reach.blocking, 0);
     assert.equal(reach.complete, false);
     assert.ok(!reach.gaps.some((gap) => gap.join === 'J3'));
-    const md = [...reachStripLines(reach), ...reachSectionLines(reach)].join('\n');
-    assert.match(md, /J3.*warn-only/);
-    assert.match(md, /token present on a captured element; not tied to this occurrence/);
-    assert.doesNotMatch(md, /class-list deltas are not recorded|and class-list deltas\./);
-    assert.match(reachSummaryLine(reach), /J3:.*2 unknown/);
+    // Warn-only J3 detail is machine output: report.md shows none of it at either level.
+    const md = [...reachHeadlineLines(reach), ...reachSectionLines(reach), reachSummaryLine(reach)].join('\n');
+    assert.doesNotMatch(md, /J3|token present on a captured element/);
+    assert.ok(
+      reach.classes.every((unit) => /token present on a captured element; not tied to this occurrence/.test(unit.why)),
+    );
     assert.doesNotMatch(JSON.stringify(reach), /classSource|const C/);
   }
 });
@@ -54,7 +55,8 @@ test('J3 detail and gaps use leftover JSON bytes, keeping full status counts', (
 test('missing J3 inputs keep class-list deltas explicitly not checked', () => {
   const reach = assessReachMaps([map('old')], [map('new')], 'warn');
   assert.ok(reach.gaps.some((gap) => gap.join === 'J3' && /source ranges unavailable/.test(gap.reason)));
-  assert.match(reachStripLines(reach).join('\n'), /Class-list deltas are not checked/);
+  // The gap is machine output (report.json `reach.gaps`), never Markdown. (QA3-01)
+  assert.doesNotMatch([...reachHeadlineLines(reach), ...reachSectionLines(reach)].join('\n'), /J3|Class-list/);
 });
 
 test('omitted J3 detail cannot retain a complete flag', () => {

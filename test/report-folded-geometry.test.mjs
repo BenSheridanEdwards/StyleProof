@@ -44,13 +44,14 @@ test('#1140 a width change beside a colour change is shown or counted in report.
   const shown = /\bwidth\b[^\n]*240px[^\n]*280px/.test(md);
   const counted = /\+?1 (derived longhand|size\/position)/.test(md);
   assert.ok(shown || counted, `report.md neither shows nor counts the folded width row:\n${md}`);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/, 'the PR-comment digest includes the count');
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  assert.equal(json.digest[0].foldedRows, 1, 'the report.json digest includes the count');
   assert.match(
     md,
     /<details>[\s\S]*Folded size\/position rows:[\s\S]*\| `width` \| `240px` \| `280px` \|[\s\S]*<\/details>/,
   );
   const html = fs.readFileSync(res.reportMdPath.replace(/report\.md$/, 'report.html'), 'utf8');
-  assert.match(html, /\+1 size\/position row folded/);
+  assert.match(html, /Folded size\/position rows:/);
   assert.match(html, /<td><code>width<\/code><\/td>.*<td><code>240px<\/code><\/td>.*<td><code>280px<\/code><\/td>/);
 });
 
@@ -91,7 +92,9 @@ test('folded geometry on a narrow surface prevents identical surface grouping', 
   writeCapture(fixture.afterDir, 's@375', sidebar('280px', 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   assert.match(md, /\| `width` \| `240px` \| `280px` \|/);
-  assert.match(md.split(/^### /m)[0], /\+1 size\/position row folded/);
+  assert.ok(
+    JSON.parse(fs.readFileSync(`${fixture.outDir}/report.json`, 'utf8')).digest.some((row) => row.foldedRows === 1),
+  );
   assert.doesNotMatch(md, /Identical across 2 surfaces/);
   assert.match(md, /375/);
 });
@@ -130,28 +133,27 @@ test('folded-only details retain the full count while capping element tables', (
   assert.equal((md.match(/\| `width`/g) ?? []).length, 40);
 });
 
-test('base and hover folded rows stay under their respective headings', (t) => {
+test('base and hover folded rows stay with their element, each under its own state', (t) => {
   const fixture = fixtureFor(t, hoverMap(false, 'black'), hoverMap(true, 'red'));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
-  assert.equal(sections.length, 2);
-  assert.doesNotMatch(sections[0].split('\n')[0], /:hover/);
+  assert.equal(sections.length, 1, 'one element, one change section');
+  const line = sections[0].split('\n').find((l, i) => i > 0 && l && !l.startsWith('<!--'));
+  assert.match(line, /changes text colour/, 'the line describes the resting colour change');
+  assert.doesNotMatch(line, /hovered/);
+  assert.match(sections[0], /\| `color` \| `black` \| `red` \|/);
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
-  assert.doesNotMatch(sections[0], /`90px`/);
-  assert.match(sections[1].split('\n')[0], /:hover/);
-  assert.doesNotMatch(sections[1].split('\n')[0], /0 elements changed/);
-  assert.match(sections[1].split('\n')[0], /· size\/position rows folded/);
-  assert.match(sections[1], /`height` \| `80px` → `90px`/);
-  assert.doesNotMatch(sections[1], /`280px`/);
+  assert.match(sections[0], /\| `:hover` \| `height` \| `80px` → `90px` \|/, 'the hover row keeps its state');
+  assert.doesNotMatch(sections[0], /`:hover` \| `width`/);
 });
 
-test('a folded base width keeps a hover colour region state-only', (t) => {
+test('a folded base width keeps a hover colour change state-only, without claiming rest is unchanged', (t) => {
   const fixture = fixtureFor(t, hoverMap(false), hoverMap(true));
   const md = fs.readFileSync(generateStyleMapReport(fixture).reportMdPath, 'utf8');
   const sections = md.split(/^### /m).slice(1);
   assert.equal(sections.length, 1);
-  assert.match(sections[0].split('\n')[0], /:hover/);
-  assert.doesNotMatch(sections[0].split('\n')[0], /size\/position only/);
+  assert.match(sections[0], /when hovered/);
+  assert.doesNotMatch(sections[0], /size\/position only|At rest/, 'the folded width moved at rest');
   assert.match(sections[0], /`width` \| `240px` \| `280px`/);
   assert.match(sections[0], /`height` \| `80px` → `90px`/);
 });
@@ -201,8 +203,8 @@ test('a hover geometry-only surface remains beside a visible colour surface', (t
     JSON.parse(json).surfaces.find((s) => s.surfaces.includes('geometry@1280')).visualEvidence,
     'not-rendered',
   );
-  assert.match(md.split(/^### /m)[0], /geometry[\s\S]*\+1 size\/position row folded/);
   assert.match(md.split(/^### /m).slice(1).join('\n'), /geometry[\s\S]*\+1 size\/position row folded/);
+  assert.ok(JSON.parse(json).digest.some((row) => row.surface === 'geometry@1280' && row.foldedRows === 1));
   assert.match(md, /`:hover` \| `width` \| `240px` → `280px`/);
   assert.match(md, /color/);
 });
