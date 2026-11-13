@@ -7,7 +7,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Capture referenced keyframe bodies and image current sources; recommend `--pixels` for reached font-face changes.
+- **BREAKING:** The PR gate now fails when an image's chosen source changes: a different
+  path or query string (including build-ID or cache-busting query strings), or a different
+  cross-origin URL (including CDN host changes). Same-origin sources are recorded as
+  path + query, so comparing hosts with the same image path and query does not fail.
+  Capture also records referenced keyframe bodies; recommend `--pixels` for reached font-face changes.
+  See Migration step 5.
 
 - **BREAKING:** When a side's served-CSS record is missing, old or unreadable, `reach` in report.json and
   the report API result now omits `counts`, and omits `rules` when none could be listed, instead of
@@ -228,6 +233,12 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    `reach.complete` and `reach.gaps` for the gap and its fix; recapture with `captureReach` to get
    counts back. Reports with complete records on both sides are unchanged. The `styleproof-diff --json`
    receipt's `reach.counts` is unchanged.
+
+5. **Image sources and referenced keyframe bodies now affect the gate (#1346, #1347).**
+   Builds that stamp image URLs per build (`?v=<sha>`, or hashed CDN paths that are not
+   content-addressed) now produce a style finding for every affected image. Add an
+   `ignore` selector for those images, or make their URLs stable across builds.
+   Edits inside a referenced `@keyframes` block now fail the gate too.
 
 ### Changed
 
