@@ -239,3 +239,16 @@ test('residual fragments aggregate by file side and reason', () => {
   assert.equal(residual.length, 1);
   assert.equal(residual[0].occurrenceCount, 12);
 });
+
+for (const kind of ['ts', 'tsx', 'js']) {
+  for (const [source, expected] of [
+    ["if(/>=/.test(op)) el.className=a?'known':'w-1/2';", ['known', 'w-1/2']],
+    [String.raw`const h=s.replace(/>\s*</g,'><');el.className='bg-black/50 known';`, ['bg-black/50', 'known']],
+  ]) {
+    test(`greater-than regex preserves explicit classes: ${kind} ${source}`, () => {
+      const literals = classLiterals(source, `app.${kind}`);
+      for (const token of expected)
+        assert.ok(literals.some((literal) => literal.explicit && literal.words.some((word) => word.token === token)));
+    });
+  }
+}

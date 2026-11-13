@@ -2,11 +2,13 @@
 export type ScriptToken = { index: number; end: number; negativeOnly?: true };
 
 const TOKEN =
-  /'(?:\\.|[^'\\\r\n\u2028\u2029])*'|"(?:\\.|[^"\\\r\n\u2028\u2029])*"|['"]|(?<regexp>\/(?![/*>])(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\[\r\n])+\/[dgimsuvy]*)|0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?|#?[\p{ID_Start}_$][\p{ID_Continue}$]*/uy;
+  /'(?:\\.|[^'\\\r\n\u2028\u2029])*'|"(?:\\.|[^"\\\r\n\u2028\u2029])*"|['"]|(?<regexp>\/(?![/*])(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\[\r\n])+\/[dgimsuvy]*)|0[xXoObB][\dA-Fa-f_]+n?|\d[\d_]*(?:\.[\d_]*)?(?:[eE][+-]?\d[\d_]*)?n?|\.\d[\d_]*(?:[eE][+-]?\d[\d_]*)?|#?[\p{ID_Start}_$][\p{ID_Continue}$]*/uy;
 const MAX_REGEX_ATTEMPT = 4096;
 
 /** Regex attempts have a fixed budget even on malformed or ambiguous input. */
 function tokenMatch(text: string, start: number, matcher: RegExp): RegExpExecArray | null {
+  if (text.startsWith('/>', start) && (!literalMayStart(text, start) || /[}>]\s*$/.test(text.slice(0, start))))
+    return null;
   const slash = text[start] === '/';
   matcher.lastIndex = slash ? 0 : start;
   return matcher.exec(slash ? text.slice(start, start + MAX_REGEX_ATTEMPT) : text);
