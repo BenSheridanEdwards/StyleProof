@@ -75,7 +75,35 @@ surface overrides, and the boundary around live states, recipes, and popups.
 ## The boundary (stated plainly)
 
 StyleProof surfaces 100% of the change classes above **on the surfaces it captures**. It
-cannot diff a surface it never reached. The honest gaps, and how to close each:
+cannot diff a surface it never reached. With `captureReach`, Change Reach names
+changed code whose reach is unproven, including the un-exercised-state gap. It
+does not synthesize the missing state or its computed-style diff.
+
+The reach report keeps three kinds of evidence separate:
+
+- **J1, changed CSS rules:** `reached`, `never-rendered`, `unmeasured`, and
+  `blind-channel`. Matching a compared element proves reach, even if the
+  declaration lost the cascade or changed no recorded computed value.
+- **J2, changed scripts:** `never-ran` / `partly-ran` yield `never-rendered`; missing evidence
+  yields `unmeasured`, and `ran` yields `unknown` because rendering is unproved.
+  Block-entry, source-map attribution, parameter-default evaluation, and
+  throwing-expression continuation remain named residuals.
+  Missing source maps, unsupported files, and unresolved units remain named
+  residuals; J2 is always warn-only.
+- **J3, changed class-token occurrences:** absence is `never-rendered` only
+  when captures on that side prove no omissions. Presence without occurrence
+  provenance, or incomplete capture evidence, remains `unknown`. J3 is always
+  warn-only and cannot upgrade J2.
+
+`changeReach: 'warn'` leaves verdicts unchanged. Opt-in `'gate'` holds unresolved
+J1 rules and ledger gaps: certify fails, review-gate and migration require
+approval, and advisory mode remains non-blocking. Approval clears the verdict,
+not the finding. A changed stylesheet no capture loaded is **Not checked** and
+does not hold the gate. Unresolved J2/J3 evidence prevents reach-complete even
+when the visual verdict passes. See the [reach contract](REFERENCE.md#optional-served-rule-ledger-change-reach-opt-in)
+for statuses, named residuals, and report limits.
+
+The remaining capture gaps, and how to close each:
 
 | Blind spot                                                                    | Why                                                   | Close it with                                                                       |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
