@@ -354,7 +354,7 @@ export function capturePage({
       style: snap(usedStyle, defaultFor(tag)),
     };
     if (el.tagName.toLowerCase() === 'img' && 'currentSrc' in el) entry.style['currentSrc'] = String(el.currentSrc);
-    const animationNames = usedStyle.animationName.split(',').map((name) => name.trim());
+    const animationNames = (usedStyle.animationName ?? 'none').split(',').map((name) => name.trim());
     if (animationNames.some((name) => name !== 'none')) {
       const bodies: string[] = [];
       const visit = (rules: CSSRuleList): void => {
