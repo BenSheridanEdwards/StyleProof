@@ -242,8 +242,8 @@ jobs:
           test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
           test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
           test -z '${{ steps.legacy-declared.outputs.report-url }}'
-          grep -E 'acknowledged pair with no product-state declared' styleproof-report/report.md
-          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
+          grep -F '"status": "unproven"' styleproof-report/report.json
+          ! grep -Ei 'certified same-state compare|[✓✅].*certif' styleproof-report/report.md
           grep -F '"declared": [' styleproof-report/report.json
           grep -F 'home@320' styleproof-report/report.json
 
@@ -263,8 +263,11 @@ jobs:
         run: |
           test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -E '⛔ .*[(]pair with no product-state declared[)]' styleproof-report/report.md
-          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
+          grep -F '⛔ **This compare cannot certify:** 1 paired capture(s) are not proven to show the same product state on both sides.' styleproof-report/report.md
+          grep -F '"status": "unproven"' styleproof-report/report.json
+          grep -F '"undeclared": [' styleproof-report/report.json
+          grep -F 'home@320' styleproof-report/report.json
+          ! grep -Ei 'certified same-state compare|[✓✅].*certif' styleproof-report/report.md
 
       - id: certfail
         continue-on-error: true
