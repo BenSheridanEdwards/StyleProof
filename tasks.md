@@ -21,10 +21,6 @@
 
 ## Done
 
-- Refresh #1333 Action-copy proof test-first in this one-shot T3 task; PR https://github.com/BenSheridanEdwards/StyleProof/pull/1333. Targeted proof/attribution suite: 13 passed; no push.
-
-- Fix stale coverage assertions for [PR #1333](https://github.com/BenSheridanEdwards/StyleProof/pull/1333), one-shot T3 task in fix-1333; 23 targeted tests passed; committed fdb68a230a0e8179729aac0cdc6f8231eafa6c68; no push.
-
 - 2026-11-10: merged [pull request #1323](https://github.com/BenSheridanEdwards/StyleProof/pull/1323) (`tasks.md` and the task-tracking rule) at 18:02 Europe/London (01253bd9).
 - 2026-11-10: merged [pull request #1260](https://github.com/BenSheridanEdwards/StyleProof/pull/1260).
 - 2026-11-10: merged [pull request #1310](https://github.com/BenSheridanEdwards/StyleProof/pull/1310).
