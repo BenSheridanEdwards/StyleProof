@@ -1,8 +1,11 @@
 import { readFile, stat } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
-import type { Page, CDPSession } from '@playwright/test';
+import type { Page, CDPSession, Request } from '@playwright/test';
 import { ScriptEvidenceError, MAX_MAP_BYTES } from '../script-reach-limits.js';
+
+/** Requests initiated by the routed map reader are capture inputs, not application data. */
+export const scriptMapRequests = new WeakSet<Request>();
 
 function checkedMapText(text: string): string {
   if (Buffer.byteLength(text) > MAX_MAP_BYTES) throw new ScriptEvidenceError('source map input size limit exceeded');
@@ -80,6 +83,10 @@ export async function readResource(
   }
   if (!routingActive(page, url))
     return beforeDeadline(readCdpResource(client, url), Math.min(deadline, performance.now() + RESOURCE_TIMEOUT_MS));
+  const onRequest = (request: Request): void => {
+    if (request.url() === url && request.resourceType() === 'fetch') scriptMapRequests.add(request);
+  };
+  page.on('request', onRequest);
   // Only routing/HAR requires entering page JavaScript; CDP is the ordinary reader.
   try {
     return checkedMapText(
@@ -102,6 +109,8 @@ export async function readResource(
     if (error instanceof ScriptEvidenceError) throw error;
     if (performance.now() >= deadline) throw new MapReadTimeout();
     throw new ScriptEvidenceError('source map fallback refused during routing or HAR replay');
+  } finally {
+    page.off('request', onRequest);
   }
 }
 

@@ -1,5 +1,6 @@
 import type { Frame, Page, Request, Response } from '@playwright/test';
 import { endpointOf, residueKey, type DataResidueEntry } from '../data-residue.js';
+import { scriptMapRequests } from './script-map-resources.js';
 import { urlMatcher } from './url-glob.js';
 
 /**
@@ -80,6 +81,7 @@ export function trackDataResidue(
     documentEpoch += 1;
   };
   const record = (request: Request, reason: string): void => {
+    if (scriptMapRequests.has(request)) return;
     if (epochByRequest.get(request) !== documentEpoch) return;
     if (!inBoundary(request.url())) return;
     const endpoint = endpointOf(request.url());
