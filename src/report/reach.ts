@@ -94,6 +94,23 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
   return gaps;
 }
 
+/** Reach as report.json and the report API publish it. */
+export type PublishedReach = Omit<ReportReach, 'counts' | 'rules'> & Partial<Pick<ReportReach, 'counts' | 'rules'>>;
+
+/**
+ * When a served-CSS record is missing, old or unreadable on a side, changed rules cannot be
+ * listed, so zero counts or an empty rule list would read as "no changed CSS". Publish the gap
+ * (`ledger`, `complete: false`, `gaps`) without that zero claim; listed rules stay. The diff's
+ * gate receipt keeps its counts (a verdict input).
+ */
+export function publishedReach(reach: PublishedReach): PublishedReach {
+  if (!reach.gaps.some((gap) => gap.kind === 'ledger')) return reach;
+  const published: PublishedReach = { ...reach };
+  delete published.counts;
+  if (!reach.rules?.length) delete published.rules;
+  return published;
+}
+
 /** Opt-in reach evidence: incomplete joins can only add findings, never certify a run. */
 export function assessReachMaps(
   base: StyleMap[],
@@ -355,7 +372,10 @@ export function reachSectionLines(reach: ReportReach): string[] {
 export function reachSummaryLine(reach: ReportReach): string {
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
 
-  return `- Changed but never matched: ${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\`${scriptSummary(reach)}${classSummary(reach)}`;
+  const counted = gaps
+    ? 'not every changed rule could be listed'
+    : `${reach.counts['never-rendered']} rule(s), ${reach.counts.unmeasured} unmeasured, ${reach.counts['blind-channel']} blind-channel`;
+  return `- Changed but never matched: ${counted}, ${gaps} evidence gap(s); changed stylesheets no capture served are not checked${reach.level === 'gate' ? " (not held by `changeReach: 'gate'`)" : ''}; full list in report.json under \`reach\`${scriptSummary(reach)}${classSummary(reach)}`;
 }
 
 function scriptSummary(reach: ReportReach): string {

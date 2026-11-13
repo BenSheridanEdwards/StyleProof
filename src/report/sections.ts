@@ -12,7 +12,7 @@ import { cropBudgetNote, writeBudgetedPng, type CropBudget } from './crop-budget
 import { oneSidedStatus, type OneSidedStatus } from './headline.js';
 import { renderArtifactHtml } from './html.js';
 import type { DigestRow } from './digest.js';
-import type { ReportReach } from './reach.js';
+import { publishedReach, type ReportReach } from './reach.js';
 import { reserveScriptNotice, budgetScriptReach, jsonBytes } from './script-units.js';
 import { renderChangeGroup } from './regions.js';
 import { formatSurfaceWithContext, type ChangeGroup, type PreparedSurface, type RenderCtx } from './shared.js';
@@ -485,7 +485,7 @@ export function buildReportJson(a: ReportArtifacts) {
   const script = budgetScriptReach(a.reach, capped.json.reach, maxBytes - jsonBytes(capped.json));
   return {
     ...capped,
-    json: { ...capped.json, ...(script.reach ? { reach: script.reach } : {}) },
+    json: { ...capped.json, ...(script.reach ? { reach: publishedReach(script.reach) } : {}) },
     scriptUnitsOmitted: script.omitted,
     scriptDetailsOmitted: script.detailsOmitted,
   };

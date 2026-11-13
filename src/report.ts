@@ -80,7 +80,15 @@ import {
   type BaselineInfo,
 } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
-import { assessReach, reachSectionLines, reachStripLines, reachSummaryLine, type ReportReach } from './report/reach.js';
+import {
+  assessReach,
+  publishedReach,
+  type PublishedReach,
+  reachSectionLines,
+  reachStripLines,
+  reachSummaryLine,
+  type ReportReach,
+} from './report/reach.js';
 import {
   ReportMarkdown,
   DEFAULT_MAX_JSON_BYTES,
@@ -206,7 +214,7 @@ export type ReportResult = {
   /** Present only when `migration: true`. */
   migrationGallery?: MigrationGallery;
   /** Change Reach J1 (#996); only when a capture carries a reach ledger. */
-  reach?: ReportReach;
+  reach?: PublishedReach;
 };
 
 function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
@@ -734,7 +742,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     baseOnlyVolatile: diff.baseOnlyVolatile,
     ...paths,
     ...(migrationGallery ? { migrationGallery } : {}),
-    ...(reach ? { reach } : {}),
+    ...(reach ? { reach: publishedReach(reach) } : {}),
   };
 }
 
