@@ -150,7 +150,7 @@ test('TDD fixture: base-capture-failed=false + baseline fault names surface+SHA 
     assert.match(md, new RegExp(FAILED_SURFACE));
     assert.match(md, new RegExp(BASE_SHA));
     assert.match(md, /not a base recapture failure/i);
-    assert.match(md, /base-capture-failed=false/);
+    assert.doesNotMatch(md, /base-capture-failed/, 'the internal flag stays out of report text');
     assert.doesNotMatch(md, FALSE_RECAPTURE_CLAIM);
   } finally {
     rmTmp(tmp);
@@ -268,6 +268,7 @@ test('Action PARTIAL_BASELINE copy interpolates the receipt key and SHA', () => 
 
 test('Action DEGRADED_BASELINE / head-only copy claims recapture only when the flag is true', () => {
   const headOnlyComment = formatDegradedBaselineComment(false);
+  assert.doesNotMatch(headOnlyComment, /base-capture-failed/);
   const headOnlyStatus = formatDegradedBaselineStatusDescription(false);
   const headOnlyFail = formatDegradedBaselineFailEcho(false);
   for (const text of [headOnlyComment, headOnlyStatus, headOnlyFail]) {

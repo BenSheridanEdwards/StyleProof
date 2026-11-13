@@ -12,6 +12,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   publishing zero counts that read as "no changed CSS". It keeps `ledger`, `complete: false` and the named
   gap with its fix. The report.md summary line says "not every changed rule could be listed" instead of
   zero rule counts. The `styleproof-diff --json` gate receipt keeps its counts. See Migration step 4.
+- report.md, report.html and the PR comment say gate outcomes in plain words instead of trust-state codes or the `base-capture-failed=false` flag. The codes stay in report.json, commit statuses and Action outputs.
 
 - Action comment footers name the remedy for their mode without repeating baseline details.
 

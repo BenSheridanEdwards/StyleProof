@@ -501,7 +501,9 @@ test('report: freeze declared and ages still change is a visible fail-closed err
   assert.equal(result.comparison.liveTextFreezeViolated, true);
   assert.equal(result.changedSurfaces, 0, 'freeze violation must not look like a style review');
   assert.match(md, /Live\/age freeze violated/);
-  assert.match(md, /CERTIFICATION_FAILED/);
+  // QA1-02: plain words in the report; the gate code stays machine output.
+  assert.match(md, /so StyleProof cannot certify this compare/);
+  assert.doesNotMatch(md, /CERTIFICATION_FAILED/);
   assert.match(md, /open 102\.1d/);
   assert.equal(json.liveTextFreeze.violated, true);
   assert.doesNotMatch(md, /No reviewable computed-style changes among semantically matched elements\. No advisory/);
