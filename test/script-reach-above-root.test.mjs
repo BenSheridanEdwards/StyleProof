@@ -406,3 +406,22 @@ test('outside-root file source remains unknown on an HTTP map', async (t) => {
   assert.equal(script.status, 'unknown');
   assert.ok(!JSON.stringify(script).includes(projectRoot));
 });
+
+for (const useRoot of [false, true]) {
+  test(`existing outside-root HTTP machine path stays unknown (sourceRoot=${useRoot})`, async (t) => {
+    const projectRoot = projectFixture(t);
+    const outside = path.join(projectRoot, '..', 'ui', 'Button.tsx');
+    mkdirSync(path.dirname(outside));
+    writeFileSync(outside, 'x');
+    const sources = [useRoot ? 'Button.tsx' : outside];
+    const sourceRoot = useRoot ? path.dirname(outside) + '/' : undefined;
+    assert.throws(
+      () =>
+        sourceIdentities({ version: 3, sources, sourceRoot, mappings: 'AAAA' }, 'http://localhost/a.map', projectRoot),
+      /source outside project root/,
+    );
+    const script = await capture(sources, ['x'], 'http://localhost/a.map', { projectRoot, sourceRoot });
+    assert.equal(script.status, 'unknown');
+    assert.ok(!JSON.stringify(script).includes(path.dirname(projectRoot)));
+  });
+}
