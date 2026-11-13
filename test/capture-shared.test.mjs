@@ -3,14 +3,7 @@ import assert from 'node:assert/strict';
 import { createContext, runInContext } from 'node:vm';
 import { GENERATED_ID_SOURCES } from '../dist/generated-id.js';
 import { captureStyleMap } from '../dist/capture.js';
-import {
-  capturePage,
-  capturePageChanges,
-  freezeMotion,
-  injectPathOf,
-  snapSessionBaseline,
-  snapSubtree,
-} from '../dist/capture/browser.js';
+import { capturePage, capturePageChanges, freezeMotion, injectPathOf, snapSubtree } from '../dist/capture/browser.js';
 import { PSEUDO_REFERENCES } from '../dist/pseudo-references.js';
 import { skipSelector } from '../dist/capture/shared.js';
 import { captureForcedStates, resolveForcedStateLimits } from '../dist/capture/forced-states.js';
@@ -63,7 +56,7 @@ function capturePageHarness() {
     evaluate: async (fn, arg) => {
       if (typeof fn === 'string') return runInContext(fn, context);
       let result;
-      switch (fn.name) {
+      switch (fn.captureCallbackTag) {
         case 'collectMediaTexts':
         case 'freezeMotion':
         case 'unfreezeMotion':
@@ -88,18 +81,36 @@ function capturePageHarness() {
         case 'injectPathOf':
         case 'restoreInnerScrollContainers':
           break;
-        case '': // focus blur or settle-store cleanup
+        case 'blurFocus':
+        case 'settleCleanup': // focus blur or settle-store cleanup
           if (typeof arg === 'string') result = run(fn, arg);
           break;
         default:
-          throw new Error(`Unexpected page callback: ${fn.name}`);
+          throw new Error(`Unexpected page callback: ${fn.captureCallbackTag}`);
       }
-      harness.afterRead(fn.name, arg);
+      harness.afterRead(fn.captureCallbackTag, arg);
       return result;
     },
   };
   return { ...harness, page, hooks: harness, context };
 }
+
+test('callback tags reject name collisions, missing tags, and unknown tags', async () => {
+  const { page } = capturePageHarness();
+  function detectLiveCandidates() {
+    return 42;
+  }
+  Object.defineProperty(detectLiveCandidates, 'captureCallbackTag', { value: 'freezeMotion' });
+  assert.equal(await page.evaluate(detectLiveCandidates), 42);
+  await assert.rejects(
+    page.evaluate(function freezeMotion() {}),
+    /Unexpected page callback/,
+  );
+  await assert.rejects(
+    page.evaluate(Object.assign(() => {}, { captureCallbackTag: 'unknown' })),
+    /Unexpected page callback/,
+  );
+});
 
 function computedStyle(properties) {
   const names = Object.keys(properties);
@@ -121,6 +132,7 @@ function forcedStateHarness({
   resetFailures = 0,
   replaceDocument = false,
   removeAfterReset,
+  mutateExpression = (expression) => expression,
 } = {}) {
   const { context, document, run } = capturePageHarness();
   const nodes = [];
@@ -236,17 +248,22 @@ function forcedStateHarness({
         }
       }
       if (method !== 'Runtime.evaluate') return {};
-      const expression = params.expression;
+      const expression = mutateExpression(params.expression);
       assert.ok(expression.endsWith('\n//# sourceURL=styleproof://capture/forced-states\n'));
       const body = expression.replace(/\n\/\/# sourceURL=[^\r\n]*(?:\r?\n)?$/, '');
 
-      const sessionBaseline = expression.startsWith(`(function ${snapSessionBaseline.name}(`);
+      const operation = expression.match(/^\/\* styleproof:cdp:([a-z-]+) \*\//)?.[1];
+      assert.ok(
+        ['settle', 'count', 'baseline', 'snapshot', 'session-baseline', 'install'].includes(operation),
+        `Unknown forced-state CDP operation: ${operation}`,
+      );
+      const sessionBaseline = operation === 'session-baseline';
       // Force the production legacy path; all per-target reads still run unmodified.
       if (legacy && sessionBaseline) return { result: { value: false } };
       // Count evaluations that reach the page, excluding the intercepted legacy probe.
       evaluates++;
 
-      if (replaceDocument && expression.includes('"saveBaseline":true')) {
+      if (replaceDocument && (operation === 'baseline' || sessionBaseline)) {
         document.querySelector = () => null;
 
         for (const key of Object.keys(context.window)) {
@@ -258,8 +275,8 @@ function forcedStateHarness({
       // A standalone reset barrier performs one layout read and returns true.
       // Count its observable work rather than the spelling of its statement.
       if (value === true && reads - readsBefore === 1) resetBarriers++;
-      if (expression.includes('"countOnly":true')) counts++;
-      else if (expression.includes('"saveBaseline":true') && (!sessionBaseline || value)) baselines++;
+      if (operation === 'count') counts++;
+      else if ((operation === 'baseline' || sessionBaseline) && (!sessionBaseline || value)) baselines++;
       return { result: { value } };
     },
   };
@@ -963,7 +980,7 @@ for (const phase of ['settle', 'capture']) {
   });
 }
 
-test('captureStyleMap rejects adopted-sheet replacement between stabilization polls', async () => {
+test('bookkeeping-only: captureStyleMap rejects adopted-sheet replacement between stabilization polls', async () => {
   const { page, document, hooks, context } = capturePageHarness();
   hooks.onWait = () => {
     document.adoptedStyleSheets = [];
@@ -981,7 +998,7 @@ test('captureStyleMap rejects adopted-sheet replacement between stabilization po
   );
 });
 
-test('captureStyleMap rejects adopted-sheet replacement inside a frozen snapshot', async () => {
+test('bookkeeping-only: captureStyleMap rejects adopted-sheet replacement inside a frozen snapshot', async () => {
   const { page, document } = capturePageHarness();
   document.body.appendChild = () => {
     // The motion-only read deliberately has no freeze; replace sheets only during the frozen read.
@@ -1001,7 +1018,7 @@ for (const read of ['capturePage', 'detectOverlayCandidates', 'capturePageTokens
   });
 }
 
-test('captureStyleMap rejects adopted-sheet replacement during reach stop, outside cleanup', async () => {
+test('bookkeeping-only: captureStyleMap rejects adopted-sheet replacement during reach stop, outside cleanup', async () => {
   const { page, document } = capturePageHarness();
   const servedRules = {
     start: async () => {},
@@ -1013,7 +1030,7 @@ test('captureStyleMap rejects adopted-sheet replacement during reach stop, outsi
   await assert.rejects(captureStyleMap(page, { ...captureOptions, captureReach: true, servedRules }), freezeError);
 });
 
-test('captureStyleMap preserves app sheets and cleans up its freeze across repeated captures', async () => {
+test('bookkeeping-only: captureStyleMap preserves app sheets and cleans up its freeze across repeated captures', async () => {
   const { page, document, appSheet } = capturePageHarness();
   for (let attempt = 0; attempt < 2; attempt++) {
     const map = await captureStyleMap(page, {
@@ -1028,7 +1045,7 @@ test('captureStyleMap preserves app sheets and cleans up its freeze across repea
   }
 });
 
-test('captureStyleMap rejects a disabled freeze sheet', async () => {
+test('bookkeeping-only: captureStyleMap rejects a disabled freeze sheet', async () => {
   const { page, document, appSheet } = capturePageHarness();
   await assert.rejects(
     captureStyleMap(page, {
@@ -1070,4 +1087,17 @@ test('document replacement before a target baseline skips missing targets withou
   assert.equal(forces.length, 0);
   assert.equal(warnings.length, 20);
   assert.ok(warnings.every((warning) => warning.includes('detached')));
+});
+
+test('CDP routing survives function renaming and equivalent argument serialization', async () => {
+  const mutateExpression = (expression) =>
+    expression
+      .replace(/function snapSessionBaseline\(/g, 'function renamedBaseline(')
+      .replace(/"saveBaseline":true/g, '"saveBaseline": true')
+      .replace(/"countOnly":true/g, '"countOnly": true');
+  for (const legacy of [false, true]) {
+    const expected = await forcedStateHarness({ legacy }).capture();
+    const actual = await forcedStateHarness({ legacy, mutateExpression }).capture();
+    assert.equal(JSON.stringify(actual), JSON.stringify(expected));
+  }
 });

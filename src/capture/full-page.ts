@@ -191,3 +191,8 @@ export async function captureFullPageScreenshot(page: Page, path: string): Promi
     await page.evaluate(restoreInnerScrollContainers).catch(() => undefined);
   }
 }
+
+// Stable callback identities survive function renaming and browser serialization.
+Object.defineProperty(expandInnerScrollContainers, 'captureCallbackTag', { value: 'expandInnerScrollContainers' });
+Object.defineProperty(restoreInnerScrollContainers, 'captureCallbackTag', { value: 'restoreInnerScrollContainers' });
+Object.defineProperty(measureExpandedRects, 'captureCallbackTag', { value: 'measureExpandedRects' });

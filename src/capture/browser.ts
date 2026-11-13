@@ -1002,3 +1002,14 @@ export function capturePageTokens(): Record<string, string> {
   probe.remove();
   return tokens;
 }
+
+// Stable callback identities survive function renaming and browser serialization.
+Object.defineProperty(freezeMotion, 'captureCallbackTag', { value: 'freezeMotion' });
+Object.defineProperty(unfreezeMotion, 'captureCallbackTag', { value: 'unfreezeMotion' });
+Object.defineProperty(capturePage, 'captureCallbackTag', { value: 'capturePage' });
+Object.defineProperty(capturePageChanges, 'captureCallbackTag', { value: 'capturePageChanges' });
+Object.defineProperty(detectLiveCandidates, 'captureCallbackTag', { value: 'detectLiveCandidates' });
+Object.defineProperty(detectOverlayCandidates, 'captureCallbackTag', { value: 'detectOverlayCandidates' });
+Object.defineProperty(capturePageTokens, 'captureCallbackTag', { value: 'capturePageTokens' });
+Object.defineProperty(installHoverSink, 'captureCallbackTag', { value: 'installHoverSink' });
+Object.defineProperty(injectPathOf, 'captureCallbackTag', { value: 'injectPathOf' });
