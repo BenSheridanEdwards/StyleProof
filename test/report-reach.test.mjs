@@ -1,3 +1,4 @@
+import { visibleText } from './visible-text.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
@@ -188,7 +189,7 @@ test('a gate holding a rule on a run with style changes says so above the change
   assert.doesNotMatch(opening, /Not a clean no-change/, 'the run has changes');
   assert.equal(md.match(/Reach gate/g)?.length, 1);
   assert.match(reportCommentSummary(output.md), gate);
-  assert.match(output.html.replace(/<[^>]+>/g, ''), /✗ Reach gate — 1 changed CSS rule/);
+  assert.match(visibleText(output.html), /✗ Reach gate — 1 changed CSS rule/);
 });
 
 test('at warn, unmeasured rules and missing or unreadable ledgers get one plain line, never silence (RV5-02)', (t) => {

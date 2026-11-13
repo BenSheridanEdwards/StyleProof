@@ -1,3 +1,4 @@
+import { visibleText } from './visible-text.mjs';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -17,11 +18,7 @@ const CODES = [...trustStates, 'REPORT_PUBLICATION_FAILED', 'base-capture-failed
 
 /** What a reader sees: no hidden comments, scripts, styles or embedded image data. */
 function visible(text) {
-  return text
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<script\b[\s\S]*?<\/script>/g, '')
-    .replace(/<style\b[\s\S]*?<\/style>/g, '')
-    .replace(/data:[^"'\s)]+/g, '');
+  return visibleText(text);
 }
 
 function assertNoCodes(label, text) {

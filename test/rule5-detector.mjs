@@ -1,3 +1,4 @@
+import { visibleText } from './visible-text.mjs';
 // Ben's report rule 5 ("no repeated or internal diagnostics in report content") as a generic
 // detector: it knows no report phrases, only how to compare an output with itself. Test-only.
 import fs from 'node:fs';
@@ -42,35 +43,7 @@ export const visibleMd = (md) =>
     .filter((line) => !line.startsWith('<!-- '))
     .join('\n');
 
-export const htmlText = (html) =>
-  html
-    .replace(/data:[^"')\s]+/g, '')
-    .replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/<nav class="toc"[\s\S]*?<\/nav>/g, '')
-    // As in report.md: tables, fold labels and captions are not statements.
-    .replace(
-      /<table\b[\s\S]*?<\/table>|<summary\b[\s\S]*?<\/summary>|<sub\b[\s\S]*?<\/sub>|<figcaption\b[\s\S]*?<\/figcaption>/g,
-      '\n',
-    )
-    // A change section's title is an h2 inside <section class="change">; it reads as report.md's
-    // `###` section heading. Other headings keep their level.
-    .replace(/<section class="change"[\s\S]*?<\/section>/g, (section) =>
-      section.replace(/<h2\b/g, '<h3').replace(/<\/h2>/g, '</h3>'),
-    )
-    // Headings keep their level, so change sections are known in report.html as in report.md.
-    .replace(/<h([1-6])\b[^>]*>/g, (_, level) => `\n${'#'.repeat(Number(level))} `)
-    // An entry's bold code label keeps its Markdown form, so entries are known as in report.md.
-    .replace(/<p>\s*<strong>\s*<code>([^<]*)<\/code>\s*<\/strong>/g, '\n**`$1`**')
-    // List items keep their marker, so parallel items are known as one list.
-    .replace(/<li\b[^>]*>/g, '\n- ')
-    // Inline tags join their text; block tags end a line.
-    .replace(/<\/?(?:strong|code|em|a|span|i|b|sub|small)\b[^>]*>/g, '')
-    .replace(/<[^>]+>/g, '\n')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/[ \t]+/g, ' ');
+export const htmlText = (html) => visibleText(html, { reportStatements: true });
 
 /** Comment text without the Action's hidden markers and its own approval box line. */
 export const commentText = (body) =>
@@ -461,12 +434,15 @@ export function capNoteProblems(comment, reportMd) {
     /This comment reached GitHub's size limit\. (\d+) more changes? (?:is|are) listed in the full report: open it from the link at the end of this comment\./.exec(
       comment,
     );
-  const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => m[1].replace(/\s*<!--.*$/, '').trim());
+  const heads = (text) =>
+    [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) =>
+      m[1].slice(0, m[1].indexOf('<!--') < 0 ? m[1].length : m[1].indexOf('<!--')).trim(),
+    );
   // The full report's change sections: a heading followed by its section data, as the comment cuts
   // them. A new or removed surface's heading is no change section, so it is never counted (QA19-02).
   const sectionHeads = (text) =>
     [...text.matchAll(/^### (?!📊)(.+)\n+<!-- styleproof-section /gm)].map((m) =>
-      m[1].replace(/\s*<!--.*$/, '').trim(),
+      m[1].slice(0, m[1].indexOf('<!--') < 0 ? m[1].length : m[1].indexOf('<!--')).trim(),
     );
   const shown = heads(comment);
   const all = sectionHeads(reportMd);

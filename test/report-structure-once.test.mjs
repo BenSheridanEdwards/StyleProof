@@ -1,3 +1,4 @@
+import { visibleText } from './visible-text.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -48,7 +49,7 @@ for (const [name, options] of [
 ]) {
   test(`${name} states a visible addition/removal once (QA7-01)`, (t) => {
     const { md, html } = structureOnly(t, options);
-    const text = html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>/g, '').replace(/<[^>]+>/g, '');
+    const text = visibleText(html);
     for (const [where, out] of [
       ['report.md', md],
       ['report.html', text],
