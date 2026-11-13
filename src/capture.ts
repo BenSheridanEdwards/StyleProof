@@ -268,20 +268,32 @@ async function stabilizePage(
     // Best-effort cleanup also covers a failed poll or a page that closed mid-settle.
     settled = quiet
       ? await page
-          .evaluate((key) => {
-            // SAFETY: install() owns this random key and each poll stores a PageCapture there.
-            const store = Object.getOwnPropertyDescriptor(window, key)?.value as { last?: PageCapture } | undefined;
-            Reflect.deleteProperty(window, key);
+          .evaluate(
+            Object.assign(
+              (key: string) => {
+                // SAFETY: install() owns this random key and each poll stores a PageCapture there.
+                const store = Object.getOwnPropertyDescriptor(window, key)?.value as { last?: PageCapture } | undefined;
+                Reflect.deleteProperty(window, key);
 
-            return store?.last;
-          }, key)
+                return store?.last;
+              },
+              { captureCallbackTag: 'settleCleanup' },
+            ),
+            key,
+          )
           .catch(() => undefined)
       : await page
-          .evaluate((key) => {
-            Reflect.deleteProperty(window, key);
+          .evaluate(
+            Object.assign(
+              (key: string) => {
+                Reflect.deleteProperty(window, key);
 
-            return undefined;
-          }, key)
+                return undefined;
+              },
+              { captureCallbackTag: 'settleCleanup' },
+            ),
+            key,
+          )
           .catch(() => undefined);
   }
 
@@ -494,7 +506,11 @@ export async function captureStyleMap(page: Page, options: CaptureOptions = {}):
 
   if (recipeAction !== 'focus' && recipeAction !== 'press') {
     // SAFETY: only the optional blur method is used; null and elements without it are skipped.
-    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur?.());
+    await page.evaluate(
+      Object.assign(() => (document.activeElement as HTMLElement | null)?.blur?.(), {
+        captureCallbackTag: 'blurFocus',
+      }),
+    );
   }
 
   await page.evaluate(injectPathOf, GENERATED_ID_SOURCES);

@@ -162,3 +162,6 @@ export async function detectViewportWidths(
     opts,
   );
 }
+
+// Stable callback identities survive function renaming and browser serialization.
+Object.defineProperty(collectMediaTexts, 'captureCallbackTag', { value: 'collectMediaTexts' });
