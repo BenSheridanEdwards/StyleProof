@@ -13,7 +13,7 @@
 - `pricing @ 900` — 🆕 new surface, no baseline
 - `home @ 900` — **`aside.off-canvas-status`** opacity 0.85 → 1 · **`span.caret`** text gray (`#9ca3af`) → blue (`#2563eb`) · **`button.cta`** background blue (`#2563eb`) → red (`#dc2626`)
 
-🧱 **2 visible element addition(s)/removal(s)** need review (STYLE_REVIEW_REQUIRED) — Approve clears them with other reviewable changes.
+🧱 **2 visible element addition(s)/removal(s)** need review — approve them with the other changes.
 
 📝 _3 content/structure change(s) below — visible additions/removals gate the check; text and invisible DOM churn stay advisory._
 
@@ -124,7 +124,7 @@ Style:
 
 ## 📝 Content and structure changes
 
-_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check (STYLE_REVIEW_REQUIRED); Approve clears them with other reviewable changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
+_3 content/structure change(s). **Visible element additions/removals (2) are reviewable** and gate the check; approve them with the other changes. Pure text, invisible/zero-size DOM churn, retags, and live/age/clock text stay advisory and do not alone change the verdict._
 
 ### `duplicate-insertion@900` · 1 content/structure change(s)
 
