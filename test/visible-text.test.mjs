@@ -9,3 +9,7 @@ test('visible text skips hidden blocks and decodes entities once', () => {
   assert.equal(visibleText('&amp;lt;'), '&lt;');
   assert.equal(visibleText('<p>Review <strong>one</strong> &amp; two.</p>'), 'Review one & two.');
 });
+
+test('report statements keep inline closing tags within the same sentence', () => {
+  assert.equal(visibleText('<p>A <em>B</em> C</p>', { reportStatements: true }), '\nA B C\n');
+});

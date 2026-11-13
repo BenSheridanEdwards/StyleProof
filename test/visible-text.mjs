@@ -9,8 +9,9 @@ export function visibleText(html, { reportStatements = false } = {}) {
     } else if (html[i] === '<') {
       const end = html.indexOf('>', i + 1);
       if (end < 0) break;
+      const closing = html[i + 1] === '/';
       const tag = lower
-        .slice(i + 1, end)
+        .slice(i + (html[i + 1] === '/' ? 2 : 1), end)
         .trim()
         .split(/[\s/>]/, 1)[0];
       const skipped = reportStatements
@@ -19,15 +20,15 @@ export function visibleText(html, { reportStatements = false } = {}) {
       const hidden =
         skipped.find((name) => tag.includes(name)) ??
         (reportStatements && tag === 'nav' && lower.slice(i, end).includes('toc') ? 'nav' : undefined);
-      if (hidden) {
+      if (hidden && !closing) {
         const close = lower.indexOf(`</${hidden}`, end + 1);
         const closeEnd = close < 0 ? -1 : html.indexOf('>', close);
         i = closeEnd < 0 ? html.length : closeEnd + 1;
       } else {
         if (reportStatements) {
           const heading = /^h([1-6])$/.exec(tag);
-          if (heading) out += `\n${'#'.repeat(Number(heading[1]))} `;
-          else if (tag === 'li') out += '\n- ';
+          if (heading && !closing) out += `\n${'#'.repeat(Number(heading[1]))} `;
+          else if (tag === 'li' && !closing) out += '\n- ';
           else if (
             !['strong', 'code', 'em', 'a', 'span', 'i', 'b', 'small'].includes(tag.startsWith('/') ? tag.slice(1) : tag)
           )
@@ -37,7 +38,7 @@ export function visibleText(html, { reportStatements = false } = {}) {
       }
     } else if (html[i] === '&') {
       const end = html.indexOf(';', i + 1);
-      const entity = end < 0 ? '' : html.slice(i + 1, end);
+      const entity = end < 0 ? '' : html.slice(i + (html[i + 1] === '/' ? 2 : 1), end);
       const named = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
       const number = entity.startsWith('#x')
         ? parseInt(entity.slice(2), 16)

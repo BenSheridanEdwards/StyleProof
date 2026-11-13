@@ -43,7 +43,15 @@ export const visibleMd = (md) =>
     .filter((line) => !line.startsWith('<!-- '))
     .join('\n');
 
-export const htmlText = (html) => visibleText(html, { reportStatements: true });
+export const htmlText = (html) =>
+  visibleText(
+    html
+      .replace(/<section class="change"[\s\S]*?<\/section>/g, (section) =>
+        section.replace(/<h2\b/g, '<h3').replace(/<\/h2>/g, '</h3>'),
+      )
+      .replace(/<p>\s*<strong>\s*<code>([^<]*)<\/code>\s*<\/strong>/g, '\n**`$1`**'),
+    { reportStatements: true },
+  ).replace(/[ \t]+/g, ' ');
 
 /** Comment text without the Action's hidden markers and its own approval box line. */
 export const commentText = (body) =>
