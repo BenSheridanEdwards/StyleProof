@@ -97,3 +97,47 @@ for (const layout of ['visual-first', 'legacy']) {
     });
   }
 }
+
+test('crop limit names all merged sections', () => {
+  const map = (changed) =>
+    makeMap({
+      elements: {
+        'h2.card-title': {
+          tag: 'h2',
+          cls: 'card-title',
+          rect: [20, 20, 100, 30],
+          style: { color: changed ? '#ff0000' : '#000000' },
+        },
+        'button.cta': {
+          tag: 'button',
+          cls: 'cta',
+          rect: [20, 200, 100, 30],
+          style: { padding: changed ? '16px' : '8px' },
+        },
+        'p.note': { tag: 'p', cls: 'note', rect: [20, 400, 100, 30], style: { fontSize: changed ? '20px' : '16px' } },
+      },
+    });
+  const fixture = pairFixture({
+    surface: 'home@1280',
+    before: map(false),
+    after: map(true),
+    beforePng: solidPng(400, 600),
+    afterPng: solidPng(400, 600),
+  });
+  try {
+    const headings = (layout, maxCrops) => {
+      const result = report({ ...fixture, layout, padBy: 0, maxCrops });
+      return fs
+        .readFileSync(result.reportMdPath, 'utf8')
+        .split('\n')
+        .filter((line) => line.startsWith('### '));
+    };
+    assert.deepEqual(headings('visual-first', 8), ['### Card title', '### Cta', '### Note']);
+    const merged = headings('visual-first', 1);
+    assert.equal(merged.length, 1);
+    assert.match(merged[0], /### .*`[^`]*card-title[^`]*` · 3 elements restyled/);
+    assert.deepEqual(headings('legacy', 1), merged);
+  } finally {
+    rmTmp(fixture.root);
+  }
+});
