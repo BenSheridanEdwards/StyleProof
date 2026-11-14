@@ -141,6 +141,7 @@ const flat = (changes: CropChanges): string[] => [...changes.summary, ...changes
 type RegionArgs = {
   ctx: RenderCtx;
   g: Group;
+  groups: Group[];
   cg: ChangeGroup;
   mapA: StyleMap;
   mapB: StyleMap;
@@ -264,7 +265,21 @@ function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
 
   const regionFindings = g.findings
-    ? [...g.findings, ...(cg.rep.folded ?? []).filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)))]
+    ? [
+        ...g.findings,
+        ...(cg.rep.folded ?? []).filter((f) =>
+          g.paths.some(
+            (root) =>
+              isSameOrDescendant(f.path, root) &&
+              !a.groups.some((other) =>
+                other.paths.some(
+                  (candidate) =>
+                    candidate !== root && isSameOrDescendant(candidate, root) && isSameOrDescendant(f.path, candidate),
+                ),
+              ),
+          ),
+        ),
+      ]
     : [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
         g.paths.some((root) => isSameOrDescendant(f.path, root)),
       );
@@ -396,7 +411,21 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
 
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
+    return renderRegion({
+      ctx,
+      g,
+      groups,
+      cg,
+      mapA,
+      mapB,
+      describeCtx,
+      surfaceList,
+      region,
+      pngs,
+      seq,
+      spacing: own,
+      changes,
+    });
   });
   const regions = rendered.map((r) => r.regionJson);
   // Keep reflow ancestors in one capped table outside the crop budget.
