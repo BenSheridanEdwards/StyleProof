@@ -620,16 +620,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaceKeyOf,
   });
 
-  if (ctx.layout === 'visual-first')
-    md.lines.splice(
-      gapIndex,
-      0,
-      ...cropGapLines(ctx.cropGaps ?? [], {
-        maxCrops: ctx.maxCrops,
-        maxFiles: ctx.crops.maxFiles,
-        maxBytes: ctx.crops.maxBytes,
-      }),
-    );
+  if (ctx.layout === 'visual-first') {
+    const gaps = cropGapLines(ctx.cropGaps ?? [], {
+      maxCrops: ctx.maxCrops,
+      maxFiles: ctx.crops.maxFiles,
+      maxBytes: ctx.crops.maxBytes,
+    });
+    md.lines = md.lines.slice(0, gapIndex).concat(gaps, md.lines.slice(gapIndex));
+  }
   if (ctx.layout !== 'visual-first' && ctx.crops.omitted > 0) {
     md.append([
       '',
