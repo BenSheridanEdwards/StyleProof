@@ -313,9 +313,7 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   spacingLines(a.spacing).forEach((appended) => md.push(appended));
   const pack = regionCrop(a, cropFindings, a.pngs);
   pack.md.forEach((appended) => md.push(appended));
-  (a.g.title ? [...cssDetailLines(cropFindings), ...changes.details] : changes.details).forEach((appended) =>
-    md.push(appended),
-  );
+  (a.g.title ? cssDetailLines(cropFindings) : changes.details).forEach((appended) => md.push(appended));
   return { md, pack, trailing: [] };
 }
 
