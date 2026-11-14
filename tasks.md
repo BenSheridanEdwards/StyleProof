@@ -67,3 +67,5 @@
 - 2026-11-10: closed [pull request #1320](https://github.com/BenSheridanEdwards/StyleProof/pull/1320) (retention default change).
 
 - [x] Fix Slice 8 driven-state and parent-child region findings (PR #1356; current T3 build thread).
+
+- In progress: Slice 14 render visual-first change sections; focused verification in this build thread.

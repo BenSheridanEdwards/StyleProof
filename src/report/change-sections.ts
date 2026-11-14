@@ -1,3 +1,10 @@
+import type { PNG } from 'pngjs';
+import type { RenderCtx } from './shared.js';
+import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
+import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
+import { sectionLine } from './change-line.js';
+import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
+import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
 import { codeValue } from '../code-span.js';
 import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
 import type { Finding, PropChange } from '../diff.js';
@@ -261,4 +268,137 @@ export function cssDetailLines(findings: Finding[]): string[] {
         '</details>',
       ]
     : [];
+}
+
+type SectionInput = {
+  section: ChangeSection;
+  surface: string;
+  maps: [StyleMap, StyleMap];
+  pngs: [PNG | null, PNG | null];
+  seq: { crop: number };
+  box: Box | null;
+  details: string[];
+  alsoInView?: string;
+};
+function registerSection(): null {
+  return null;
+}
+function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
+  const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, input.surface, `.${state}`);
+  const { section, maps, box } = input;
+  if (state !== 'rest' && (!pngs[0] || !pngs[1])) {
+    return {
+      md: ['', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`],
+      images: {} as CropImages,
+    };
+  }
+  if (!box || !pngs[0] || !pngs[1] || !hasExposedChangedEntry(maps[0], maps[1], section.paths, pngs)) {
+    return { md: ['', cropNote(box, pngs[0], pngs[1]) ?? ''], images: {} as CropImages };
+  }
+  return renderCropPair(ctx, {
+    surface: input.surface,
+    suffix: String(++input.seq.crop),
+    box,
+    pngA: pngs[0],
+    pngB: pngs[1],
+    rectsA: [],
+    rectsB: [],
+    what: `${section.title}${state === 'rest' ? '' : ` in :${state}`}`,
+    captions: { annotated: '', zoom: (factor) => `magnified ${factor}×` },
+    alsoInView: input.alsoInView,
+  })!;
+}
+type SectionPairs = {
+  md: string[];
+  images: CropImages;
+  stateImages: Record<string, CropImages>;
+  omitted: boolean;
+  size?: PairSize;
+};
+
+/** Fill the resting or state image slots from one pair. */
+function applyPairImages(out: SectionPairs, state: PairState, pair: { images: CropImages; size?: PairSize }) {
+  if (state === 'rest') {
+    out.images = pair.images;
+    if ('size' in pair) out.size = pair.size;
+    return;
+  }
+  if (pair.images.after || pair.images.before) {
+    out.stateImages[state] = pair.images;
+    if (!out.size && 'size' in pair) out.size = pair.size;
+  }
+}
+
+/** A state-only section still publishes the first state's pair as `images`. */
+function restingImages(images: CropImages, stateImages: Record<string, CropImages>): CropImages {
+  return images.before || images.after
+    ? images
+    : (Object.values(stateImages).find((p) => p.after || p.before) ?? images);
+}
+
+function sectionPairs(ctx: RenderCtx, input: SectionInput) {
+  const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
+  for (const state of input.section.states) {
+    const pair = statePair(ctx, input, state);
+    for (const line of pair.md) out.md.push(line);
+    if ('omitted' in pair && pair.omitted) out.omitted = true;
+    applyPairImages(out, state, pair);
+  }
+  out.images = restingImages(out.images, out.stateImages);
+  return out;
+}
+function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
+  return ([0, 1] as const).flatMap((side) => {
+    const page = input.pngs[side];
+    if (!page) return [];
+    const rects = input.section.paths
+      .filter((p) => side === 1 || !input.maps[1].elements[p])
+      .map((p) => screenshotRectOf(input.maps[side].elements[p]))
+      .filter((r): r is NonNullable<typeof r> => !!r);
+    const map = writeWhereMap(ctx, {
+      surface: input.surface,
+      suffix: `${input.seq.crop}-${side}`,
+      page,
+      side: side ? 'after' : 'before',
+      rects,
+    });
+    return map ? [map] : [];
+  });
+}
+export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
+  const { section, maps } = input;
+  const pairs = sectionPairs(ctx, input);
+  const shown = Boolean(pairs.images.after || Object.values(pairs.stateImages).some((p) => p.after));
+  const where = shown ? sectionWhereMaps(ctx, input) : [];
+  registerSection();
+  const boxes = (side: 0 | 1) =>
+    section.paths.reduce<Box | null>(
+      (box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)),
+      null,
+    );
+  return {
+    md: [
+      '',
+      `### ${section.title}`,
+      '',
+      sectionLine(section, maps),
+      ...where.flatMap((map) => [
+        '',
+        whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
+      ]),
+      ...pairs.md,
+      ...cssDetailLines(section.findings),
+      ...input.details,
+    ],
+    region: {
+      paths: section.paths,
+      before: boxes(0),
+      after: boxes(1),
+      images: pairs.images,
+      ...(pairs.size ? { size: pairs.size } : {}),
+      ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
+      ...(where.length ? { where: where.map(whereReceipt) } : {}),
+      ...(pairs.omitted ? { cropOmitted: 'budget' } : {}),
+    },
+  };
 }

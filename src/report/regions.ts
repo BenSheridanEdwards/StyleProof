@@ -5,7 +5,7 @@ import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
-import { buildChangeSections, cssDetailLines } from './change-sections.js';
+import { buildChangeSections, cssDetailLines, renderChangeSection } from './change-sections.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
@@ -331,6 +331,24 @@ function regionImages(stateOnly: boolean, resting: CropImages, states: Record<st
   return stateOnly && !(resting.composite ?? resting.before) ? (Object.values(states)[0] ?? {}) : resting;
 }
 
+function renderTitledRegion(a: RegionArgs, findings: Finding[]) {
+  const section = buildChangeSections(a.g.findings ?? findings, [a.mapA, a.mapB])[0];
+  const rendered = renderChangeSection(a.ctx, {
+    section,
+    surface: a.cg.rep.sd.surface,
+    maps: [a.mapA, a.mapB],
+    pngs: a.pngs,
+    seq: a.seq,
+    box: a.region,
+    details: a.changes(findings.filter((f) => f.kind === 'state' || !a.cg.rep.findings.includes(f))).details,
+    alsoInView: a.pngs[0] && a.pngs[1] ? foreignChangeCaption(a, a.pngs[0], a.pngs[1]) : undefined,
+  });
+  return {
+    md: [...rendered.md, ...spacingLines(a.spacing)],
+    regionJson: { ...rendered.region, ...spacingJson(a.spacing) },
+  };
+}
+
 /** One crop region: heading, resting crop, then each forced-state crop. */
 function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
@@ -394,6 +412,14 @@ function renderRegion(a: RegionArgs) {
   if (resting.omitted) Object.assign(rendered.regionJson, { cropOmitted: 'budget' });
 
   return rendered;
+}
+
+function renderRoutedRegion(a: RegionArgs) {
+  if (a.g.title && a.ctx.layout === 'visual-first') {
+    const findings = [...(a.g.findings ?? []), ...(a.cg.rep.folded ?? []).filter((f) => a.g.paths.includes(f.path))];
+    return renderTitledRegion(a, findings);
+  }
+  return renderRegion(a);
 }
 
 export type RenderedGroup = { md: string[]; json: Record<string, unknown>; findingCount: number };
@@ -489,7 +515,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
 
-    return renderRegion({
+    return renderRoutedRegion({
       ctx,
       g,
       groups,
