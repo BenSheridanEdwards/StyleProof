@@ -67,13 +67,13 @@ function coverageSource(processCoverage, script, readSource) {
   return { relative, source };
 }
 
-/** Node keeps newlines and lets the last fully spanning range set each count. */
+/** Node excludes line endings and lets the last fully spanning range set each count. */
 function processLineHits(script, source) {
   let offset = 0;
   const lines = source.split(/(?<=\n)/).map((text) => {
     const start = offset;
     offset += text.length;
-    return { start, end: offset, count: 0 };
+    return { start, end: offset - (text.match(/\r?\n$/)?.[0].length ?? 0), count: 0 };
   });
   for (const range of script.functions.flatMap((fn) => fn.ranges)) {
     for (const line of lines) {

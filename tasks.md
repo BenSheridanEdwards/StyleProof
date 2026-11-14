@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Address coverage union review for [PR #1355](https://github.com/BenSheridanEdwards/StyleProof/pull/1355); current one-shot thread (link unavailable).
+
 - #1348: collect keyframes once and include imported/adopted sheets; one-shot build, no PR requested.
 - Slice 7: pair scaling and written sizes, branch `feat/report-pair-scale`; current build thread; no PR requested.
 
@@ -36,5 +38,3 @@
 - 2026-11-10: merged [pull request #1318](https://github.com/BenSheridanEdwards/StyleProof/pull/1318) (identity fix).
 - 2026-11-10: merged [pull request #1321](https://github.com/BenSheridanEdwards/StyleProof/pull/1321) by BenSheridanEdwards at 16:50 Europe/London (8e038b61).
 - 2026-11-10: closed [pull request #1320](https://github.com/BenSheridanEdwards/StyleProof/pull/1320) (retention default change).
-
-- In progress: union per-process V8 shard coverage; local one-shot thread, PR deferred.
