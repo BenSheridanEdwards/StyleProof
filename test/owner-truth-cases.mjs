@@ -95,5 +95,13 @@ export const cases = {
       st(p('input', 3), 'checked', p('label', 4), { color: C(b, G, R) }),
     ),
   }),
-  // QA14–QA19 belong in a later slice.
+  // QA14-05: one owner restyles the label and its ::before in one state: one clause, not two alike.
+  'QA14-05 owner-restyles-label-and-pseudo': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('label', 2)]: lab(0) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 2), { color: C(b, G, R) }),
+      st(p('input', 1), 'checked', `${p('label', 2)}::before`, { 'background-color': C(b, W, I) }),
+    ),
+  }),
+  // The rest of QA14–QA19 belong in Slice 20.
 };

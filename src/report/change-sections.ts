@@ -612,7 +612,7 @@ function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
       maps,
       section.paths[0],
       source.changes.map((f) => ({
-        pseudo: source.changes.every((change) => pseudoOf(change)) ? pseudoOf(f) : undefined,
+        pseudo: pseudoOf(f),
         props: f.props.map((p) => ({
           ...p,
           before: resting(maps, section.paths[0], 0, p, pseudoOf(f)),
