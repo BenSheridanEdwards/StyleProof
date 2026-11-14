@@ -44,6 +44,11 @@ function sentence(t, changes) {
 
 const PER_OWNER = [
   [
+    'two owners differing only by an undrawn border echo, one ×2 clause (QA16-01, #1375)',
+    [(i) => ({ color: G[i], ...border(G[i]) }), (i) => ({ color: G[i] })],
+    'On the opt label (Option 2), the text colour changes from green to red when `input.opt` ×2 is checked. At rest it looks the same.',
+  ],
+  [
     'two controls of one selector, a colour echo pruned (QA15-01)',
     [(i) => ({ color: G[i], ...border(G[i]) }), (i) => ({ 'background-color': W[i] })],
     'On the opt label (Option 2), the text colour changes from green to red when `input.opt` is checked, and the background changes from white to dark indigo when `input.opt` is checked. At rest it looks the same.',

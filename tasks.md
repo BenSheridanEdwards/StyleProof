@@ -9,6 +9,8 @@
 
 ## In progress
 
+- #1375: group echo-only owner differences; regression tests red then green, build and 29 focused tests pass; full suite owned by orchestrator; one-shot thread link unavailable; no PR requested.
+
 - Slice 19: owner-truth harness implemented; 24 focused tests pass; first-owner mutation rejected by five cases; fallow --fix unsupported by installed CLI; one-shot thread link unavailable; no PR requested.
 
 - Slice 18: forced-state layers and resting values; surface helper extracted, build and 16 focused tests pass; one-shot thread link unavailable; no PR requested.

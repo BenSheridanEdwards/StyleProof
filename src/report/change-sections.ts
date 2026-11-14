@@ -3,7 +3,7 @@ import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
 import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
-import { sectionLine, type StateProp, type StateDriver, STATE_WORDS } from './change-line.js';
+import { sectionLine, withoutColorEchoes, type StateProp, type StateDriver, STATE_WORDS } from './change-line.js';
 import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
 import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
 import { codeValue } from '../code-span.js';
@@ -121,10 +121,12 @@ function elementSources(findings: StateFinding[], keyOf: StatedKey): StateSource
   });
 }
 
-export function stateSources(section: ChangeSection): StateSource[] {
+const rawKey: StatedKey = (changes) => JSON.stringify(changes.map(changeKey).sort());
+
+export function stateSources(section: ChangeSection, keyOf: StatedKey = rawKey): StateSource[] {
   return elementSources(
     section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === section.paths[0]),
-    (changes) => JSON.stringify(changes.map(changeKey).sort()),
+    keyOf,
   );
 }
 
@@ -602,24 +604,34 @@ function resting(maps: [StyleMap, StyleMap], target: string, side: 0 | 1, prop: 
   return (pseudo ? entry?.pseudo?.[pseudo]?.[prop.prop] : entry?.style?.[prop.prop]) ?? value;
 }
 
+function stated(maps: [StyleMap, StyleMap], target: string, changes: StateFinding[]) {
+  return statedProps(
+    maps,
+    target,
+    changes.map((f) => ({
+      pseudo: pseudoOf(f),
+      props: f.props.map((p) => ({
+        ...p,
+        before: resting(maps, target, 0, p, pseudoOf(f)),
+        after: resting(maps, target, 1, p, pseudoOf(f)),
+      })),
+    })),
+  );
+}
+
 function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
-  const sources = stateSources(section);
+  const sources = stateSources(section, (changes) =>
+    JSON.stringify(
+      withoutColorEchoes(stated(maps, section.paths[0], changes))
+        .map((p) => [p.prop, p.pseudo ?? '', p.before, p.after])
+        .sort(),
+    ),
+  );
   const firstStates = section.findings.filter(isStateFinding);
   const named = ownerNames(sources, firstStates, maps);
   return sources.map((source) => ({
     ...source,
-    props: statedProps(
-      maps,
-      section.paths[0],
-      source.changes.map((f) => ({
-        pseudo: pseudoOf(f),
-        props: f.props.map((p) => ({
-          ...p,
-          before: resting(maps, section.paths[0], 0, p, pseudoOf(f)),
-          after: resting(maps, section.paths[0], 1, p, pseudoOf(f)),
-        })),
-      })),
-    ),
+    props: stated(maps, section.paths[0], source.changes),
     driver: sourceDriver(section, maps, source, { firstStates, named }),
   }));
 }
