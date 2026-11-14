@@ -626,7 +626,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       maxFiles: ctx.crops.maxFiles,
       maxBytes: ctx.crops.maxBytes,
     });
-    md.lines = md.lines.slice(0, gapIndex).concat(gaps, md.lines.slice(gapIndex));
+    for (const [i, line] of gaps.entries()) md.lines.splice(gapIndex + i, 0, line);
   }
   if (ctx.layout !== 'visual-first' && ctx.crops.omitted > 0) {
     md.append([
