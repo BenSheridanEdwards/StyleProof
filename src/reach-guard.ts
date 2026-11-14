@@ -23,6 +23,7 @@ type Ctx = {
   ts: typeof TS;
   root: TS.SourceFile;
   nodes: TS.Node[];
+  other?: string;
   surfaces: string[];
   anchors: (surface: string, kind: string) => string;
 };
@@ -70,14 +71,13 @@ function moduleSites(c: Ctx, tokens: string[]) {
     const stem = n.moduleSpecifier.text.match(/([^/]+)\.module\.css$/)?.[1];
     const binding = n.importClause?.name?.text;
     if (!stem || !binding) continue;
-    sites.push(
-      ...c.nodes.filter(
-        (node) =>
-          c.ts.isPropertyAccessExpression(node) &&
-          node.expression.getText(c.root) === binding &&
-          tokens.includes(`${stem}_${node.name.text}`),
-      ),
-    );
+    for (const node of c.nodes.filter(
+      (node) =>
+        c.ts.isPropertyAccessExpression(node) &&
+        node.expression.getText(c.root) === binding &&
+        tokens.includes(`${stem}_${node.name.text}`),
+    ))
+      sites.push(node);
   }
   return sites;
 }
@@ -129,12 +129,36 @@ function propReferences(c: Ctx, attribute: TS.JsxAttribute): TS.Node[] {
   return binding ? references(c, binding.name.getText(root), binding.name).filter((n) => enclosing(c, n) === fn) : [];
 }
 
+function changedAttributes(c: Ctx, element: TS.JsxOpeningElement | TS.JsxSelfClosingElement) {
+  if (!c.other) return [];
+  const other = c.ts.createSourceFile(c.root.fileName, c.other, c.ts.ScriptTarget.Latest, true, c.ts.ScriptKind.TSX);
+  const candidates: (TS.JsxOpeningElement | TS.JsxSelfClosingElement)[] = [];
+  const current: TS.Node[] = [];
+  const collect = (root: TS.Node, target: TS.Node[]) => {
+    const visit = (n: TS.Node) => {
+      if (c.ts.isJsxOpeningElement(n) || c.ts.isJsxSelfClosingElement(n)) target.push(n);
+      c.ts.forEachChild(n, visit);
+    };
+    visit(root);
+  };
+  collect(c.root, current);
+  collect(other, candidates);
+  const counterpart = candidates[current.indexOf(element)];
+  if (counterpart && counterpart.tagName.getText(other) !== element.tagName.getText(c.root)) return [];
+  return element.attributes.properties.filter(
+    (attribute) =>
+      !counterpart?.attributes.properties.some((previous) => previous.getText(other) === attribute.getText(c.root)),
+  );
+}
+
 function propSites(c: Ctx, site: TS.Node): TS.Node[] {
   const { ts } = c;
   const value = ts.isVariableDeclaration(site) ? site.initializer : site;
   const element = value && ts.isJsxElement(value) ? value.openingElement : value;
-  if (element && (ts.isJsxSelfClosingElement(element) || ts.isJsxOpeningElement(element)))
-    return element.attributes.properties.flatMap((attribute) => propSites(c, attribute));
+  if (element && (ts.isJsxSelfClosingElement(element) || ts.isJsxOpeningElement(element))) {
+    const sites = changedAttributes(c, element).flatMap((attribute) => propSites(c, attribute));
+    if (sites.length) return sites;
+  }
   for (let p: TS.Node | undefined = site; p; p = p.parent) {
     if (!ts.isJsxAttribute(p)) continue;
     const refs = propReferences(c, p);
@@ -250,7 +274,14 @@ function deriveOne(unit: Unit, evidence: Evidence, surfaces: string[], ts: typeo
   };
   visit(root);
   const anchors = (s: string, kind: string) => evidence.execution[side]?.[s]?.[file]?.[kind] ?? '';
-  const c: Ctx = { ts, root, nodes, surfaces, anchors };
+  const c: Ctx = {
+    ts,
+    root,
+    nodes,
+    surfaces,
+    anchors,
+    other: evidence.sources[side === 'base' ? 'head' : 'base']?.[file],
+  };
   const used = surfaces.flatMap((s) => evidence.ledger[side]?.[s] ?? []).join(' ');
   const sites = unit.kind === 'css' ? cssSites(c, unit, used) : unit.range ? jsSites(c, unit.range, text) : [];
   const paths = sites

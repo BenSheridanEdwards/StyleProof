@@ -23,6 +23,8 @@
 
 ## Waiting
 
+- Refs #1004: address B2 and F1 review regressions on [PR #1357](https://github.com/BenSheridanEdwards/StyleProof/pull/1357); focused validation in progress. Current thread link unavailable.
+
 - Inherited V8 coverage fix tested locally; CI coverage floor pending for [PR #1349](https://github.com/BenSheridanEdwards/StyleProof/pull/1349); current T3 task (thread link unavailable).
 
 - [Pull request #1315](https://github.com/BenSheridanEdwards/StyleProof/pull/1315), the 10.0.0 release, held until visual-first merges and a pack-and-install smoke test plus a real capture, diff and report pass; Ben ticks enforcement himself.

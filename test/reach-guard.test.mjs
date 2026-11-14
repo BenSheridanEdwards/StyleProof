@@ -74,3 +74,34 @@ test('reach guards follow a component style prop to its guarded use', () => {
   assert.ok(row.guard.path.includes('app.jsx:74'));
   assert.deepEqual(row.guard.armRanOn, []);
 });
+
+const fixtureGuard = (base, head) =>
+  deriveReachGuards(
+    [
+      {
+        key: 'app.jsx:2',
+        kind: 'js',
+        status: 'unreached',
+        sourceKey: 'app.jsx',
+        range: { start: { line: 2, column: 0 }, end: { line: 2, column: head.split('\n')[1].length } },
+      },
+    ],
+    {
+      scenarios: { declared: [] },
+      sources: { base: { 'app.jsx': base }, head: { 'app.jsx': head } },
+      execution: {},
+      ledger: {},
+    },
+    ts,
+  )[0];
+test('no-attribute JSX const retains its guarding condition', () => {
+  const source = 'function App() {\nconst banner = <span>Down</span>;\nreturn probe.fault && banner;\n}';
+  assert.equal(fixtureGuard(source.replace('Down', 'Up'), source).guardingCondition, 'app.jsx:3 probe.fault');
+});
+test('unguarded class edit does not inherit an unchanged sibling style guard', () => {
+  const source =
+    'function App() {\nconst banner = <Banner className="new" style={{ color: "red" }} />;\nreturn banner;\n}\nfunction Banner({ className, style }) {\nreturn <span className={className} style={probe.fault ? style : {}} />;\n}';
+  const row = fixtureGuard(source.replace('"new"', '"old"'), source);
+  assert.equal(row.guardingCondition, null);
+  assert.equal(row.guard.kind, 'none');
+});
