@@ -27,10 +27,7 @@ function sentence(t, changes) {
     });
     const dir = path.join(root, side);
     writeCapture(dir, 'form@390', makeMap({ elements, states }), solidPng(390, 260));
-    fs.writeFileSync(
-      path.join(dir, 'form@390.checked.png'),
-      solidPng(390, 260, before ? [20, 120, 60] : [160, 40, 40]),
-    );
+    fs.writeFileSync(path.join(dir, 'form@390.checked.png'), solidPng(390, 260));
   }
   const result = generateReport({
     beforeDir: path.join(root, 'before'),

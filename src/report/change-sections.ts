@@ -434,7 +434,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       '',
       `### ${section.title}`,
       '',
-      sectionLine(section, maps, ctx.layout === 'visual-first' ? stateSources(section) : undefined),
+      sectionLine(section, maps, ctx.layout === 'visual-first' ? lineSources(section, maps) : undefined),
       ...where.flatMap((map) => [
         '',
         whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
@@ -470,11 +470,7 @@ function ownerSubject(maps: [StyleMap, StyleMap], finding: StateFinding): Sectio
   };
 }
 
-export function ownerNames(
-  sources: StateSource[],
-  findings: StateFinding[],
-  maps: [StyleMap, StyleMap],
-): Set<StateSource> {
+function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [StyleMap, StyleMap]): Set<StateSource> {
   const nounOf = (owner: string) =>
     sectionNoun(
       ownerSubject(
@@ -507,7 +503,7 @@ function drawsColor(maps: [StyleMap, StyleMap], target: string, pseudo: string |
   });
 }
 
-export function statedProps(
+function statedProps(
   maps: [StyleMap, StyleMap],
   target: string,
   changes: Array<{ props: PropChange[]; pseudo?: string }>,
@@ -523,7 +519,7 @@ export function statedProps(
   });
 }
 
-export function sourceDriver(
+function sourceDriver(
   section: ChangeSection,
   maps: [StyleMap, StyleMap],
   source: StateSource,
@@ -539,4 +535,15 @@ export function sourceDriver(
       ? { name: 'label' as const }
       : {}),
   };
+}
+
+function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
+  const sources = stateSources(section);
+  const firstStates = section.findings.filter(isStateFinding);
+  const named = ownerNames(sources, firstStates, maps);
+  return sources.map((source) => ({
+    ...source,
+    props: statedProps(maps, section.paths[0], source.changes),
+    driver: sourceDriver(section, maps, source, { firstStates, named }),
+  }));
 }

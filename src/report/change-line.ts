@@ -1,7 +1,7 @@
 import type { Finding } from '../diff.js';
 import type { StyleMap } from '../capture.js';
 import { summarizeProps, isGeometryOnlyGroup } from '../change-groups.js';
-import { statedProps, sourceDriver, ownerNames, type StateSource, type ChangeSection } from './change-sections.js';
+import type { StateSource, ChangeSection } from './change-sections.js';
 import type { PropChange } from '../diff.js';
 import { sectionNoun, plural, type SectionSubject } from './section-title.js';
 import { colorNameIfClose, toHex } from '../describe.js';
@@ -191,7 +191,11 @@ export function changeLine(input: ChangeLineInput): string {
   return [resting, ...stateSentences(input, who, many)].filter(Boolean).join(' ');
 }
 
-export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], states?: StateSource[]): string {
+export function sectionLine(
+  section: ChangeSection,
+  maps: [StyleMap, StyleMap],
+  states?: Array<StateSource & { props: StateProp[]; driver?: StateDriver }>,
+): string {
   const entry = (p: string) => maps[1].elements[p] ?? maps[0].elements[p];
   const first = section.findings.filter((f) => f.path === section.paths[0] && f.kind !== 'state');
   const rest = first.flatMap((f) =>
@@ -205,8 +209,6 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   });
   const size = sizes[0] && sizes.every((s) => s?.dw === sizes[0]?.dw && s?.dh === sizes[0]?.dh) ? sizes[0] : undefined;
   const e = entry(section.paths[0]);
-  const firstStates = section.findings.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state');
-  const named = ownerNames(states ?? [], firstStates, maps);
   return changeLine({
     subject: {
       tag: e?.tag ?? '',
@@ -219,11 +221,11 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
     rest,
     ...(states
       ? {
-          states: states.map((source: StateSource) => {
+          states: states.map((source) => {
             return {
               state: source.state,
-              props: statedProps(maps, section.paths[0], source.changes),
-              driver: sourceDriver(section, maps, source, { firstStates, named }),
+              props: source.props,
+              driver: source.driver,
             };
           }),
         }
