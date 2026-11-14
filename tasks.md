@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Reach CLI derived remediation: three focused CLI tests pass after red baseline; hooks-on commits; full suite owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
+
 - Slice 10: Where map module implemented; focused tests red then green (2/2); full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
 
 - Slice 9: folded-row ownership and crop framing implemented; focused checks complete; full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.

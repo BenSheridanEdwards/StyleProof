@@ -62,8 +62,8 @@ import { defineConfig } from 'styleproof';
 
 export default defineConfig({
   coverage: {
-    manifest: 'routes.json',           // versioned { version, surfaces } object
-    strict: true,                      // fail if any expected surface uncaptured
+    manifest: 'routes.json', // versioned { version, surfaces } object
+    strict: true, // fail if any expected surface uncaptured
     exclude: {
       'admin-panel': 'requires superuser login not in CI',
       'checkout-success': 'post-payment state, covered by E2E',
@@ -81,11 +81,11 @@ The manifest file is a versioned object with a `surfaces` array:
 }
 ```
 
-| Key | Default | Purpose |
-|-----|---------|---------|
-| `manifest` | — | Path to JSON manifest of expected surface keys (repo-relative). |
-| `strict` | `false` | When `true`, fail if any expected surface has no capture. |
-| `exclude` | `{}` | Surfaces to exclude from coverage (`key → reason`). Reasons must be non-empty strings explaining why the surface is excluded. |
+| Key        | Default | Purpose                                                                                                                       |
+| ---------- | ------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `manifest` | —       | Path to JSON manifest of expected surface keys (repo-relative).                                                               |
+| `strict`   | `false` | When `true`, fail if any expected surface has no capture.                                                                     |
+| `exclude`  | `{}`    | Surfaces to exclude from coverage (`key → reason`). Reasons must be non-empty strings explaining why the surface is excluded. |
 
 This is the config-file counterpart to `expected`/`exclude` in the spec. Use it
 when the surface list is generated outside the spec (CI pipelines, build tools,
@@ -94,16 +94,16 @@ still owns the verdict contract.
 
 ## 3. Reach gated states
 
-| State                                  | Reached by                                                 |
-| -------------------------------------- | ---------------------------------------------------------- |
-| Click-opened (modals, drawers, tabs)   | crawl, automatically                                       |
-| Loading / error data states            | crawl — automatic data-states (`--no-data-states` to skip) |
-| Login / unlock / typed input           | `--setup <file>`                                           |
-| `:hover`/`:focus`/`:active`            | forced-state layer of every capture                        |
+| State                                  | Reached by                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------- |
+| Click-opened (modals, drawers, tabs)   | crawl, automatically                                                            |
+| Loading / error data states            | crawl — automatic data-states (`--no-data-states` to skip)                      |
+| Login / unlock / typed input           | `--setup <file>`                                                                |
+| `:hover`/`:focus`/`:active`            | forced-state layer of every capture                                             |
 | Dark theme / print / forced colors     | spec `mediaStates` on base surfaces and explicit variants; no default expansion |
-| Empty/partial/streaming data           | spec `liveStates`/`variants` with fixtures                 |
-| Destructive-gated, drag-drop, keyboard | a spec driving them explicitly                             |
-| Unmounted components                   | a component catalog page                                   |
+| Empty/partial/streaming data           | spec `liveStates`/`variants` with fixtures                                      |
+| Destructive-gated, drag-drop, keyboard | a spec driving them explicitly                                                  |
+| Unmounted components                   | a component catalog page                                                        |
 
 `--setup` runs after **every** fresh navigation so each reset re-establishes the
 gate; `${ENV_VAR}` in values is interpolated at load time (credentials never hit
@@ -132,3 +132,18 @@ section.
 
 Feeds `styleproof-diff` (the gate); `styleproof-surfaces` owns the `expected`
 registry this proves against.
+
+## Remediate reach receipts
+
+Run `styleproof reach --json <receipt>`. For `guard.kind` branch or catch with
+empty `armRanOn`, add a surface that runs `enclosing.function` and selects the
+arm; `enclosingSurfaces` lists surfaces running that function. Make the condition
+true, or false for a negated condition: `probe.fault` needs `?fault=1`, while
+`!(status === 'ok')` needs `?status=bad`.
+
+For media guards, add the viewport width or colour scheme. For channel guards,
+no surface reaches the channel; acknowledge it in `styleproof.reach.json`.
+Non-empty `armRanOn` means the arm already ran: adding a surface cannot repair
+the join limit, so leave the status visible or acknowledge it. For none or
+unmeasured guards, read `guard.reason`. Re-capture and rerun the deterministic
+gate. An acknowledgement is ledger evidence, never proof of reach.
