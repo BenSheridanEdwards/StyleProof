@@ -259,6 +259,23 @@ export function capturePage({
   };
   const adopted = (document as Document & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets ?? [];
   const readFirstBoxes = [...Array.from(document.styleSheets), ...adopted].some(sheetMayStyleFirstBoxes);
+  const keyframes: [string, string][] = [];
+  const collectKeyframes = (sheet: CSSStyleSheet | null): void => {
+    if (!sheet) return;
+    const visit = (rules: CSSRuleList): void => {
+      for (const rule of Array.from(rules)) {
+        if (rule instanceof CSSKeyframesRule) keyframes.push([rule.name, rule.cssText]);
+        else if (rule instanceof CSSImportRule) collectKeyframes(rule.styleSheet);
+        else if ('cssRules' in rule) visit((rule as CSSGroupingRule).cssRules);
+      }
+    };
+    try {
+      visit(sheet.cssRules);
+    } catch {
+      // Cross-origin sheets, including imports, expose no body; shadow-root sheets are out of scope.
+    }
+  };
+  for (const sheet of [...Array.from(document.styleSheets), ...adopted]) collectKeyframes(sheet);
   const generates = (el: Element, pseudo: string, display: string): boolean => {
     if (pseudo === '::backdrop') return matchesSafely(el, ':modal') || matchesSafely(el, ':popover-open');
     if (pseudo === '::file-selector-button') return el instanceof HTMLInputElement && el.type === 'file';
@@ -361,21 +378,10 @@ export function capturePage({
     }
     const animationNames = (usedStyle.animationName ?? 'none').split(',').map((name) => name.trim());
     if (animationNames.some((name) => name !== 'none')) {
-      const bodies: string[] = [];
-      const visit = (rules: CSSRuleList): void => {
-        for (const rule of Array.from(rules)) {
-          if (rule instanceof CSSKeyframesRule && animationNames.includes(rule.name)) bodies.push(rule.cssText);
-          else if ('cssRules' in rule) visit((rule as CSSGroupingRule).cssRules);
-        }
-      };
-      for (const sheet of Array.from(document.styleSheets)) {
-        try {
-          visit(sheet.cssRules);
-        } catch {
-          // Cross-origin stylesheets do not expose their rules to the page.
-        }
-      }
-      entry.style['animation-keyframes'] = bodies.join('\n');
+      entry.style['animation-keyframes'] = keyframes
+        .filter(([name]) => animationNames.includes(name))
+        .map(([, body]) => body)
+        .join('\n');
     }
     if (!motionOnly) {
       const typedComputedStyle = el.computedStyleMap?.();
