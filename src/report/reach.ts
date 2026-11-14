@@ -44,6 +44,9 @@ export type ReportReach = {
   /** Findings held by the opt-in gate; always zero at the default warn level. */
   blocking: number;
   audit?: ReturnType<typeof auditReach>;
+  acknowledged?: Record<string, string>;
+  staleAcknowledgements?: string[];
+  acknowledgementReasons?: Record<string, string>;
   complete: boolean;
   ledger: RuleReachResult['ledger'];
   counts: Record<RuleReachStatus, number>;
@@ -206,6 +209,9 @@ export function assessReachMaps(
     level,
     blocking,
     audit,
+    acknowledged: Object.fromEntries(audit.acknowledged.map((key) => [key, acknowledged[key]!])),
+    staleAcknowledgements: audit.staleAcknowledgements,
+    acknowledgementReasons: acknowledged,
     complete,
     ledger: result.ledger,
     counts,
@@ -337,7 +343,26 @@ export function reachSectionLines(reach: ReportReach): string[] {
   const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const ledger = reach.gaps.filter((gap) => gap.kind === 'ledger');
-  const scriptLines = [...scriptSectionLines(reach), ...classSectionLines(reach)];
+  const acknowledgementLines = [
+    ...Object.entries(reach.acknowledged ?? {}).flatMap(([key, reason], index) => [
+      ...(index === 0 ? ['', '## Acknowledged reach items', ''] : []),
+      `- ${codeValue(key)} — ${escapeInlineMarkdown(reason)}`,
+    ]),
+    ...(reach.staleAcknowledgements?.length
+      ? [
+          '',
+          '## Stale reach acknowledgements',
+          '',
+          'Prune these keys from `styleproof.reach.json`. If the range is still unreached, add a new entry keyed by file/sheet plus the hash of the current changed range, mapped to a reason.',
+          '',
+          ...reach.staleAcknowledgements.map(
+            (key) =>
+              `- ${codeValue(key)}${reach.acknowledgementReasons?.[key] ? ` — ${escapeInlineMarkdown(reach.acknowledgementReasons[key])}` : ''}`,
+          ),
+        ]
+      : []),
+  ];
+  const scriptLines = [...acknowledgementLines, ...scriptSectionLines(reach), ...classSectionLines(reach)];
 
   if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return scriptLines;
 

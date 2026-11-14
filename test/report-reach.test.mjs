@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { test } from 'node:test';
+import { ruleReachKey } from '../dist/reach-ledger.js';
 import { reachSummaryLine } from '../dist/report/reach.js';
 import { generateStyleMapReport } from '../dist/report.js';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
@@ -754,4 +755,28 @@ test('reached font-face changes recommend pixels', (t) => {
     map(rule('@font-face', hash, { refs: ['Brand'] }), rule('.badge', 'b', { used: true, refs: ['Brand'] }));
   const output = report(fixture(t, [side('f1')], [side('f2')]));
   assert.match(output.md, /--pixels/);
+});
+
+test('report publishes acknowledgement reasons and stale remedies', (t) => {
+  const dirs = fixture(t, [map()], [map(rule('.held', 'head'))]);
+  const ledger = path.join(dirs.root, 'reach.json');
+  const initial = report(dirs).json.reach;
+  const held = initial.rules.find((row) => row.status !== 'reached');
+  const key = ruleReachKey(held);
+  const stale = `old.css·${'a'.repeat(64)}`;
+  fs.writeFileSync(ledger, JSON.stringify({ [key]: 'Reviewed <reason>', [stale]: 'Old reason' }));
+  const previous = process.env.STYLEPROOF_REACH;
+  process.env.STYLEPROOF_REACH = ledger;
+  t.after(() => {
+    if (previous === undefined) delete process.env.STYLEPROOF_REACH;
+    else process.env.STYLEPROOF_REACH = previous;
+  });
+  const output = report(dirs, { changeReach: 'gate' });
+  assert.equal(output.json.reach.acknowledged[key], 'Reviewed <reason>');
+  assert.deepEqual(output.json.reach.staleAcknowledgements, [stale]);
+  assert.ok(output.md.includes(key));
+  assert.ok(output.md.includes('Old reason'));
+  assert.match(output.md, /prune.*styleproof\.reach\.json/i);
+  assert.match(output.md, /hash of the current changed range/);
+  assert.ok(output.json.reach.blocking > 0);
 });
