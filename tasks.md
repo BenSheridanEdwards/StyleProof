@@ -9,7 +9,7 @@
 
 ## In progress
 
-- Refs #1006: reach acknowledgement gate; one-shot thread link unavailable; no PR requested.
+- Refs #1006: PR A range-content acknowledgement gate implementation and focused validation; one-shot thread link unavailable; no PR requested.
 
 - Refs #1361: crop overlap regression and visual-first isolation; current one-shot thread link unavailable; no PR requested.
 

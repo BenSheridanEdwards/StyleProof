@@ -38,6 +38,7 @@ export type RuleReachStatus = 'reached' | 'never-rendered' | 'unmeasured' | 'bli
 export type RuleReach = {
   /** The ledger key: at-rule chain and prelude (`@media (prefers-color-scheme: dark) > .panel`). */
   key: string;
+  hash?: string;
   /** Corroboration conservatively matches the changed-token range. Served-rule ledgers do not currently supply source provenance. */
   sourceRange?: Omit<SourceCorroboration, 'join' | 'status'>;
   change: 'added' | 'removed' | 'changed';
@@ -398,7 +399,10 @@ function classifyKey(key: string, base: Side, head: Side, ctx: Context): RuleRea
     (base.used.has(removed[0].id) ||
       (base.mapCount === head.mapCount && base.common.has(removed[0].id) && head.common.has(added[0].id)));
   const results = [
-    ...added.map((v) => shortfall(v, head, was, ctx)),
+    ...added.map((v) => {
+      const r = shortfall(v, head, was, ctx);
+      return r ? { ...r, hash: v.hash } : r;
+    }),
     ...(inPlace ? [] : removed.map((v) => shortfall(v, base, now, ctx))),
   ];
   const verdict =

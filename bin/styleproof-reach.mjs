@@ -2,7 +2,7 @@
 // Present reach remediation evidence; capture/gate integration is separate.
 import fs from 'node:fs';
 import { deriveReachGuards } from '../dist/reach-guard.js';
-import { auditReach, readReachAckFile, reachKey } from '../dist/reach-ledger.js';
+import { auditReach, readReachAckFile, ruleReachKey } from '../dist/reach-ledger.js';
 
 const args = process.argv.slice(2);
 if (args.includes('--help')) {
@@ -38,8 +38,7 @@ if (args.includes('--help')) {
         evidence,
         ts,
       ).map((row) => {
-        const file = row.sourceKey ?? Object.keys(evidence.sources[row.side ?? 'head'] ?? {})[0] ?? 'styles.css';
-        const key = reachKey(file, row.key);
+        const key = ruleReachKey(row);
         return {
           ...row,
           ...(group.case ? { case: group.case } : {}),
@@ -51,10 +50,14 @@ if (args.includes('--help')) {
       });
     });
     const audit = auditReach(
-      units.filter((unit) => unit.status !== 'reached').map((unit) => unit.reachKey),
+      units
+        .filter((unit) => unit.status !== 'reached')
+        .map((unit) => unit.reachKey)
+        .filter(Boolean),
       acknowledgements,
     );
     console.log(JSON.stringify({ version: 1, units, audit }, null, 2));
+    if (units.some((unit) => !unit.reachKey)) audit.passed = false;
     if (!audit.passed) process.exitCode = 1;
   } catch (error) {
     console.error(`styleproof reach: ${error.message}`);

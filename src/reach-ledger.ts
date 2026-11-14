@@ -47,3 +47,22 @@ export function auditReach(unreachedKeys: readonly string[], acknowledged: Ackno
     passed: result.unacknowledged.length === 0 && result.stale.length === 0,
   };
 }
+
+/** Identify a served range using its prelude and captured declaration digest. */
+export function ruleReachKey(row: {
+  key: string;
+  hash?: string;
+  sourceKey?: string;
+  sheet?: string;
+}): string | undefined {
+  if (!row.hash) return undefined;
+  const content = JSON.stringify([row.key, row.hash]);
+  if (row.sourceKey) {
+    try {
+      return reachKey(row.sourceKey, content);
+    } catch {
+      /* Use the served sheet identity. */
+    }
+  }
+  return row.sheet ? reachKey('sheet/' + encodeURIComponent(row.sheet).replaceAll('.', '%2E'), content) : undefined;
+}

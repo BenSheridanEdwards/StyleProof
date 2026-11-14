@@ -61,7 +61,7 @@ test('reach --json derives guards instead of echoing supplied ones', () => {
   assert.deepEqual(output.units[0].enclosingSurfaces, ['home']);
 });
 test('reach --json audits acknowledgements against derived unreached keys', () => {
-  const row = run().units.find((r) => r.case === 'ternary-arm' && r.scenario === 'declared');
+  const row = { reachKey: reachKey('stale.js', 'previous') };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-reach-ack-'));
   const ledger = path.join(dir, 'styleproof.reach.json');
   try {
@@ -70,11 +70,20 @@ test('reach --json audits acknowledgements against derived unreached keys', () =
       JSON.stringify({ [row.reachKey]: 'Reviewed join', [reachKey('stale.js', 'stale')]: 'Old' }),
     );
     const output = run(null, ledger, 1);
-    assert.equal(output.units.find((r) => r.reachKey === row.reachKey).acknowledged, true);
+    assert.equal(
+      output.units.some((r) => r.acknowledged),
+      false,
+    );
     assert.ok(!output.audit.unacknowledged.includes(row.reachKey));
-    assert.equal(output.audit.staleAcknowledgements.length, 1);
+    assert.equal(output.audit.staleAcknowledgements.length, 2);
     assert.equal(output.audit.passed, false);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('passing audit exits zero and bad input exits two', () => {
+  assert.equal(run({ units: [], remediation: { scenarios: {}, sources: {} } }, '', 0).audit.passed, true);
+  const result = spawnSync(process.execPath, ['bin/styleproof.mjs', 'reach', '--bad'], { encoding: 'utf8' });
+  assert.equal(result.status, 2);
 });

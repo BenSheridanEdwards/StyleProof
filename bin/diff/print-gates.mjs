@@ -275,3 +275,11 @@ export function printUncomparedWarnings({
     );
   }
 }
+
+export function printReachAudit(reach) {
+  for (const key of reach?.audit?.staleAcknowledgements ?? []) {
+    console.log(
+      `  ✗ stale reach acknowledgement: ${key} — prune it from styleproof.reach.json; if the range is still unreached, add a new entry keyed by file/sheet plus the hash of the current changed range, mapped to a reason.`,
+    );
+  }
+}

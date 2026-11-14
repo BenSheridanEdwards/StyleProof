@@ -1,3 +1,4 @@
+import { auditReach, readReachAckFile, ruleReachKey } from '../reach-ledger.js';
 import {
   classifyClassReach,
   combineClassReach,
@@ -42,6 +43,7 @@ export type ReportReach = {
   level: ChangeReachLevel;
   /** Findings held by the opt-in gate; always zero at the default warn level. */
   blocking: number;
+  audit?: ReturnType<typeof auditReach>;
   complete: boolean;
   ledger: RuleReachResult['ledger'];
   counts: Record<RuleReachStatus, number>;
@@ -183,16 +185,27 @@ export function assessReachMaps(
     script.units.every((unit) => unit.status === 'reached') &&
     classReach.units.every((unit) => unit.status === 'reached');
 
+  const acknowledged = readReachAckFile();
+  const units = result.rules.filter((rule) => rule.status !== 'reached');
+  const audit = auditReach(
+    units.flatMap((rule) => {
+      const key = ruleReachKey(rule);
+      return key ? [key] : [];
+    }),
+    acknowledged,
+  );
+  const held = units.filter((rule) => {
+    const key = ruleReachKey(rule);
+    return !key || !acknowledged[key];
+  }).length;
   const blocking =
     level === 'gate'
-      ? counts['never-rendered'] +
-        counts.unmeasured +
-        counts['blind-channel'] +
-        gaps.filter((gap) => gap.kind === 'ledger').length
+      ? held + audit.staleAcknowledgements.length + gaps.filter((gap) => gap.kind === 'ledger').length
       : 0;
   return {
     level,
     blocking,
+    audit,
     complete,
     ledger: result.ledger,
     counts,
