@@ -286,6 +286,12 @@ function registerSection(): null {
 function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
   const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, input.surface, `.${state}`);
   const { section, maps, box } = input;
+  if (state !== 'rest' && (!pngs[0] || !pngs[1])) {
+    return {
+      md: ['', `_No :${state} screenshot in these capture sets (re-capture to compare both sides in :${state})._`],
+      images: {} as CropImages,
+    };
+  }
   if (!box || !pngs[0] || !pngs[1] || !hasExposedChangedEntry(maps[0], maps[1], section.paths, pngs)) {
     return { md: ['', cropNote(box, pngs[0], pngs[1]) ?? ''], images: {} as CropImages };
   }
@@ -302,22 +308,44 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
     alsoInView: input.alsoInView,
   })!;
 }
+type SectionPairs = {
+  md: string[];
+  images: CropImages;
+  stateImages: Record<string, CropImages>;
+  omitted: boolean;
+  size?: PairSize;
+};
+
+/** Fill the resting or state image slots from one pair. */
+function applyPairImages(out: SectionPairs, state: PairState, pair: { images: CropImages; size?: PairSize }) {
+  if (state === 'rest') {
+    out.images = pair.images;
+    if ('size' in pair) out.size = pair.size;
+    return;
+  }
+  if (pair.images.after || pair.images.before) {
+    out.stateImages[state] = pair.images;
+    if (!out.size && 'size' in pair) out.size = pair.size;
+  }
+}
+
+/** A state-only section still publishes the first state's pair as `images`. */
+function restingImages(images: CropImages, stateImages: Record<string, CropImages>): CropImages {
+  return images.before || images.after
+    ? images
+    : (Object.values(stateImages).find((p) => p.after || p.before) ?? images);
+}
+
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
-  const md: string[] = [];
-  let images: CropImages = {};
-  const stateImages: Record<string, CropImages> = {};
-  let omitted = false;
-  let size: PairSize | undefined;
+  const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    for (const line of pair.md) md.push(line);
-    if ('omitted' in pair && pair.omitted) omitted = true;
-    if (state === 'rest') {
-      images = pair.images;
-      if ('size' in pair) size = pair.size;
-    } else stateImages[state] = pair.images;
+    for (const line of pair.md) out.md.push(line);
+    if ('omitted' in pair && pair.omitted) out.omitted = true;
+    applyPairImages(out, state, pair);
   }
-  return { md, images, stateImages, omitted, size };
+  out.images = restingImages(out.images, out.stateImages);
+  return out;
 }
 function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
   return ([0, 1] as const).flatMap((side) => {
