@@ -72,4 +72,5 @@ test('reach guards follow a component style prop to its guarded use', () => {
   const row = rows('same-line-class-style')[0];
   assert.equal(row.guardingCondition, 'app.jsx:70 probe.fault');
   assert.ok(row.guard.path.includes('app.jsx:74'));
+  assert.deepEqual(row.guard.armRanOn, []);
 });
