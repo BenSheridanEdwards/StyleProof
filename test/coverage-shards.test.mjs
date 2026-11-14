@@ -11,7 +11,7 @@ import { mergeCoverage } from '../scripts/merge-coverage.mjs';
 test('coverage shard arguments report lcov without a shard floor', () => {
   const args = coverage.coverageArgs({ nodeMajor: 22, nodeMinor: 13, shard: '1/3', lcov: 'one.info' });
   assert.ok(args.includes('--test-shard=1/3'));
-  assert.ok(args.includes('--test-reporter=lcov'));
+  assert.ok(!args.includes('--test-reporter=lcov'));
   assert.ok(!args.some((arg) => arg.startsWith('--test-coverage-lines=')));
 });
 
