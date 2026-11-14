@@ -13,6 +13,41 @@ import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../cha
 import { sectionNoun, type SectionSubject, sectionTitle } from './section-title.js';
 import { screenshotRectOf } from './geometry.js';
 
+export const SURFACE_SUBJECT = '(surface)';
+
+const layerName = (prop: string): string => codeValue(`:${prop.replace(/^forced :/, '').replace(/ layer$/, '')}`);
+const layerProps = (findings: Finding[]): PropChange[] => findings.flatMap((f) => (f.kind === 'state' ? f.props : []));
+
+/** "The forced `:checked` state was captured on head only, so it was not compared." */
+function stateLayerLine(findings: Finding[]): string {
+  const layers = layerProps(findings).map((p) => ({
+    name: layerName(p.prop),
+    side: p.before === 'captured' ? 'base' : p.after === 'captured' ? 'head' : 'one side',
+  }));
+  if (layers.length === 1) {
+    return `The forced ${layers[0].name} state was captured on ${layers[0].side} only, so it was not compared.`;
+  }
+  const list = layers.map((l) => `${l.name} (${l.side} only)`).join(', ');
+  return `The forced states ${list} were captured on one side only, so they were not compared.`;
+}
+
+function stateLayerFold(findings: Finding[]): string[] {
+  const side = (value: string) => (value === 'captured' ? 'captured' : value.replace(/; not compared$/, ''));
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    'Forced-state layers captured on one side only',
+    '',
+    '| Layer | Base | Head |',
+    '| --- | --- | --- |',
+    ...layerProps(findings).map((p) => `| ${layerName(p.prop)} | ${side(p.before)} | ${side(p.after)} |`),
+    '',
+    '</details>',
+  ];
+}
+
 export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
 
 export type ChangeSection = {
@@ -418,17 +453,40 @@ function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
     return map ? [map] : [];
   });
 }
+function renderSurfaceLayerSection(ctx: RenderCtx, input: SectionInput) {
+  const { section } = input;
+  const pairs = sectionPairs(ctx, { ...input, section: { ...section, paths: [], states: [] } });
+  registerSection();
+  return {
+    md: [
+      '',
+      '### Interaction states not compared',
+      '',
+      stateLayerLine(section.findings),
+      ...pairs.md,
+      ...stateLayerFold(section.findings),
+    ],
+    region: {
+      paths: [],
+      before: null,
+      after: null,
+      images: pairs.images,
+      ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
+    },
+  };
+}
+
 export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
   const { section, maps } = input;
+  if (ctx.layout === 'visual-first' && section.paths[0] === SURFACE_SUBJECT)
+    return renderSurfaceLayerSection(ctx, input);
+  const paths = section.paths;
   const pairs = sectionPairs(ctx, input);
   const shown = Boolean(pairs.images.after || Object.values(pairs.stateImages).some((p) => p.after));
   const where = shown ? sectionWhereMaps(ctx, input) : [];
   registerSection();
   const boxes = (side: 0 | 1) =>
-    section.paths.reduce<Box | null>(
-      (box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)),
-      null,
-    );
+    paths.reduce<Box | null>((box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)), null);
   return {
     md: [
       '',
@@ -441,11 +499,11 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ]),
       ...pairs.md,
       ...cssDetailLines(section.findings),
-      ...(ctx.layout === 'visual-first' ? stateBlocks(section.findings) : []),
       ...input.details,
+      ...(ctx.layout === 'visual-first' ? stateBlocks(section.findings) : []),
     ],
     region: {
-      paths: section.paths,
+      paths,
       before: boxes(0),
       after: boxes(1),
       images: pairs.images,
@@ -537,13 +595,31 @@ function sourceDriver(
   };
 }
 
+function resting(maps: [StyleMap, StyleMap], target: string, side: 0 | 1, prop: PropChange, pseudo?: string): string {
+  const value = side === 0 ? prop.before : prop.after;
+  if (value !== (side === 0 ? '(state does not change it)' : '(state no longer changes it)')) return value;
+  const entry = maps[side].elements[target];
+  return (pseudo ? entry?.pseudo?.[pseudo]?.[prop.prop] : entry?.style?.[prop.prop]) ?? value;
+}
+
 function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
   const sources = stateSources(section);
   const firstStates = section.findings.filter(isStateFinding);
   const named = ownerNames(sources, firstStates, maps);
   return sources.map((source) => ({
     ...source,
-    props: statedProps(maps, section.paths[0], source.changes),
+    props: statedProps(
+      maps,
+      section.paths[0],
+      source.changes.map((f) => ({
+        pseudo: source.changes.every((change) => pseudoOf(change)) ? pseudoOf(f) : undefined,
+        props: f.props.map((p) => ({
+          ...p,
+          before: resting(maps, section.paths[0], 0, p, pseudoOf(f)),
+          after: resting(maps, section.paths[0], 1, p, pseudoOf(f)),
+        })),
+      })),
+    ),
     driver: sourceDriver(section, maps, source, { firstStates, named }),
   }));
 }
