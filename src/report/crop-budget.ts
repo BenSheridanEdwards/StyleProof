@@ -94,3 +94,11 @@ export function writeBudgetedPair(
   b.bytes += bytes;
   return [pair[0], pair[1]];
 }
+
+/** Why a crop was just left out: the budget ran out, or this image could not fit the per-file limit. */
+export const cropGapReason = (b: CropBudget): 'budget' | 'size' =>
+  !b.exhausted && b.files < b.maxFiles ? 'size' : 'budget';
+
+/** The limit a too-large crop could not fit: the report's own byte limit when it is the smaller one. */
+export const sizeLimitName = (maxBytes: number): string =>
+  maxBytes < MAX_CROP_FILE_BYTES ? 'report byte limit' : 'per-file size limit';

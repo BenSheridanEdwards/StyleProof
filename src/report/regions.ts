@@ -198,6 +198,7 @@ type RegionArgs = {
   seq: { crop: number };
   /** Sibling spacing changes whose run this region shows (#755). */
   spacing: SiblingSpacingChange[];
+  cropsAllowed?: boolean;
   changes: (findings: Finding[]) => CropChanges;
 };
 
@@ -335,6 +336,7 @@ function renderTitledRegion(a: RegionArgs, findings: Finding[]) {
   const section = buildChangeSections(a.g.findings ?? findings, [a.mapA, a.mapB])[0];
   const rendered = renderChangeSection(a.ctx, {
     section,
+    cropsAllowed: a.cropsAllowed,
     surface: a.cg.rep.sd.surface,
     maps: [a.mapA, a.mapB],
     pngs: a.pngs,
@@ -507,11 +509,11 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
           title: section.title,
         }))
       : groupRegions(changedPaths, mapA, mapB, ctx.padBy);
-  if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
+  if (ctx.layout !== 'visual-first' && groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
   groups.sort((l, r) => topY(l) - topY(r));
   const claimed = new Set<SiblingSpacingChange>();
-  const rendered = groups.map((g) => {
+  const rendered = groups.map((g, index) => {
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
 
@@ -527,6 +529,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       region,
       pngs,
       seq,
+      cropsAllowed: index < ctx.maxCrops,
       spacing: own,
       changes,
     });

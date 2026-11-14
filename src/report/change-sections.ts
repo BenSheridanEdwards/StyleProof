@@ -1,3 +1,4 @@
+import { cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
@@ -278,6 +279,7 @@ type SectionInput = {
   seq: { crop: number };
   box: Box | null;
   details: string[];
+  cropsAllowed?: boolean;
   alsoInView?: string;
 };
 function registerSection(): null {
@@ -312,7 +314,7 @@ type SectionPairs = {
   md: string[];
   images: CropImages;
   stateImages: Record<string, CropImages>;
-  omitted: boolean;
+  omitted: false | 'budget' | 'max-crops';
   size?: PairSize;
 };
 
@@ -338,10 +340,22 @@ function restingImages(images: CropImages, stateImages: Record<string, CropImage
 
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
+  if (input.cropsAllowed === false) {
+    ctx.cropGaps?.push({ reason: 'max-crops', where: input.surface });
+    out.omitted = 'max-crops';
+    return out;
+  }
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    for (const line of pair.md) out.md.push(line);
-    if ('omitted' in pair && pair.omitted) out.omitted = true;
+    for (const line of pair.md) {
+      // The opening ✂️ line already names omitted crops once (rule 5).
+      if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
+      out.md.push(line);
+    }
+    if ('omitted' in pair && pair.omitted) {
+      if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
+      out.omitted = 'budget';
+    }
     applyPairImages(out, state, pair);
   }
   out.images = restingImages(out.images, out.stateImages);
@@ -398,7 +412,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ...(pairs.size ? { size: pairs.size } : {}),
       ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
       ...(where.length ? { where: where.map(whereReceipt) } : {}),
-      ...(pairs.omitted ? { cropOmitted: 'budget' } : {}),
+      ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
     },
   };
 }
