@@ -48,7 +48,7 @@ export type ReportReach = {
   ledger: RuleReachResult['ledger'];
   counts: Record<RuleReachStatus, number>;
   /** Every changed rule, reached included, in classifier order. */
-  rules: RuleReach[];
+  rules: (RuleReach & { acknowledged?: boolean })[];
   unreadableSheets: number;
   /** J2 findings always stay warn-only, independently of J1 counts and blocking. */
   scripts: (ScriptUnit & { count?: number })[];
@@ -209,7 +209,10 @@ export function assessReachMaps(
     complete,
     ledger: result.ledger,
     counts,
-    rules: result.rules,
+    rules: result.rules.map((rule) => ({
+      ...rule,
+      acknowledged: rule.status !== 'reached' && Boolean(acknowledged[ruleReachKey(rule) ?? '']),
+    })),
     unreadableSheets: result.unreadableSheets,
     scripts: script.units,
     classes: classReach.units,
