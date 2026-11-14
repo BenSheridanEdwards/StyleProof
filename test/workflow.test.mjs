@@ -179,7 +179,7 @@ test('coverage merges three shards and remains required', () => {
 test('CI runs E2E in parallel without deleting unit, platform, or determinism evidence', () => {
   const buildJob = ci.match(/ {2}build:[\s\S]*?(?=\n {2}coverage-shards:)/)?.[0] ?? '';
   const coverageJob = ci.match(/ {2}coverage-shards:[\s\S]*?(?=\n {2}e2e:)/)?.[0] ?? '';
-  const e2eJob = ci.match(/ {2}e2e:[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
+  const e2eJob = ci.match(/\n {2}e2e:\n[\s\S]*?(?=\n {2}e2e-evidence:)/)?.[0] ?? '';
   const evidenceJob = ci.match(/ {2}e2e-evidence:[\s\S]*?(?=\n {2}cli-smoke:)/)?.[0] ?? '';
   const cliSmoke = ci.match(/ {2}cli-smoke:[\s\S]*?(?=\n {2}detection-corpus:)/)?.[0] ?? '';
   const detectionCorpus = ci.match(/ {2}detection-corpus:[\s\S]*?(?=\n {2}required:)/)?.[0] ?? '';
@@ -208,15 +208,15 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(buildJob, /pnpm test|pnpm run test:e2e|pnpm run typecheck/);
 
   assert.match(e2eJob, /name: e2e \(node 22, shard/);
-  assert.match(e2eJob, /shard: \[1, 2, 3, 4, 5, 6\]/);
+  assert.match(e2eJob, /shard: \[1, 2, 3, 4, 5, 6, 7\]/);
   assert.match(e2eJob, /node-version: '22'/);
-  assert.match(e2eJob, /run: pnpm install --frozen-lockfile/);
+  assert.match(e2eJob, /run: pnpm install --frozen-lockfile --ignore-scripts$/m);
   assert.match(e2eJob, /run: pnpm run build/);
   assert.match(e2eJob, /pnpm exec playwright install --with-deps chromium firefox/);
   assert.match(e2eJob, /pnpm exec playwright install chromium firefox/);
   assert.match(
     e2eJob,
-    /run: pnpm exec playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/6 --reporter=line,json/,
+    /run: pnpm exec playwright test --config=playwright\.ci\.config\.ts --shard=\$\{\{ matrix.shard \}\}\/7 --reporter=line,json/,
   );
   assert.match(e2eJob, /needs: changes/);
   assert.match(e2eJob, /if: needs\.changes\.outputs\.e2e == 'true'/);
@@ -237,7 +237,7 @@ test('CI runs E2E in parallel without deleting unit, platform, or determinism ev
   assert.doesNotMatch(evidenceJob, /pnpm exec playwright/);
   assert.match(
     evidenceJob,
-    /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-5\/inventory\.json \.styleproof\/ci\/shards 6$/m,
+    /node scripts\/verify-e2e-shards.mjs \.styleproof\/ci\/shards\/e2e-shard-5\/inventory\.json \.styleproof\/ci\/shards 7$/m,
   );
   assert.match(evidenceJob, /uses: actions\/download-artifact@/);
   assert.match(evidenceJob, /pattern: e2e-shard-\*/);
