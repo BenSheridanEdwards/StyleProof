@@ -70,8 +70,8 @@ test('a small changed element is cropped on its enclosing card, pixel for pixel'
       layout,
     });
     const own = JSON.parse(fs.readFileSync(legacy.reportJsonPath, 'utf8')).surfaces[0].regions[0];
-    const crop = PNG.sync.read(fs.readFileSync(path.join(root, String(layout), own.images.after)));
-    assert.deepEqual([crop.width, crop.height], [374, 180]);
+    const crop = PNG.sync.read(fs.readFileSync(path.join(root, String(layout), own.images.composite)));
+    assert.deepEqual([crop.width, crop.height], [816, 220]);
   }
 });
 
