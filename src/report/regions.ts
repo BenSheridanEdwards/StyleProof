@@ -155,6 +155,7 @@ type RegionArgs = {
 type CropPack = {
   md: string[];
   images: CropImages;
+  size?: import('./crop-pair.js').PairSize;
   omitted?: boolean;
   visualEvidence?: 'not-rendered';
   reason?: string;
@@ -293,6 +294,7 @@ function renderRegion(a: RegionArgs) {
       before: g.before,
       after: g.after,
       images,
+      ...(resting.size ? { size: resting.size } : {}),
       ...(Object.keys(states.stateImages).length ? { stateImages: states.stateImages } : {}),
       ...(visualEvidence ? { visualEvidence, reason } : {}),
       ...spacingJson(a.spacing),

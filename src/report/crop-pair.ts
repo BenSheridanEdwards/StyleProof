@@ -3,7 +3,7 @@ import type { PNG } from 'pngjs';
 import type { Rect } from '../capture.js';
 import { pad, unionRects, type Box } from './geometry.js';
 import { annotateCrop, compositePair, cropPng, cropStem, zoomCrop } from './png.js';
-import { cropBudgetNote, cropBudgetOpen, writeBudgetedPng } from './crop-budget.js';
+import { cropBudgetNote, cropBudgetOpen, writeBudgetedPair, writeBudgetedPng } from './crop-budget.js';
 import type { RenderCtx } from './shared.js';
 
 /** Relative paths of the images written for one crop region (the report.json sidecar). */
@@ -52,6 +52,8 @@ function zoomPlan(rectsA: Rect[], rectsB: Rect[], zoomBelow: number): { box: Box
  */
 const escapeCellAttribute = (value: string): string => escapeHtmlAttribute(value).replace(/\|/g, '&#124;');
 
+export type PairSize = { w: number; h: number; base?: { w: number; h: number } };
+
 function cleanPair(ctx: RenderCtx, spec: CropPairSpec, before: PNG, after: PNG) {
   if (ctx.crops.files + 2 > ctx.crops.maxFiles) {
     ctx.crops.exhausted = true;
@@ -60,7 +62,11 @@ function cleanPair(ctx: RenderCtx, spec: CropPairSpec, before: PNG, after: PNG) 
   const stem = cropStem(spec.surface, spec.suffix);
   const beforeRel = `${stem}-before.png`;
   const afterRel = `${stem}-after.png`;
-  if (!writeBudgetedPng(ctx, beforeRel, before) || !writeBudgetedPng(ctx, afterRel, after)) return omittedCrop(ctx);
+  const written = writeBudgetedPair(ctx, [beforeRel, before], [afterRel, after]);
+  if (!written) return omittedCrop(ctx);
+  const [a, b] = written;
+  const size: PairSize = { w: b.width, h: b.height };
+  if (a.width !== b.width || a.height !== b.height) size.base = { w: a.width, h: a.height };
   const image = (rel: string, side: string) =>
     // The alt is an HTML attribute, where Markdown's `\|` is not unescaped: write the plain `|`.
     `<img src="${escapeCellAttribute(ctx.img(rel))}" width="340" alt="${escapeCellAttribute(`${side}: ${(spec.what ?? 'the changed element').replace(/\\\|/g, '|')}`)}">`;
@@ -70,7 +76,7 @@ function cleanPair(ctx: RenderCtx, spec: CropPairSpec, before: PNG, after: PNG) 
     '| --- | --- |',
     `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
-  return { md, images: { before: beforeRel, after: afterRel } };
+  return { md, images: { before: beforeRel, after: afterRel }, size };
 }
 
 const MAX_CROP_W = 1280;
@@ -105,7 +111,7 @@ function zoomOverlay(ctx: RenderCtx, spec: CropPairSpec, images: CropImages): st
 export function renderCropPair(
   ctx: RenderCtx,
   spec: CropPairSpec,
-): { md: string[]; images: CropImages; omitted?: boolean } | null {
+): { md: string[]; images: CropImages; size?: PairSize; omitted?: boolean } | null {
   const { box, pngA, pngB, rectsA, rectsB, captions } = spec;
   const left = spec.labels?.left ?? 'before';
   const right = spec.labels?.right ?? 'after';
