@@ -103,5 +103,41 @@ export const cases = {
       st(p('input', 1), 'checked', `${p('label', 2)}::before`, { 'background-color': C(b, W, I) }),
     ),
   }),
-  // The rest of QA14–QA19 belong in Slice 20.
+  // Both controls turn text red; the first also turns the visible 2px top border red.
+  'QA16-01 visible-border-same-as-colour': (b) => ({
+    elements: {
+      [p('input', 1)]: inp(0),
+      [p('input', 2)]: inp(1),
+      [p('label', 3)]: {
+        ...lab(2),
+        style: {
+          color: C(b, G, G),
+          'border-top-style': 'solid',
+          'border-top-width': '2px',
+          ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, G])),
+        },
+      },
+    },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), {
+        color: C(b, G, R),
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, R)])),
+      }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R) }),
+    ),
+  }),
+
+  // The stated changes match, so the line says one change, when `input.opt` ×2 is checked.
+  'QA16-01 echo-only-difference': (b) => ({
+    elements: { [p('input', 1)]: inp(0), [p('input', 2)]: inp(1), [p('label', 3)]: lab(2) },
+    states: merge(
+      st(p('input', 1), 'checked', p('label', 3), {
+        color: C(b, G, R),
+        ...Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, C(b, G, R)])),
+      }),
+      st(p('input', 2), 'checked', p('label', 3), { color: C(b, G, R) }),
+    ),
+  }),
+
+  // The remaining QA14–QA19 cases belong in Slice 20.
 };
