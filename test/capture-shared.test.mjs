@@ -1131,3 +1131,29 @@ test('CDP routing survives function renaming and equivalent argument serializati
     assert.equal(JSON.stringify(actual), JSON.stringify(expected));
   }
 });
+
+for (const source of ['imported', 'adopted', 'ordered']) {
+  test(`capture reads ${source} keyframes in document order`, () => {
+    const { context, document, run } = pseudoPageHarness({ host: { animationName: 'pulse' } });
+    context.CSSKeyframesRule = class {
+      name = 'pulse';
+      constructor(cssText) {
+        this.cssText = cssText;
+      }
+    };
+    const first = '@keyframes pulse { from { opacity: 0; } }';
+    const second = '@keyframes pulse { to { opacity: 1; } }';
+    const sheet = { cssRules: [new context.CSSKeyframesRule(first)] };
+    document.styleSheets = [];
+    document.adoptedStyleSheets = [];
+    if (source === 'imported') {
+      document.styleSheets = [{ cssRules: [Object.assign(new context.CSSImportRule(), { styleSheet: sheet })] }];
+    } else if (source === 'adopted') document.adoptedStyleSheets = [sheet];
+    else document.styleSheets = [sheet, { cssRules: [new context.CSSKeyframesRule(second)] }];
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(
+      map.elements.target.style['animation-keyframes'],
+      source === 'ordered' ? [first, second].join('\n') : first,
+    );
+  });
+}

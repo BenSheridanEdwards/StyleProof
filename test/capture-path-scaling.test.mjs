@@ -135,3 +135,30 @@ test('cached paths equal uncached paths', () => {
   assert.ok(expected.some((path) => path.includes('div:nth-child(1)')));
   assert.deepEqual(tree.capture().paths, expected);
 });
+
+test('keyframe sheet reads stay constant as animated rows grow', () => {
+  const readsFor = (size) => {
+    const tree = repeatedTree(size);
+    let reads = 0;
+    tree.context.CSSImportRule = class {};
+    tree.context.CSSKeyframesRule = class {};
+    tree.context.getComputedStyle = () => ({
+      length: 0,
+      display: 'block',
+      animationName: 'pulse',
+      getPropertyValue: () => 'none',
+    });
+    const rules = Array.from({ length: 80 }, () => ({ cssText: 'p {}' }));
+    tree.context.document.styleSheets = [
+      {
+        get cssRules() {
+          reads++;
+          return rules;
+        },
+      },
+    ];
+    tree.capture();
+    return reads;
+  };
+  assert.equal(readsFor(160), readsFor(40));
+});

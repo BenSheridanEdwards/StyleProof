@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Capture keyframe bodies from imported and adopted stylesheets. Cross-origin sheets, including cross-origin `@import`, still give no body. Shadow-root stylesheets remain out of scope.
+
 - **BREAKING:** The PR gate now fails when an image's chosen source changes: a different
   path or query string (including build-ID or cache-busting query strings), or a different
   cross-origin URL (including CDN host changes). Same-origin sources are recorded as
