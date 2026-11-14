@@ -3,7 +3,7 @@ import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
 import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
-import { sectionLine } from './change-line.js';
+import { sectionLine, STATE_WORDS } from './change-line.js';
 import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
 import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
 import { codeValue } from '../code-span.js';
@@ -84,6 +84,35 @@ function elementSources(findings: StateFinding[], keyOf: StatedKey): StateSource
       ({ state: at, own, owners, changes }) => ({ state: at, own, owners, changes }),
     );
   });
+}
+
+export function stateSources(section: ChangeSection): StateSource[] {
+  return elementSources(
+    section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === section.paths[0]),
+    (changes) => JSON.stringify(changes.map(changeKey).sort()),
+  );
+}
+
+function stateBlocks(findings: Finding[]): string[] {
+  const owners = new Map<string, Finding[]>();
+  for (const f of findings.filter(isStateFinding)) owners.set(f.path, [...(owners.get(f.path) ?? []), f]);
+  if (!owners.size) return [];
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    ...[...owners.values()].flatMap((rows) => [
+      '',
+      `**${codeValue(prettyLabel(rows[0].path, rows[0].cls ?? ''))}**`,
+      '',
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...propertyRows(rows).map((row) => `| ${row.join(' | ')} |`),
+    ]),
+    '',
+    '</details>',
+  ];
 }
 
 /** What a clause looks like without its owner paths: elements group only when these match. */
@@ -338,6 +367,23 @@ function restingImages(images: CropImages, stateImages: Record<string, CropImage
     : (Object.values(stateImages).find((p) => p.after || p.before) ?? images);
 }
 
+function appendPairMarkdown(
+  ctx: RenderCtx,
+  input: SectionInput,
+  out: SectionPairs,
+  pair: ReturnType<typeof statePair>,
+) {
+  for (const line of pair.md) {
+    // The opening ✂️ line already names omitted crops once (rule 5).
+    if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
+    out.md.push(line);
+  }
+  if ('omitted' in pair && pair.omitted) {
+    if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
+    out.omitted = 'budget';
+  }
+}
+
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
   if (input.cropsAllowed === false) {
@@ -347,15 +393,8 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   }
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    for (const line of pair.md) {
-      // The opening ✂️ line already names omitted crops once (rule 5).
-      if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
-      out.md.push(line);
-    }
-    if ('omitted' in pair && pair.omitted) {
-      if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
-      out.omitted = 'budget';
-    }
+    if (ctx.layout === 'visual-first' && state !== 'rest') out.md.push('', `**While ${STATE_WORDS[state]}**`);
+    appendPairMarkdown(ctx, input, out, pair);
     applyPairImages(out, state, pair);
   }
   out.images = restingImages(out.images, out.stateImages);
@@ -395,13 +434,14 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       '',
       `### ${section.title}`,
       '',
-      sectionLine(section, maps),
+      sectionLine(section, maps, ctx.layout === 'visual-first' ? stateSources(section) : undefined),
       ...where.flatMap((map) => [
         '',
         whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
       ]),
       ...pairs.md,
       ...cssDetailLines(section.findings),
+      ...(ctx.layout === 'visual-first' ? stateBlocks(section.findings) : []),
       ...input.details,
     ],
     region: {
