@@ -367,3 +367,50 @@ function contentNoteLines(input: HeadlineInput): string[] {
   }
   return md;
 }
+
+import { sizeLimitName } from './crop-budget.js';
+type CropGap = { reason: 'budget' | 'size' | 'max-crops'; where: string };
+const where = (key: string): string => (key === 'Global chrome' ? key : `\`${formatSurfaceList([key])}\``);
+
+/** "2 on `home @ 1280`, 1 on Global chrome", in first-seen order. */
+function countsByPlace(gaps: CropGap[]): string {
+  const counts = new Map<string, number>();
+  for (const gap of gaps) counts.set(gap.where, (counts.get(gap.where) ?? 0) + 1);
+  return [...counts].map(([key, n]) => `${n} on ${where(key)}`).join(', ');
+}
+
+/**
+ * Every change missing some or all of its crops, said once for the whole report: the true total of
+ * changes (one per section or entry, however many image pairs it lost, so it agrees with the
+ * summary's count), each cause with the places it hit, and the option that shows them. Sections and
+ * entries carry no note of their own.
+ */
+export function cropGapLines(
+  gaps: CropGap[],
+  limits: { maxCrops: number; maxFiles: number; maxBytes: number },
+): string[] {
+  if (gaps.length === 0) return [];
+  const of = (reason: CropGap['reason']) => gaps.filter((gap) => gap.reason === reason);
+  const causes = [
+    [of('max-crops'), `past the \`--max-crops\` limit of ${limits.maxCrops} per surface`],
+    [of('budget'), `past the report's crop budget (${limits.maxFiles} files / ${limits.maxBytes / 1_000_000} MB)`],
+    [of('size'), `too large to fit the ${sizeLimitName(limits.maxBytes)} after downscaling`],
+  ] as const;
+  const hits = causes.filter(([hit]) => hit.length > 0);
+  // One cause: the total already counts it. Several: each says how many it left out.
+  const parts = hits.map(([hit, why]) => `${hits.length > 1 ? `${hit.length} ` : ''}${why} (${countsByPlace(hit)})`);
+  const options = [
+    of('max-crops').length ? 'raise `--max-crops`' : '',
+    of('budget').length ? 'raise `--max-crop-files` or `--max-crop-bytes`' : '',
+    of('size').length && !of('budget').length && sizeLimitName(limits.maxBytes) === 'report byte limit'
+      ? 'raise `--max-crop-bytes`'
+      : '',
+  ].filter(Boolean);
+  const n = gaps.length;
+  return [
+    '',
+    `✂️ **${n === 1 ? '1 change is' : `${n} changes are`} missing crops**${hits.length > 1 ? ':' : ','} ${parts.join('; ')}. ` +
+      `${n === 1 ? 'It is' : 'Each is'} still listed and counted` +
+      (options.length ? `; ${options.join(', or ')} to show the crops.` : '.'),
+  ];
+}

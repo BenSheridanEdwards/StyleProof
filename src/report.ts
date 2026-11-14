@@ -79,6 +79,7 @@ import {
   readBaselineInfo,
   reportHeadline,
   type BaselineInfo,
+  cropGapLines,
 } from './report/headline.js';
 import { countShownChanges, groupBySignature } from './report/regions.js';
 import {
@@ -606,6 +607,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
   }
 
+  if (ctx.layout === 'visual-first') ctx.cropGaps = [];
+  const gapIndex = md.lines.length;
   const out: SectionState = { md, json: [], seq: { crop: 0 } };
   const migrationGallery = migration ? buildMigrationGallery(diff.surfaces, content.withContent) : undefined;
   const { oneSided, changed, reachBlock } = renderReportBody(ctx, out, {
@@ -617,7 +620,17 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     surfaceKeyOf,
   });
 
-  if (ctx.crops.omitted > 0) {
+  if (ctx.layout === 'visual-first')
+    md.lines.splice(
+      gapIndex,
+      0,
+      ...cropGapLines(ctx.cropGaps ?? [], {
+        maxCrops: ctx.maxCrops,
+        maxFiles: ctx.crops.maxFiles,
+        maxBytes: ctx.crops.maxBytes,
+      }),
+    );
+  if (ctx.layout !== 'visual-first' && ctx.crops.omitted > 0) {
     md.append([
       '',
       `_${ctx.crops.omitted} crop(s) omitted by crop size or report budget limits ` +
