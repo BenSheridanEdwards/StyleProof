@@ -49,3 +49,47 @@ test('armed gate holds gaps, stale entries and declaration rot; warn stays advis
     else process.env.STYLEPROOF_REACH = previous;
   }
 });
+
+import { spawnSync } from 'node:child_process';
+import { fixtureCommitSha, makeMap, tmpDirs, writeCapture } from './helpers.mjs';
+import { stampCertifyingFixture } from './certifying-fixture.mjs';
+test('diff CLI names stale acknowledgements and the recovery steps', () => {
+  const dirs = tmpDirs();
+  for (const [dir, label] of [
+    [dirs.beforeDir, 'base'],
+    [dirs.afterDir, 'head'],
+  ]) {
+    fs.mkdirSync(dir, { recursive: true });
+    writeCapture(
+      dir,
+      'home@1280',
+      {
+        ...makeMap({ elements: { body: { tag: 'body', style: { color: 'rgb(0, 0, 0)' } } } }),
+        reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules: [] },
+      },
+      null,
+    );
+    stampCertifyingFixture(dir, fixtureCommitSha(label));
+  }
+  fs.writeFileSync(path.join(dirs.root, 'styleproof.config.json'), JSON.stringify({ changeReach: 'gate' }));
+  const stale = ruleReachKey({ key: '.old', hash: 'old', sheet: 'inline' });
+  const ledger = path.join(dirs.root, 'reach.json');
+  fs.writeFileSync(ledger, JSON.stringify({ [stale]: 'Old range' }));
+  const result = spawnSync(
+    process.execPath,
+    [
+      path.resolve('bin/styleproof-diff.mjs'),
+      dirs.beforeDir,
+      dirs.afterDir,
+      '--expected-before-sha',
+      fixtureCommitSha('base'),
+      '--expected-after-sha',
+      fixtureCommitSha('head'),
+    ],
+    { cwd: dirs.root, encoding: 'utf8', env: { ...process.env, STYLEPROOF_REACH: ledger } },
+  );
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.ok(result.stdout.includes(stale), result.stdout + result.stderr);
+  assert.match(result.stdout, /prune it from styleproof\.reach\.json/);
+  assert.match(result.stdout, /current changed range, mapped to a reason/);
+});
