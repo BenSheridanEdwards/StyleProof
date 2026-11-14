@@ -34,6 +34,7 @@ export type CropPairSpec = {
   /** Caption fragments: the annotated suffix, the zoom suffix. */
   captions: { annotated: string; zoom: (factor: number) => string };
   /** Skip (return null) when the crop renders identically on both sides. */
+  alsoInView?: string;
   what?: string;
   skipIdentical?: boolean;
 };
@@ -76,6 +77,7 @@ function cleanPair(ctx: RenderCtx, spec: CropPairSpec, before: PNG, after: PNG) 
     '| --- | --- |',
     `| ${image(beforeRel, 'Before')} | ${image(afterRel, 'After')} |`,
   ];
+  if (spec.alsoInView) md.push('', spec.alsoInView);
   return { md, images: { before: beforeRel, after: afterRel }, size };
 }
 
@@ -115,23 +117,7 @@ export function renderCropPair(
   const { box, pngA, pngB, rectsA, rectsB, captions } = spec;
   const left = spec.labels?.left ?? 'before';
   const right = spec.labels?.right ?? 'after';
-  const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
-  const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
-  // When the box lies in the area both screenshots cover, crop one origin clamped to the
-  // smaller screenshot so both sides show the SAME page rectangle even when the change grew
-  // or shrank the page. A box past the shorter page's end (content added at the bottom)
-  // keeps per-side clamping, so the side that has it still shows it. Measure the element
-  // inside the ctx.padBy padding: a full-width or bottom-flush element's padding runs off
-  // the canvas.
-  const commonW = Math.min(pngA.width, pngB.width);
-  const commonH = Math.min(pngA.height, pngB.height);
-  const inCommon = box.x + box.w - ctx.padBy <= commonW && box.y + box.h - ctx.padBy <= commonH;
-  const aligned: Box = {
-    x: Math.max(0, Math.min(Math.round(box.x + box.w / 2 - w / 2), commonW - w)),
-    y: Math.max(0, Math.min(Math.round(box.y + box.h / 2 - h / 2), commonH - h)),
-    w,
-    h,
-  };
+  const { aligned, inCommon, w, h } = cropWindow(ctx, box, pngA, pngB);
   const before = cropPng(pngA, inCommon ? aligned : box, w, h);
   const after = cropPng(pngB, inCommon ? aligned : box, w, h);
   if (spec.skipIdentical && before.png.data.equals(after.png.data)) return null;
@@ -176,4 +162,26 @@ export function renderCropPair(
     md.push('', '</details>');
   }
   return { md, images };
+}
+
+/** Shared crop geometry for section context and rendered pairs. */
+export function cropWindow(ctx: RenderCtx, box: Box, pngA: PNG, pngB: PNG) {
+  const w = Math.min(Math.max(ctx.minWidth, box.w), MAX_CROP_W);
+  const h = Math.min(ctx.maxHeight, Math.max(ctx.minHeight, box.h), Math.floor(MAX_CROP_AREA / w));
+  // When the box lies in the area both screenshots cover, crop one origin clamped to the
+  // smaller screenshot so both sides show the SAME page rectangle even when the change grew
+  // or shrank the page. A box past the shorter page's end (content added at the bottom)
+  // keeps per-side clamping, so the side that has it still shows it. Measure the element
+  // inside the ctx.padBy padding: a full-width or bottom-flush element's padding runs off
+  // the canvas.
+  const commonW = Math.min(pngA.width, pngB.width);
+  const commonH = Math.min(pngA.height, pngB.height);
+  const inCommon = box.x + box.w - ctx.padBy <= commonW && box.y + box.h - ctx.padBy <= commonH;
+  const aligned: Box = {
+    x: Math.max(0, Math.min(Math.round(box.x + box.w / 2 - w / 2), commonW - w)),
+    y: Math.max(0, Math.min(Math.round(box.y + box.h / 2 - h / 2), commonH - h)),
+    w,
+    h,
+  };
+  return { aligned, inCommon, w, h };
 }
