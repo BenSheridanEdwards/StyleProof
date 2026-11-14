@@ -13,6 +13,8 @@
 // bench/reach-corpus.json; drift in either direction fails --check, so a fix for a
 // documented miss or residual must update the corpus on purpose.
 // J2 uses hand-built one-line patches and selects the head unit, not readScriptChanges.
+import ts from 'typescript';
+import { deriveReachGuards } from '../dist/reach-guard.js';
 import { chromium } from '@playwright/test';
 import assert from 'node:assert/strict';
 import esbuild from 'esbuild';
@@ -162,6 +164,7 @@ function jsUnit(baseLine, headLine, pick, pairs) {
   const J3 = classUnits.length ? worst(classUnits) : 'n/a';
   const status = combineClassReach(script.units, j3.units).find((unit) => unit.side === side)?.status ?? 'unmeasured';
   return {
+    side, sourceKey: 'app.jsx', range: evidence?.range,
     kind: 'js',
     key: `app.jsx:${line}`,
     text: sourceLines[side][line - 1],
@@ -181,7 +184,7 @@ function evaluate(surfaceIds) {
     pick('head').map((c) => c.map),
   );
   const pairs = surfaceIds.map((id) => ({ base: caps.base[id].map, head: caps.head[id].map }));
-  const units = j1.rules.map((r) => ({ kind: 'css', key: r.key, selector: r.key, status: r.status, why: r.why }));
+  const units = j1.rules.map((r) => ({ kind: 'css', key: r.key, selector: r.key, status: r.status, why: r.why, change: r.change, condition: r.condition, consumer: r.consumer, referrer: r.referrer }));
   for (const hunk of hunks)
     for (let i = 0; i < Math.max(hunk.base.length, hunk.head.length); i++)
       units.push(jsUnit(hunk.base[i], hunk.head[i], pick, pairs));
@@ -201,6 +204,20 @@ const worst = (units) =>
   ['never-rendered', 'blind-channel', 'unmeasured', 'unknown'].find((s) => units.some((u) => u.status === s)) ??
   'reached';
 
+const remediation = { scenarios: corpus.scenarios, sources: Object.fromEntries(SIDES.map((side) => [side, { 'app.jsx': sourceLines[side].join('\n') }])), execution: {}, ledger: {} };
+for (const side of SIDES) {
+  remediation.execution[side] = {};
+  remediation.ledger[side] = {};
+  for (const [surface, { map }] of Object.entries(caps[side])) {
+    remediation.ledger[side][surface] = (map.reach?.rules ?? []).filter((r) => r.used).map((r) => r.key);
+    const files = {};
+    for (const script of map.scriptReach?.scripts ?? []) for (const file of script.files ?? []) {
+      const entry = files[file.sourceKey ?? file.source] ??= { executed: '', unexecuted: '', mixed: '' };
+      for (const kind of ['executed', 'unexecuted', 'mixed']) entry[kind] = [entry[kind], ...file[kind].map((span) => Array.isArray(span) ? `${span[0]}:${span[1]}-${span[2]}` : `${span.start.line}:${span.start.column}-${span.end.column}`)].filter(Boolean).join(' ');
+    }
+    remediation.execution[side][surface] = files;
+  }
+}
 const failures = [];
 const scenarioGaps = {};
 const results = corpus.cases.map((c) => ({ id: c.id, category: c.category, desc: c.desc, scenarios: {} }));
@@ -244,8 +261,11 @@ for (const [scenario, surfaceIds] of Object.entries(corpus.scenarios)) {
       got.classUnits = mine.flatMap((unit) => unit.classUnits ?? []);
       got.baseClassUnits = mine.flatMap((unit) => unit.baseClassUnits ?? []);
     }
+    got.evidence = mine;
     const want = c.expect[scenario];
+    const remedy = deriveReachGuards(mine.filter((u) => u.status !== 'reached'), { ...remediation, scenarios: { [scenario]: surfaceIds } }, ts).map((r) => [r.key, r.guardingCondition, r.enclosingSurfaces, r.guard.armRanOn ?? null]);
     const wrong = [
+      ...(want.remedy && !isDeepStrictEqual(remedy, want.remedy) ? [`remedy ${JSON.stringify(remedy)}, want ${JSON.stringify(want.remedy)}`] : []),
       ...(want.today && got.today !== want.today ? [`today ${got.today}, want ${want.today}`] : []),
       ...(got.reach !== want.reach ? [`reach ${got.reach}, want ${want.reach}`] : []),
       ...classErrors(got.classUnits, want.classCount, want.joins?.J3),
@@ -285,6 +305,7 @@ for (const r of results)
 console.log(lines.join('\n'));
 
 const receipt = {
+  remediation,
   generated: new Date().toISOString(),
   browser: `chromium ${browserVersion}`,
   fixture: corpus.fixture,

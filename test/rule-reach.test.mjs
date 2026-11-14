@@ -99,6 +99,7 @@ test('a changed custom property is reached only when every rule that reads it ma
     rule('.badge--ok', 'h3', { used: true, uses: ['--ok'] }),
   );
   const root = statusOf(classifyRuleReach([base], [head]), ':root');
+  assert.equal(root.consumer, '.fault-badge');
   assert.equal(root.status, 'never-rendered');
   assert.equal(root.why, '--warn changed, and its consumer .fault-badge never matched');
 
@@ -127,6 +128,7 @@ test('a token changed on one route is not hidden by another route already servin
     change: 'changed',
     status: 'never-rendered',
     why: '--warn changed, and its consumer .fault never matched',
+    consumer: '.fault',
     sheet: '/app.css',
   });
   for (const before of [base, [...base].reverse()]) {
@@ -165,6 +167,7 @@ test('a custom property head deletes is a change its consumers must render', () 
     change: 'changed',
     status: 'never-rendered',
     why: '--warn changed, and its consumer .fault never matched',
+    consumer: '.fault',
     sheet: '/app.css',
   });
   const rendered = map(rule(':root', 'h2', { used: true }), rule('.fault', 'f', { used: true, uses: ['--warn'] }));
@@ -220,6 +223,7 @@ test('a changed @keyframes is a blind channel when a rendered rule references it
     change: 'changed',
     status: 'blind-channel',
     why: 'referenced by .badge, which matched a captured element',
+    referrer: '.badge',
     sheet: '/app.css',
   });
   const unreferenced = map(rule('@keyframes pulse', 'k2'), rule('.badge', 'b', { refs: ['pulse'] }));
@@ -246,6 +250,7 @@ test('a changed @property is a blind channel only when a rendered rule reads or 
       key: '@property --brand',
       change: 'changed',
       status: 'blind-channel',
+      referrer: '.btn',
       why: 'referenced by .btn, which matched a captured element',
       sheet: '/app.css',
     });
@@ -309,6 +314,7 @@ test('removed and renamed custom properties require rendered consumers', () => {
       change: 'changed',
       status: 'never-rendered',
       why,
+      ...(declaration === 'color: black;' && { consumer: '.fault' }),
       sheet: '/app.css',
     });
   }
@@ -457,6 +463,7 @@ test('a ledger recorded before aliases classifies nothing, in any order', () => 
     key: ':root',
     change: 'changed',
     status: 'never-rendered',
+    consumer: '.hidden',
     why: '--warn changed through --tone, and its consumer .hidden never matched',
     sheet: '/app.css',
   });
@@ -641,6 +648,7 @@ test('a changed @font-face is a blind channel only when a rendered rule uses its
     key: '@font-face #2',
     change: 'changed',
     status: 'blind-channel',
+    referrer: '.title',
     why: 'referenced by .title, which matched a captured element',
     sheet: '/app.css',
   });
@@ -679,6 +687,7 @@ test('the same maps in any order give the same result', () => {
     key: '@keyframes pulse',
     change: 'changed',
     status: 'blind-channel',
+    referrer: '.a',
     why: 'referenced by .a, which matched a captured element',
     sheet: '/a.css',
   });
@@ -792,6 +801,7 @@ test('a changed token whose consumer matched only outside compared elements is u
       key: ':root',
       change: 'changed',
       status: 'unmeasured',
+      consumer: '.ignored',
       why: `--tone changed${aliased ? ' through --badge' : ''}, and its consumer .ignored matched only elements StyleProof does not compare`,
       sheet: '/app.css',
     });
@@ -810,6 +820,7 @@ for (const outside of ['.a-outside', '.z-outside']) {
       key: ':root',
       change: 'changed',
       status: 'never-rendered',
+      consumer: '.b-idle',
       why: '--tone changed, and its consumer .b-idle never matched',
       sheet: '/app.css',
     });
@@ -827,6 +838,7 @@ test('a later changed token with a never-matched consumer takes precedence over 
     key: ':root',
     change: 'changed',
     status: 'never-rendered',
+    consumer: '.idle',
     why: '--b changed, and its consumer .idle never matched',
     sheet: '/app.css',
   });
@@ -842,6 +854,7 @@ test('an outside-only token declaration still reports its never-matched consumer
     key: ':root',
     change: 'changed',
     status: 'never-rendered',
+    consumer: '.idle',
     why: '--tone changed, and its consumer .idle never matched',
     sheet: '/app.css',
   });
