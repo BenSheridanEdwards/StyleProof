@@ -13,7 +13,7 @@ const label = (n) => ({ tag: 'label', cls: 'opt-label', text: `Option ${n}`, rec
 const border = (value) =>
   Object.fromEntries(['top', 'right', 'bottom', 'left'].map((side) => [`border-${side}-color`, value]));
 
-function sentence(t, changes) {
+function sentence(t, changes, fullReport = false) {
   const root = mkTmp('styleproof-counted-');
   t.after(() => rmTmp(root));
   const target = at('label', changes.length + 1);
@@ -39,6 +39,7 @@ function sentence(t, changes) {
     layout: 'visual-first',
   });
   const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  if (fullReport) return md;
   return md.split('\n').find((l) => l.startsWith('On the opt label')) ?? md;
 }
 
@@ -102,4 +103,16 @@ test('a mixed host and ::before clause names ::before (QA14-05, #1374)', (t) => 
     sentence(t, [(i) => ({ color: G[i], pseudo: { 'background-color': W[i] } })]),
     'On the opt label (Option 1), the text colour changes from green to red and `::before` background from white to dark indigo when the opt is checked. At rest it looks the same.',
   );
+});
+
+test('identical CSS owner bodies collapse beside a unique owner (QA18-01)', (t) => {
+  const md = sentence(
+    t,
+    [(i) => ({ color: G[i] }), (i) => ({ 'background-color': W[i] }), (i) => ({ 'background-color': W[i] })],
+    true,
+  );
+  const fold = md.split('<summary>Show the CSS</summary>')[1].split('</details>')[0];
+  assert.equal((fold.match(/background-color/g) ?? []).length, 1);
+  assert.equal((fold.match(/\*\*`input.opt`\*\* ×2/g) ?? []).length, 1);
+  assert.equal((fold.match(/\*\*`input.opt`\*\*\n/g) ?? []).length, 1);
 });

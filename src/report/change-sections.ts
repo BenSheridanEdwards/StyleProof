@@ -134,19 +134,25 @@ function stateBlocks(findings: Finding[]): string[] {
   const owners = new Map<string, Finding[]>();
   for (const f of findings.filter(isStateFinding)) owners.set(f.path, [...(owners.get(f.path) ?? []), f]);
   if (!owners.size) return [];
+  const blocks = new Map<string, { head: string; body: string[]; count: number }>();
+  for (const rows of owners.values()) {
+    const head = `**${codeValue(prettyLabel(rows[0].path, rows[0].cls ?? ''))}**`;
+    const body = [
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...propertyRows(rows).map((row) => `| ${row.join(' | ')} |`),
+    ];
+    const key = `${head}\n${body.join('\n')}`;
+    const seen = blocks.get(key);
+    if (seen) seen.count++;
+    else blocks.set(key, { head, body, count: 1 });
+  }
   return [
     '',
     '<details>',
     '<summary>Show the CSS</summary>',
     '',
-    ...[...owners.values()].flatMap((rows) => [
-      '',
-      `**${codeValue(prettyLabel(rows[0].path, rows[0].cls ?? ''))}**`,
-      '',
-      '| Property | Before | After |',
-      '| --- | --- | --- |',
-      ...propertyRows(rows).map((row) => `| ${row.join(' | ')} |`),
-    ]),
+    ...[...blocks.values()].flatMap((b) => ['', `${b.head}${b.count > 1 ? ` ×${b.count}` : ''}`, '', ...b.body]),
     '',
     '</details>',
   ];
