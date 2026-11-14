@@ -347,7 +347,11 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   }
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    for (const line of pair.md) out.md.push(line);
+    for (const line of pair.md) {
+      // The opening ✂️ line already names omitted crops once (rule 5).
+      if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
+      out.md.push(line);
+    }
     if ('omitted' in pair && pair.omitted) {
       if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
       out.omitted = 'budget';

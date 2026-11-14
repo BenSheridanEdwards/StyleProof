@@ -245,3 +245,33 @@ test('advisory content crops do not take the crop budget from reviewable style c
   assert.equal(capped.json.cropBudget.omitted, 1, 'the advisory content crop is the one left out');
   assert.match(capped.md, /Updated demo copy/, 'the content change is still listed');
 });
+
+test('a section with a resting and a hover pair counts as one change missing crops (RV11-02)', (t) => {
+  const dirs = tmpDirs();
+  t.after(() => rmTmp(dirs.root));
+  const link = 'body > a.docs';
+  for (const [dir, color, hover, fill] of [
+    [dirs.beforeDir, 'rgb(0, 0, 0)', 'rgb(255, 255, 255)', [20, 120, 60]],
+    [dirs.afterDir, 'rgb(200, 30, 30)', 'rgb(40, 40, 120)', [160, 40, 40]],
+  ]) {
+    const map = makeMap({
+      elements: { [link]: { tag: 'a', cls: 'docs', text: 'Docs', rect: [20, 20, 80, 20], style: { color } } },
+      states: { [link]: { hover: { [link]: { 'background-color': hover } } } },
+    });
+    writeCapture(dir, 'docs@1280', map, solidPng(1280, 400, fill));
+    fs.writeFileSync(path.join(dir, 'docs@1280.hover.png'), solidPng(1280, 400, fill));
+  }
+  for (const limits of [
+    { maxCropFiles: 0, layout: 'visual-first' },
+    { maxCropBytes: 10, layout: 'visual-first' },
+  ]) {
+    const capped = report(dirs, `pairs-${Object.keys(limits)[0]}`, limits);
+    assert.match(capped.md, /\*\*1 change (?:needs|to) review\*\*/);
+    // The count of changes, whatever the wording: never the 2 image pairs.
+    const line = capped.md.match(
+      /\*\*(\d+) changes? (?:is missing crops|are missing crops|has no crop|have no crop)\*\*/,
+    );
+    assert.ok(line, capped.md.slice(0, 600));
+    assert.equal(Number(line[1]), 1, line[0]);
+  }
+});
