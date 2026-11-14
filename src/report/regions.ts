@@ -1,3 +1,4 @@
+import { buildChangeSections } from './change-sections.js';
 import type { PNG } from 'pngjs';
 import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import type { DiffCounts, Finding } from '../diff.js';
@@ -377,7 +378,12 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
       findingCount,
     };
   }
-  let groups = groupRegions(changedPaths, mapA, mapB, ctx.padBy);
+  let groups =
+    ctx.layout === 'visual-first'
+      ? buildChangeSections(findings, [mapA, mapB]).map(
+          (section) => collapseGroups(section.paths.map((p) => groupForPath(p, mapA, mapB, ctx.padBy)))[0],
+        )
+      : groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
   groups.sort((l, r) => topY(l) - topY(r));
