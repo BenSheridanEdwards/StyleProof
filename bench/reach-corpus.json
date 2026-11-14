@@ -173,7 +173,14 @@
         "complete": {
           "today": "missed",
           "reach": "blind-channel",
-          "remedy": [["@keyframes pulse", "blind-channel @keyframes pulse via .badge", ["home", "fault", "status-bad", "dark", "wide"], null]]
+          "remedy": [
+            [
+              "@keyframes pulse",
+              "blind-channel @keyframes pulse via .badge",
+              ["home", "fault", "status-bad", "dark", "wide"],
+              null
+            ]
+          ]
         }
       }
     },
@@ -197,7 +204,9 @@
         "declared": {
           "today": "missed",
           "reach": "never-rendered",
-          "remedy": [["@media (prefers-color-scheme: dark) > .panel", "@media (prefers-color-scheme: dark)", ["home"], null]]
+          "remedy": [
+            ["@media (prefers-color-scheme: dark) > .panel", "@media (prefers-color-scheme: dark)", ["home"], null]
+          ]
         },
         "complete": {
           "today": "shown",
@@ -280,7 +289,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [[".card_alert", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -318,7 +328,9 @@
         "complete": {
           "today": "shown",
           "reach": "unknown",
-          "remedy": [["app.jsx:42", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:42", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -358,7 +370,9 @@
           },
           "classCount": 1,
           "baseClassCount": 0,
-          "remedy": [["app.jsx:53", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:53", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -400,7 +414,14 @@
           "classCount": 1,
           "baseClassCount": 1,
           "baseJ3": "unknown",
-          "remedy": [["app.jsx:8", "app.jsx:85 !(probe.status === 'ok')", ["home", "fault", "status-bad", "dark", "wide"], ["status-bad"]]]
+          "remedy": [
+            [
+              "app.jsx:8",
+              "app.jsx:85 !(probe.status === 'ok')",
+              ["home", "fault", "status-bad", "dark", "wide"],
+              ["status-bad"]
+            ]
+          ]
         }
       }
     },
@@ -442,7 +463,9 @@
           "classCount": 1,
           "baseClassCount": 1,
           "baseJ3": "unknown",
-          "remedy": [["app.jsx:9", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:9", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -466,13 +489,15 @@
           "reach": "never-rendered",
           "joins": {
             "J2": "never-ran"
-          }
+          },
+          "remedy": [["app.jsx:66", "app.jsx:92 catch (err)", ["home"], []]]
         },
         "complete": {
           "reach": "never-rendered",
           "joins": {
             "J2": "never-ran"
-          }
+          },
+          "remedy": [["app.jsx:66", "app.jsx:92 catch (err)", ["home", "fault", "status-bad", "dark", "wide"], []]]
         }
       }
     },
@@ -507,7 +532,9 @@
           "joins": {
             "J2": "ran"
           },
-          "remedy": [["app.jsx:75", "app.jsx:89 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:75", "app.jsx:89 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -541,7 +568,9 @@
           "joins": {
             "J2": "ran"
           },
-          "remedy": [["app.jsx:76", "app.jsx:90 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:76", "app.jsx:90 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -571,7 +600,8 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:74", "app.jsx:70 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -582,7 +612,10 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [
+            ["app.jsx:74", "app.jsx:70 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     },
@@ -618,7 +651,10 @@
           "classCount": 2,
           "baseClassCount": 2,
           "baseJ3": "unknown",
-          "remedy": [["app.jsx:10", null, ["home"], null], ["app.jsx:11", "app.jsx:88 probe.fault", ["home"], []]]
+          "remedy": [
+            ["app.jsx:10", null, ["home"], null],
+            ["app.jsx:11", "app.jsx:88 probe.fault", ["home"], []]
+          ]
         },
         "complete": {
           "today": "shown",
@@ -630,7 +666,10 @@
           "classCount": 2,
           "baseClassCount": 2,
           "baseJ3": "unknown",
-          "remedy": [["app.jsx:10", null, ["home", "fault", "status-bad", "dark", "wide"], null], ["app.jsx:11", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
+          "remedy": [
+            ["app.jsx:10", null, ["home", "fault", "status-bad", "dark", "wide"], null],
+            ["app.jsx:11", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]
+          ]
         }
       }
     }
