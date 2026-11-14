@@ -341,6 +341,7 @@ function renderTitledRegion(a: RegionArgs, findings: Finding[]) {
     seq: a.seq,
     box: a.region,
     details: a.changes(findings.filter((f) => f.kind === 'state' || !a.cg.rep.findings.includes(f))).details,
+    alsoInView: a.pngs[0] && a.pngs[1] ? foreignChangeCaption(a, a.pngs[0], a.pngs[1]) : undefined,
   });
   return {
     md: [...rendered.md, ...spacingLines(a.spacing)],

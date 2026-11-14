@@ -1,7 +1,7 @@
 import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
-import { renderCropPair, cropNote, type CropImages } from './crop-pair.js';
+import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
 import { sectionLine } from './change-line.js';
 import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
 import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
@@ -278,6 +278,7 @@ type SectionInput = {
   seq: { crop: number };
   box: Box | null;
   details: string[];
+  alsoInView?: string;
 };
 function registerSection(): null {
   return null;
@@ -285,8 +286,8 @@ function registerSection(): null {
 function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
   const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, input.surface, `.${state}`);
   const { section, maps, box } = input;
-  if (!box || !pngs[0] || !pngs[1] || !hasExposedChangedEntry(...maps, section.paths, pngs)) {
-    return { md: ['', cropNote(box, ...pngs) ?? ''], images: {} as CropImages };
+  if (!box || !pngs[0] || !pngs[1] || !hasExposedChangedEntry(maps[0], maps[1], section.paths, pngs)) {
+    return { md: ['', cropNote(box, pngs[0], pngs[1]) ?? ''], images: {} as CropImages };
   }
   return renderCropPair(ctx, {
     surface: input.surface,
@@ -298,6 +299,7 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
     rectsB: [],
     what: `${section.title}${state === 'rest' ? '' : ` in :${state}`}`,
     captions: { annotated: '', zoom: (factor) => `magnified ${factor}×` },
+    alsoInView: input.alsoInView,
   })!;
 }
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
@@ -305,14 +307,17 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   let images: CropImages = {};
   const stateImages: Record<string, CropImages> = {};
   let omitted = false;
+  let size: PairSize | undefined;
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    md.push(...pair.md);
+    for (const line of pair.md) md.push(line);
     if ('omitted' in pair && pair.omitted) omitted = true;
-    if (state === 'rest') images = pair.images;
-    else stateImages[state] = pair.images;
+    if (state === 'rest') {
+      images = pair.images;
+      if ('size' in pair) size = pair.size;
+    } else stateImages[state] = pair.images;
   }
-  return { md, images, stateImages, omitted };
+  return { md, images, stateImages, omitted, size };
 }
 function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
   return ([0, 1] as const).flatMap((side) => {
@@ -351,7 +356,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       sectionLine(section, maps),
       ...where.flatMap((map) => [
         '',
-        whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, ...maps)),
+        whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
       ]),
       ...pairs.md,
       ...cssDetailLines(section.findings),
@@ -362,6 +367,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       before: boxes(0),
       after: boxes(1),
       images: pairs.images,
+      ...(pairs.size ? { size: pairs.size } : {}),
       ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
       ...(where.length ? { where: where.map(whereReceipt) } : {}),
       ...(pairs.omitted ? { cropOmitted: 'budget' } : {}),
