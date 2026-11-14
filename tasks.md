@@ -32,6 +32,8 @@
 
 ## Done
 
+- Refs #1004: PR 1b guard sites; focused tests, Fallow, receipt check and remedy mutation passed. Local hooks-on commit; unpushed, no PR requested. Current one-shot thread link unavailable.
+
 - #1004 PR 1: built the amended Fallow cut on `feat/reach-guard`; 22 corpus pairs (14 declared, 8 complete), 386 counted lines; verify, E2E, bench check, mutation proof and Fallow passed. Local commit only; PR 1b and PR 2 unstarted. Thread link unavailable; no PR requested.
 
 - 2026-11-10: merged [pull request #1323](https://github.com/BenSheridanEdwards/StyleProof/pull/1323) (`tasks.md` and the task-tracking rule) at 18:02 Europe/London (01253bd9).

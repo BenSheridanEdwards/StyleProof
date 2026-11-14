@@ -26,7 +26,7 @@ test('reach guards name the guarding condition for every unreached corpus case',
       assert.ok(actual.some((r) => r.guardingCondition));
       checkedPairs++;
     }
-  assert.equal(checkedPairs, 22);
+  assert.equal(checkedPairs, 27);
 });
 test('reach guards follow a never-run component to its guarded call site', () => {
   const row = rows('fault-rule')[0];
@@ -37,11 +37,12 @@ test('reach guards follow a never-run component to its guarded call site', () =>
   assert.deepEqual(row.guard.armRanOn, []);
   assert.deepEqual(rows('branch-class', 'complete')[0].guard.armRanOn, ['fault']);
 });
-test('reach guards name a false arm and a media query', () => {
+test('reach guards name a false arm, a catch, and a media query', () => {
   assert.equal(rows('ternary-arm')[0].guardingCondition, "app.jsx:62 !(status === 'ok')");
   assert.equal(rows('ternary-arm')[0].enclosing.function, 'Badge');
   assert.equal(rows('module-constant', 'complete')[0].guardingCondition, "app.jsx:85 !(probe.status === 'ok')");
   assert.deepEqual(rows('module-constant', 'complete')[0].guard.armRanOn, ['status-bad']);
+  assert.equal(rows('error-handler')[0].guardingCondition, 'app.jsx:92 catch (err)');
   assert.equal(rows('dark-mode')[0].guardingCondition, '@media (prefers-color-scheme: dark)');
   assert.equal(rows('wide-media')[0].guardingCondition, '@media (min-width: 1440px)');
   assert.equal(rows('keyframes', 'complete')[0].guardingCondition, 'blind-channel @keyframes pulse via .badge');
@@ -65,4 +66,10 @@ test('reach corpus receipt evidence matches the fixture', () => {
   assert.equal(receipt.remediation.sources.base['app.jsx'], fs.readFileSync('bench/fixtures/reach/app.jsx', 'utf8'));
   for (const side of Object.values(receipt.remediation.execution))
     for (const surface of Object.values(side)) assert.ok(surface['app.jsx'].executed.length);
+});
+
+test('reach guards follow a component style prop to its guarded use', () => {
+  const row = rows('same-line-class-style')[0];
+  assert.equal(row.guardingCondition, 'app.jsx:70 probe.fault');
+  assert.ok(row.guard.path.includes('app.jsx:74'));
 });
