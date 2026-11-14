@@ -1,16 +1,31 @@
-import type { PropChange, Finding } from '../diff.js';
+import type { Finding } from '../diff.js';
 import type { StyleMap } from '../capture.js';
 import { summarizeProps, isGeometryOnlyGroup } from '../change-groups.js';
+import { statedProps, sourceDriver, ownerNames, type StateSource, type ChangeSection } from './change-sections.js';
+import type { PropChange } from '../diff.js';
 import { sectionNoun, plural, type SectionSubject } from './section-title.js';
-import type { StateSource, ChangeSection } from './change-sections.js';
 import { colorNameIfClose, toHex } from '../describe.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
-import { isNonValue } from '../change-groups.js';
+import { prettyLabel, isNonValue } from '../change-groups.js';
+
+export type StateProp = PropChange & { pseudo?: string; painted?: true };
+
+export type StateChange = {
+  state: string;
+  props: StateProp[];
+  driver?: StateDriver;
+};
+export type StateDriver = {
+  subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
+  owners: number;
+  matching?: true;
+  name?: 'label';
+};
 
 export type ChangeLineInput = {
   subject: SectionSubject;
   rest: Array<PropChange & { pseudo?: string }>;
-  states?: Array<{ state: string; props: PropChange[]; driver?: SectionSubject }>;
+  states?: Array<{ state: string; props: StateProp[]; driver?: StateDriver }>;
   dom?: 'added' | 'removed' | 'retagged';
   geometryOnly?: boolean;
   size?: { dw: number; dh: number };
@@ -109,19 +124,39 @@ export const STATE_WORDS: Record<string, string> = {
   'placeholder-shown': 'showing its placeholder',
 };
 
+export function withoutColorEchoes<T extends StateProp>(props: T[]): T[] {
+  const color = props.find((p) => p.prop === 'color' && !p.pseudo);
+  if (!color) return props;
+  return props.filter(
+    (p) => p === color || p.painted || !/color$/.test(p.prop) || p.before !== color.before || p.after !== color.after,
+  );
+}
+
 function stateClause(state: NonNullable<ChangeLineInput['states']>[number]): string {
-  const fragments = state.props.map(propFragment);
+  const fragments = withoutColorEchoes(state.props).map(propFragment);
   const words = fragmentList(fragments);
   const clause = words.includes(' from ') ? words.replace(' from ', ' changes from ') : `${words} changes`;
-  const driver = state.driver ? `the ${sectionNoun(state.driver)} is ` : '';
+  const driver = state.driver
+    ? `${state.driver.owners > 1 || state.driver.name === 'label' ? codeValue(prettyLabel(state.driver.subject.path, state.driver.subject.cls)) + (state.driver.owners > 1 ? ` ×${state.driver.owners}` : '') : `the ${sectionNoun(state.driver.subject)}`} is `
+    : '';
   return `${clause} when ${driver}${STATE_WORDS[state.state] ?? `:${state.state}`}`;
 }
 
-function stateSentences(input: ChangeLineInput, who: string): string {
-  return (input.states ?? [])
-    .filter((s) => s.props.length)
-    .map((s) => `${input.rest.length ? 'Its' : `On ${who}, the`} ${stateClause(s)}.`)
-    .join(' ');
+function listClauses(clauses: string[], article: string): string {
+  const [first, ...rest] = clauses;
+  if (!rest.length) return first;
+  const tail = rest.map((c) => `${article}${c}`);
+  return rest.length === 1
+    ? `${first}, and ${tail[0]}`
+    : `${[first, ...tail.slice(0, -1)].join(', ')}, and ${tail[tail.length - 1]}`;
+}
+
+function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
+  const clauses = (input.states ?? []).filter((st) => st.props.length).map((st) => stateClause(st));
+  if (!clauses.length) return [];
+  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
+  const rest = [many ? 'At rest they look the same.' : 'At rest it looks the same.'];
+  return [`On ${who}, the ${listClauses(clauses, 'the ')}.`, ...rest];
 }
 
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
@@ -153,8 +188,9 @@ export function changeLine(input: ChangeLineInput): string {
     (input.rest.length
       ? `${capitalise(who)} ${many ? 'change' : 'changes'} ${fragmentList(input.rest.map(propFragment))}.${sizeSentence(input.size, many)}`
       : '');
-  return [resting, stateSentences(input, who)].filter(Boolean).join(' ');
+  return [resting, ...stateSentences(input, who, many)].filter(Boolean).join(' ');
 }
+
 export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], states?: StateSource[]): string {
   const entry = (p: string) => maps[1].elements[p] ?? maps[0].elements[p];
   const first = section.findings.filter((f) => f.path === section.paths[0] && f.kind !== 'state');
@@ -169,6 +205,8 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
   });
   const size = sizes[0] && sizes.every((s) => s?.dw === sizes[0]?.dw && s?.dh === sizes[0]?.dh) ? sizes[0] : undefined;
   const e = entry(section.paths[0]);
+  const firstStates = section.findings.filter((f): f is Extract<Finding, { kind: 'state' }> => f.kind === 'state');
+  const named = ownerNames(states ?? [], firstStates, maps);
   return changeLine({
     subject: {
       tag: e?.tag ?? '',
@@ -182,23 +220,10 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], 
     ...(states
       ? {
           states: states.map((source: StateSource) => {
-            const path = source.owners[0];
-            const owner = entry(path);
             return {
               state: source.state,
-              props: source.changes.flatMap((f) => summarizeProps(f.props)),
-              ...(!source.own
-                ? {
-                    driver: {
-                      tag: owner?.tag ?? '',
-                      cls: owner?.cls ?? '',
-                      path,
-                      texts: [owner?.text ?? ''],
-                      count: 1,
-                      sameSelectorCount: 1,
-                    },
-                  }
-                : {}),
+              props: statedProps(maps, section.paths[0], source.changes),
+              driver: sourceDriver(section, maps, source, { firstStates, named }),
             };
           }),
         }
