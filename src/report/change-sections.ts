@@ -1,6 +1,7 @@
+import { codeValue } from '../code-span.js';
 import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
 import type { Finding, PropChange } from '../diff.js';
-import { prettyLabel, summarizeProps } from '../change-groups.js';
+import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../change-groups.js';
 import { sectionTitle } from './section-title.js';
 import { screenshotRectOf } from './geometry.js';
 
@@ -186,4 +187,78 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
         states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
       };
     });
+}
+
+/** "(8 longhands)" when a shorthand row folds several captured longhands that moved alike. */
+function longhandNote(row: PropChange, raw: PropChange[]): string {
+  if (raw.some((p) => p.prop === row.prop)) return '';
+  const suffix = /-(color|width|style|radius)$/.exec(row.prop)?.[1];
+  const stem = suffix ? row.prop.slice(0, -suffix.length - 1) : row.prop;
+  const pattern = suffix ? new RegExp(`^${stem}-.+-${suffix}$`) : new RegExp(`^${stem}-`);
+  const n = raw.filter((p) => pattern.test(p.prop)).length;
+  return n > 1 ? ` (${n} longhands)` : '';
+}
+
+/** `color` leads the rows that moved exactly like it (a `border-color` echo), as a reviewer reads the change. */
+function colorFirst<T extends PropChange>(rows: T[]): T[] {
+  const color = rows.find((r) => r.prop === 'color');
+  if (!color) return rows;
+  const echoes = (r: T) => r !== color && r.before === color.before && r.after === color.after;
+  const at = rows.findIndex((r) => r === color || echoes(r));
+  return [...rows.slice(0, at), color, ...rows.slice(at).filter((r) => r !== color)];
+}
+
+/**
+ * The resting CSS table rows for one element's findings: rest, then pseudo-elements; followers last.
+ * Forced states are not rows here: they render as main's one block per owner path (cssDetailLines).
+ */
+export function cssRows(findings: Finding[]): string[][] {
+  return propertyRows([
+    ...findings.filter((f) => f.kind === 'style' && !f.pseudo),
+    ...findings.filter((f) => f.kind === 'style' && f.pseudo),
+  ]);
+}
+
+/**
+ * The preview's property rows: `prefix prop` | before | after, colour-led, folded longhands noted,
+ * followers last as "(follows `color`)". A state row's prefix is its state (`:hover`), then any
+ * pseudo-element (`:checked ::before`); report.html adds a swatch to each single colour value.
+ */
+function propertyRows(findings: Finding[]): string[][] {
+  const rows: string[][] = [];
+  const followers: string[][] = [];
+  for (const f of findings) {
+    if (f.kind === 'dom') continue;
+    const prefix = [f.kind === 'state' ? `:${f.state}` : '', pseudoOf(f) ?? ''].filter(Boolean).join(' ');
+    const label = (prop: string) => codeValue(prefix ? `${prefix} ${prop}` : prop);
+    for (const row of colorFirst(summarizePropsWithFollowOns(f.props))) {
+      rows.push([`${label(row.prop)}${longhandNote(row, f.props)}`, codeValue(row.before), codeValue(row.after)]);
+      for (const follower of row.followOns ?? []) {
+        followers.push([
+          `${label(follower.prop)} (follows ${codeValue('color')})`,
+          codeValue(follower.before),
+          codeValue(follower.after),
+        ]);
+      }
+    }
+  }
+  return [...rows, ...followers];
+}
+
+/** Resting properties available for review beneath the crop. */
+export function cssDetailLines(findings: Finding[]): string[] {
+  const rows = cssRows(findings);
+  return rows.length
+    ? [
+        '',
+        '<details>',
+        '<summary>Show the CSS</summary>',
+        '',
+        '| Property | Before | After |',
+        '| --- | --- | --- |',
+        ...rows.map((row) => `| ${row.join(' | ')} |`),
+        '',
+        '</details>',
+      ]
+    : [];
 }

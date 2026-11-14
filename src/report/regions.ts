@@ -5,7 +5,7 @@ import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
-import { buildChangeSections } from './change-sections.js';
+import { buildChangeSections, cssDetailLines } from './change-sections.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
@@ -313,7 +313,7 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   spacingLines(a.spacing).forEach((appended) => md.push(appended));
   const pack = regionCrop(a, cropFindings, a.pngs);
   pack.md.forEach((appended) => md.push(appended));
-  changes.details.forEach((appended) => md.push(appended));
+  (a.g.title ? cssDetailLines(cropFindings) : changes.details).forEach((appended) => md.push(appended));
   return { md, pack, trailing: [] };
 }
 

@@ -114,3 +114,13 @@ for (const [name, banners, cards, descendants] of [
     }
   });
 }
+
+test('visual-first resting CSS detail is available without forced-state rows', async () => {
+  const { cssDetailLines } = await import('../dist/report/change-sections.js');
+  const md = cssDetailLines([
+    { kind: 'style', path: 'p', props: [{ prop: 'padding-top', before: '4px', after: '8px' }] },
+  ]).join('\n');
+  assert.match(md, /Show the CSS/);
+  assert.match(md, /`padding-top`.*`4px`.*`8px`/);
+  assert.doesNotMatch(md, /:hover/);
+});
