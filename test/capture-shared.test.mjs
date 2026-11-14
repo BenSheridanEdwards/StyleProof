@@ -182,6 +182,8 @@ function forcedStateHarness({
     return targets;
   };
   document.querySelector = (selector) => document.querySelectorAll(selector)[0] ?? null;
+  context.URL = URL;
+  context.location = new URL('http://localhost:3000/');
   context.HTMLInputElement = class {};
   context.HTMLTextAreaElement = class {};
   context.CSSImportRule = class {};
@@ -580,6 +582,8 @@ function pseudoPageHarness({ tag = 'p', display = 'block', host = {}, pseudos = 
     querySelectorAll: () => [],
   };
   const reads = [];
+  context.URL = URL;
+  context.location = new URL('http://localhost:3000/');
   context.HTMLInputElement = class {};
   context.HTMLTextAreaElement = class {};
   context.CSSImportRule = class {};
@@ -620,6 +624,21 @@ for (const tag of ['p', 'img']) {
     if (tag === 'img') document.querySelector().currentSrc = 'https://example.com/image.png';
     const map = run(capturePage, pageCaptureArgs);
     assert.equal(map.elements.target.style.currentSrc, tag === 'img' ? 'https://example.com/image.png' : undefined);
+  });
+}
+
+for (const [source, expected] of [
+  ['http://localhost:3000/img/a.png?v=1#x', '/img/a.png?v=1'],
+  ['https://cdn.example.com/a.png', 'https://cdn.example.com/a.png'],
+  ['', ''],
+  ['blob:http://localhost:3000/12345678-1234-1234-1234-123456789abc', 'blob:'],
+  ['data:image/png;base64,YQ==', 'data:image/png;base64,YQ=='],
+]) {
+  test(`capture records img currentSrc ${JSON.stringify(source)} as ${JSON.stringify(expected)}`, () => {
+    const { document, run } = pseudoPageHarness({ tag: 'img' });
+    document.querySelector().currentSrc = source;
+    const map = run(capturePage, pageCaptureArgs);
+    assert.equal(map.elements.target.style.currentSrc, expected);
   });
 }
 

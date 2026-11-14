@@ -9,12 +9,12 @@
 
 ## In progress
 
-- Slice 6: preserve visual-first implementation, correct opaque fixture and verify locally on `feat/report-visual-first-layout`; current T3 one-shot follow-up to mcp:5e23279d; no PR authorized.
-
 - Visual-first report (branch `feat/report-visual-first`), round 18 QA passed on c4c33265, review next. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). No pull request yet; it opens unmerged for Ben's crop check.
 - Narrower veto fix for label-rename pairing. Mini thread 0dffec52 (`thread:project:cdcc779a-c17f-4d69-996f-c3904aff19ff:0dffec52-7358-410f-b7e5-b93d80033603`). [Pull request #1322](https://github.com/BenSheridanEdwards/StyleProof/pull/1322).
 
 ## Waiting
+
+- [Pull request #1350](https://github.com/BenSheridanEdwards/StyleProof/pull/1350): same-origin img `currentSrc` stored as path + query (#1346, #1347); waiting on CI and review.
 
 - [Pull request #1315](https://github.com/BenSheridanEdwards/StyleProof/pull/1315), the 10.0.0 release, held until visual-first merges and a pack-and-install smoke test plus a real capture, diff and report pass; Ben ticks enforcement himself.
 - [Pull request #1267](https://github.com/BenSheridanEdwards/StyleProof/pull/1267) and [pull request #1269](https://github.com/BenSheridanEdwards/StyleProof/pull/1269), the continuous integration enforcement pull requests, deferred until after 10.0.0.

@@ -353,7 +353,12 @@ export function capturePage({
       cls: el.getAttribute('class') || '',
       style: snap(usedStyle, defaultFor(tag)),
     };
-    if (el.tagName.toLowerCase() === 'img' && 'currentSrc' in el) entry.style['currentSrc'] = String(el.currentSrc);
+    if (el.tagName.toLowerCase() === 'img' && 'currentSrc' in el) {
+      const source = String(el.currentSrc);
+      const u = source ? new URL(source) : null;
+      entry.style['currentSrc'] =
+        u?.protocol === 'blob:' ? 'blob:' : u && u.origin === location.origin ? `${u.pathname}${u.search}` : source;
+    }
     const animationNames = (usedStyle.animationName ?? 'none').split(',').map((name) => name.trim());
     if (animationNames.some((name) => name !== 'none')) {
       const bodies: string[] = [];
