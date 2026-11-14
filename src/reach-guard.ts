@@ -239,6 +239,10 @@ function walk(c: Ctx, site: TS.Node, path: string[], depth: number): Found {
   };
 }
 
+function otherSource(evidence: Evidence, side: 'base' | 'head', file: string): string | undefined {
+  return evidence.sources[side === 'base' ? 'head' : 'base']?.[file];
+}
+
 function deriveOne(unit: Unit, evidence: Evidence, surfaces: string[], ts: typeof TS | null) {
   const side = unit.side ?? (unit.change === 'removed' ? 'base' : 'head');
   const ledgerSurfaces = (key: string) => surfaces.filter((s) => evidence.ledger[side]?.[s]?.includes(key));
@@ -280,7 +284,7 @@ function deriveOne(unit: Unit, evidence: Evidence, surfaces: string[], ts: typeo
     nodes,
     surfaces,
     anchors,
-    other: evidence.sources[side === 'base' ? 'head' : 'base']?.[file],
+    other: otherSource(evidence, side, file),
   };
   const used = surfaces.flatMap((s) => evidence.ledger[side]?.[s] ?? []).join(' ');
   const sites = unit.kind === 'css' ? cssSites(c, unit, used) : unit.range ? jsSites(c, unit.range, text) : [];
