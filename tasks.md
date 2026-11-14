@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 8: group identical visual-first changes; implementation and focused checks complete; full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
+
 - Address coverage union review for [PR #1355](https://github.com/BenSheridanEdwards/StyleProof/pull/1355); current one-shot thread (link unavailable).
 
 - #1348: collect keyframes once and include imported/adopted sheets; one-shot build, no PR requested.
@@ -40,3 +42,5 @@
 - 2026-11-10: merged [pull request #1318](https://github.com/BenSheridanEdwards/StyleProof/pull/1318) (identity fix).
 - 2026-11-10: merged [pull request #1321](https://github.com/BenSheridanEdwards/StyleProof/pull/1321) by BenSheridanEdwards at 16:50 Europe/London (8e038b61).
 - 2026-11-10: closed [pull request #1320](https://github.com/BenSheridanEdwards/StyleProof/pull/1320) (retention default change).
+
+- [x] Fix Slice 8 driven-state and parent-child region findings (PR #1356; current T3 build thread).

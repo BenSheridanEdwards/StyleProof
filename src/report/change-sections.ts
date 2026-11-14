@@ -1,0 +1,188 @@
+import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
+import type { Finding, PropChange } from '../diff.js';
+import { prettyLabel, summarizeProps } from '../change-groups.js';
+import { screenshotRectOf } from './geometry.js';
+
+export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
+
+export type ChangeSection = {
+  title: string;
+  selector: string;
+  /** The changed elements (state targets, not their owners), top-to-bottom, left-to-right. */
+  paths: string[];
+  /** Elements on the captured page with the same selector label. */
+  sameSelectorCount: number;
+  /** Every shown finding about these elements. */
+  findings: Finding[];
+  /** Pairs to show: resting first when anything changed at rest, then each forced state. */
+  states: PairState[];
+};
+
+/**
+ * One clause of a section's change line: a forced-state change and the owner path(s) that made it,
+ * as the capture records them (#1299), in main's own per-owner wording (the CPO's round-18
+ * fallback): one clause per owner path; owners of one selector that stated the same changes are one
+ * clause, as main collapses identical blocks to ×N ("when `input.opt` ×3 is checked"); the
+ * element's own state is always its own clause. Nothing is counted across owners.
+ */
+export type StateSource = {
+  state: Exclude<PairState, 'rest'>;
+  /** The element's own state made this change. */
+  own: boolean;
+  /** The owner paths that made it (none for the element's own state). */
+  owners: string[];
+  /** The changes (the first owner's; every owner of a ×N clause stated the same). */
+  changes: StateFinding[];
+};
+
+type StateFinding = Extract<Finding, { kind: 'state' }>;
+const isStateFinding = (f: Finding): f is StateFinding => f.kind === 'state';
+const ownState = (f: StateFinding): boolean => f.path === subjectPath(f);
+const ownerLabel = (f: StateFinding): string => prettyLabel(f.path, f.cls ?? '');
+/** One change: its state, target pseudo-element and props, byte for byte. */
+const changeKey = (f: StateFinding): string =>
+  JSON.stringify([f.state, pseudoOf(f) ?? '', f.props.map((p) => [p.prop, p.before, p.after])]);
+
+/** One owner's changes as the line states them, for telling identical owner blocks apart. */
+type StatedKey = (changes: StateFinding[]) => string;
+
+/**
+ * One element's clauses, in state order: one per owner path (its several changes together), the
+ * element's own state on its own, and owners of one selector that stated the same changes as one ×N
+ * clause, as main collapses identical blocks.
+ */
+function elementSources(findings: StateFinding[], keyOf: StatedKey): StateSource[] {
+  return STATE_LAYER_NAMES.flatMap((state) => {
+    const byOwner = new Map<string, StateFinding[]>();
+    for (const f of findings.filter((finding) => finding.state === state)) {
+      const owner = ownState(f) ? '' : f.path;
+      byOwner.set(owner, [...(byOwner.get(owner) ?? []), f]);
+    }
+    const out: Array<StateSource & { key?: string }> = [];
+    for (const [owner, changes] of byOwner) {
+      if (!owner) {
+        out.push({ state, own: true, owners: [], changes });
+        continue;
+      }
+      const key = JSON.stringify([ownerLabel(changes[0]), keyOf(changes)]);
+      const seen = out.find((source) => source.key === key);
+      if (seen) seen.owners.push(owner);
+      else out.push({ state, own: false, owners: [owner], changes, key });
+    }
+    // The element's own state comes first in its state, whatever order the capture recorded.
+    return [...out.filter((source) => source.own), ...out.filter((source) => !source.own)].map(
+      ({ state: at, own, owners, changes }) => ({ state: at, own, owners, changes }),
+    );
+  });
+}
+
+/** What a clause looks like without its owner paths: elements group only when these match. */
+const sourceShape = (source: StateSource, findings: StateFinding[]): string =>
+  JSON.stringify([
+    source.state,
+    source.own,
+    source.owners.map((p) => ownerLabel(findings.find((f) => f.path === p)!)).sort(),
+    source.changes.map(changeKey).sort(),
+  ]);
+
+/** The element a finding changes: a state finding's target, otherwise its own path. */
+export const subjectPath = (f: Finding): string => (f.kind === 'state' ? f.sub.replace(/::[\w-]+$/, '') : f.path);
+
+const pseudoOf = (f: Finding): string | undefined =>
+  f.kind === 'style' ? (f.pseudo ?? undefined) : f.kind === 'state' ? /::[\w-]+$/.exec(f.sub)?.[0] : undefined;
+
+const propsOf = (f: Finding): PropChange[] => (f.kind === 'dom' ? [] : summarizeProps(f.props));
+
+/** What changed on one element, without its path: equal for elements that changed the same way. */
+function changeSignature(findings: Finding[]): string {
+  return JSON.stringify(
+    findings
+      .map((f) => [
+        f.kind,
+        f.kind === 'dom' ? f.change : f.kind === 'state' ? f.state : '',
+        pseudoOf(f) ?? '',
+        f.kind === 'state' && subjectPath(f) !== f.path ? 'driven' : '',
+        propsOf(f).map((p) => [p.prop, p.before, p.after]),
+      ])
+      .map((row) => JSON.stringify(row))
+      .sort(),
+  );
+}
+
+const entryOf = (maps: [StyleMap, StyleMap], p: string): ElementEntry | undefined =>
+  maps[1].elements[p] ?? maps[0].elements[p];
+
+/** Page order: top, then left; elements without a box keep the findings' (document) order. */
+function byPosition(maps: [StyleMap, StyleMap], order: string[]): (l: string, r: string) => number {
+  const at = (p: string) => screenshotRectOf(entryOf(maps, p)) ?? [Infinity, Infinity, 0, 0];
+  return (l, r) => at(l)[1] - at(r)[1] || at(l)[0] - at(r)[0] || order.indexOf(l) - order.indexOf(r);
+}
+
+/**
+ * Owner paths are a fact the line states: either every grouped element is restyled by the same
+ * owner(s) ("when the opt is checked"), or each by its own ("when the matching opt is checked").
+ * A group that is neither is split, so the line never generalises past the capture.
+ */
+function byOwnerSharing(paths: string[], bySubject: Map<string, Finding[]>): string[][] {
+  const ownersOf = (p: string) =>
+    elementSources(bySubject.get(p)!.filter(isStateFinding), (changes) =>
+      JSON.stringify(changes.map(changeKey).sort()),
+    ).map((source) => source.owners.join('\0'));
+  const tuples = paths.map(ownersOf);
+  const shared = tuples.every((t) => JSON.stringify(t) === JSON.stringify(tuples[0]));
+  const distinct = tuples[0].every((_, i) => new Set(tuples.map((t) => t[i])).size === tuples.length || !tuples[0][i]);
+  if (shared || distinct) return [paths];
+  const split = new Map<string, string[]>();
+  paths.forEach((p, i) => split.set(JSON.stringify(tuples[i]), [...(split.get(JSON.stringify(tuples[i])) ?? []), p]));
+  return [...split.values()];
+}
+
+/** Group a change group's shown findings into change sections, in page order. */
+export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleMap]): ChangeSection[] {
+  const bySubject = new Map<string, Finding[]>();
+  for (const f of findings) {
+    const key = subjectPath(f);
+    bySubject.set(key, [...(bySubject.get(key) ?? []), f]);
+  }
+  const order = byPosition(maps, [...bySubject.keys()]);
+  const groups = new Map<string, string[]>();
+  for (const p of [...bySubject.keys()].sort(order)) {
+    const entry = entryOf(maps, p);
+    // Elements group only when their state sources have the same shape (own or owner label, owner
+    // count, props), so a line drawn from the first element is true of every element.
+    const states = bySubject.get(p)!.filter(isStateFinding);
+    const shapes = elementSources(states, (changes) => JSON.stringify(changes.map(changeKey).sort()))
+      .map((source) => sourceShape(source, states))
+      .sort();
+    const key = JSON.stringify([prettyLabel(p, entry?.cls ?? ''), shapes, changeSignature(bySubject.get(p)!)]);
+    groups.set(key, [...(groups.get(key) ?? []), p]);
+  }
+  return [...groups.values()]
+    .flatMap((paths) => byOwnerSharing(paths, bySubject))
+    .map((paths) => {
+      const entry = entryOf(maps, paths[0]);
+      const selector = prettyLabel(paths[0], entry?.cls ?? '');
+      const own = paths.flatMap((p) => bySubject.get(p)!);
+      const page = maps[1].elements[paths[0]] ? maps[1] : maps[0];
+      const sameSelectorCount = Object.entries(page.elements).filter(
+        ([p, e]) => prettyLabel(p, e.cls) === selector,
+      ).length;
+      const subject = {
+        tag: entry?.tag ?? '',
+        cls: entry?.cls ?? '',
+        path: paths[0],
+        texts: paths.map((p) => entryOf(maps, p)?.text ?? ''),
+        count: paths.length,
+        sameSelectorCount: Math.max(sameSelectorCount, paths.length),
+      };
+      const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
+      return {
+        title: selector,
+        selector,
+        paths,
+        sameSelectorCount: subject.sameSelectorCount,
+        findings: own,
+        states: [...(own.some((f) => f.kind !== 'state') ? (['rest'] as const) : []), ...states],
+      };
+    });
+}
