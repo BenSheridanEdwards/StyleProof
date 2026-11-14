@@ -462,6 +462,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     return { md, json, findingCount };
   }
   if (
+    ctx.layout !== 'visual-first' &&
     !hasExposedChangedEntry(mapA, mapB, changedPaths, pngs) &&
     !STATE_LAYER_NAMES.some((state) => {
       const statePaths = findings.filter((f) => f.kind === 'state' && f.state === state).map((f) => f.path);

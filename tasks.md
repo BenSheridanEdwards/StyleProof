@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 18: forced-state layers and resting values; surface helper extracted, build and 16 focused tests pass; one-shot thread link unavailable; no PR requested.
+
 - Slice 15: crop-limit receipts and opening line in progress; one-shot thread link unavailable; no PR requested.
 - Slice 16: state owner sections in progress; one-shot thread link unavailable; no PR requested.
 
