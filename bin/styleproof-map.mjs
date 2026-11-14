@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { persistServerCoverage } from './server-coverage.mjs';
 // Capture this branch's computed-style map by running Playwright against the
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
 // optionally publish the bundle to the map store branch.
@@ -454,6 +455,7 @@ if (selectedConfig) {
   }
 }
 const runCapture = async (label, extraEnv = {}) => {
+  const runDir = path.normalize(path.isAbsolute(label) ? label : path.join(baseDir, label));
   const wrapper = selectedConfig
     ? path.join(path.dirname(selectedConfig), `.styleproof-capture-${process.pid}-${randomUUID()}.config.mjs`)
     : undefined;
@@ -483,10 +485,12 @@ const runCapture = async (label, extraEnv = {}) => {
         fs.writeFileSync(
           wrapper,
           `import imported from ${JSON.stringify(pathToFileURL(selectedConfig).href)};
+import { serverCoverageConfig } from ${JSON.stringify(new URL('./server-coverage.mjs', import.meta.url).href)};
 const config = await (imported?.default ?? imported);
+const instrument = server => serverCoverageConfig(server, ${JSON.stringify(path.join(runDir, 'server-v8'))}, ${externalServer});
 export default config && typeof config === 'object' ? { ...config, webServer: config.webServer && (Array.isArray(config.webServer)
-  ? config.webServer.map(server => ({ ...server, reuseExistingServer: ${externalServer} }))
-  : { ...config.webServer, reuseExistingServer: ${externalServer} }) } : config;
+  ? config.webServer.map(instrument)
+  : instrument(config.webServer)) } : config;
 `,
         );
       } catch (error) {
@@ -516,6 +520,7 @@ export default config && typeof config === 'object' ? { ...config, webServer: co
         }
       },
     );
+    persistServerCoverage(runDir, process.cwd());
     interruptedSignal = result.interruptedSignal;
     for (const stream of ['stdout', 'stderr']) if (pending[stream]) emit(stream, pending[stream]);
     return { ...result, foreignServer, status: foreignServer ? 2 : result.status };
