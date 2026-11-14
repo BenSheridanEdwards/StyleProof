@@ -10,6 +10,7 @@
 ## In progress
 
 - #1348: collect keyframes once and include imported/adopted sheets; one-shot build, no PR requested.
+- Slice 7: pair scaling and written sizes, branch `feat/report-pair-scale`; current build thread; no PR requested.
 
 - Visual-first report (branch `feat/report-visual-first`), round 18 QA passed on c4c33265, review next. T3 thread 78b3b986 (parent), T3 thread 2f8b53f8 (builder). No pull request yet; it opens unmerged for Ben's crop check.
 - Narrower veto fix for label-rename pairing. Mini thread 0dffec52 (`thread:project:cdcc779a-c17f-4d69-996f-c3904aff19ff:0dffec52-7358-410f-b7e5-b93d80033603`). [Pull request #1322](https://github.com/BenSheridanEdwards/StyleProof/pull/1322).
