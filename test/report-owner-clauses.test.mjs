@@ -88,6 +88,13 @@ for (const [name, changes, expected] of PER_OWNER)
 test('matching before fill remains in the visual-first sentence', (t) => {
   assert.equal(
     sentence(t, [(i) => ({ color: G[i], pseudo: { 'background-color': G[i] } })]),
-    'On the opt label (Option 1), the text colour changes from green to red and background from green to red when the opt is checked. At rest it looks the same.',
+    'On the opt label (Option 1), the text colour changes from green to red and `::before` background from green to red when the opt is checked. At rest it looks the same.',
+  );
+});
+
+test('a mixed host and ::before clause names ::before (QA14-05, #1374)', (t) => {
+  assert.equal(
+    sentence(t, [(i) => ({ color: G[i], pseudo: { 'background-color': W[i] } })]),
+    'On the opt label (Option 1), the text colour changes from green to red and `::before` background from white to dark indigo when the opt is checked. At rest it looks the same.',
   );
 });
