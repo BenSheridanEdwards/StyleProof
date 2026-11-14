@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { reachKey } from '../dist/reach-ledger.js';
 const corpus = JSON.parse(fs.readFileSync('bench/reach-corpus.json'));
-const run = (input, ledger = '') => {
+const run = (input, ledger = '', expectedStatus = 1) => {
   const result = spawnSync(
     process.execPath,
     ['bin/styleproof.mjs', 'reach', '--json', ...(input ? [] : ['bench/reach-corpus.results.json'])],
@@ -16,7 +16,7 @@ const run = (input, ledger = '') => {
       env: { ...process.env, STYLEPROOF_REACH: ledger },
     },
   );
-  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.status, expectedStatus, result.stderr);
   return JSON.parse(result.stdout);
 };
 test('reach --json names the guarding condition for every unreached reach-corpus case', () => {
@@ -69,7 +69,7 @@ test('reach --json audits acknowledgements against derived unreached keys', () =
       ledger,
       JSON.stringify({ [row.reachKey]: 'Reviewed join', [reachKey('stale.js', 'stale')]: 'Old' }),
     );
-    const output = run(null, ledger);
+    const output = run(null, ledger, 1);
     assert.equal(output.units.find((r) => r.reachKey === row.reachKey).acknowledged, true);
     assert.ok(!output.audit.unacknowledged.includes(row.reachKey));
     assert.equal(output.audit.staleAcknowledgements.length, 1);

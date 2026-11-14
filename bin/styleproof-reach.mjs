@@ -55,6 +55,7 @@ if (args.includes('--help')) {
       acknowledgements,
     );
     console.log(JSON.stringify({ version: 1, units, audit }, null, 2));
+    if (!audit.passed) process.exitCode = 1;
   } catch (error) {
     console.error(`styleproof reach: ${error.message}`);
     process.exitCode = 2;

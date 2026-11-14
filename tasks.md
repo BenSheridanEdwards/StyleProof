@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Refs #1006: reach acknowledgement gate; one-shot thread link unavailable; no PR requested.
+
 - Refs #1361: crop overlap regression and visual-first isolation; current one-shot thread link unavailable; no PR requested.
 
 - Slice 11: review follow-up in progress for [pull request #1362](https://github.com/BenSheridanEdwards/StyleProof/pull/1362); merged-frame heading regression; full verification owned by orchestrator; current thread link unavailable.
