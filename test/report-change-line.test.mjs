@@ -24,5 +24,5 @@ test('structural resting sentences', () => {
 test('colour words require two close names', () => {
   const line = (before, after) => changeLine({ subject, rest: [{ prop: 'color', before, after }] });
   assert.equal(line('#000000', '#ffffff'), 'The card changes text colour from black to white.');
-  assert.match(line('#123456', '#ffffff'), /`#123456` to `#ffffff`/);
+  assert.match(line('#a5f3fc', '#ffffff'), /`#a5f3fc` to `#ffffff`/);
 });

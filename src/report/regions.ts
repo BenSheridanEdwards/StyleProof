@@ -1,3 +1,4 @@
+import { sectionLine } from './change-line.js';
 import type { PNG } from 'pngjs';
 import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import type { DiffCounts, Finding } from '../diff.js';
@@ -301,6 +302,12 @@ function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean):
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
   const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
   const md = ['', `### ${a.g.title ?? regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
+  if (a.g.title) {
+    for (const section of buildChangeSections(a.g.findings ?? cropFindings, [a.mapA, a.mapB])) {
+      const line = sectionLine(section, [a.mapA, a.mapB]);
+      if (line) md.push('', line);
+    }
+  }
   const changes = a.changes(cropFindings);
   changes.summary.forEach((appended) => md.push(appended));
   spacingLines(a.spacing).forEach((appended) => md.push(appended));
