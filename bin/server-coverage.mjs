@@ -25,7 +25,7 @@ export function serverCoverageConfig(server, directory, reuseExistingServer) {
       ? {
           env: {
             ...server.env,
-            NODE_V8_COVERAGE: directory,
+            NODE_V8_COVERAGE: server.env?.NODE_V8_COVERAGE ?? process.env.NODE_V8_COVERAGE ?? directory,
             NODE_OPTIONS:
               `${server.env?.NODE_OPTIONS ?? process.env.NODE_OPTIONS ?? ''} --import=${new URL('./server-coverage-preload.mjs', import.meta.url).href}`.trim(),
           },
@@ -78,6 +78,7 @@ function resolveServerScript(entry, projectRoot) {
 
 export function persistServerCoverage(targetDir, projectRoot) {
   const coverageDirectory = path.join(targetDir, 'server-v8');
+  if (process.env.NODE_V8_COVERAGE && path.resolve(process.env.NODE_V8_COVERAGE) === coverageDirectory) return;
   const serverScripts = readServerCoverage(coverageDirectory, projectRoot);
   if (fs.existsSync(coverageDirectory)) {
     for (const name of fs.readdirSync(coverageDirectory)) {

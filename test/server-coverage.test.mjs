@@ -25,7 +25,7 @@ test('only recognised servers receive coverage and existing env is retained', as
     command: 'node server.mjs',
     env: {
       PORT: '3000',
-      NODE_V8_COVERAGE: '/coverage',
+      NODE_V8_COVERAGE: process.env.NODE_V8_COVERAGE ?? '/coverage',
       NODE_OPTIONS:
         `${process.env.NODE_OPTIONS ?? ''} --import=${new URL('../bin/server-coverage-preload.mjs', import.meta.url).href}`.trim(),
     },
@@ -99,7 +99,8 @@ test('runCapture wrapper and persistence isolate primary and oracle coverage', a
             scriptReach: { version: 1, window: 'navigation', status: 'measured', scripts: [] },
           }),
         );
-        const coverage = config.webServer.env.NODE_V8_COVERAGE;
+        const coverage = path.join(directory, 'server-v8');
+        assert.equal(config.webServer.env.NODE_V8_COVERAGE, process.env.NODE_V8_COVERAGE ?? coverage);
         fs.mkdirSync(coverage, { recursive: true });
         const filename = path.join(process.cwd(), path.basename(root) + '.js');
         const map = { version: 3, sources: ['page.js'], sourcesContent: ['hello'], names: [], mappings: 'AAAA' };
@@ -142,4 +143,43 @@ test('runCapture wrapper and persistence isolate primary and oracle coverage', a
     fs.rmSync(path.join(process.cwd(), path.basename(root) + '.js'), { force: true });
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('inherited coverage remains owned by the runner', async () => {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { spawnSync } = await import('node:child_process');
+  const { serverCoverageConfig, persistServerCoverage } = await import('../bin/server-coverage.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'runner-coverage-'));
+  const inherited = path.join(root, 'server-v8');
+  const previous = process.env.NODE_V8_COVERAGE;
+  try {
+    process.env.NODE_V8_COVERAGE = inherited;
+    const config = serverCoverageConfig({ command: 'node server.mjs' }, path.join(root, 'isolated'), false);
+    assert.equal(config.env.NODE_V8_COVERAGE, inherited);
+    const child = spawnSync(process.execPath, ['-e', 'console.log(process.env.NODE_V8_COVERAGE)'], {
+      encoding: 'utf8',
+      env: { ...process.env, ...config.env },
+    });
+    assert.equal(child.status, 0, child.stderr);
+    assert.equal(child.stdout.trim(), inherited);
+    assert.equal(
+      spawnSync(process.execPath, ['-p', 'process.env.NODE_V8_COVERAGE'], { encoding: 'utf8' }).stdout.trim(),
+      inherited,
+    );
+    persistServerCoverage(root, root);
+    assert.ok(fs.readdirSync(inherited).some((name) => name.endsWith('.json')));
+    assert.equal(process.env.NODE_V8_COVERAGE, inherited);
+    assert.equal(
+      serverCoverageConfig({ command: 'node server.mjs', env: { NODE_V8_COVERAGE: inherited } }, root, false).env
+        .NODE_V8_COVERAGE,
+      inherited,
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NODE_V8_COVERAGE;
+    else process.env.NODE_V8_COVERAGE = previous;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+  assert.equal(process.env.NODE_V8_COVERAGE, previous);
 });
