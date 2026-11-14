@@ -1,3 +1,4 @@
+import { escapeHtmlAttribute } from '../code-span.js';
 import { PNG } from 'pngjs';
 import type { Rect } from '../capture.js';
 import { writeBudgetedPng } from './crop-budget.js';
@@ -162,4 +163,23 @@ export function writeWhereMap(
     return null;
   }
   return { image, side: spec.side, page, view, boxes };
+}
+/** The compact report.json receipt for a Where map: its image, the capture it is drawn on, and the boxes. */
+export const whereReceipt = (map: WhereMap) => ({
+  image: map.image,
+  side: map.side,
+  boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
+});
+
+/**
+ * The map's Markdown: one line, so GitHub keeps the image inline with its caption
+ * (a line holding only an `<img>` would start a raw HTML block).
+ */
+export function whereMapLine(ctx: RenderCtx, map: WhereMap, things: string, page?: string): string {
+  const on = page ? `on ${page}` : 'on the page';
+  const where = map.side === 'after' ? on : `${on} before the change`;
+  return (
+    `<img src="${escapeHtmlAttribute(ctx.img(map.image))}" width="320" alt="${escapeHtmlAttribute(`Where ${where}: ${things} highlighted`)}">` +
+    `<br><sub>Where: ${escapeHtmlAttribute(things)} ${escapeHtmlAttribute(where)}</sub>`
+  );
 }
