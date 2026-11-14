@@ -119,3 +119,30 @@ test('a pair whose sides differ in size records the size of each side (RV20-05)'
   assert.notEqual(bh, ah);
   assert.deepEqual(region.size, { w: aw, h: ah, base: { w: bw, h: bh } });
 });
+
+test('default and legacy retain identical main-shaped report artifacts', (t) => {
+  const root = mkTmp('styleproof-pair-legacy-');
+  t.after(() => rmTmp(root));
+  for (const side of ['before', 'after']) {
+    const elements = {
+      'body > button': { tag: 'button', rect: [20, 20, 200, 60], style: { color: side === 'before' ? 'red' : 'blue' } },
+    };
+    writeCapture(path.join(root, side), 'home@1280', makeMap({ elements }), solidPng(1280, 400));
+  }
+  const reports = [undefined, 'legacy'].map((layout, i) => {
+    const outDir = path.join(root, `out-${i}`);
+    generateReport({
+      beforeDir: path.join(root, 'before'),
+      afterDir: path.join(root, 'after'),
+      outDir,
+      ...(layout ? { layout } : {}),
+    });
+    return outDir;
+  });
+  const crops = fs.readdirSync(path.join(reports[0], 'crops')).sort();
+  assert.ok(crops.some((name) => name.endsWith('-composite.png')));
+  assert.ok(crops.every((name) => !/-(before|after)\.png$/.test(name)));
+  for (const file of ['report.md', 'report.json', ...crops.map((name) => `crops/${name}`)]) {
+    assert.deepEqual(fs.readFileSync(path.join(reports[0], file)), fs.readFileSync(path.join(reports[1], file)));
+  }
+});
