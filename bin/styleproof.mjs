@@ -16,6 +16,7 @@ const GROUPS = {
     ['variants', 'variants', 'inspect and generate surface variants'],
     ['components', 'components', 'audit component-manifest coverage'],
     ['affected', 'affected', 'resolve surfaces affected by changed source files'],
+    ['reach', 'reach', 'present reach remediation evidence as JSON'],
   ],
   review: [
     ['compare', 'diff', 'compare base and head captures, fail closed by default'],
