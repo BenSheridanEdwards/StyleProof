@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { test } from 'node:test';
 import { reachKey } from '../dist/reach-ledger.js';
@@ -60,11 +62,19 @@ test('reach --json derives guards instead of echoing supplied ones', () => {
 });
 test('reach --json audits acknowledgements against derived unreached keys', () => {
   const row = run().units.find((r) => r.case === 'ternary-arm' && r.scenario === 'declared');
-  const ledger = '.styleproof-bot/pr2-test-ledger.json';
-  fs.writeFileSync(ledger, JSON.stringify({ [row.reachKey]: 'Reviewed join', [reachKey('stale.js', 'stale')]: 'Old' }));
-  const output = run(null, ledger);
-  assert.equal(output.units.find((r) => r.reachKey === row.reachKey).acknowledged, true);
-  assert.ok(!output.audit.unacknowledged.includes(row.reachKey));
-  assert.equal(output.audit.staleAcknowledgements.length, 1);
-  assert.equal(output.audit.passed, false);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'styleproof-reach-ack-'));
+  const ledger = path.join(dir, 'styleproof.reach.json');
+  try {
+    fs.writeFileSync(
+      ledger,
+      JSON.stringify({ [row.reachKey]: 'Reviewed join', [reachKey('stale.js', 'stale')]: 'Old' }),
+    );
+    const output = run(null, ledger);
+    assert.equal(output.units.find((r) => r.reachKey === row.reachKey).acknowledged, true);
+    assert.ok(!output.audit.unacknowledged.includes(row.reachKey));
+    assert.equal(output.audit.staleAcknowledgements.length, 1);
+    assert.equal(output.audit.passed, false);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
