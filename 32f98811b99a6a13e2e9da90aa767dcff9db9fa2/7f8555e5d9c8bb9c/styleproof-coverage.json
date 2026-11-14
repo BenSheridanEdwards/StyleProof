@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "expected": [
+    "home"
+  ],
+  "exclude": {},
+  "determinism": "self-checked",
+  "dataResidue": "gate"
+}
