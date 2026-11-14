@@ -9,6 +9,7 @@
 
 ## In progress
 
+- Refs #1006: PR #1364 review fix validated (80 focused tests passed) (one-shot thread link unavailable): align CLI audit JSON with exit status.
 - Refs #1006: PR A range-content acknowledgement gate implementation and focused validation; one-shot thread link unavailable; no PR requested.
 
 - Refs #1361: crop overlap regression and visual-first isolation; current one-shot thread link unavailable; no PR requested.

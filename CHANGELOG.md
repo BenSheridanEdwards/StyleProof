@@ -7,7 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Refs #1006: invalidate reach acknowledgements after declaration edits and print stale-key pruning instructions at the armed gate.
+- Refs #1006: invalidate reach acknowledgements after declaration edits and print stale-key pruning instructions at the armed gate. `styleproof reach --json` now exits 1 when the acknowledgement audit fails, and its printed `audit.passed` field matches that exit. It exits 0 when the audit passes and 2 for bad input. Keyless units appear in `audit.unacknowledgeable` to explain why the run is held.
 
 - Capture keyframe bodies from imported and adopted stylesheets. Cross-origin sheets, including cross-origin `@import`, still give no body. Shadow-root stylesheets remain out of scope.
 

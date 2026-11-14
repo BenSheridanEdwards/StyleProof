@@ -87,3 +87,13 @@ test('passing audit exits zero and bad input exits two', () => {
   const result = spawnSync(process.execPath, ['bin/styleproof.mjs', 'reach', '--bad'], { encoding: 'utf8' });
   assert.equal(result.status, 2);
 });
+
+test('reach --json reports a failed audit for keyless units with no ledger', () => {
+  const output = run();
+  assert.equal(output.audit.passed, false);
+  assert.ok(output.audit.unacknowledgeable.length > 0);
+  assert.deepEqual(
+    output.audit.unacknowledgeable,
+    output.units.filter((unit) => !unit.reachKey),
+  );
+});

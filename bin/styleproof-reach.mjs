@@ -56,8 +56,9 @@ if (args.includes('--help')) {
         .filter(Boolean),
       acknowledgements,
     );
+    audit.unacknowledgeable = units.filter((unit) => !unit.reachKey);
+    if (audit.unacknowledgeable.length) audit.passed = false;
     console.log(JSON.stringify({ version: 1, units, audit }, null, 2));
-    if (units.some((unit) => !unit.reachKey)) audit.passed = false;
     if (!audit.passed) process.exitCode = 1;
   } catch (error) {
     console.error(`styleproof reach: ${error.message}`);
