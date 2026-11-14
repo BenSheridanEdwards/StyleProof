@@ -102,7 +102,7 @@ export function colorNameIfClose(v: string): string | null {
   const chroma = Math.hypot(a1, b1);
   const band = NEUTRAL_LIGHTNESS[base];
   if (band) return chroma <= NEUTRAL_CHROMA && lightness >= band[0] && lightness <= band[1] ? name : null;
-  const [, a2, b2] = lab(...entry[1]);
+  const [, a2, b2] = lab(entry[1][0], entry[1][1], entry[1][2]);
   const gap = Math.abs(((Math.atan2(b1, a1) - Math.atan2(b2, a2)) * 180) / Math.PI);
   return chroma > NEUTRAL_CHROMA && Math.min(gap, 360 - gap) <= MAX_HUE_GAP ? name : null;
 }
