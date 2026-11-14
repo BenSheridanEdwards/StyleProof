@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 13: resting Show the CSS table in progress; one-shot thread link unavailable; no PR requested.
+
 - Refs #1006: PR B acknowledgement report output implemented for [pull request #1366](https://github.com/BenSheridanEdwards/StyleProof/pull/1366); typecheck and 49 focused tests passed; one-shot thread link unavailable; full verification owned by orchestrator.
 
 - Slice 12: resting change sentences implemented; focused verification complete; current one-shot thread link unavailable; no PR requested.
