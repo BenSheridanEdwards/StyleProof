@@ -46,13 +46,16 @@ for (const layout of ['visual-first', 'legacy']) {
               tag: driven ? 'input' : 'div',
               cls: driven ? 'opt' : 'card',
               rect: [20, 20, 200, 100],
-              style: driven ? {} : { padding: changed ? '16px' : '8px' },
+              style: driven ? {} : { padding: changed ? '16px' : '8px', height: changed ? '120px' : '100px' },
             },
             [target]: {
               tag: driven ? 'label' : 'p',
               cls: driven ? 'lbl' : 'title',
               rect: [30, 40, 100, 30],
-              style: { color: !driven && changed ? '#ff0000' : '#000000' },
+              style: {
+                color: !driven && changed ? '#ff0000' : '#000000',
+                ...(!driven ? { height: changed ? '40px' : '30px' } : {}),
+              },
             },
           },
           ...(driven
@@ -75,6 +78,7 @@ for (const layout of ['visual-first', 'legacy']) {
           if (layout === 'visual-first') assert.match(md, /### .*label/);
         } else {
           assert.match(md, /16px/);
+          assert.equal((md.match(/\| `height` \| `30px` \| `40px` \|/g) ?? []).length, 1, md);
         }
       } finally {
         rmTmp(fixture.root);
