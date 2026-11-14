@@ -1,6 +1,7 @@
 import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
 import type { Finding, PropChange } from '../diff.js';
 import { prettyLabel, summarizeProps } from '../change-groups.js';
+import { sectionTitle } from './section-title.js';
 import { screenshotRectOf } from './geometry.js';
 
 export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
@@ -177,7 +178,7 @@ export function buildChangeSections(findings: Finding[], maps: [StyleMap, StyleM
       };
       const states = STATE_LAYER_NAMES.filter((state) => own.some((f) => f.kind === 'state' && f.state === state));
       return {
-        title: selector,
+        title: sectionTitle(subject),
         selector,
         paths,
         sameSelectorCount: subject.sameSelectorCount,

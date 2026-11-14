@@ -86,7 +86,7 @@ for (const layout of ['visual-first', 'legacy']) {
         assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1, md);
         if (driven) {
           assert.match(md, /:checked/);
-          if (layout === 'visual-first') assert.match(md, /### .*label/);
+          if (layout === 'visual-first') assert.match(md, /### Lbl/);
         } else {
           assert.match(md, /16px/);
           assert.equal((md.match(/\| `height` \| `30px` \| `40px` \|/g) ?? []).length, 1, md);
