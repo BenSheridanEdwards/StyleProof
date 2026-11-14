@@ -23,7 +23,10 @@ function sentence(t, changes) {
     const states = {};
     changes.forEach((props, i) => {
       elements[at('input', i + 1)] = opt(i);
-      states[at('input', i + 1)] = { checked: { [target]: props(before ? 0 : 1) } };
+      const { pseudo, ...own } = props(before ? 0 : 1);
+      states[at('input', i + 1)] = {
+        checked: { [target]: own, ...(pseudo ? { [`${target}::before`]: pseudo } : {}) },
+      };
     });
     const dir = path.join(root, side);
     writeCapture(dir, 'form@390', makeMap({ elements, states }), solidPng(390, 260));
@@ -81,3 +84,10 @@ for (const [name, changes, expected] of PER_OWNER)
     assert.equal(line, expected);
     assert.doesNotMatch(line, /one of the \d+|either of|any of the|each changes|also change|and \d+ more| or the /);
   });
+
+test('matching before fill remains in the visual-first sentence', (t) => {
+  assert.equal(
+    sentence(t, [(i) => ({ color: G[i], pseudo: { 'background-color': G[i] } })]),
+    'On the opt label (Option 1), the text colour changes from green to red and background from green to red when the opt is checked. At rest it looks the same.',
+  );
+});

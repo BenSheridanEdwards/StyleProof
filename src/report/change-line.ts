@@ -1,3 +1,4 @@
+import { CURRENTCOLOR_FOLLOWERS } from '../prop-summary.js';
 import type { Finding } from '../diff.js';
 import type { StyleMap } from '../capture.js';
 import { summarizeProps, isGeometryOnlyGroup } from '../change-groups.js';
@@ -128,7 +129,17 @@ export function withoutColorEchoes<T extends StateProp>(props: T[]): T[] {
   const color = props.find((p) => p.prop === 'color' && !p.pseudo);
   if (!color) return props;
   return props.filter(
-    (p) => p === color || p.painted || !/color$/.test(p.prop) || p.before !== color.before || p.after !== color.after,
+    (p) =>
+      p === color ||
+      p.painted ||
+      p.pseudo !== color.pseudo ||
+      !(
+        CURRENTCOLOR_FOLLOWERS.includes(p.prop) ||
+        p.prop === 'border-color' ||
+        /^border-(top|right|bottom|left)-color$/.test(p.prop)
+      ) ||
+      p.before !== color.before ||
+      p.after !== color.after,
   );
 }
 
