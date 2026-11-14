@@ -239,7 +239,7 @@ function walk(c: Ctx, site: TS.Node, path: string[], depth: number): Found {
   };
 }
 
-function otherSource(evidence: Evidence, side: 'base' | 'head', file: string): string | undefined {
+function otherSource(evidence: Evidence, side: string, file: string): string | undefined {
   return evidence.sources[side === 'base' ? 'head' : 'base']?.[file];
 }
 
