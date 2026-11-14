@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 8: group identical visual-first changes; current one-shot thread (link unavailable); no PR requested.
+
 - Address coverage union review for [PR #1355](https://github.com/BenSheridanEdwards/StyleProof/pull/1355); current one-shot thread (link unavailable).
 
 - #1348: collect keyframes once and include imported/adopted sheets; one-shot build, no PR requested.
