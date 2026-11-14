@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { sectionTitle } from '../dist/report/section-title.js';
 
+import { generateStructuralStyleMapReportForTesting as report } from '../dist/report.js';
+import { makeMap, pairFixture, solidPng, rmTmp } from './helpers.mjs';
+
 test('section names describe repeated titles and shared button text', () => {
   const subject = { tag: 'h2', cls: 'card-title', path: 'h2', texts: ['', ''], count: 2, sameSelectorCount: 2 };
   assert.equal(sectionTitle(subject), 'Card titles');
@@ -11,9 +14,6 @@ test('section names describe repeated titles and shared button text', () => {
     'Add to basket buttons',
   );
 });
-import { generateStructuralStyleMapReportForTesting as report } from '../dist/report.js';
-import { makeMap, pairFixture, solidPng, rmTmp } from './helpers.mjs';
-
 for (const layout of ['visual-first', 'legacy']) {
   test(`${layout} groups identical padding changes only when requested`, () => {
     const map = (padding) =>
@@ -86,7 +86,7 @@ for (const layout of ['visual-first', 'legacy']) {
         assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1, md);
         if (driven) {
           assert.match(md, /:checked/);
-          if (layout === 'visual-first') assert.match(md, /### Lbl/);
+          if (layout === 'visual-first') assert.match(md, /### Label/);
         } else {
           assert.match(md, /16px/);
           assert.equal((md.match(/\| `height` \| `30px` \| `40px` \|/g) ?? []).length, 1, md);
@@ -136,7 +136,9 @@ test('crop limit names all merged sections', () => {
     const merged = headings('visual-first', 1);
     assert.equal(merged.length, 1);
     assert.match(merged[0], /### .*`[^`]*card-title[^`]*` · 3 elements restyled/);
-    assert.deepEqual(headings('legacy', 1), merged);
+    const legacy = headings('legacy', 1);
+    assert.equal(legacy.length, 1);
+    assert.match(legacy[0], /### .*`button.cta` · 3 elements restyled/);
   } finally {
     rmTmp(fixture.root);
   }

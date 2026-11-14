@@ -9,7 +9,7 @@
 
 ## In progress
 
-- Slice 11: section names and close colour names implemented; focused tests red then green (8/8); full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
+- Slice 11: review follow-up in progress for [pull request #1362](https://github.com/BenSheridanEdwards/StyleProof/pull/1362); merged-frame heading regression; full verification owned by orchestrator; current thread link unavailable.
 
 - Reach CLI derived remediation: three focused CLI tests pass after red baseline; hooks-on commits; full suite owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
 

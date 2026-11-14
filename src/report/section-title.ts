@@ -50,7 +50,7 @@ const TAG_NOUNS: Record<string, string> = {
 };
 
 /** Class words too terse to read as a name; the tag noun says it better. */
-const TERSE_CLASSES = new Set(['btn', 'img', 'nav', 'el']);
+const TERSE_CLASSES = new Set(['btn', 'img', 'nav', 'el', 'lbl']);
 
 const MAX_TEXT = 32;
 

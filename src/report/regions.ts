@@ -119,7 +119,7 @@ function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number):
 /** Collapse every group into one merged frame (past maxCrops). */
 function collapseGroups(groups: Group[]): Group[] {
   const [first, ...rest] = groups;
-  const acc: Group = { ...first, paths: [...first.paths], before: first.before, after: first.after };
+  const acc: Group = { ...first, title: undefined, paths: [...first.paths], before: first.before, after: first.after };
   for (const g of rest) mergeInto(acc, g);
   return [acc];
 }
