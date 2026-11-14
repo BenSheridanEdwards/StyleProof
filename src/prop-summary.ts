@@ -79,7 +79,7 @@ function cleanVal(v: string): string {
 }
 
 // These default to `currentColor`, so a `color` change drags them all along.
-const CURRENTCOLOR_FOLLOWERS = `caret-color outline-color column-rule-color row-rule-color text-decoration-color
+export const CURRENTCOLOR_FOLLOWERS = `caret-color outline-color column-rule-color row-rule-color text-decoration-color
   text-emphasis-color -webkit-text-fill-color -webkit-text-stroke-color`.split(/\s+/);
 
 const sameChange = (a: PropChange, b: PropChange) => a.before === b.before && a.after === b.after;
