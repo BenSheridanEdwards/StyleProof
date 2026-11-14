@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 9: folded-row ownership and crop framing implemented; focused checks complete; full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
+
 - Slice 8: group identical visual-first changes; implementation and focused checks complete; full verification owned by orchestrator; current one-shot thread (link unavailable); no PR requested.
 
 - Address coverage union review for [PR #1355](https://github.com/BenSheridanEdwards/StyleProof/pull/1355); current one-shot thread (link unavailable).

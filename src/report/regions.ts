@@ -8,6 +8,7 @@ import { buildChangeSections } from './change-sections.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
+  containerOf,
   intersects,
   outermost,
   paddedRect,
@@ -44,6 +45,50 @@ function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number):
     before: paddedRect(a.elements[pathKey], padBy),
     after: paddedRect(b.elements[pathKey], padBy),
   };
+}
+
+/** The crop box for one element: its padded box on both sides, so size changes read directly. */
+function elementBox(ctx: RenderCtx, maps: [StyleMap, StyleMap], p: string): Box | null {
+  const a = paddedRect(maps[0].elements[p], ctx.padBy);
+  const b = paddedRect(maps[1].elements[p], ctx.padBy);
+  return visible(a) && visible(b) ? union(a, b) : visible(b) ? b : visible(a) ? a : null;
+}
+
+/** A crop frame larger than this is not "the element's card": keep the element's own frame. */
+const MAX_FRAME = { w: 640, h: 480 };
+
+/**
+ * The crop frame for a changed element. When the element alone is smaller than the crop
+ * window, the window would cut through whatever surrounds it, so frame the largest
+ * enclosing box (a card or component) that still fits a crop; otherwise the element.
+ */
+function frameBox(ctx: RenderCtx, maps: [StyleMap, StyleMap], p: string): Box | null {
+  const own = elementBox(ctx, maps, p);
+  if (!own || (own.w >= ctx.minWidth && own.h >= ctx.minHeight)) return own;
+  let frame = own;
+  for (let ancestor = containerOf(p); ancestor; ancestor = containerOf(ancestor)) {
+    const box = elementBox(ctx, maps, ancestor);
+    if (!box) continue;
+    // An ancestor painted elsewhere (the element sits in an inner scroller) cannot frame it.
+    if (
+      !encloses(box, own) ||
+      box.w > Math.max(MAX_FRAME.w, ctx.minWidth) ||
+      box.h > Math.max(MAX_FRAME.h, ctx.minHeight)
+    ) {
+      break;
+    }
+    frame = box;
+  }
+  return frame;
+}
+
+function encloses(outer: Box, inner: Box): boolean {
+  return (
+    outer.x <= inner.x &&
+    outer.y <= inner.y &&
+    outer.x + outer.w >= inner.x + inner.w &&
+    outer.y + outer.h >= inner.y + inner.h
+  );
 }
 
 const boxesOverlap = (l: Box | null, r: Box | null): boolean => visible(l) && visible(r) && intersects(l, r);
@@ -141,6 +186,7 @@ const flat = (changes: CropChanges): string[] => [...changes.summary, ...changes
 type RegionArgs = {
   ctx: RenderCtx;
   g: Group;
+  groups: Group[];
   cg: ChangeGroup;
   mapA: StyleMap;
   mapB: StyleMap;
@@ -264,7 +310,21 @@ function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
 
   const regionFindings = g.findings
-    ? [...g.findings, ...(cg.rep.folded ?? []).filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)))]
+    ? [
+        ...g.findings,
+        ...(cg.rep.folded ?? []).filter((f) =>
+          g.paths.some(
+            (root) =>
+              isSameOrDescendant(f.path, root) &&
+              !a.groups.some((other) =>
+                other.paths.some(
+                  (candidate) =>
+                    candidate !== root && isSameOrDescendant(candidate, root) && isSameOrDescendant(f.path, candidate),
+                ),
+              ),
+          ),
+        ),
+      ]
     : [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
         g.paths.some((root) => isSameOrDescendant(f.path, root)),
       );
@@ -384,7 +444,13 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   let groups =
     ctx.layout === 'visual-first'
       ? buildChangeSections(findings, [mapA, mapB]).map((section) => ({
-          ...collapseGroups(section.paths.map((p) => groupForPath(p, mapA, mapB, ctx.padBy)))[0],
+          ...collapseGroups(
+            section.paths.map((p) => ({
+              paths: [p],
+              before: frameBox(ctx, [mapA, mapA], p),
+              after: frameBox(ctx, [mapB, mapB], p),
+            })),
+          )[0],
           findings: section.findings,
         }))
       : groupRegions(changedPaths, mapA, mapB, ctx.padBy);
@@ -396,7 +462,21 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     const region = visible(g.after) ? g.after : g.before;
     const own = claimSpacing(spacing, g.paths, claimed);
 
-    return renderRegion({ ctx, g, cg, mapA, mapB, describeCtx, surfaceList, region, pngs, seq, spacing: own, changes });
+    return renderRegion({
+      ctx,
+      g,
+      groups,
+      cg,
+      mapA,
+      mapB,
+      describeCtx,
+      surfaceList,
+      region,
+      pngs,
+      seq,
+      spacing: own,
+      changes,
+    });
   });
   const regions = rendered.map((r) => r.regionJson);
   // Keep reflow ancestors in one capped table outside the crop budget.
