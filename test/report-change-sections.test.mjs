@@ -1,6 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { sectionTitle } from '../dist/report/section-title.js';
+
+test('section names describe repeated titles and shared button text', () => {
+  const subject = { tag: 'h2', cls: 'card-title', path: 'h2', texts: ['', ''], count: 2, sameSelectorCount: 2 };
+  assert.equal(sectionTitle(subject), 'Card titles');
+  assert.equal(
+    sectionTitle({ ...subject, tag: 'button', cls: '', texts: ['Add to basket', 'Add to basket'] }),
+    'Add to basket buttons',
+  );
+});
 import { generateStructuralStyleMapReportForTesting as report } from '../dist/report.js';
 import { makeMap, pairFixture, solidPng, rmTmp } from './helpers.mjs';
 
@@ -26,6 +36,7 @@ for (const layout of ['visual-first', 'legacy']) {
       const result = report({ ...fixture, layout, padBy: 0 });
       const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      assert.match(md, layout === 'visual-first' ? /### .*Cards/ : /### .*div.card/);
       assert.equal(json.surfaces[0].regions.length, layout === 'visual-first' ? 1 : 3);
       assert.equal((md.match(/^### /gm) ?? []).length, layout === 'visual-first' ? 1 : 3);
     } finally {
