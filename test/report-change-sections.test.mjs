@@ -33,3 +33,52 @@ for (const layout of ['visual-first', 'legacy']) {
     }
   });
 }
+
+for (const layout of ['visual-first', 'legacy']) {
+  for (const driven of [true, false]) {
+    test(`${layout} preserves ${driven ? 'driven checked sibling' : 'parent and child'} changes once`, () => {
+      const owner = driven ? 'body > input:nth-child(1)' : 'body > div:nth-child(1)';
+      const target = driven ? 'body > label:nth-child(2)' : `${owner} > p:nth-child(1)`;
+      const map = (changed) =>
+        makeMap({
+          elements: {
+            [owner]: {
+              tag: driven ? 'input' : 'div',
+              cls: driven ? 'opt' : 'card',
+              rect: [20, 20, 200, 100],
+              style: driven ? {} : { padding: changed ? '16px' : '8px' },
+            },
+            [target]: {
+              tag: driven ? 'label' : 'p',
+              cls: driven ? 'lbl' : 'title',
+              rect: [30, 40, 100, 30],
+              style: { color: !driven && changed ? '#ff0000' : '#000000' },
+            },
+          },
+          ...(driven
+            ? { states: { [owner]: { checked: { [target]: { color: changed ? '#ff0000' : '#000000' } } } } }
+            : {}),
+        });
+      const fixture = pairFixture({
+        surface: 'home@1280',
+        before: map(false),
+        after: map(true),
+        beforePng: solidPng(400, 300),
+        afterPng: solidPng(400, 300),
+      });
+      try {
+        const result = report({ ...fixture, layout, padBy: 0 });
+        const md = fs.readFileSync(result.reportMdPath, 'utf8');
+        assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1, md);
+        if (driven) {
+          assert.match(md, /:checked/);
+          if (layout === 'visual-first') assert.match(md, /### .*label/);
+        } else {
+          assert.match(md, /16px/);
+        }
+      } finally {
+        rmTmp(fixture.root);
+      }
+    });
+  }
+}

@@ -1,10 +1,10 @@
-import { buildChangeSections } from './change-sections.js';
 import type { PNG } from 'pngjs';
 import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
 import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
+import { buildChangeSections } from './change-sections.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
@@ -36,7 +36,7 @@ import {
 
 /** Crop regions for one change group, rendered top-to-bottom with their crops. */
 
-type Group = { paths: string[]; before: Box | null; after: Box | null };
+type Group = { findings?: Finding[]; paths: string[]; before: Box | null; after: Box | null };
 
 function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number): Group {
   return {
@@ -50,6 +50,7 @@ const boxesOverlap = (l: Box | null, r: Box | null): boolean => visible(l) && vi
 
 function mergeInto(left: Group, right: Group): void {
   right.paths.forEach((appended) => left.paths.push(appended));
+  if (right.findings) left.findings = [...(left.findings ?? []), ...right.findings];
   left.before = unionVisibleBoxes(left.before, right.before);
   left.after = unionVisibleBoxes(left.after, right.after);
 }
@@ -73,7 +74,7 @@ function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number):
 /** Collapse every group into one merged frame (past maxCrops). */
 function collapseGroups(groups: Group[]): Group[] {
   const [first, ...rest] = groups;
-  const acc: Group = { paths: [...first.paths], before: first.before, after: first.after };
+  const acc: Group = { ...first, paths: [...first.paths], before: first.before, after: first.after };
   for (const g of rest) mergeInto(acc, g);
   return [acc];
 }
@@ -262,9 +263,11 @@ function regionImages(stateOnly: boolean, resting: CropImages, states: Record<st
 function renderRegion(a: RegionArgs) {
   const { g, cg, surfaceList, region, pngs } = a;
 
-  const regionFindings = [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
-    g.paths.some((root) => isSameOrDescendant(f.path, root)),
-  );
+  const regionFindings = g.findings
+    ? [...g.findings, ...(cg.rep.folded ?? []).filter((f) => g.paths.some((root) => isSameOrDescendant(f.path, root)))]
+    : [...cg.rep.findings, ...(cg.rep.folded ?? [])].filter((f) =>
+        g.paths.some((root) => isSameOrDescendant(f.path, root)),
+      );
 
   const { rest, shownRest, hasDom, stateOnly } = regionVisibility(cg, regionFindings);
   const md: string[] = [];
@@ -380,9 +383,10 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
   }
   let groups =
     ctx.layout === 'visual-first'
-      ? buildChangeSections(findings, [mapA, mapB]).map(
-          (section) => collapseGroups(section.paths.map((p) => groupForPath(p, mapA, mapB, ctx.padBy)))[0],
-        )
+      ? buildChangeSections(findings, [mapA, mapB]).map((section) => ({
+          ...collapseGroups(section.paths.map((p) => groupForPath(p, mapA, mapB, ctx.padBy)))[0],
+          findings: section.findings,
+        }))
       : groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);
   const topY = (g: Group) => (visible(g.after) ? g.after.y : visible(g.before) ? g.before.y : Infinity);
