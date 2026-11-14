@@ -37,7 +37,7 @@ import {
 
 /** Crop regions for one change group, rendered top-to-bottom with their crops. */
 
-type Group = { findings?: Finding[]; paths: string[]; before: Box | null; after: Box | null };
+type Group = { title?: string; findings?: Finding[]; paths: string[]; before: Box | null; after: Box | null };
 
 function groupForPath(pathKey: string, a: StyleMap, b: StyleMap, padBy: number): Group {
   return {
@@ -119,7 +119,7 @@ function groupRegions(paths: string[], a: StyleMap, b: StyleMap, padBy: number):
 /** Collapse every group into one merged frame (past maxCrops). */
 function collapseGroups(groups: Group[]): Group[] {
   const [first, ...rest] = groups;
-  const acc: Group = { ...first, paths: [...first.paths], before: first.before, after: first.after };
+  const acc: Group = { ...first, title: undefined, paths: [...first.paths], before: first.before, after: first.after };
   for (const g of rest) mergeInto(acc, g);
   return [acc];
 }
@@ -253,7 +253,7 @@ function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUse
     if (!sf.length) continue;
     const headingFindings = firstHeadingUsesAll && md.length === 0 ? regionFindings : sf;
     const heading = headingFindings.filter((f) => a.cg.rep.findings.includes(f));
-    md.push('', `### ${regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
+    md.push('', `### ${a.g.title ?? regionHeading(a.g.paths, heading)} \`:${state}\``, '', a.surfaceList);
     const changes = a.changes(sf);
     changes.summary.forEach((appended) => md.push(appended));
     const layers = screenshotPair(a.ctx, a.cg.rep.sd.surface, `.${state}`);
@@ -281,7 +281,7 @@ type RestingSection = { md: string[]; pack: CropPack; trailing: string[] };
 function restingSection(a: RegionArgs, cropFindings: Finding[], shown: boolean): RestingSection {
   if (!shown) return { md: [], pack: { md: [], images: {} }, trailing: spacingLines(a.spacing) };
   const heading = cropFindings.filter((f) => a.cg.rep.findings.includes(f));
-  const md = ['', `### ${regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
+  const md = ['', `### ${a.g.title ?? regionHeading(a.g.paths, heading)}`, '', a.surfaceList];
   const changes = a.changes(cropFindings);
   changes.summary.forEach((appended) => md.push(appended));
   spacingLines(a.spacing).forEach((appended) => md.push(appended));
@@ -452,6 +452,7 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
             })),
           )[0],
           findings: section.findings,
+          title: section.title,
         }))
       : groupRegions(changedPaths, mapA, mapB, ctx.padBy);
   if (groups.length > ctx.maxCrops) groups = collapseGroups(groups);

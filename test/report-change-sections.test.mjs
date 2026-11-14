@@ -1,9 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import { sectionTitle } from '../dist/report/section-title.js';
+
 import { generateStructuralStyleMapReportForTesting as report } from '../dist/report.js';
 import { makeMap, pairFixture, solidPng, rmTmp } from './helpers.mjs';
 
+test('section names describe repeated titles and shared button text', () => {
+  const subject = { tag: 'h2', cls: 'card-title', path: 'h2', texts: ['', ''], count: 2, sameSelectorCount: 2 };
+  assert.equal(sectionTitle(subject), 'Card titles');
+  assert.equal(
+    sectionTitle({ ...subject, tag: 'button', cls: '', texts: ['Add to basket', 'Add to basket'] }),
+    'Add to basket buttons',
+  );
+});
 for (const layout of ['visual-first', 'legacy']) {
   test(`${layout} groups identical padding changes only when requested`, () => {
     const map = (padding) =>
@@ -26,6 +36,7 @@ for (const layout of ['visual-first', 'legacy']) {
       const result = report({ ...fixture, layout, padBy: 0 });
       const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      assert.match(md, layout === 'visual-first' ? /### .*Cards/ : /### .*div.card/);
       assert.equal(json.surfaces[0].regions.length, layout === 'visual-first' ? 1 : 3);
       assert.equal((md.match(/^### /gm) ?? []).length, layout === 'visual-first' ? 1 : 3);
     } finally {
@@ -75,7 +86,7 @@ for (const layout of ['visual-first', 'legacy']) {
         assert.equal((md.match(/\| `color` \|/g) ?? []).length, 1, md);
         if (driven) {
           assert.match(md, /:checked/);
-          if (layout === 'visual-first') assert.match(md, /### .*label/);
+          if (layout === 'visual-first') assert.match(md, /### Label/);
         } else {
           assert.match(md, /16px/);
           assert.equal((md.match(/\| `height` \| `30px` \| `40px` \|/g) ?? []).length, 1, md);
@@ -86,3 +97,49 @@ for (const layout of ['visual-first', 'legacy']) {
     });
   }
 }
+
+test('crop limit names all merged sections', () => {
+  const map = (changed) =>
+    makeMap({
+      elements: {
+        'h2.card-title': {
+          tag: 'h2',
+          cls: 'card-title',
+          rect: [20, 20, 100, 30],
+          style: { color: changed ? '#ff0000' : '#000000' },
+        },
+        'button.cta': {
+          tag: 'button',
+          cls: 'cta',
+          rect: [20, 200, 100, 30],
+          style: { padding: changed ? '16px' : '8px' },
+        },
+        'p.note': { tag: 'p', cls: 'note', rect: [20, 400, 100, 30], style: { fontSize: changed ? '20px' : '16px' } },
+      },
+    });
+  const fixture = pairFixture({
+    surface: 'home@1280',
+    before: map(false),
+    after: map(true),
+    beforePng: solidPng(400, 600),
+    afterPng: solidPng(400, 600),
+  });
+  try {
+    const headings = (layout, maxCrops) => {
+      const result = report({ ...fixture, layout, padBy: 0, maxCrops });
+      return fs
+        .readFileSync(result.reportMdPath, 'utf8')
+        .split('\n')
+        .filter((line) => line.startsWith('### '));
+    };
+    assert.deepEqual(headings('visual-first', 8), ['### Card title', '### Cta', '### Note']);
+    const merged = headings('visual-first', 1);
+    assert.equal(merged.length, 1);
+    assert.match(merged[0], /### .*`[^`]*card-title[^`]*` · 3 elements restyled/);
+    const legacy = headings('legacy', 1);
+    assert.equal(legacy.length, 1);
+    assert.match(legacy[0], /### .*`button.cta` · 3 elements restyled/);
+  } finally {
+    rmTmp(fixture.root);
+  }
+});

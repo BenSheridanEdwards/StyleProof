@@ -66,6 +66,47 @@ export function colorName(v: string): string | null {
   return `${qual}${best}`;
 }
 
+/** CIELAB of an sRGB point (D65), for perceptual closeness. */
+function lab(r: number, g: number, b: number): [number, number, number] {
+  const lin = (c: number) => {
+    const v = c / 255;
+    return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+  };
+  const [lr, lg, lb] = [lin(r), lin(g), lin(b)];
+  const f = (t: number) => (t > 216 / 24389 ? Math.cbrt(t) : (841 / 108) * t + 4 / 29);
+  const x = f((0.4124 * lr + 0.3576 * lg + 0.1805 * lb) / 0.95047);
+  const y = f(0.2126 * lr + 0.7152 * lg + 0.0722 * lb);
+  const z = f((0.0193 * lr + 0.1192 * lg + 0.9505 * lb) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+
+const MAX_HUE_GAP = 25;
+const NEUTRAL_CHROMA = 10;
+/** CIELAB lightness each neutral word covers: "white" only near-white, "black" only near-black (RV11-14). */
+const NEUTRAL_LIGHTNESS: Record<string, [number, number]> = { white: [95, 100], black: [0, 8], gray: [20, 80] };
+
+/**
+ * `colorName`, but only when the word is genuinely close: a chromatic name must match the
+ * colour's hue within 25° (light/dark covers lightness), a neutral name needs a near-neutral
+ * colour inside that word's lightness band. Otherwise null, so callers show the value instead of
+ * a misleading word.
+ */
+export function colorNameIfClose(v: string): string | null {
+  const name = colorName(v);
+  const c = parseColor(v);
+  if (!name || !c || name === 'transparent') return name;
+  const base = name.replace(/^(light|dark) /, '');
+  const entry = PALETTE.find(([word]) => word === base);
+  if (!entry) return null;
+  const [lightness, a1, b1] = lab(c.r, c.g, c.b);
+  const chroma = Math.hypot(a1, b1);
+  const band = NEUTRAL_LIGHTNESS[base];
+  if (band) return chroma <= NEUTRAL_CHROMA && lightness >= band[0] && lightness <= band[1] ? name : null;
+  const [, a2, b2] = lab(entry[1][0], entry[1][1], entry[1][2]);
+  const gap = Math.abs(((Math.atan2(b1, a1) - Math.atan2(b2, a2)) * 180) / Math.PI);
+  return chroma > NEUTRAL_CHROMA && Math.min(gap, 360 - gap) <= MAX_HUE_GAP ? name : null;
+}
+
 /** rgb/rgba → `#rrggbb` (opaque) or the rgba string (translucent); non-colours pass through. */
 export function toHex(v: string): string {
   const c = parseColor(v);
