@@ -47,6 +47,7 @@ test('a changed rule is reached when a head state matched it, and never-rendered
   assert.equal(statusOf(result, '.link:hover').status, 'reached');
   assert.deepEqual(statusOf(result, '.panel--fault .indicator'), {
     key: '.panel--fault .indicator',
+    hash: 'h2b',
     change: 'changed',
     status: 'never-rendered',
     why: 'its selector never matched',
@@ -125,6 +126,7 @@ test('a token changed on one route is not hidden by another route already servin
   const result = classifyRuleReach(base, head);
   assert.deepEqual(statusOf(result, ':root'), {
     key: ':root',
+    hash: 'a1',
     change: 'changed',
     status: 'never-rendered',
     why: '--warn changed, and its consumer .fault never matched',
@@ -164,6 +166,7 @@ test('a custom property head deletes is a change its consumers must render', () 
   const head = map(rule(':root', 'h2', { used: true }), rule('.fault', 'f', { uses: ['--warn'] }));
   assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
     key: ':root',
+    hash: 'h2',
     change: 'changed',
     status: 'never-rendered',
     why: '--warn changed, and its consumer .fault never matched',
@@ -220,6 +223,7 @@ test('a changed @keyframes is a blind channel when a rendered rule references it
   const head = map(rule('@keyframes pulse', 'k2'), rule('.badge', 'b', { used: true, refs: ['pulse'] }));
   assert.deepEqual(statusOf(classifyRuleReach([base], [head]), '@keyframes pulse'), {
     key: '@keyframes pulse',
+    hash: 'k2',
     change: 'changed',
     status: 'blind-channel',
     why: 'referenced by .badge, which matched a captured element',
@@ -248,6 +252,7 @@ test('a changed @property is a blind channel only when a rendered rule reads or 
       map(rule('@property --brand', hash), rule('.btn', 'b', { ...reference, ...(used ? { used: true } : {}) }));
     assert.deepEqual(statusOf(classifyRuleReach([side('p1', true)], [side('p2', true)]), '@property --brand'), {
       key: '@property --brand',
+      hash: 'p2',
       change: 'changed',
       status: 'blind-channel',
       referrer: '.btn',
@@ -260,6 +265,7 @@ test('a changed @property is a blind channel only when a rendered rule reads or 
     outside.reach.rules[1].outside = true;
     assert.deepEqual(statusOf(classifyRuleReach([side('p1', true)], [outside]), '@property --brand'), {
       key: '@property --brand',
+      hash: 'p2',
       change: 'changed',
       status: 'unmeasured',
       why: 'referenced only by .btn, which matched only elements StyleProof does not compare',
@@ -311,6 +317,7 @@ test('removed and renamed custom properties require rendered consumers', () => {
     const head = cssMap(sheet('/app.css', `:root { ${declaration} } .fault { color: var(--warn); }`, ':root'));
     assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
       key: ':root',
+      hash: head.reach.rules[0].hash,
       change: 'changed',
       status: 'never-rendered',
       why,
@@ -354,6 +361,7 @@ test('unread tokens and alias cycles are never rendered', () => {
     const head = cssMap(sheet('/app.css', `:root { --warn: blue; ${aliases} }`, ':root'));
     assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
       key: ':root',
+      hash: head.reach.rules[0].hash,
       change: 'changed',
       status: 'never-rendered',
       why: `${prop} changed, and no served rule reads it outside a custom property`,
@@ -461,6 +469,7 @@ test('a ledger recorded before aliases classifies nothing, in any order', () => 
   const head = captured('blue');
   assert.deepEqual(statusOf(classifyRuleReach([base], [head]), ':root'), {
     key: ':root',
+    hash: head.reach.rules[0].hash,
     change: 'changed',
     status: 'never-rendered',
     consumer: '.hidden',
@@ -646,6 +655,7 @@ test('a changed @font-face is a blind channel only when a rendered rule uses its
     );
   assert.deepEqual(statusOf(classifyRuleReach([second('o1')], [second('o2')]), '@font-face #2'), {
     key: '@font-face #2',
+    hash: 'o2',
     change: 'changed',
     status: 'blind-channel',
     referrer: '.title',
@@ -685,6 +695,7 @@ test('the same maps in any order give the same result', () => {
   assert.deepEqual(classifyRuleReach([...base].reverse(), [...head].reverse()), forward);
   assert.deepEqual(statusOf(forward, '@keyframes pulse'), {
     key: '@keyframes pulse',
+    hash: 'k2',
     change: 'changed',
     status: 'blind-channel',
     referrer: '.a',
@@ -721,6 +732,7 @@ test('changed and removed outside-only rules are unmeasured', () => {
   ]) {
     assert.deepEqual(statusOf(classifyRuleReach([base], [head]), '.ignored'), {
       key: '.ignored',
+      ...(change === 'changed' && { hash: 'new' }),
       change,
       status: 'unmeasured',
       why: 'matched only elements StyleProof does not compare (shadow DOM, an iframe, or an ignored or volatile region)',
@@ -768,6 +780,7 @@ test('keyframes and font faces referenced only outside compared elements are unm
       map(rule(key, hash, key === '@font-face' ? { refs } : {}), rule('.outside', 'ref', { ...extra, refs }));
     assert.deepEqual(statusOf(classifyRuleReach([side('old')], [side('new')]), key), {
       key,
+      hash: 'new',
       change: 'changed',
       status: 'unmeasured',
       why: 'referenced only by .outside, which matched only elements StyleProof does not compare',
@@ -799,6 +812,7 @@ test('a changed token whose consumer matched only outside compared elements is u
       );
     assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
       key: ':root',
+      hash: 'blue',
       change: 'changed',
       status: 'unmeasured',
       consumer: '.ignored',
@@ -818,6 +832,7 @@ for (const outside of ['.a-outside', '.z-outside']) {
       );
     assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
       key: ':root',
+      hash: 'blue',
       change: 'changed',
       status: 'never-rendered',
       consumer: '.b-idle',
@@ -836,6 +851,7 @@ test('a later changed token with a never-matched consumer takes precedence over 
     );
   assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
     key: ':root',
+    hash: 'blue',
     change: 'changed',
     status: 'never-rendered',
     consumer: '.idle',
@@ -852,6 +868,7 @@ test('an outside-only token declaration still reports its never-matched consumer
     );
   assert.deepEqual(statusOf(classifyRuleReach([side('red')], [side('blue')]), ':root'), {
     key: ':root',
+    hash: 'blue',
     change: 'changed',
     status: 'never-rendered',
     consumer: '.idle',
@@ -870,6 +887,7 @@ test('never-rendered takes precedence over unmeasured bodies regardless of map o
   ]) {
     assert.deepEqual(statusOf(classifyRuleReach([map()], head), '.split'), {
       key: '.split',
+      hash: 'z',
       change: 'added',
       status: 'never-rendered',
       why: 'its selector never matched',

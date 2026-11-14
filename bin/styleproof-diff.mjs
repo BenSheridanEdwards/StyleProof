@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { printReachAudit } from './diff/print-gates.mjs';
 // Diff two computed-style map captures and apply every certification gate.
 // Per surface: DOM changes, computed-style changes (incl. pseudo elements), and
 // :hover/:focus/:active deltas. Custom properties (--*) are inputs, not outcomes.
@@ -144,6 +145,7 @@ const {
 } = result;
 const pixelSurfaces = result.pixels ?? [];
 const reach = read.reach;
+printReachAudit(reach);
 const reachBlocking = reach?.blocking ?? 0;
 
 // ── declared ledgers: legacy pairs and critical obligations ────────────────────
