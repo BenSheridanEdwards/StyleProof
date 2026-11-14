@@ -72,3 +72,5 @@
 - [x] Fix Slice 8 driven-state and parent-child region findings (PR #1356; current T3 build thread).
 
 - In progress: Slice 14 render visual-first change sections; focused verification in this build thread.
+
+- In progress: Slice 17 owner clauses (current build thread; no PR).

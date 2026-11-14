@@ -3,14 +3,14 @@ import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
 import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
-import { sectionLine, STATE_WORDS } from './change-line.js';
+import { sectionLine, type StateProp, type StateDriver, STATE_WORDS } from './change-line.js';
 import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
 import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
 import { codeValue } from '../code-span.js';
 import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
 import type { Finding, PropChange } from '../diff.js';
 import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../change-groups.js';
-import { sectionTitle } from './section-title.js';
+import { sectionNoun, type SectionSubject, sectionTitle } from './section-title.js';
 import { screenshotRectOf } from './geometry.js';
 
 export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
@@ -434,7 +434,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       '',
       `### ${section.title}`,
       '',
-      sectionLine(section, maps, ctx.layout === 'visual-first' ? stateSources(section) : undefined),
+      sectionLine(section, maps, ctx.layout === 'visual-first' ? lineSources(section, maps) : undefined),
       ...where.flatMap((map) => [
         '',
         whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
@@ -455,4 +455,95 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
     },
   };
+}
+
+function ownerSubject(maps: [StyleMap, StyleMap], finding: StateFinding): SectionSubject {
+  const entry = entryOf(maps, finding.path);
+  const tag = (finding.path.split('>').pop() ?? '').trim().replace(/[:.[].*$/, '') || 'element';
+  return {
+    tag: entry?.tag ?? tag,
+    cls: entry?.cls ?? finding.cls ?? '',
+    path: finding.path,
+    texts: [entry?.text ?? ''],
+    count: 1,
+    sameSelectorCount: 1,
+  };
+}
+
+function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [StyleMap, StyleMap]): Set<StateSource> {
+  const nounOf = (owner: string) =>
+    sectionNoun(
+      ownerSubject(
+        maps,
+        findings.find((f) => f.path === owner)!,
+      ),
+    );
+  const byNoun = new Map<string, Set<string>>();
+  for (const owner of sources.flatMap((source) => source.owners))
+    byNoun.set(nounOf(owner), new Set([...(byNoun.get(nounOf(owner)) ?? []), owner]));
+  return new Set(
+    sources.filter((source) => source.owners.length === 1 && byNoun.get(nounOf(source.owners[0]))!.size > 1),
+  );
+}
+
+const DRAWN_FOLLOWERS = new Set(['outline-color', 'column-rule-color', '-webkit-text-stroke-color']);
+
+function drawsColor(maps: [StyleMap, StyleMap], target: string, pseudo: string | undefined, prop: string): boolean {
+  const drawn = (style: Record<string, string>, part: string) =>
+    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
+  return maps.some((map) => {
+    const entry = map.elements[target];
+    const style = (pseudo ? entry?.pseudo?.[pseudo] : entry?.style) ?? {};
+    if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop))
+      return ['top', 'right', 'bottom', 'left'].some((side) => drawn(style, `border-${side}`));
+    if (prop === 'outline-color') return drawn(style, 'outline');
+    if (prop === 'column-rule-color') return drawn(style, 'column-rule');
+    if (prop === '-webkit-text-stroke-color') return !['0px', undefined].includes(style['-webkit-text-stroke-width']);
+    return false;
+  });
+}
+
+function statedProps(
+  maps: [StyleMap, StyleMap],
+  target: string,
+  changes: Array<{ props: PropChange[]; pseudo?: string }>,
+): StateProp[] {
+  return changes.flatMap(({ props, pseudo }) => {
+    const draws = (prop: string) => drawsColor(maps, target, pseudo, prop);
+    const drawn = props.filter((p) => DRAWN_FOLLOWERS.has(p.prop) && draws(p.prop));
+    return [...summarizeProps(props.filter((p) => !drawn.includes(p))), ...drawn].map((p) => ({
+      ...p,
+      ...(pseudo ? { pseudo } : {}),
+      ...(draws(p.prop) ? { painted: true as const } : {}),
+    }));
+  });
+}
+
+function sourceDriver(
+  section: ChangeSection,
+  maps: [StyleMap, StyleMap],
+  source: StateSource,
+  { firstStates, named }: { firstStates: StateFinding[]; named: Set<StateSource> },
+): StateDriver | undefined {
+  if (!source.owners.length) return undefined;
+  const ownerOf = (path: string) => firstStates.find((f) => f.path === path)!;
+  return {
+    subject: ownerSubject(maps, ownerOf(source.owners[0])),
+    owners: source.owners.length,
+
+    ...(named.has(source) || source.owners.length > 1 || !entryOf(maps, source.owners[0])
+      ? { name: 'label' as const }
+      : {}),
+  };
+}
+
+function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
+  const sources = stateSources(section);
+  const firstStates = section.findings.filter(isStateFinding);
+  const named = ownerNames(sources, firstStates, maps);
+  return sources.map((source) => ({
+    ...source,
+    props: statedProps(maps, section.paths[0], source.changes),
+    driver: sourceDriver(section, maps, source, { firstStates, named }),
+  }));
 }
