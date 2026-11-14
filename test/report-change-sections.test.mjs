@@ -21,14 +21,14 @@ for (const layout of ['visual-first', 'legacy']) {
         elements: Object.fromEntries(
           [0, 1, 2].map((i) => [
             `div:nth-child(${i + 1})`,
-            { cls: 'card', rect: [20, 20 + i * 180, 100, 80], style: { padding } },
+            { cls: 'card', rect: [20, 20 + i * 180, 100, padding === '24px' ? 96 : 80], style: { padding } },
           ]),
         ),
       });
     const fixture = pairFixture({
       surface: 'home@1280',
-      before: map('8px'),
-      after: map('16px'),
+      before: map('16px'),
+      after: map('24px'),
       beforePng: solidPng(400, 600),
       afterPng: solidPng(400, 600),
     });
@@ -36,6 +36,8 @@ for (const layout of ['visual-first', 'legacy']) {
       const result = report({ ...fixture, layout, padBy: 0 });
       const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
       const md = fs.readFileSync(result.reportMdPath, 'utf8');
+      if (layout === 'visual-first')
+        assert.ok(md.includes('All 3 cards change padding from `16px` to `24px`. Each is now 16px taller.'));
       assert.match(md, layout === 'visual-first' ? /### .*Cards/ : /### .*div.card/);
       assert.equal(json.surfaces[0].regions.length, layout === 'visual-first' ? 1 : 3);
       assert.equal((md.match(/^### /gm) ?? []).length, layout === 'visual-first' ? 1 : 3);
