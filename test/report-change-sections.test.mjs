@@ -135,9 +135,9 @@ test('crop limit names all merged sections', () => {
         .filter((line) => line.startsWith('### '));
     };
     assert.deepEqual(headings('visual-first', 8), ['### Card title', '### Cta', '### Note']);
-    const merged = headings('visual-first', 1);
-    assert.equal(merged.length, 1);
-    assert.match(merged[0], /### .*`[^`]*card-title[^`]*` · 3 elements restyled/);
+    // Visual-first lists every section past `--max-crops` rather than merging them (Slice 15).
+    const limited = headings('visual-first', 1);
+    assert.deepEqual(limited, ['### Card title', '### Cta', '### Note']);
     const legacy = headings('legacy', 1);
     assert.equal(legacy.length, 1);
     assert.match(legacy[0], /### .*`button.cta` · 3 elements restyled/);

@@ -9,6 +9,11 @@
 
 ## In progress
 
+- Slice 18: forced-state layers and resting values; surface helper extracted, build and 16 focused tests pass; one-shot thread link unavailable; no PR requested.
+
+- Slice 15: crop-limit receipts and opening line in progress; one-shot thread link unavailable; no PR requested.
+- Slice 16: state owner sections in progress; one-shot thread link unavailable; no PR requested.
+
 - Slice 13: resting Show the CSS table in progress; one-shot thread link unavailable; no PR requested.
 
 - Refs #1006: PR B acknowledgement report output implemented for [pull request #1366](https://github.com/BenSheridanEdwards/StyleProof/pull/1366); typecheck and 49 focused tests passed; one-shot thread link unavailable; full verification owned by orchestrator.
@@ -69,3 +74,5 @@
 - [x] Fix Slice 8 driven-state and parent-child region findings (PR #1356; current T3 build thread).
 
 - In progress: Slice 14 render visual-first change sections; focused verification in this build thread.
+
+- In progress: Slice 17 owner clauses (current build thread; no PR).

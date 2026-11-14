@@ -51,6 +51,7 @@ export type RenderCtx = {
   maxHeight: number;
   zoomBelow: number;
   maxCrops: number;
+  cropGaps?: { reason: 'budget' | 'size' | 'max-crops'; where: string }[];
   crops: CropBudget;
   foldDetailsAt: number;
   liveText: LiveTextAudit;

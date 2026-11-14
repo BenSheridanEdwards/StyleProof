@@ -1,16 +1,52 @@
+import { cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
 import { renderCropPair, cropNote, type CropImages, type PairSize } from './crop-pair.js';
-import { sectionLine } from './change-line.js';
+import { sectionLine, type StateProp, type StateDriver, STATE_WORDS } from './change-line.js';
 import { writeWhereMap, whereReceipt, whereMapLine, type WhereMap } from './where-map.js';
 import { paddedRect, unionVisibleBoxes, type Box } from './geometry.js';
 import { codeValue } from '../code-span.js';
 import { STATE_LAYER_NAMES, type ElementEntry, type StyleMap } from '../capture.js';
 import type { Finding, PropChange } from '../diff.js';
 import { prettyLabel, summarizeProps, summarizePropsWithFollowOns } from '../change-groups.js';
-import { sectionTitle } from './section-title.js';
+import { sectionNoun, type SectionSubject, sectionTitle } from './section-title.js';
 import { screenshotRectOf } from './geometry.js';
+
+export const SURFACE_SUBJECT = '(surface)';
+
+const layerName = (prop: string): string => codeValue(`:${prop.replace(/^forced :/, '').replace(/ layer$/, '')}`);
+const layerProps = (findings: Finding[]): PropChange[] => findings.flatMap((f) => (f.kind === 'state' ? f.props : []));
+
+/** "The forced `:checked` state was captured on head only, so it was not compared." */
+function stateLayerLine(findings: Finding[]): string {
+  const layers = layerProps(findings).map((p) => ({
+    name: layerName(p.prop),
+    side: p.before === 'captured' ? 'base' : p.after === 'captured' ? 'head' : 'one side',
+  }));
+  if (layers.length === 1) {
+    return `The forced ${layers[0].name} state was captured on ${layers[0].side} only, so it was not compared.`;
+  }
+  const list = layers.map((l) => `${l.name} (${l.side} only)`).join(', ');
+  return `The forced states ${list} were captured on one side only, so they were not compared.`;
+}
+
+function stateLayerFold(findings: Finding[]): string[] {
+  const side = (value: string) => (value === 'captured' ? 'captured' : value.replace(/; not compared$/, ''));
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    'Forced-state layers captured on one side only',
+    '',
+    '| Layer | Base | Head |',
+    '| --- | --- | --- |',
+    ...layerProps(findings).map((p) => `| ${layerName(p.prop)} | ${side(p.before)} | ${side(p.after)} |`),
+    '',
+    '</details>',
+  ];
+}
 
 export type PairState = 'rest' | (typeof STATE_LAYER_NAMES)[number];
 
@@ -83,6 +119,35 @@ function elementSources(findings: StateFinding[], keyOf: StatedKey): StateSource
       ({ state: at, own, owners, changes }) => ({ state: at, own, owners, changes }),
     );
   });
+}
+
+export function stateSources(section: ChangeSection): StateSource[] {
+  return elementSources(
+    section.findings.filter(isStateFinding).filter((f) => subjectPath(f) === section.paths[0]),
+    (changes) => JSON.stringify(changes.map(changeKey).sort()),
+  );
+}
+
+function stateBlocks(findings: Finding[]): string[] {
+  const owners = new Map<string, Finding[]>();
+  for (const f of findings.filter(isStateFinding)) owners.set(f.path, [...(owners.get(f.path) ?? []), f]);
+  if (!owners.size) return [];
+  return [
+    '',
+    '<details>',
+    '<summary>Show the CSS</summary>',
+    '',
+    ...[...owners.values()].flatMap((rows) => [
+      '',
+      `**${codeValue(prettyLabel(rows[0].path, rows[0].cls ?? ''))}**`,
+      '',
+      '| Property | Before | After |',
+      '| --- | --- | --- |',
+      ...propertyRows(rows).map((row) => `| ${row.join(' | ')} |`),
+    ]),
+    '',
+    '</details>',
+  ];
 }
 
 /** What a clause looks like without its owner paths: elements group only when these match. */
@@ -278,6 +343,7 @@ type SectionInput = {
   seq: { crop: number };
   box: Box | null;
   details: string[];
+  cropsAllowed?: boolean;
   alsoInView?: string;
 };
 function registerSection(): null {
@@ -312,7 +378,7 @@ type SectionPairs = {
   md: string[];
   images: CropImages;
   stateImages: Record<string, CropImages>;
-  omitted: boolean;
+  omitted: false | 'budget' | 'max-crops';
   size?: PairSize;
 };
 
@@ -336,12 +402,34 @@ function restingImages(images: CropImages, stateImages: Record<string, CropImage
     : (Object.values(stateImages).find((p) => p.after || p.before) ?? images);
 }
 
+function appendPairMarkdown(
+  ctx: RenderCtx,
+  input: SectionInput,
+  out: SectionPairs,
+  pair: ReturnType<typeof statePair>,
+) {
+  for (const line of pair.md) {
+    // The opening ✂️ line already names omitted crops once (rule 5).
+    if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
+    out.md.push(line);
+  }
+  if ('omitted' in pair && pair.omitted) {
+    if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
+    out.omitted = 'budget';
+  }
+}
+
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
+  if (input.cropsAllowed === false) {
+    ctx.cropGaps?.push({ reason: 'max-crops', where: input.surface });
+    out.omitted = 'max-crops';
+    return out;
+  }
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
-    for (const line of pair.md) out.md.push(line);
-    if ('omitted' in pair && pair.omitted) out.omitted = true;
+    if (ctx.layout === 'visual-first' && state !== 'rest') out.md.push('', `**While ${STATE_WORDS[state]}**`);
+    appendPairMarkdown(ctx, input, out, pair);
     applyPairImages(out, state, pair);
   }
   out.images = restingImages(out.images, out.stateImages);
@@ -365,23 +453,46 @@ function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
     return map ? [map] : [];
   });
 }
+function renderSurfaceLayerSection(ctx: RenderCtx, input: SectionInput) {
+  const { section } = input;
+  const pairs = sectionPairs(ctx, { ...input, section: { ...section, paths: [], states: [] } });
+  registerSection();
+  return {
+    md: [
+      '',
+      '### Interaction states not compared',
+      '',
+      stateLayerLine(section.findings),
+      ...pairs.md,
+      ...stateLayerFold(section.findings),
+    ],
+    region: {
+      paths: [],
+      before: null,
+      after: null,
+      images: pairs.images,
+      ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
+    },
+  };
+}
+
 export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
   const { section, maps } = input;
+  if (ctx.layout === 'visual-first' && section.paths[0] === SURFACE_SUBJECT)
+    return renderSurfaceLayerSection(ctx, input);
+  const paths = section.paths;
   const pairs = sectionPairs(ctx, input);
   const shown = Boolean(pairs.images.after || Object.values(pairs.stateImages).some((p) => p.after));
   const where = shown ? sectionWhereMaps(ctx, input) : [];
   registerSection();
   const boxes = (side: 0 | 1) =>
-    section.paths.reduce<Box | null>(
-      (box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)),
-      null,
-    );
+    paths.reduce<Box | null>((box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)), null);
   return {
     md: [
       '',
       `### ${section.title}`,
       '',
-      sectionLine(section, maps),
+      sectionLine(section, maps, ctx.layout === 'visual-first' ? lineSources(section, maps) : undefined),
       ...where.flatMap((map) => [
         '',
         whereMapLine(ctx, map, section.title, formatSurfaceWithContext(input.surface, maps[0], maps[1])),
@@ -389,16 +500,126 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ...pairs.md,
       ...cssDetailLines(section.findings),
       ...input.details,
+      ...(ctx.layout === 'visual-first' ? stateBlocks(section.findings) : []),
     ],
     region: {
-      paths: section.paths,
+      paths,
       before: boxes(0),
       after: boxes(1),
       images: pairs.images,
       ...(pairs.size ? { size: pairs.size } : {}),
       ...(Object.keys(pairs.stateImages).length ? { stateImages: pairs.stateImages } : {}),
       ...(where.length ? { where: where.map(whereReceipt) } : {}),
-      ...(pairs.omitted ? { cropOmitted: 'budget' } : {}),
+      ...(pairs.omitted ? { cropOmitted: pairs.omitted } : {}),
     },
   };
+}
+
+function ownerSubject(maps: [StyleMap, StyleMap], finding: StateFinding): SectionSubject {
+  const entry = entryOf(maps, finding.path);
+  const tag = (finding.path.split('>').pop() ?? '').trim().replace(/[:.[].*$/, '') || 'element';
+  return {
+    tag: entry?.tag ?? tag,
+    cls: entry?.cls ?? finding.cls ?? '',
+    path: finding.path,
+    texts: [entry?.text ?? ''],
+    count: 1,
+    sameSelectorCount: 1,
+  };
+}
+
+function ownerNames(sources: StateSource[], findings: StateFinding[], maps: [StyleMap, StyleMap]): Set<StateSource> {
+  const nounOf = (owner: string) =>
+    sectionNoun(
+      ownerSubject(
+        maps,
+        findings.find((f) => f.path === owner)!,
+      ),
+    );
+  const byNoun = new Map<string, Set<string>>();
+  for (const owner of sources.flatMap((source) => source.owners))
+    byNoun.set(nounOf(owner), new Set([...(byNoun.get(nounOf(owner)) ?? []), owner]));
+  return new Set(
+    sources.filter((source) => source.owners.length === 1 && byNoun.get(nounOf(source.owners[0]))!.size > 1),
+  );
+}
+
+const DRAWN_FOLLOWERS = new Set(['outline-color', 'column-rule-color', '-webkit-text-stroke-color']);
+
+function drawsColor(maps: [StyleMap, StyleMap], target: string, pseudo: string | undefined, prop: string): boolean {
+  const drawn = (style: Record<string, string>, part: string) =>
+    !['none', 'hidden', undefined].includes(style[`${part}-style`]) && style[`${part}-width`] !== '0px';
+  return maps.some((map) => {
+    const entry = map.elements[target];
+    const style = (pseudo ? entry?.pseudo?.[pseudo] : entry?.style) ?? {};
+    if (/^border(?:-(?:top|right|bottom|left))?-color$/.test(prop))
+      return ['top', 'right', 'bottom', 'left'].some((side) => drawn(style, `border-${side}`));
+    if (prop === 'outline-color') return drawn(style, 'outline');
+    if (prop === 'column-rule-color') return drawn(style, 'column-rule');
+    if (prop === '-webkit-text-stroke-color') return !['0px', undefined].includes(style['-webkit-text-stroke-width']);
+    return false;
+  });
+}
+
+function statedProps(
+  maps: [StyleMap, StyleMap],
+  target: string,
+  changes: Array<{ props: PropChange[]; pseudo?: string }>,
+): StateProp[] {
+  return changes.flatMap(({ props, pseudo }) => {
+    const draws = (prop: string) => drawsColor(maps, target, pseudo, prop);
+    const drawn = props.filter((p) => DRAWN_FOLLOWERS.has(p.prop) && draws(p.prop));
+    return [...summarizeProps(props.filter((p) => !drawn.includes(p))), ...drawn].map((p) => ({
+      ...p,
+      ...(pseudo ? { pseudo } : {}),
+      ...(draws(p.prop) ? { painted: true as const } : {}),
+    }));
+  });
+}
+
+function sourceDriver(
+  section: ChangeSection,
+  maps: [StyleMap, StyleMap],
+  source: StateSource,
+  { firstStates, named }: { firstStates: StateFinding[]; named: Set<StateSource> },
+): StateDriver | undefined {
+  if (!source.owners.length) return undefined;
+  const ownerOf = (path: string) => firstStates.find((f) => f.path === path)!;
+  return {
+    subject: ownerSubject(maps, ownerOf(source.owners[0])),
+    owners: source.owners.length,
+
+    ...(named.has(source) || source.owners.length > 1 || !entryOf(maps, source.owners[0])
+      ? { name: 'label' as const }
+      : {}),
+  };
+}
+
+function resting(maps: [StyleMap, StyleMap], target: string, side: 0 | 1, prop: PropChange, pseudo?: string): string {
+  const value = side === 0 ? prop.before : prop.after;
+  if (value !== (side === 0 ? '(state does not change it)' : '(state no longer changes it)')) return value;
+  const entry = maps[side].elements[target];
+  return (pseudo ? entry?.pseudo?.[pseudo]?.[prop.prop] : entry?.style?.[prop.prop]) ?? value;
+}
+
+function lineSources(section: ChangeSection, maps: [StyleMap, StyleMap]) {
+  const sources = stateSources(section);
+  const firstStates = section.findings.filter(isStateFinding);
+  const named = ownerNames(sources, firstStates, maps);
+  return sources.map((source) => ({
+    ...source,
+    props: statedProps(
+      maps,
+      section.paths[0],
+      source.changes.map((f) => ({
+        pseudo: source.changes.every((change) => pseudoOf(change)) ? pseudoOf(f) : undefined,
+        props: f.props.map((p) => ({
+          ...p,
+          before: resting(maps, section.paths[0], 0, p, pseudoOf(f)),
+          after: resting(maps, section.paths[0], 1, p, pseudoOf(f)),
+        })),
+      })),
+    ),
+    driver: sourceDriver(section, maps, source, { firstStates, named }),
+  }));
 }

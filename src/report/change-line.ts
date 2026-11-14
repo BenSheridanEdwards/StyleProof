@@ -1,15 +1,32 @@
-import type { PropChange, Finding } from '../diff.js';
+import { CURRENTCOLOR_FOLLOWERS } from '../prop-summary.js';
+import type { Finding } from '../diff.js';
 import type { StyleMap } from '../capture.js';
 import { summarizeProps, isGeometryOnlyGroup } from '../change-groups.js';
+import type { StateSource, ChangeSection } from './change-sections.js';
+import type { PropChange } from '../diff.js';
 import { sectionNoun, plural, type SectionSubject } from './section-title.js';
-import type { ChangeSection } from './change-sections.js';
 import { colorNameIfClose, toHex } from '../describe.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
-import { isNonValue } from '../change-groups.js';
+import { prettyLabel, isNonValue } from '../change-groups.js';
+
+export type StateProp = PropChange & { pseudo?: string; painted?: true };
+
+export type StateChange = {
+  state: string;
+  props: StateProp[];
+  driver?: StateDriver;
+};
+export type StateDriver = {
+  subject: Pick<SectionSubject, 'tag' | 'cls' | 'path' | 'texts'>;
+  owners: number;
+  matching?: true;
+  name?: 'label';
+};
 
 export type ChangeLineInput = {
   subject: SectionSubject;
   rest: Array<PropChange & { pseudo?: string }>;
+  states?: Array<{ state: string; props: StateProp[]; driver?: StateDriver }>;
   dom?: 'added' | 'removed' | 'retagged';
   geometryOnly?: boolean;
   size?: { dw: number; dh: number };
@@ -99,6 +116,60 @@ function fragmentList(fragments: string[]): string {
   return `${fragments.slice(0, -1).join(', ')} and ${fragments[fragments.length - 1]}`;
 }
 
+export const STATE_WORDS: Record<string, string> = {
+  hover: 'hovered',
+  focus: 'focused',
+  active: 'pressed',
+  checked: 'checked',
+  disabled: 'disabled',
+  'placeholder-shown': 'showing its placeholder',
+};
+
+export function withoutColorEchoes<T extends StateProp>(props: T[]): T[] {
+  const color = props.find((p) => p.prop === 'color' && !p.pseudo);
+  if (!color) return props;
+  return props.filter(
+    (p) =>
+      p === color ||
+      p.painted ||
+      p.pseudo !== color.pseudo ||
+      !(
+        CURRENTCOLOR_FOLLOWERS.includes(p.prop) ||
+        p.prop === 'border-color' ||
+        /^border-(top|right|bottom|left)-color$/.test(p.prop)
+      ) ||
+      p.before !== color.before ||
+      p.after !== color.after,
+  );
+}
+
+function stateClause(state: NonNullable<ChangeLineInput['states']>[number]): string {
+  const fragments = withoutColorEchoes(state.props).map(propFragment);
+  const words = fragmentList(fragments);
+  const clause = words.includes(' from ') ? words.replace(' from ', ' changes from ') : `${words} changes`;
+  const driver = state.driver
+    ? `${state.driver.owners > 1 || state.driver.name === 'label' ? codeValue(prettyLabel(state.driver.subject.path, state.driver.subject.cls)) + (state.driver.owners > 1 ? ` ×${state.driver.owners}` : '') : `the ${sectionNoun(state.driver.subject)}`} is `
+    : '';
+  return `${clause} when ${driver}${STATE_WORDS[state.state] ?? `:${state.state}`}`;
+}
+
+function listClauses(clauses: string[], article: string): string {
+  const [first, ...rest] = clauses;
+  if (!rest.length) return first;
+  const tail = rest.map((c) => `${article}${c}`);
+  return rest.length === 1
+    ? `${first}, and ${tail[0]}`
+    : `${[first, ...tail.slice(0, -1)].join(', ')}, and ${tail[tail.length - 1]}`;
+}
+
+function stateSentences(input: ChangeLineInput, who: string, many: boolean): string[] {
+  const clauses = (input.states ?? []).filter((st) => st.props.length).map((st) => stateClause(st));
+  if (!clauses.length) return [];
+  if (input.rest.length) return [`${many ? 'Their' : 'Its'} ${listClauses(clauses, '')}.`];
+  const rest = [many ? 'At rest they look the same.' : 'At rest it looks the same.'];
+  return [`On ${who}, the ${listClauses(clauses, 'the ')}.`, ...rest];
+}
+
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
   if (!size) return '';
   const parts = [
@@ -123,14 +194,19 @@ function structuralSentence(input: ChangeLineInput, who: string, many: boolean):
 export function changeLine(input: ChangeLineInput): string {
   const who = subjectPhrase(input.subject, sectionNoun(input.subject));
   const many = input.subject.count > 1;
-  return (
+  const resting =
     structuralSentence(input, who, many) ??
     (input.rest.length
       ? `${capitalise(who)} ${many ? 'change' : 'changes'} ${fragmentList(input.rest.map(propFragment))}.${sizeSentence(input.size, many)}`
-      : '')
-  );
+      : '');
+  return [resting, ...stateSentences(input, who, many)].filter(Boolean).join(' ');
 }
-export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap]): string {
+
+export function sectionLine(
+  section: ChangeSection,
+  maps: [StyleMap, StyleMap],
+  states?: Array<StateSource & { props: StateProp[]; driver?: StateDriver }>,
+): string {
   const entry = (p: string) => maps[1].elements[p] ?? maps[0].elements[p];
   const first = section.findings.filter((f) => f.path === section.paths[0] && f.kind !== 'state');
   const rest = first.flatMap((f) =>
@@ -154,6 +230,17 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap]):
       sameSelectorCount: section.sameSelectorCount,
     },
     rest,
+    ...(states
+      ? {
+          states: states.map((source) => {
+            return {
+              state: source.state,
+              props: source.props,
+              driver: source.driver,
+            };
+          }),
+        }
+      : {}),
     ...(dom ? { dom: dom.change } : {}),
     geometryOnly: isGeometryOnlyGroup(first),
     ...(size ? { size } : {}),
