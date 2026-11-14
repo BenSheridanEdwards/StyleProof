@@ -28,6 +28,8 @@
 
 ## Done
 
+- #1004 PR 1: built the amended Fallow cut on `feat/reach-guard`; 22 corpus pairs (14 declared, 8 complete), 386 counted lines; verify, E2E, bench check, mutation proof and Fallow passed. Local commit only; PR 1b and PR 2 unstarted. Thread link unavailable; no PR requested.
+
 - 2026-11-10: merged [pull request #1323](https://github.com/BenSheridanEdwards/StyleProof/pull/1323) (`tasks.md` and the task-tracking rule) at 18:02 Europe/London (01253bd9).
 - 2026-11-10: merged [pull request #1260](https://github.com/BenSheridanEdwards/StyleProof/pull/1260).
 - 2026-11-10: merged [pull request #1310](https://github.com/BenSheridanEdwards/StyleProof/pull/1310).

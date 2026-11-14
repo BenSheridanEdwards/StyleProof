@@ -113,6 +113,8 @@ async function corpusProbe(mode, rootUrl) {
 
   const mocks = {
     '@playwright/test': { chromium: { launch: async () => browser } },
+    typescript: { default: (await import('typescript')).default },
+    '../dist/reach-guard.js': await import(new URL('dist/reach-guard.js', rootUrl)),
     esbuild: { default: { build: async () => {} } },
     'node:fs': { default: fakeFs },
     'node:child_process': {

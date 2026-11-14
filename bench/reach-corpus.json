@@ -83,7 +83,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [[".panel--fault .indicator", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -110,7 +111,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [[":root", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -137,7 +139,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [[".badge--bad", "app.jsx:62 !(status === 'ok')", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -164,11 +167,13 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "blind-channel"
+          "reach": "blind-channel",
+          "remedy": [["@keyframes pulse", "blind-channel @keyframes pulse via .badge", ["home"], null]]
         },
         "complete": {
           "today": "missed",
-          "reach": "blind-channel"
+          "reach": "blind-channel",
+          "remedy": [["@keyframes pulse", "blind-channel @keyframes pulse via .badge", ["home", "fault", "status-bad", "dark", "wide"], null]]
         }
       }
     },
@@ -191,7 +196,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [["@media (prefers-color-scheme: dark) > .panel", "@media (prefers-color-scheme: dark)", ["home"], null]]
         },
         "complete": {
           "today": "shown",
@@ -218,7 +224,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [["@media (min-width: 1440px) > .panel", "@media (min-width: 1440px)", ["home"], null]]
         },
         "complete": {
           "today": "shown",
@@ -245,7 +252,8 @@
       "expect": {
         "declared": {
           "today": "missed",
-          "reach": "never-rendered"
+          "reach": "never-rendered",
+          "remedy": [[".panel--fault", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -304,11 +312,13 @@
           "reach": "unknown",
           "joins": {
             "J2": "ran"
-          }
+          },
+          "remedy": [["app.jsx:42", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
-          "reach": "unknown"
+          "reach": "unknown",
+          "remedy": [["app.jsx:42", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     },
@@ -337,7 +347,8 @@
             "J3": "never-rendered"
           },
           "classCount": 1,
-          "baseClassCount": 0
+          "baseClassCount": 0,
+          "remedy": [["app.jsx:53", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -346,7 +357,8 @@
             "J3": "unknown"
           },
           "classCount": 1,
-          "baseClassCount": 0
+          "baseClassCount": 0,
+          "remedy": [["app.jsx:53", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     },
@@ -376,7 +388,8 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:8", "app.jsx:85 !(probe.status === 'ok')", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -386,7 +399,8 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:8", "app.jsx:85 !(probe.status === 'ok')", ["home", "fault", "status-bad", "dark", "wide"], ["status-bad"]]]
         }
       }
     },
@@ -416,7 +430,8 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "never-rendered"
+          "baseJ3": "never-rendered",
+          "remedy": [["app.jsx:9", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -426,7 +441,8 @@
           },
           "classCount": 1,
           "baseClassCount": 1,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:9", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     },
@@ -482,14 +498,16 @@
           "reach": "unknown",
           "joins": {
             "J2": "ran"
-          }
+          },
+          "remedy": [["app.jsx:75", "app.jsx:89 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
             "J2": "ran"
-          }
+          },
+          "remedy": [["app.jsx:75", "app.jsx:89 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     },
@@ -514,14 +532,16 @@
           "reach": "unknown",
           "joins": {
             "J2": "ran"
-          }
+          },
+          "remedy": [["app.jsx:76", "app.jsx:90 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
           "reach": "unknown",
           "joins": {
             "J2": "ran"
-          }
+          },
+          "remedy": [["app.jsx:76", "app.jsx:90 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     },
@@ -597,7 +617,8 @@
           },
           "classCount": 2,
           "baseClassCount": 2,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:10", null, ["home"], null], ["app.jsx:11", "app.jsx:88 probe.fault", ["home"], []]]
         },
         "complete": {
           "today": "shown",
@@ -608,7 +629,8 @@
           },
           "classCount": 2,
           "baseClassCount": 2,
-          "baseJ3": "unknown"
+          "baseJ3": "unknown",
+          "remedy": [["app.jsx:10", null, ["home", "fault", "status-bad", "dark", "wide"], null], ["app.jsx:11", "app.jsx:88 probe.fault", ["home", "fault", "status-bad", "dark", "wide"], ["fault"]]]
         }
       }
     }

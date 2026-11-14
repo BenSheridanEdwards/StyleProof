@@ -46,6 +46,8 @@ export type RuleReach = {
   why: string;
   /** The at-rules a never-rendered rule sits inside, when any. */
   condition?: string;
+  consumer?: string;
+  referrer?: string;
   /** Where the rule was served from (URL path, `inline`, `constructed`). */
   sheet?: string;
 };
@@ -283,8 +285,8 @@ function tokenShortfall(
   side: Side,
   before: readonly Variant[],
   ctx: Context,
-): Pick<RuleReach, 'status' | 'why'> | undefined {
-  let unmeasured: Pick<RuleReach, 'status' | 'why'> | undefined;
+): Pick<RuleReach, 'status' | 'why' | 'consumer'> | undefined {
+  let unmeasured: Pick<RuleReach, 'status' | 'why' | 'consumer'> | undefined;
   for (const prop of changedVars(v, before, ctx)) {
     const closure = tokenClosure(side, prop);
     const idle = side.sorted.filter(
@@ -304,10 +306,12 @@ function tokenShortfall(
       if (!side.outside.has(consumer.id))
         return {
           status: 'never-rendered',
+          consumer: consumer.key,
           why: `${prop} changed${through}, and its consumer ${consumer.key} never matched`,
         };
       unmeasured ??= {
         status: 'unmeasured',
+        consumer: consumer.key,
         why: `${prop} changed${through}, and its consumer ${consumer.key} matched only elements StyleProof does not compare`,
       };
     }
@@ -358,6 +362,7 @@ function shortfall(
     if (referrer)
       return {
         status: 'blind-channel',
+        referrer: referrer.key,
         why: `referenced by ${referrer.key}, which matched a captured element`,
         ...sheet,
       };
