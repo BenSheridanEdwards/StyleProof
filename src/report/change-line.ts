@@ -2,7 +2,7 @@ import type { PropChange, Finding } from '../diff.js';
 import type { StyleMap } from '../capture.js';
 import { summarizeProps, isGeometryOnlyGroup } from '../change-groups.js';
 import { sectionNoun, plural, type SectionSubject } from './section-title.js';
-import type { ChangeSection } from './change-sections.js';
+import type { StateSource, ChangeSection } from './change-sections.js';
 import { colorNameIfClose, toHex } from '../describe.js';
 import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 import { isNonValue } from '../change-groups.js';
@@ -10,6 +10,7 @@ import { isNonValue } from '../change-groups.js';
 export type ChangeLineInput = {
   subject: SectionSubject;
   rest: Array<PropChange & { pseudo?: string }>;
+  states?: Array<{ state: string; props: PropChange[]; driver?: SectionSubject }>;
   dom?: 'added' | 'removed' | 'retagged';
   geometryOnly?: boolean;
   size?: { dw: number; dh: number };
@@ -99,6 +100,30 @@ function fragmentList(fragments: string[]): string {
   return `${fragments.slice(0, -1).join(', ')} and ${fragments[fragments.length - 1]}`;
 }
 
+export const STATE_WORDS: Record<string, string> = {
+  hover: 'hovered',
+  focus: 'focused',
+  active: 'pressed',
+  checked: 'checked',
+  disabled: 'disabled',
+  'placeholder-shown': 'showing its placeholder',
+};
+
+function stateClause(state: NonNullable<ChangeLineInput['states']>[number]): string {
+  const fragments = state.props.map(propFragment);
+  const words = fragmentList(fragments);
+  const clause = words.includes(' from ') ? words.replace(' from ', ' changes from ') : `${words} changes`;
+  const driver = state.driver ? `the ${sectionNoun(state.driver)} is ` : '';
+  return `${clause} when ${driver}${STATE_WORDS[state.state] ?? `:${state.state}`}`;
+}
+
+function stateSentences(input: ChangeLineInput, who: string): string {
+  return (input.states ?? [])
+    .filter((s) => s.props.length)
+    .map((s) => `${input.rest.length ? 'Its' : `On ${who}, the`} ${stateClause(s)}.`)
+    .join(' ');
+}
+
 function sizeSentence(size: ChangeLineInput['size'], many: boolean): string {
   if (!size) return '';
   const parts = [
@@ -123,14 +148,14 @@ function structuralSentence(input: ChangeLineInput, who: string, many: boolean):
 export function changeLine(input: ChangeLineInput): string {
   const who = subjectPhrase(input.subject, sectionNoun(input.subject));
   const many = input.subject.count > 1;
-  return (
+  const resting =
     structuralSentence(input, who, many) ??
     (input.rest.length
       ? `${capitalise(who)} ${many ? 'change' : 'changes'} ${fragmentList(input.rest.map(propFragment))}.${sizeSentence(input.size, many)}`
-      : '')
-  );
+      : '');
+  return [resting, stateSentences(input, who)].filter(Boolean).join(' ');
 }
-export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap]): string {
+export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap], states?: StateSource[]): string {
   const entry = (p: string) => maps[1].elements[p] ?? maps[0].elements[p];
   const first = section.findings.filter((f) => f.path === section.paths[0] && f.kind !== 'state');
   const rest = first.flatMap((f) =>
@@ -154,6 +179,30 @@ export function sectionLine(section: ChangeSection, maps: [StyleMap, StyleMap]):
       sameSelectorCount: section.sameSelectorCount,
     },
     rest,
+    ...(states
+      ? {
+          states: states.map((source: StateSource) => {
+            const path = source.owners[0];
+            const owner = entry(path);
+            return {
+              state: source.state,
+              props: source.changes.flatMap((f) => summarizeProps(f.props)),
+              ...(!source.own
+                ? {
+                    driver: {
+                      tag: owner?.tag ?? '',
+                      cls: owner?.cls ?? '',
+                      path,
+                      texts: [owner?.text ?? ''],
+                      count: 1,
+                      sameSelectorCount: 1,
+                    },
+                  }
+                : {}),
+            };
+          }),
+        }
+      : {}),
     ...(dom ? { dom: dom.change } : {}),
     geometryOnly: isGeometryOnlyGroup(first),
     ...(size ? { size } : {}),

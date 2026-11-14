@@ -10,6 +10,7 @@
 ## In progress
 
 - Slice 15: crop-limit receipts and opening line in progress; one-shot thread link unavailable; no PR requested.
+- Slice 16: state owner sections in progress; one-shot thread link unavailable; no PR requested.
 
 - Slice 13: resting Show the CSS table in progress; one-shot thread link unavailable; no PR requested.
 
