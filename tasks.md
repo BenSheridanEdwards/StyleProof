@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 20: remaining QA14–QA19 owner-truth cases (21 new; QA14-05 mixed-pseudo and both QA16-01 already on main via #1376/#1377); 50 focused tests pass; a mutation that drops ×N is rejected by QA14-01 two-pairs and three existing ×N cases; one-shot thread link unavailable; no PR requested.
+
 - #1375: group echo-only owner differences; regression tests red then green, build and 29 focused tests pass; full suite owned by orchestrator; one-shot thread link unavailable; no PR requested.
 
 - Slice 19: owner-truth harness implemented; 24 focused tests pass; first-owner mutation rejected by five cases; fallow --fix unsupported by installed CLI; one-shot thread link unavailable; no PR requested.
