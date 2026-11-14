@@ -19,7 +19,7 @@ import {
   isSameOrDescendant,
   type Box,
 } from './geometry.js';
-import { cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
+import { cropWindow, cropNote, MISLEADING_CROP_REASON, renderCropPair, type CropImages } from './crop-pair.js';
 import { codeValue } from '../code-span.js';
 import { cropChangeParts, oneSidedDomPaths, regionHeading, type CropChanges } from './markdown.js';
 import {
@@ -238,11 +238,30 @@ function regionCrop(a: RegionArgs, findings: Finding[], [pngA, pngB]: Pngs, stat
     rectsA: rectsOf(marked.before, mapA),
     rectsB: rectsOf(marked.after, mapB),
     labels: state ? { left: `base :${state}`, right: `head :${state}` } : undefined,
+    alsoInView: a.ctx.layout === 'visual-first' ? foreignChangeCaption(a, pngA, pngB) : undefined,
     captions: {
       annotated: `magenta boxes mark each change${changedLabel}`,
       zoom: (factor) => `magnified ${factor}× — change too small to see at 1:1${changedLabel}`,
     },
   })!;
+}
+
+/** Name other sections whose changed pixels share this crop window. */
+function foreignChangeCaption(a: RegionArgs, pngA: PNG, pngB: PNG): string | undefined {
+  const box = visible(a.g.before) && visible(a.g.after) ? union(a.g.before, a.g.after) : a.region;
+  if (!box) return undefined;
+  const { aligned } = cropWindow(a.ctx, box, pngA, pngB);
+  const names = a.groups
+    .filter((other) => other !== a.g)
+    .flatMap((other) =>
+      (other.findings ?? []).flatMap((finding) => {
+        const changed = elementBox(a.ctx, [a.mapA, a.mapB], finding.path);
+        const entry = a.mapB.elements[finding.path] ?? a.mapA.elements[finding.path];
+        if (!changed || !entry || !intersects(aligned, changed)) return [];
+        return [`${codeValue(shortElementName(entry))} (${other.title ?? 'another section'})`];
+      }),
+    );
+  return names.length ? `Also in view: ${names.join(', ')}` : undefined;
 }
 
 function stateSections(a: RegionArgs, regionFindings: Finding[], firstHeadingUsesAll: boolean) {
