@@ -367,6 +367,23 @@ function restingImages(images: CropImages, stateImages: Record<string, CropImage
     : (Object.values(stateImages).find((p) => p.after || p.before) ?? images);
 }
 
+function appendPairMarkdown(
+  ctx: RenderCtx,
+  input: SectionInput,
+  out: SectionPairs,
+  pair: ReturnType<typeof statePair>,
+) {
+  for (const line of pair.md) {
+    // The opening ✂️ line already names omitted crops once (rule 5).
+    if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
+    out.md.push(line);
+  }
+  if ('omitted' in pair && pair.omitted) {
+    if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
+    out.omitted = 'budget';
+  }
+}
+
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
   if (input.cropsAllowed === false) {
@@ -377,15 +394,7 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
   for (const state of input.section.states) {
     const pair = statePair(ctx, input, state);
     if (ctx.layout === 'visual-first' && state !== 'rest') out.md.push('', `**While ${STATE_WORDS[state]}**`);
-    for (const line of pair.md) {
-      // The opening ✂️ line already names omitted crops once (rule 5).
-      if (ctx.cropGaps && 'omitted' in pair && pair.omitted && line.includes('_Crop omitted:')) continue;
-      out.md.push(line);
-    }
-    if ('omitted' in pair && pair.omitted) {
-      if (!out.omitted) ctx.cropGaps?.push({ reason: cropGapReason(ctx.crops), where: input.surface });
-      out.omitted = 'budget';
-    }
+    appendPairMarkdown(ctx, input, out, pair);
     applyPairImages(out, state, pair);
   }
   out.images = restingImages(out.images, out.stateImages);
