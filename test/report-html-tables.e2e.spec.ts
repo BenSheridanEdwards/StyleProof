@@ -160,3 +160,36 @@ test('code-like text inside link and image attributes stays intact', async ({ pa
   expect(await image.evaluate((element) => element.getAttributeNames())).toEqual(['src', 'alt', 'loading']);
   expect(await image.getAttribute('alt')).toContain(value);
 });
+
+for (const theme of ['light', 'dark']) {
+  test(`visual-first wide tables stay inside a 390px ${theme} page`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.setContent(
+      renderReportHtml(
+        [
+          '## Report tables',
+          ...reachSectionLines(reach),
+          '',
+          '<details>',
+          '<summary>Show the CSS</summary>',
+          '',
+          '| Property | Before | After |',
+          '| --- | --- | --- |',
+          `| background-image | \`${longValue}\` | \`${longValue}\` |`,
+          '',
+          '</details>',
+        ].join('\n'),
+        { layout: 'visual-first' },
+      ),
+    );
+    await page.evaluate((value) => document.documentElement.setAttribute('data-theme', value), theme);
+    await page.getByText('Show the CSS', { exact: true }).click();
+    const reachTable = page.getByRole('table', { name: 'Rule, Change, Gated by, Source, Why', exact: true });
+    const cssTable = page.locator('details table');
+    for (const table of [reachTable, cssTable]) {
+      await expect(table).toBeVisible();
+      expect(await table.evaluate((element) => element.getBoundingClientRect().right)).toBeLessThanOrEqual(390);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  });
+}
