@@ -1,6 +1,8 @@
 import { encodeSectionMeta, sectionRef, sectionRefIndex, SECTION_END, type SectionRegistry } from './section-meta.js';
 import type { ReportMarkdown } from './sections.js';
-import { cropGapReason } from './crop-budget.js';
+import { cropStem } from './png.js';
+import type { SectionMetaPage } from './section-meta.js';
+import { writeBudgetedPair, cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
 import { hasExposedChangedEntry, screenshotPair, formatSurfaceWithContext } from './shared.js';
@@ -370,22 +372,72 @@ function sectionId(registry: SectionRegistry, title: string): string {
   return id;
 }
 
-function registerSection(ctx: RenderCtx, section: ChangeSection): string | null {
+function registerSection(
+  ctx: RenderCtx,
+  section: ChangeSection,
+  input?: SectionInput,
+  pairs?: SectionPairs,
+  where: WhereMap[] = [],
+): string | null {
   if (!ctx.sections) return null;
   ctx.sections.metas.push({
     v: 1,
     id: sectionId(ctx.sections, section.title),
     paths: section.paths[0] === SURFACE_SUBJECT ? [] : section.paths.slice(0, 80),
     more: Math.max(0, section.paths.length - 80),
-    pairs: [],
-    where: [],
+    pairs: pairs?.meta ?? [],
+    where: where.map((map) => ({
+      image: map.image,
+      side: map.side,
+      page: [map.page.w, map.page.h],
+      view: [map.view.x, map.view.y, map.view.w, map.view.h],
+      boxes: map.boxes.map((b) => [b.x, b.y, b.w, b.h]),
+    })),
     pages: [],
   });
+  if (input) {
+    const meta = ctx.sections.metas.at(-1)!;
+    const states = [...new Set(['rest', ...(pairs?.meta.map((p) => p.state) ?? [])])];
+    pageOwners.set(meta, { surface: input.surface, states });
+    for (const state of states)
+      if (!ctx.sections.pages.some((p) => p.surface === input.surface && p.state === state))
+        ctx.sections.pages.push({ surface: input.surface, state });
+  }
   return sectionRef(ctx.sections.metas.length - 1);
+}
+
+const pageOwners = new WeakMap<object, { surface: string; states: string[] }>();
+function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string, SectionMetaPage> {
+  const written = new Map<string, SectionMetaPage>();
+  for (const { surface, state } of registry.pages) {
+    const [pngA, pngB] = screenshotPair(ctx, surface, state === 'rest' ? '' : `.${state}`);
+    if (!pngA || !pngB) continue;
+    const stem = cropStem(surface, state === 'rest' ? 'page' : `page-${state}`);
+    const page: SectionMetaPage = {
+      state,
+      before: `${stem}-base.png`,
+      after: `${stem}-head.png`,
+      width: pngB.width,
+      height: pngB.height,
+      ...(pngA.width !== pngB.width || pngA.height !== pngB.height
+        ? { baseWidth: pngA.width, baseHeight: pngA.height }
+        : {}),
+    };
+    // Context only: omitted pages are not counted as crop gaps; sizes stay the capture's.
+    if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {
+      written.set(`${surface}\0${state}`, page);
+    }
+  }
+  return written;
 }
 
 export function finishSections(ctx: RenderCtx, md: ReportMarkdown): void {
   if (!ctx.sections) return;
+  const written = writeWholePages(ctx, ctx.sections);
+  for (const meta of ctx.sections.metas) {
+    const owner = pageOwners.get(meta);
+    meta.pages = owner ? owner.states.flatMap((state) => written.get(`${owner.surface}\0${state}`) ?? []) : [];
+  }
   md.mapQueued((line) => {
     const index = sectionRefIndex(line);
     return index === null ? line : encodeSectionMeta(ctx.sections!.metas[index]);
@@ -411,12 +463,13 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
     pngB: pngs[1],
     rectsA: [],
     rectsB: [],
-    what: `${section.title}${state === 'rest' ? '' : ` in :${state}`}`,
+    what: `${section.paths.length > 1 ? 'the first' : 'the'} ${section.title.toLowerCase().replace(/s$/, '')}${state === 'rest' ? '' : ` in :${state}`}`,
     captions: { annotated: '', zoom: (factor) => `magnified ${factor}×` },
     alsoInView: input.alsoInView,
   })!;
 }
 type SectionPairs = {
+  meta: import('./section-meta.js').SectionMetaPair[];
   md: string[];
   images: CropImages;
   stateImages: Record<string, CropImages>;
@@ -462,7 +515,7 @@ function appendPairMarkdown(
 }
 
 function sectionPairs(ctx: RenderCtx, input: SectionInput) {
-  const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false };
+  const out: SectionPairs = { md: [], images: {}, stateImages: {}, omitted: false, meta: [] };
   if (input.cropsAllowed === false) {
     ctx.cropGaps?.push({ reason: 'max-crops', where: input.surface });
     out.omitted = 'max-crops';
@@ -473,6 +526,16 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
     if (ctx.layout === 'visual-first' && state !== 'rest') out.md.push('', `**While ${STATE_WORDS[state]}**`);
     appendPairMarkdown(ctx, input, out, pair);
     applyPairImages(out, state, pair);
+    if (ctx.sections && pair.images.before && pair.images.after && 'size' in pair && pair.size)
+      out.meta.push({
+        state,
+        before: pair.images.before,
+        after: pair.images.after,
+        width: pair.size.w,
+        height: pair.size.h,
+        what: `${input.section.paths.length > 1 ? 'the first' : 'the'} ${input.section.title.toLowerCase().replace(/s$/, '')}`,
+        ...(pair.size.base ? { baseWidth: pair.size.base.w, baseHeight: pair.size.base.h } : {}),
+      });
   }
   out.images = restingImages(out.images, out.stateImages);
   return out;
@@ -528,7 +591,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
   const pairs = sectionPairs(ctx, input);
   const shown = Boolean(pairs.images.after || Object.values(pairs.stateImages).some((p) => p.after));
   const where = shown ? sectionWhereMaps(ctx, input) : [];
-  const ref = registerSection(ctx, section);
+  const ref = registerSection(ctx, section, input, pairs, where);
   const boxes = (side: 0 | 1) =>
     paths.reduce<Box | null>((box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)), null);
   return {

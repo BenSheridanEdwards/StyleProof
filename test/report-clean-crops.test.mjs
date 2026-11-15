@@ -69,8 +69,8 @@ test('report writes separate clean resting and hover crops with exact source pix
     assertPixels(path.join(outDir, images.after), sources[offset + 1]);
   }
   const names = fs.readdirSync(path.join(outDir, 'crops'));
-  assert.equal(names.length, 5);
-  assert.ok(names.every((n) => /-(?:\d+-(before|after)|\d+-1-where)\.png$/.test(n)));
+  assert.equal(names.filter((n) => /-(?:\d+-(before|after)|\d+-1-where)\.png$/.test(n)).length, 5);
+  assert.ok(names.every((n) => /-(?:\d+-(before|after)|\d+-1-where|page(?:-\w+)?-(?:base|head))\.png$/.test(n)));
 });
 
 test('visual-first crop of a page smaller than the minimum crop is the whole capture', (t) => {

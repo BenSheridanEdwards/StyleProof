@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 31: change-card metadata and rendering; focused checks passed, hooks-on commit pending; one-shot thread link unavailable; no PR requested.
+
 - Slice 30: visual-first HTML header and theme; in progress; thread link unavailable; no PR requested.
 
 - Slice 29: hidden section and captured metadata; in progress; thread link unavailable; no PR requested.

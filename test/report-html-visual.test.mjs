@@ -192,3 +192,85 @@ test('default no-change report with declared product state keeps legacy HTML chr
   assert.doesNotMatch(html, /<header class="top">/);
   assert.doesNotMatch(html, /data-set-theme=/);
 });
+
+test('visual-first comments carry clean pairs, Where geometry and budgeted whole pages', (t) => {
+  const { md } = fixture(t);
+  const line = md.split('\n').find((line) => line.startsWith('<!-- styleproof-section '));
+  const meta = JSON.parse(decodeURIComponent(line.slice('<!-- styleproof-section '.length, -4)));
+  assert.equal(meta.pairs.length, 1);
+  assert.ok(meta.pairs[0].width > 0);
+  assert.equal(meta.where[0].boxes.length, 2);
+  assert.equal(meta.pages.length, 1);
+  assert.match(meta.pages[0].after, /-head\.png$/);
+  const fallback = fixture(t, { maxCropFiles: 3 }).md;
+  const fallbackLine = fallback.split('\n').find((line) => line.startsWith('<!-- styleproof-section '));
+  const limited = JSON.parse(decodeURIComponent(fallbackLine.slice('<!-- styleproof-section '.length, -4)));
+  assert.equal(limited.pages.length, 0);
+  assert.ok(limited.where.length > 0);
+});
+
+test('change cards show maps, clean pairs, CSS, paths, pages and captured coverage', (t) => {
+  const { html } = fixture(t);
+  for (const pattern of [
+    /<section class="change" id="card-titles">/,
+    /<h2>Card titles<\/h2><p class="line">[^<]+/,
+    /<use href="#sp-page-\d+"\/>/,
+    /<image id="sp-page-\d+" href="data:image\/png;base64,/,
+    /<span class="side before">Before<\/span>/,
+    /<img class="shot before"[^>]+alt="Before: the first card title"/,
+    /<details class="more css"><summary>Show the CSS/,
+    /class="selector"/,
+    /class="sw"/,
+    /class="follower"/,
+    /caret-color/,
+    /<details class="paths">/,
+    /body &gt; section/,
+    /<details class="more pages">/,
+    /What was captured/,
+  ])
+    assert.match(html, pattern);
+  assert.equal(html.match(/class="ring" fill="none" stroke="#e0119d" stroke-width="3"/g)?.length, 2);
+  assert.doesNotMatch(html, /<details class="more css" open|<h2>Changes<\/h2>|styleproof-section %7B/);
+});
+test('overview PNG replaces the map when whole pages do not fit', (t) => {
+  const { html } = fixture(t, { maxCropFiles: 3 });
+  assert.match(html, /<img class="map" src="data:image\/png;base64,/);
+  assert.doesNotMatch(html, /<svg|<defs|Show the whole page/);
+});
+test('Where rects carry their own fill and stroke (RV5-04)', () => {
+  const html = renderReportHtml(markdownWithSection(), { outDir: '.', layout: 'visual-first' });
+  // Render without embedding to inspect geometry independently of files.
+  const raw = renderReportHtml(markdownWithSection());
+  assert.match(raw, /<rect class="dim" [^>]*fill="#fff" fill-opacity="0\.55"/);
+  assert.match(raw, /<rect [^>]*class="ring" fill="none" stroke="#e0119d" stroke-width="3"/);
+  assert.ok(html);
+});
+function markdownWithSection() {
+  return [
+    '## 🗺️ StyleProof report',
+    '',
+    '### Titles',
+    '',
+    encodeSectionMeta({
+      v: 1,
+      id: 'titles',
+      paths: [],
+      more: 0,
+      pairs: [],
+      where: [
+        {
+          image: 'crops/a-where.png',
+          side: 'after',
+          page: [800, 400],
+          view: [0, 0, 800, 400],
+          boxes: [[10, 10, 50, 20]],
+        },
+      ],
+      pages: [{ state: 'rest', before: 'crops/a-base.png', after: 'crops/a-head.png', width: 800, height: 400 }],
+    }),
+    '',
+    'A line.',
+    '',
+    '<!-- styleproof-section-end -->',
+  ].join('\n');
+}
