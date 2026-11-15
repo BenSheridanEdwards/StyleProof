@@ -1,3 +1,4 @@
+import type { SectionRegistry } from './section-meta.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { PNG } from 'pngjs';
@@ -39,6 +40,7 @@ export function createMapLoader(): MapLoader {
 export type ReportLayout = 'legacy' | 'visual-first';
 
 export type RenderCtx = {
+  sections?: SectionRegistry;
   layout: ReportLayout;
   beforeDir: string;
   afterDir: string;

@@ -1,3 +1,6 @@
+import { createSectionRegistry } from './report/section-meta.js';
+import { finishSections } from './report/change-sections.js';
+import { capturedComment } from './report/captured.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { foldedGeometryFindings } from './report/markdown.js';
@@ -231,6 +234,7 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     load: createMapLoader(),
     liveText,
     layout: opts.layout === 'visual-first' ? 'visual-first' : 'legacy',
+    ...(opts.layout === 'visual-first' ? { sections: createSectionRegistry() } : {}),
     padBy: opts.pad ?? 12,
     minWidth: opts.minWidth ?? 320,
     minHeight: opts.minHeight ?? 180,
@@ -733,6 +737,10 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         ]
       : [];
 
+  if (ctx.sections) {
+    finishSections(ctx, md);
+    md.append([capturedComment(ctx, reach)]);
+  }
   md.finish(
     evidenceSection(
       evidenceLines({

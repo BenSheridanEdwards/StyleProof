@@ -1,3 +1,5 @@
+import { encodeSectionMeta, sectionRef, sectionRefIndex, SECTION_END, type SectionRegistry } from './section-meta.js';
+import type { ReportMarkdown } from './sections.js';
 import { cropGapReason } from './crop-budget.js';
 import type { PNG } from 'pngjs';
 import type { RenderCtx } from './shared.js';
@@ -354,8 +356,40 @@ type SectionInput = {
   cropsAllowed?: boolean;
   alsoInView?: string;
 };
-function registerSection(): null {
-  return null;
+function sectionId(registry: SectionRegistry, title: string): string {
+  const slug =
+    title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '') || 'change';
+  // report.html's own ids ("What was captured", inlined pages) are never a section's.
+  const base = slug === 'coverage-title' || slug.startsWith('sp-') ? `change-${slug}` : slug;
+  const taken = new Set(registry.metas.map((m) => m.id));
+  let id = base;
+  for (let n = 2; taken.has(id); n++) id = `${base}-${n}`;
+  return id;
+}
+
+function registerSection(ctx: RenderCtx, section: ChangeSection): string | null {
+  if (!ctx.sections) return null;
+  ctx.sections.metas.push({
+    v: 1,
+    id: sectionId(ctx.sections, section.title),
+    paths: section.paths[0] === SURFACE_SUBJECT ? [] : section.paths.slice(0, 80),
+    more: Math.max(0, section.paths.length - 80),
+    pairs: [],
+    where: [],
+    pages: [],
+  });
+  return sectionRef(ctx.sections.metas.length - 1);
+}
+
+export function finishSections(ctx: RenderCtx, md: ReportMarkdown): void {
+  if (!ctx.sections) return;
+  md.mapQueued((line) => {
+    const index = sectionRefIndex(line);
+    return index === null ? line : encodeSectionMeta(ctx.sections!.metas[index]);
+  });
 }
 function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
   const pngs = state === 'rest' ? input.pngs : screenshotPair(ctx, input.surface, `.${state}`);
@@ -464,15 +498,17 @@ function sectionWhereMaps(ctx: RenderCtx, input: SectionInput): WhereMap[] {
 function renderSurfaceLayerSection(ctx: RenderCtx, input: SectionInput) {
   const { section } = input;
   const pairs = sectionPairs(ctx, { ...input, section: { ...section, paths: [], states: [] } });
-  registerSection();
+  const ref = registerSection(ctx, section);
   return {
     md: [
       '',
       '### Interaction states not compared',
+      ...(ref ? [ref] : []),
       '',
       stateLayerLine(section.findings),
       ...pairs.md,
       ...stateLayerFold(section.findings),
+      ...(ref ? [SECTION_END] : []),
     ],
     region: {
       paths: [],
@@ -492,13 +528,14 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
   const pairs = sectionPairs(ctx, input);
   const shown = Boolean(pairs.images.after || Object.values(pairs.stateImages).some((p) => p.after));
   const where = shown ? sectionWhereMaps(ctx, input) : [];
-  registerSection();
+  const ref = registerSection(ctx, section);
   const boxes = (side: 0 | 1) =>
     paths.reduce<Box | null>((box, p) => unionVisibleBoxes(box, paddedRect(maps[side].elements[p], ctx.padBy)), null);
   return {
     md: [
       '',
       `### ${section.title}`,
+      ...(ref ? [ref] : []),
       '',
       sectionLine(section, maps, ctx.layout === 'visual-first' ? lineSources(section, maps) : undefined),
       ...where.flatMap((map) => [
@@ -511,6 +548,7 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ...(ctx.layout === 'visual-first'
         ? stateBlocks(section.findings.filter((f) => !isStateFinding(f) || subjectPath(f) === section.paths[0]))
         : []),
+      ...(ref ? [SECTION_END] : []),
     ],
     region: {
       paths,

@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 29: hidden section and captured metadata; in progress; thread link unavailable; no PR requested.
+
 - Slice 24: visual-first summary line in progress; one-shot thread link unavailable; no PR requested.
 
 - Slice 22: remaining state-attribution oracle cases; one-shot thread link unavailable; no PR requested.
