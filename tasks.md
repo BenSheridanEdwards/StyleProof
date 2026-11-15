@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 21: state attribution oracle and QA18-02 start of its test (rejects "the first opt" / "the opt" beside a ×N clause); one-shot thread link unavailable; no PR requested.
+
 - #1379: collapse identical visual-first CSS owner blocks; regression red (2 background rows versus 1), then green; build and 51 focused tests pass; full suite owned by orchestrator; one-shot thread link unavailable; no PR requested.
 
 - Slice 20: remaining QA14–QA19 owner-truth cases (21 new; QA14-05 mixed-pseudo and both QA16-01 already on main via #1376/#1377); 50 focused tests pass; a mutation that drops ×N is rejected by QA14-01 two-pairs and three existing ×N cases; one-shot thread link unavailable; no PR requested.
