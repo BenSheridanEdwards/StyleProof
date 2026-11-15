@@ -15,6 +15,8 @@ import { codeValue, escapeInlineMarkdown } from '../code-span.js';
 
 /** Everything the headline prose between the certification block and the detail needs. */
 export type HeadlineInput = {
+  sectionCount?: number;
+  scope?: string;
   changeGroups: ChangeGroup[];
   missing: PreparedSurface[];
   shown: DiffCounts;
@@ -257,6 +259,10 @@ function cleanScopeSummary(input: HeadlineInput): string[] {
   return [blocked ? scope.replace(/^✓ /, 'Computed-style scope only: ') : scope];
 }
 
+function verdictToReview(n: number, scope: string): string {
+  return `**${n} change${n === 1 ? '' : 's'} to review**${scope}`;
+}
+
 function verdictNeedsReview(n: number): string {
   return n === 1 ? '**1 change needs review**' : `**${n} changes need review**`;
 }
@@ -267,7 +273,9 @@ function summaryLines(input: HeadlineInput): string[] {
   if (noChange) return noChange;
   const reviewable = changeGroups.length + missing.length;
   const md = [
-    verdictNeedsReview(reviewable),
+    input.sectionCount !== undefined && input.scope !== undefined
+      ? verdictToReview(input.sectionCount + missing.length, input.scope)
+      : verdictNeedsReview(reviewable),
     '',
     ...baselineFailureSummaryLines(baseline.failures),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),

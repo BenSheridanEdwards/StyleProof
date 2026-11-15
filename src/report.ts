@@ -81,7 +81,7 @@ import {
   type BaselineInfo,
   cropGapLines,
 } from './report/headline.js';
-import { countShownChanges, groupBySignature } from './report/regions.js';
+import { countShownChanges, groupBySignature, sectionSummary } from './report/regions.js';
 import {
   assessReach,
   publishedReach,
@@ -572,6 +572,15 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // fires — never the certification checklist first, and never a green product-state peer card.
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
   const headline = reportHeadline({
+    ...(ctx.layout === 'visual-first'
+      ? sectionSummary(
+          ctx,
+          view.changeGroups,
+          reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
+          surfaceKeyOf,
+          view.missing.map((p) => p.sd.surface),
+        )
+      : {}),
     changeGroups: view.changeGroups,
     missing: view.missing,
     shown: view.shown,
