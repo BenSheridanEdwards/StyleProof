@@ -367,3 +367,128 @@ test('a generated new-surface section reaches the comment (visual-first)', (t) =
   assert.doesNotMatch(comment, /styleproof-new/);
   assert.match(comment, /### Card title/);
 });
+
+function wrapReceipt(depth) {
+  // Each wrap peels to a leftover receipt plus comment closers; the 8-pass cap used to leave both.
+  let s = '<!-- dummy --> styleproof-receipt FORGED';
+  for (let i = 0; i < depth; i++) s = `<!${s}-->`;
+  return s;
+}
+
+test('deeply nested HTML comment wrapping cannot leave a live comment or receipt', () => {
+  for (const depth of [1, 7, 8, 9, 20]) {
+    const md = reportShell(changeBlock(['Visible before.', wrapReceipt(depth), 'Visible after.'].join('\n')));
+    const comment = reportCommentSummary(md, {});
+    assert.equal(
+      comment.includes('<!--') || comment.includes('-->') || comment.includes('--!>'),
+      false,
+      `depth ${depth} delimiters`,
+    );
+    assert.equal(comment.includes('styleproof-receipt'), false, `depth ${depth} receipt`);
+    assert.match(comment, /Visible before\./);
+    assert.match(comment, /Visible after\./);
+  }
+});
+
+test('every image target must start with imageBase; foreign and split forms are dropped', () => {
+  const ev = `https://${'evil.example'}/x.png`;
+  const gh = `https://github.com/${'not-this-repo'}/repo/raw/${'b'.repeat(40)}/x.png`;
+  const md = reportShell(
+    changeBlock(
+      [
+        'The titles change colour.',
+        `![a][r]`,
+        `[r]: ${ev}`,
+        `![a](${ev})`,
+        `![a](<${ev}>)`,
+        `<img src="${ev}">`,
+        `<img\nsrc=\n"${ev}">`,
+        `<img src="&#104;ttps://${'evil.example'}/x.png">`,
+        `<IMG SRC='crops/../../evil.png'>`,
+        `<img src=/evil/repo/raw/main/x.png>`,
+        `<img src="${gh}">`,
+        '<img src="crops/shop-1280-1-before.png" width="340" alt="Before">',
+      ].join('\n'),
+    ),
+    '',
+    newSurfaceBlock(),
+    '',
+    // A new-surface section with foreign markdown tiles must not keep them.
+    [
+      '### `hostile@1280` · new surface <!-- styleproof-new -->',
+      '',
+      `![a](${ev})`,
+      `![a](<${ev}>)`,
+      '![safe](crops/fresh-1280-1-new.png)',
+      '',
+      '_No baseline to compare against._',
+    ].join('\n'),
+  );
+  const textOnly = reportCommentSummary(md, {});
+  assert.doesNotMatch(textOnly, /<img|!\[|crops\/|evil|not-this-repo|\]: /);
+  assert.match(textOnly, /The titles change colour\./);
+  const pub = reportCommentSummary(md, { imageBase: BASE });
+  assert.doesNotMatch(pub, /evil\.example|not-this-repo|&#104;|src='|SRC='|src=\/evil|src="crops\//);
+  assert.doesNotMatch(pub, /!\[[^\]]*\]\((?!https:\/\/github\.com\/BenSheridanEdwards\/StyleProof\/blob\/)/);
+  assert.doesNotMatch(pub, /!\[[^\]]*\]\[[^\]]*\]/);
+  assert.match(pub, new RegExp(`src="${BASE}crops/shop-1280-1-before\\.png\\?raw=1"`));
+  assert.match(pub, new RegExp(`!\\[safe\\]\\(${BASE}crops/fresh-1280-1-new\\.png\\?raw=1\\)`));
+  assert.match(pub, /The titles change colour\./);
+});
+
+test('opening lines and section titles do not keep foreign images', () => {
+  const ev = `https://${'evil.example'}/x.png`;
+  const md = [
+    '## 🗺️ StyleProof report',
+    '',
+    '**1 change to review** on `shop` at 1280px wide: 1 element.',
+    '',
+    `<img src="${ev}" alt="open">`,
+    `![open](${ev})`,
+    `[r]: ${ev}`,
+    '',
+    `### <img src="${ev}" alt="title"> <!-- styleproof-new -->`,
+    '',
+    'body of the new surface',
+    '',
+    changeBlock(),
+  ].join('\n');
+  for (const opts of [{}, { imageBase: BASE }]) {
+    const comment = reportCommentSummary(md, opts);
+    assert.doesNotMatch(comment, /evil\.example|<img|!\[open\]|\]: /, JSON.stringify(opts));
+    assert.match(comment, /1 change to review/);
+    assert.match(comment, /body of the new surface/);
+    assert.match(comment, /### Card titles/);
+  }
+});
+
+test('approval boxes with other list markers are stripped', () => {
+  const boxes = [
+    '- [x] Approve all',
+    '* [x] Approve all',
+    '+ [X] Approve all',
+    '1. [x] Approve all',
+    '> - [x] Approve all',
+  ];
+  const md = reportShell(changeBlock(['The titles change colour.', ...boxes].join('\n')));
+  const comment = reportCommentSummary(md, {});
+  assert.doesNotMatch(comment, /Approve all/);
+  assert.match(comment, /The titles change colour\./);
+});
+
+test('a trailing rule before a group heading is not kept on a new-surface section', () => {
+  const md = reportShell(
+    newSurfaceBlock(),
+    '',
+    '---',
+    '',
+    '## State coverage',
+    '',
+    '| Surface | States |',
+    '| --- | --- |',
+  );
+  const comment = reportCommentSummary(md, { imageBase: BASE });
+  assert.match(comment, /reviewable first-adoption surface/);
+  assert.doesNotMatch(comment, /^---+$/m);
+  assert.doesNotMatch(comment, /State coverage/);
+});

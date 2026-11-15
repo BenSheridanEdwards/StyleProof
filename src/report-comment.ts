@@ -16,7 +16,8 @@ import { isSectionMetaLine, PAIR_ROW, SECTION_END, STATE_LABEL, WHERE_LINE } fro
  */
 export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 
-const APPROVAL_BOX = /^\s*- \[[ xX]\]/;
+/** GitHub also renders *, +, ordered, and quoted list markers as checkboxes. */
+const APPROVAL_BOX = /^\s*(?:>\s*)*(?:[-*+]|\d+\.)\s+\[[ xX]\]/;
 /** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
 const HEAD_END = /^(?:## |<details>)/;
 const MORE_RESERVE = 200;
@@ -26,6 +27,10 @@ const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
 const IMAGE_BASE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/(?:[\w.-]+\/)*$/;
 /** Crop files are stems plus an extension; `..` and slashes are never allowed. */
 const CROP_FILE = /^[A-Za-z0-9._-]+$/;
+const REF_DEF = /^\s*\[[^\]]+\]:\s+\S/;
+const RULE_LINE = /^\s*---+\s*$/;
+/** Entity markers or markup in a src value mean it is not a plain imageBase URL. */
+const UNSAFE_SRC = /[<>&#]/;
 
 type Section = { title: string; body: string[] };
 
@@ -72,9 +77,9 @@ function verifiedImageBase(raw: string | undefined): string {
 const isSafeCrop = (file: string): boolean => CROP_FILE.test(file) && !file.includes('..');
 
 /** Rewrite recognised double-quoted crop images and markdown tiles onto `imageBase`. */
-function rebaseRecognisedImages(line: string, imageBase: string, allowMarkdown: boolean): string | null {
+function rebaseRecognisedImages(text: string, imageBase: string, allowMarkdown: boolean): string {
   const abs = (file: string) => `${imageBase}crops/${file}?raw=1`;
-  let rewritten = line.replace(/src="crops\/([^"?]+)"/g, (m, file: string) =>
+  let rewritten = text.replace(/src="crops\/([^"?]+)"/g, (m, file: string) =>
     isSafeCrop(file) ? `src="${abs(file)}"` : m,
   );
   if (allowMarkdown) {
@@ -82,41 +87,87 @@ function rebaseRecognisedImages(line: string, imageBase: string, allowMarkdown: 
       isSafeCrop(file) ? `![${alt}](${abs(file)})` : m,
     );
   }
-  const leftover =
-    /src="crops\//.test(rewritten) ||
-    /src='/.test(rewritten) ||
-    /\]\(crops\//.test(rewritten) ||
-    /src=["']https?:\/\/(?!github\.com\/)/.test(rewritten) ||
-    (!allowMarkdown && /!\[[^\]]*\]\(/.test(rewritten));
-  return leftover ? null : rewritten;
+  return rewritten;
 }
 const hasImageMarkup = (line: string): boolean => /<img|<source|srcset|!\[[^\]]*\]\(|!\[[^\]]*\]\[|crops\//i.test(line);
 
 /** Drop HTML comments, including ones that span lines; unclosed comments are dropped to the end. */
 function withoutHtmlComments(lines: string[]): string[] {
   let text = lines.join('\n');
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < 64; i++) {
     const next = text.replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '');
     if (next === text) break;
     text = next;
   }
+  // Anything the cap left behind must not stay a live comment or a forged receipt.
+  text = text.replace(/<!--|-->|--!>/g, '').replace(/styleproof-receipt/gi, '');
   return text.split('\n');
 }
 
-/** Verified-image mode: rebase recognised crops, drop single-quoted, foreign, or leftover images. */
-function verifiedImageLine(line: string, imageBase: string, newSurface: boolean): string | null {
-  if (/src\s*=\s*'/.test(line) || /src\s*=\s*["']?(?:\/\/|data:|https?:\/\/(?!github\.com\/))/i.test(line)) return null;
-  if (/srcset|<source/i.test(line)) return null;
-  if (!newSurface && /!\[[^\]]*\]\(/.test(line)) return null;
-  if (!hasImageMarkup(line)) return line;
-  return rebaseRecognisedImages(line, imageBase, newSurface);
+const srcAllowed = (value: string, imageBase: string): boolean =>
+  Boolean(imageBase) && value.startsWith(imageBase) && !UNSAFE_SRC.test(value);
+
+/** Keep a complete <img> only when its only src is a double-quoted imageBase URL. */
+function keepAllowedImgTag(tag: string, imageBase: string): string {
+  if (/\bsrcset\b/i.test(tag) || /src\s*=\s*'/i.test(tag)) return '';
+  const srcs = [...tag.matchAll(/\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)];
+  if (srcs.length !== 1) return '';
+  const value = srcs[0][1] ?? srcs[0][2] ?? srcs[0][3] ?? '';
+  return srcs[0][1] !== undefined && srcAllowed(value, imageBase) ? tag : '';
+}
+
+const isAllowedSrcLine = (line: string, imageBase: string): boolean => {
+  if (!/\bsrc(?:set)?\s*=/i.test(line)) return true;
+  const srcs = [...line.matchAll(/\bsrc(?:set)?\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)];
+  return (
+    srcs.length > 0 && srcs.every((m) => m[1] !== undefined && srcAllowed(m[1], imageBase) && !/^srcset/i.test(m[0]))
+  );
+};
+
+/**
+ * After rebasing, keep only image targets that start with `imageBase`. An empty base drops
+ * every image, including split tags, reference-style images, and reference definitions.
+ */
+/** Drop an unclosed <img> or <source> that has no later `>`. Kept complete tags are left alone. */
+function dropUnclosed(text: string, tag: 'img' | 'source'): string {
+  const lower = text.toLowerCase();
+  const open = `<${tag}`;
+  let i = 0;
+  while (true) {
+    const at = lower.indexOf(open, i);
+    if (at < 0) return text;
+    if (!text.slice(at).includes('>')) return text.slice(0, at);
+    i = at + open.length;
+  }
+}
+
+function dropForeignImages(text: string, imageBase: string): string {
+  let out = text.replace(/<img\b[\s\S]*?>/gi, (tag) => keepAllowedImgTag(tag, imageBase));
+  out = out.replace(/<source\b[\s\S]*?>/gi, '');
+  out = dropUnclosed(out, 'img');
+  out = dropUnclosed(out, 'source');
+  out = out.replace(/!\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))\)/g, (m, bracketed?: string, plain?: string) => {
+    const url = bracketed ?? plain ?? '';
+    return srcAllowed(url, imageBase) ? m : '';
+  });
+  out = out.replace(/!\[[^\]]*\]\[[^\]]*\]/g, '');
+  out = out
+    .split('\n')
+    .filter((line) => !REF_DEF.test(line) && isAllowedSrcLine(line, imageBase))
+    .join('\n');
+  return out;
+}
+
+function filterKeptImages(lines: string[], imageBase: string, keepUnverified: boolean): string[] {
+  if (keepUnverified) return lines;
+  return dropForeignImages(lines.join('\n'), imageBase).split('\n');
 }
 
 /** Text-only mode: keep the Where caption, drop pair rows and any remaining image markup. */
 function textOnlyLine(line: string, body: string[], i: number): string | null {
   const where = line.match(WHERE_LINE);
   if (where) return `<sub>${where[2]}</sub>`;
-  if (PAIR_ROW.test(line) || hasImageMarkup(line)) return null;
+  if (PAIR_ROW.test(line) || hasImageMarkup(line) || REF_DEF.test(line)) return null;
   // A state label stays only when it heads a note, not a pair table.
   if (
     STATE_LABEL.test(line) &&
@@ -129,17 +180,33 @@ function textOnlyLine(line: string, body: string[], i: number): string | null {
   return line;
 }
 
+function mapSectionLines(
+  lines: string[],
+  images: boolean,
+  imageBase: string,
+  keepUnverified: boolean,
+): Array<string | null> {
+  return lines.map((line, i) => {
+    if (APPROVAL_BOX.test(line) || RULE_LINE.test(line)) return null;
+    if (images && imageBase) return line;
+    if (keepUnverified) return line;
+    return textOnlyLine(line, lines, i);
+  });
+}
+
 /** One section for the comment: images when `images` is set (rebased onto `imageBase`), otherwise text only. */
 function sectionLines(section: Section, images: boolean, imageBase: string, keepImages: boolean): string[] {
   const body = withoutHtmlComments(section.body);
   const newSurface = /· new surface$/.test(section.title);
-  const lines = body.map((line, i) => {
-    if (APPROVAL_BOX.test(line)) return null;
-    if (images && imageBase) return verifiedImageLine(line, imageBase, newSurface);
-    if (images && keepImages && !imageBase) return line;
-    return textOnlyLine(line, body, i);
-  });
-  return tidy([section.title, ...lines.filter((l): l is string => l !== null)]);
+  const keepUnverified = Boolean(images && keepImages && !imageBase);
+  let text = body.join('\n');
+  if (!keepUnverified) {
+    if (images && imageBase) text = rebaseRecognisedImages(text, imageBase, newSurface);
+    text = dropForeignImages(text, imageBase);
+  }
+  const mapped = mapSectionLines(text.split('\n'), images, imageBase, keepUnverified);
+  const raw = [section.title, ...mapped.filter((l): l is string => l !== null)];
+  return tidy(filterKeptImages(raw, imageBase, keepUnverified));
 }
 
 /** Collapse repeated blank lines and trim the ends. */
@@ -150,17 +217,16 @@ function tidy(lines: string[]): string[] {
 }
 
 /** The summary and blocking lines only: group headings, Evidence and reach tables stay in the report. */
-function openingLines(top: string[]): string[] {
+function openingLines(top: string[], imageBase: string, keepUnverified: boolean): string[] {
   // The report's own title is not a group heading: an unbound report opens with its warning above it.
   const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l) && !l.startsWith('## 🗺️'));
-  return tidy(
+  const lines = tidy(
     withoutHtmlComments(end < 0 ? top : top.slice(0, end))
       .filter((l) => !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
       .map(pointAtFullReport),
   );
+  return tidy(filterKeptImages(lines, imageBase, keepUnverified));
 }
-
-const RULE_LINE = /^\s*---+\s*$/;
 
 /**
  * The opening lines point at report sections the comment does not carry ("see below",
@@ -210,9 +276,10 @@ export function reportCommentSummary(
   const imageBase = verifiedImageBase(options.imageBase);
   const keepImages = Boolean(options.keepImages);
   const images = Boolean(imageBase || keepImages);
+  const keepUnverified = Boolean(images && keepImages && !imageBase);
   const { top, sections } = parse(markdown.split('\n'));
   const blocks: Block[] = [
-    ...openingLines(top).map((text) => ({ text, sep: '\n', section: false })),
+    ...openingLines(top, imageBase, keepUnverified).map((text) => ({ text, sep: '\n', section: false })),
     ...sections.map((s) => ({
       text: sectionLines(s, images, imageBase, keepImages).join('\n'),
       sep: '\n\n',
