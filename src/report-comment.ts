@@ -17,7 +17,7 @@ import { isSectionMetaLine, PAIR_ROW, SECTION_END, STATE_LABEL, WHERE_LINE } fro
 export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 
 /** GitHub also renders *, +, ordered, and quoted list markers as checkboxes. */
-const APPROVAL_BOX = /^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/;
+const APPROVAL_BOX = /^\s*(?:>\s*)*(?:(?:[-*+]|\d+[.)])\s+)+\[[ xX]\]/;
 /** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
 const HEAD_END = /^(?:## |<details>)/;
 const MORE_RESERVE = 200;
@@ -367,6 +367,13 @@ export function reportCommentSummary(
     maxChars?: number;
   } = {},
 ): string {
+  const lines = markdown.split('\n');
+  if (
+    !lines.some((line) => line.startsWith('<!-- styleproof-section ') || line.startsWith('<!-- styleproof-captured '))
+  ) {
+    const headEnd = lines.findIndex((line) => line.startsWith('### '));
+    return headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';
+  }
   const imageBase = verifiedImageBase(options.imageBase);
   const keepImages = Boolean(options.keepImages);
   const images = Boolean(imageBase || keepImages);

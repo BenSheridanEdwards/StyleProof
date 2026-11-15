@@ -6,6 +6,7 @@ export type ReportDelivery = Readonly<{
   access: 'public-github-view' | 'authenticated-github-view' | 'authenticated-artifact-download';
   url: string;
   markdown: string;
+  imageBase: string | null;
 }>;
 
 export type BuildReportDeliveryOptions = {
@@ -40,6 +41,7 @@ export function buildReportDelivery(options: BuildReportDeliveryOptions): Report
     mode: 'linked-report',
     cropDelivery: 'relative-paths-in-committed-report',
     access: repositoryVisibility === 'private' ? 'authenticated-github-view' : 'public-github-view',
+    imageBase: repositoryVisibility === 'public' ? canonicalUrl.slice(0, -'report.md'.length) : null,
     url: canonicalUrl,
     markdown,
   });
@@ -73,6 +75,7 @@ export function buildArtifactReportDelivery(options: BuildArtifactReportDelivery
     mode: 'workflow-artifact',
     cropDelivery: 'inside-workflow-artifact',
     access: 'authenticated-artifact-download',
+    imageBase: null,
     url: reportUrl,
     markdown,
   });
