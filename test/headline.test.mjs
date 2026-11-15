@@ -118,3 +118,25 @@ test('visual-first still names visible structure when a reach gate opens the rep
   assert.match(def, /2 visible element addition\(s\)\/removal\(s\)/);
   assert.doesNotMatch(def, /visible elements were added or removed/);
 });
+
+test('visual-first baseline capture wording still holds when a consistency failure opens the report', () => {
+  const input = baseInput({
+    reportConsistency: { ok: false, reason: 'raw_only_no_reviewable' },
+    rawCounts: { dom: 1, style: 0, state: 0 },
+    baseline: {
+      surfaceFailures: [{ key: 'home@1280', reason: 'timeout', kind: 'capture' }],
+      failures: [{ key: 'home@1280', reason: 'capture_failed', sha: 'b'.repeat(40) }],
+      undeclaredOnBase: [],
+    },
+  });
+  const { lines: visual } = headlineParts(input, true);
+  const vf = visual.join('\n');
+  assert.match(vf, /Report consistency failure/);
+  assert.match(vf, /1 surface failed to capture on the base/);
+  assert.doesNotMatch(vf, /do not approve indefinitely/);
+  const { lines: legacy } = headlineParts(input, false);
+  const def = legacy.join('\n');
+  assert.match(def, /Report consistency failure/);
+  assert.match(def, /do not approve indefinitely/);
+  assert.doesNotMatch(def, /failed to capture on the base/);
+});

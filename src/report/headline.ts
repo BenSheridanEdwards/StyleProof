@@ -102,8 +102,19 @@ function newSurfaceSummary(missing: PreparedSurface[], maxNamed = 8): string {
   return '`' + formatSurfaceList(shownSurfaces) + '`' + more;
 }
 
-export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[]): string[] {
+export function baselineFailureSummaryLines(failures: BaselineFailureReceipt[], visualFirst = false): string[] {
   if (failures.length === 0) return [];
+  if (visualFirst) {
+    const shown = failures.slice(0, 10);
+    const { named } = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: shown });
+    const more = failures.length - shown.length;
+    const list = more ? `${named} and ${more} more, all listed in report.json` : named;
+    const one = failures.length === 1;
+    return [
+      `⚠️ **${one ? '1 surface' : `${failures.length} surfaces`} failed to capture on the base:** ${list}. ` +
+        `The rest of the base was captured; repair ${one ? 'that surface' : 'those surfaces'} on that commit and capture ${one ? 'it' : 'them'} again.`,
+    ];
+  }
   const attribution = honestBaselineCompareAttribution({ baseCaptureFailed: false, receipts: failures });
   return [
     `⚠️ **${failures.length} baseline capture failure(s)**: ${`these named surface(s) failed on the base SHA and were omitted from the baseline bundle: ${attribution.named}. The base bundle was produced; this is not a base recapture failure. Repair the named surface(s) on that SHA; do not approve indefinitely. Raw exception details stay private.`}`,
@@ -185,6 +196,7 @@ function missingSurfaceSummaryLines(
 ): string[] {
   const md: string[] = [];
   for (const [status, text] of MISSING_SUMMARY) {
+    if (visualFirst && status === 'capture-failed') continue;
     const matching = missing.filter((p) => oneSidedStatus(p, failures) === status);
     if (matching.length === 0) continue;
     const n = matching.length;
@@ -210,7 +222,7 @@ const CONSISTENCY_FAILURE = {
   },
 } as const;
 
-function consistencyFailureLines(input: HeadlineInput): string[] | undefined {
+function consistencyFailureLines(input: HeadlineInput, visualFirst = false): string[] | undefined {
   const { reportConsistency, rawCounts } = input;
   if (reportConsistency.ok || !rawCounts) return undefined;
   const { explanation, remediation } = CONSISTENCY_FAILURE[reportConsistency.reason];
@@ -221,7 +233,7 @@ function consistencyFailureLines(input: HeadlineInput): string[] | undefined {
   ];
   if (input.baseline.failures.length > 0) {
     md.push('');
-    baselineFailureSummaryLines(input.baseline.failures).forEach((appended) => md.push(appended));
+    baselineFailureSummaryLines(input.baseline.failures, visualFirst).forEach((appended) => md.push(appended));
   }
   return md;
 }
@@ -229,12 +241,12 @@ function consistencyFailureLines(input: HeadlineInput): string[] | undefined {
 const NO_CHANGE = '✓ No reviewable computed-style changes among semantically matched elements.';
 
 function noChangedSurfaceSummary(input: HeadlineInput, visualFirst: boolean): string[] | undefined {
-  const failure = consistencyFailureLines(input);
+  const failure = consistencyFailureLines(input, visualFirst);
   if (failure) return failure;
   // Baseline capture failures are reviewable evidence even with zero restyles — surface them
   // here (not as "0 changes need review") so the receipt stays above the fold.
   if (input.baseline.surfaceFailures.length > 0) {
-    return [...baselineFailureSummaryLines(input.baseline.failures)];
+    return [...baselineFailureSummaryLines(input.baseline.failures, visualFirst)];
   }
   if (input.headOnlyVolatile?.length) {
     return [
@@ -308,7 +320,7 @@ function summaryLines(input: HeadlineInput, visualFirst: boolean): string[] {
       ? verdictToReview(input.sectionCount + missing.length, input.scope)
       : verdictNeedsReview(reviewable),
     '',
-    ...baselineFailureSummaryLines(baseline.failures),
+    ...baselineFailureSummaryLines(baseline.failures, visualFirst),
     ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures, visualFirst),
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
