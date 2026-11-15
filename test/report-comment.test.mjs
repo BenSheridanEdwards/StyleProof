@@ -194,18 +194,21 @@ test('an unverified imageBase does not embed images and a verified one still doe
       ].join('\n'),
     ),
   );
+  const sha = 'a'.repeat(40);
+  const root = `${'https://github.com/BenSheridanEdwards/StyleProof/blob/'}${sha}`;
   const rejected = [
-    'http://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/',
-    'https://github.com.evil.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/',
-    'https://github.com@evil.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/',
-    'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/?x=1',
-    'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/#x',
-    'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/"onerror="',
-    'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/\n',
-    'javascript:https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/pr-1/',
-    'https://github.com/../../a/',
-    'https://github.com//evil.com/',
-    'https://github.com/acme/app/blob/' + 'a'.repeat(40) + '/../pr-1/',
+    `http://github.com/BenSheridanEdwards/StyleProof/blob/${sha}/pr-1/`,
+    `https://github.com.evil.com/BenSheridanEdwards/StyleProof/blob/${sha}/pr-1/`,
+    `https://github.com@evil.com/BenSheridanEdwards/StyleProof/blob/${sha}/pr-1/`,
+    `${root}/pr-1/?x=1`,
+    `${root}/pr-1/#x`,
+    `${root}/pr-1/"onerror="`,
+    `${root}/pr-1/\n`,
+    `javascript:${root}/pr-1/`,
+    `https://github.com/${'../../'}a/`,
+    `https://github.com/${'/'}evil.com/`,
+    `${root}/../pr-1/`,
+    `${root}/./pr-1/`,
   ];
   for (const imageBase of rejected) {
     const comment = reportCommentSummary(md, { imageBase });
@@ -249,7 +252,8 @@ test('a multi-line HTML comment cannot leak a receipt or an approval box into th
     ),
   );
   const comment = reportCommentSummary(md, {});
-  assert.doesNotMatch(comment, /<!--|styleproof-receipt|head-sha|-->/);
+  assert.equal(comment.includes('styleproof-receipt') || comment.includes('head-sha'), false);
+  assert.equal(comment.includes('<!--') || comment.includes('-->'), false);
   assert.doesNotMatch(comment, /^\s*- \[[ xX]\]/m);
   assert.match(comment, /The titles change colour\./);
   assert.match(comment, /Visible after the comment\./);
@@ -298,6 +302,28 @@ test('new-surface sections are in the comment and in the left-out count', () => 
   assert.equal(left, total - shown);
   assert.ok(left > 0);
   assert.match(capped, /### `fresh-0@1280` · new surface/);
+});
+
+test('a new-surface section stops before a later group heading or Evidence fold', () => {
+  const md = reportShell(
+    newSurfaceBlock(),
+    '',
+    '## State coverage',
+    '',
+    '| Surface | States |',
+    '| --- | --- |',
+    '| `fresh@1280` | rest |',
+    '',
+    '<details>',
+    '<summary>Evidence</summary>',
+    '',
+    'hidden receipts',
+    '</details>',
+  );
+  const comment = reportCommentSummary(md, { imageBase: BASE });
+  assert.match(comment, /^### `fresh@1280` · new surface$/m);
+  assert.match(comment, /reviewable first-adoption surface/);
+  assert.doesNotMatch(comment, /State coverage|Evidence|hidden receipts/);
 });
 
 test('a generated new-surface section reaches the comment (visual-first)', (t) => {

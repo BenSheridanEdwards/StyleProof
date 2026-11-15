@@ -43,7 +43,7 @@ function isCommentSection(lines: string[], i: number): boolean {
 /** Change sections end at their closer; new-surface sections have no closer, so they end at the next heading. */
 function sectionEnd(lines: string[], i: number): number {
   if (isNewSurfaceHeading(lines[i])) {
-    const next = lines.findIndex((l, j) => j > i && l.startsWith('### '));
+    const next = lines.findIndex((l, j) => j > i && (l.startsWith('### ') || HEAD_END.test(l)));
     return next < 0 ? lines.length : next;
   }
   const end = lines.indexOf(SECTION_END, i);
@@ -65,7 +65,7 @@ function parse(lines: string[]): { top: string[]; sections: Section[] } {
 }
 
 function verifiedImageBase(raw: string | undefined): string {
-  if (!raw || raw.includes('..')) return '';
+  if (!raw || raw.split('/').some((s) => s === '.' || s === '..')) return '';
   return IMAGE_BASE.test(raw) ? raw : '';
 }
 
@@ -90,19 +90,23 @@ function rebaseRecognisedImages(line: string, imageBase: string, allowMarkdown: 
     (!allowMarkdown && /!\[[^\]]*\]\(/.test(rewritten));
   return leftover ? null : rewritten;
 }
-const hasImageMarkup = (line: string): boolean => /<img|!\[[^\]]*\]\(|crops\//.test(line);
+const hasImageMarkup = (line: string): boolean => /<img|<source|srcset|!\[[^\]]*\]\(|!\[[^\]]*\]\[|crops\//i.test(line);
 
 /** Drop HTML comments, including ones that span lines; unclosed comments are dropped to the end. */
 function withoutHtmlComments(lines: string[]): string[] {
-  return lines
-    .join('\n')
-    .replace(/<!--[\s\S]*?(-->|$)/g, '')
-    .split('\n');
+  let text = lines.join('\n');
+  for (let i = 0; i < 8; i++) {
+    const next = text.replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '');
+    if (next === text) break;
+    text = next;
+  }
+  return text.split('\n');
 }
 
 /** Verified-image mode: rebase recognised crops, drop single-quoted, foreign, or leftover images. */
 function verifiedImageLine(line: string, imageBase: string, newSurface: boolean): string | null {
-  if (/src='/.test(line) || /src=["']https?:\/\/(?!github\.com\/)/.test(line)) return null;
+  if (/src\s*=\s*'/.test(line) || /src\s*=\s*["']?(?:\/\/|data:|https?:\/\/(?!github\.com\/))/i.test(line)) return null;
+  if (/srcset|<source/i.test(line)) return null;
   if (!newSurface && /!\[[^\]]*\]\(/.test(line)) return null;
   if (!hasImageMarkup(line)) return line;
   return rebaseRecognisedImages(line, imageBase, newSurface);
