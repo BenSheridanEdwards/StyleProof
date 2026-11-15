@@ -105,20 +105,20 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "44729691650c32ed54a5db0b3f606d03cb14dd9fc9399a0164eedd14f57669b5",
+      "digest": "74d8521f2eb6970252f09aac155aa3ae8398598eb6226a48418dbfd1c5ae2a84",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1578
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "bacb6231d41c70b010c4b7ae5d957c9cc1178d770e142c5299704ba6462a9421",
+      "digest": "aad0ce1d84bb37468e445fb08327b03c1362f7c46c459c6cb5e4220c9a80eeea",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1589
+      "byteCount": 1566
     }
   },
-  "actionTrustState": "DATA_RESIDUE_UNACKNOWLEDGED",
-  "reviewDigest": "e010c082e39f7be53cd2eb58b4ead66571e5f2f63c18399063687e2f3fb7d69e",
+  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED",
+  "reviewDigest": "5987d4d7a10a16a5fc2dbb55356d47a74fa62e32b3589dacac3bb71c1004c4ee",
   "untrustedCapture": false
 }
