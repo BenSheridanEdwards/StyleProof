@@ -486,7 +486,9 @@ figure { margin: 0; }
 .sw { display: inline-block; width: 1em; height: 1em; margin-right: 6px; }
 @media (max-width: 720px) { .head, .pair { grid-template-columns: 1fr; } }
 img { max-width: 100%; }
-.table-scroll { display: block; overflow-x: auto; }
+.table-scroll { display: block; inline-size: max-content; max-inline-size: 100%; overflow-x: auto; }
+.table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.table-scroll code { overflow-wrap: break-word; }
 th, td { border: 1px solid var(--line); padding: 6px; }
 code { background: var(--panel); }
 footer { color: var(--muted); margin-top: 32px; }
