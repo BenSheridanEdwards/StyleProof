@@ -193,3 +193,32 @@ for (const theme of ['light', 'dark']) {
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
   });
 }
+
+test('visual-first narrow tables shrink to their content on a 390px page', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.setContent(
+    renderReportHtml('| Property | Before | After |\n| --- | --- | --- |\n| `color` | `red` | `blue` |', {
+      layout: 'visual-first',
+    }),
+  );
+  const table = page.getByRole('table');
+  await expect(table).toBeVisible();
+  const metrics = await table.evaluate((element) => {
+    const main = element.closest('main');
+    if (!main) throw new Error('table must sit in main');
+    const probe = document.createElement('div');
+    main.appendChild(probe);
+    const columnWidth = probe.getBoundingClientRect().width;
+    probe.remove();
+    return {
+      width: element.getBoundingClientRect().width,
+      columnWidth,
+      right: element.getBoundingClientRect().right,
+    };
+  });
+  // Old visual-first CSS (`.table-scroll { display: block; overflow-x: auto; }`)
+  // stretched a short table to the full main column. The max-content rule shrinks it.
+  expect(metrics.columnWidth).toBeGreaterThan(0);
+  expect(metrics.columnWidth - metrics.width).toBeGreaterThan(16);
+  expect(metrics.right).toBeLessThanOrEqual(390);
+});
