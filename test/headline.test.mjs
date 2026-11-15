@@ -5,7 +5,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { reportHeadline } from '../dist/report/headline.js';
+import { headlineParts, reportHeadline } from '../dist/report/headline.js';
 
 function baseInput(overrides = {}) {
   return {
@@ -94,3 +94,13 @@ test('elevated structure headline counts visible and navigable-chrome elevations
   assert.match(md, /\*\*2 visible element additions\/removals need review\*\*/);
   assert.match(md, /🧱 \*\*2 visible element addition\(s\)\/removal\(s\)\*\* need review/, 'the note agrees');
 });
+
+for (const sectionCount of [1, 2]) {
+  test(`visual-first verdict counts ${sectionCount} review sections`, () => {
+    const { lines } = headlineParts(
+      baseInput({ changeGroups: [stubGroup()], sectionCount, scope: ' on `home`' }),
+      true,
+    );
+    assert.ok(lines.includes(`**${sectionCount} change${sectionCount === 1 ? '' : 's'} to review** on ` + '`home`'));
+  });
+}
