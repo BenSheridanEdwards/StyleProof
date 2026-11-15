@@ -1,7 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { decodeSectionMeta } from './section-meta.js';
-import { decodeCapturedMeta } from './section-meta.js';
+import { decodeSectionMeta, decodeCapturedMeta } from './section-meta.js';
 
 /**
  * Render report.md to a self-contained report.html — the in-browser review
@@ -338,7 +337,10 @@ ${body}
 `;
 }
 
-export function renderReportHtml(markdown: string, options?: { outDir: string; maxBytes?: number }): string {
+export function renderReportHtml(
+  markdown: string,
+  options?: { outDir: string; maxBytes?: number; layout?: 'visual-first' },
+): string {
   const maxBytes = options?.maxBytes ?? 2_000_000;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
   const body = renderBlocks(markdown.split('\n')).join('\n');
@@ -385,9 +387,7 @@ ${body}
 </body>
 </html>
 `;
-  const visual =
-    /<!-- styleproof-(?:section |captured )/.test(markdown) ||
-    (!!topBlock(markdown.split('\n')).summary && !markdown.includes('**Product-state'));
+  const visual = /<!-- styleproof-(?:section |captured )/.test(markdown) || options?.layout === 'visual-first';
   if (visual) page = pageHtml(renderPage(markdown.split('\n')));
   if (!options) return page;
   const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];

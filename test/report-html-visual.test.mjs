@@ -106,6 +106,7 @@ test('every no-change verdict opening is the header summary, not a note under a 
   for (const [line, shown] of verdicts) {
     const html = renderReportHtml(`## 🗺️ StyleProof report\n\n${line}\n\n## Changed but never matched\n\nx`, {
       outDir: process.env.TMPDIR ?? '.',
+      layout: 'visual-first',
     });
     const header = html.match(/<header class="top">[\s\S]*?<\/header>/)?.[0] ?? '';
     assert.match(header, /<p class="summary">/, line);
@@ -171,4 +172,23 @@ test('a cannot-certify line that opens the report is the header summary; a later
   assert.match(top, /<p class="summary">⛔ <strong>This compare cannot certify:<\/strong>/);
   assert.doesNotMatch(top, /newly volatile/);
   assert.ok(page.indexOf('newly volatile') > page.indexOf('</header>'));
+});
+
+test('default no-change report with declared product state keeps legacy HTML chrome', async (t) => {
+  const { pairFixture, sceneMap } = await import('./helpers.mjs');
+  const map = sceneMap({ buttonColor: 'rgb(0, 0, 0)', bodyHeight: 800 });
+  map.metadata = { ...map.metadata, productState: { id: 'home', revision: 'fixture-v1' } };
+  const { beforeDir, afterDir, outDir, root } = pairFixture({
+    surface: 'home@1280',
+    before: map,
+    after: map,
+  });
+  t.after(() => rmTmp(root));
+  const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const markdown = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.match(markdown, /✓ No reviewable computed-style changes/);
+  assert.doesNotMatch(markdown, /identity unproven/);
+  const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+  assert.doesNotMatch(html, /<header class="top">/);
+  assert.doesNotMatch(html, /data-set-theme=/);
 });
