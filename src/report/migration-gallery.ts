@@ -41,7 +41,11 @@ function section(heading: string, intro: string, items: string[]): string[] {
   return items.length ? ['', heading, '', intro, '', ...items] : [];
 }
 
-export function renderMigrationGallerySections(g: MigrationGallery, layout?: string): string[] {
+export function renderMigrationGallerySections(
+  g: MigrationGallery,
+  layout?: string,
+  hasChangesSection = false,
+): string[] {
   const md: string[] = [];
   if (g.changedStyles.length || g.newSurfaces.length || g.newRemovedElements.length) {
     md.push(
@@ -62,7 +66,9 @@ export function renderMigrationGallerySections(g: MigrationGallery, layout?: str
         '',
         `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
         '',
-        `_${g.changedStyles.length} surface(s) with computed-style differences; each change is a section under Changes._`,
+        hasChangesSection
+          ? `_${g.changedStyles.length} surface(s) with computed-style differences; each change is a section under Changes._`
+          : `_${g.changedStyles.length} surface(s) with computed-style differences._`,
       );
     if (g.newSurfaces.length)
       md.push(

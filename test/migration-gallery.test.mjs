@@ -512,3 +512,29 @@ test('visual-first migration gallery points at Changes and named surfaces withou
   assert.doesNotMatch(md, /· \d+ finding\(s\)|^- `[^`]+`$/m);
   rmTmp(root);
 });
+
+test('visual-first migration gallery does not point at Changes when product state blocks every section', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before'),
+    afterDir = path.join(root, 'after');
+  const before = styleChangedSurfaceBefore();
+  const after = styleChangedSurfaceAfter();
+  before.metadata = { productState: { id: 'checkout-loading', revision: 'fixture-v1' } };
+  after.metadata = { productState: { id: 'checkout-ready', revision: 'fixture-v1' } };
+  writeCapture(beforeDir, 'home@1280', before, null);
+  writeCapture(afterDir, 'home@1280', after, null);
+  writeMinimalManifest(beforeDir);
+  writeMinimalManifest(afterDir);
+  const result = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir: path.join(root, 'out'),
+    migration: true,
+    layout: 'visual-first',
+  });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.doesNotMatch(md, /^## Changes$/m);
+  assert.match(md, /1 surface\(s\) with computed-style differences\._/);
+  assert.doesNotMatch(md, /under Changes/);
+  rmTmp(root);
+});

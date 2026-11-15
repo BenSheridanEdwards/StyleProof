@@ -480,8 +480,9 @@ function renderReportBody(
   );
   if (migrationGallery) {
     const g = migrationGallery;
+    const hasChangesSection = view.chrome.chrome.length + view.chrome.rest.length > 0;
     md.detail(
-      renderMigrationGallerySections(g, ctx.layout),
+      renderMigrationGallerySections(g, ctx.layout, hasChangesSection),
       `- Migration gallery: ${g.changedStyles.length} changed styles, ${g.newSurfaces.length} new surfaces, ${g.newRemovedElements.length} surfaces with element changes`,
     );
   }
