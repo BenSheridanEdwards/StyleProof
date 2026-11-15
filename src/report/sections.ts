@@ -235,6 +235,10 @@ export class ReportMarkdown {
     return block;
   }
 
+  mapQueued(rewrite: (line: string) => string): void {
+    for (const block of this.blocks) block.full = block.full.map(rewrite);
+  }
+
   /** Drop trailing lines until the headline itself fits the budget. */
   trimToBudget(): void {
     while (this.lines.length > 0 && markdownByteLength(this.lines) > this.maxBytes) this.lines.pop();
