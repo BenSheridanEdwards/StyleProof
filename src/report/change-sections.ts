@@ -508,7 +508,9 @@ export function renderChangeSection(ctx: RenderCtx, input: SectionInput) {
       ...pairs.md,
       ...cssDetailLines(section.findings),
       ...input.details,
-      ...(ctx.layout === 'visual-first' ? stateBlocks(section.findings) : []),
+      ...(ctx.layout === 'visual-first'
+        ? stateBlocks(section.findings.filter((f) => !isStateFinding(f) || subjectPath(f) === section.paths[0]))
+        : []),
     ],
     region: {
       paths,
