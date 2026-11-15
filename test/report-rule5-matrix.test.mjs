@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
-import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
+import { MAP_MANIFEST } from '../dist/map-store.js';
+import { fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 import { htmlText, reportProblems, visibleMd } from './rule5-detector.mjs';
 
 // Part 1: style, structure and surfaces. Layout pins refer to visual-first.
@@ -19,6 +20,14 @@ const page = (elements, extra = {}) => ({
   metadata: { productState: { id: 'rule5', revision: 'fixture-v1' } },
   ...extra,
 });
+const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
+const reach = (rules, extra = {}) => ({
+  reach: { version: 2, scope: 'compared', sheets: ['/app.css'], rules, ...extra },
+});
+const fails = (n) =>
+  Array.from({ length: n }, (_, i) => ({ key: `p${i}@1280`, reason: 'timeout on base', kind: 'capture' }));
+const heads = (n) =>
+  Object.fromEntries(Array.from({ length: n }, (_, i) => [`p${i}@1280`, page({ 'body > p': para })]));
 const nav = { tag: 'nav', cls: 'shared', rect: [0, 0, 1280, 40], style: { display: 'block' } };
 const navLink = {
   tag: 'a',
@@ -36,6 +45,12 @@ const chromeSurfaces = (withLink) =>
   );
 const PLAIN = { 'home@1280': page({ 'body > p': para }) };
 const STYLED = (color) => ({ 'home@1280': page({ 'body > h1': title(color), 'body > p': para }) });
+const stated = (id) => (color) => ({
+  'home@1280': page(
+    { 'body > h1': title(color), 'body > p': para },
+    { metadata: { productState: { id, revision: 'fixture-v1' } } },
+  ),
+});
 const SHAPES = {
   'empty (no changes)': {
     before: PLAIN,
@@ -120,7 +135,155 @@ const SHAPES = {
     after: { 'home@1280': page({ 'body > p': { ...para, text: 'New text' } }) },
     expect: /No reviewable computed-style changes/,
   },
+  'base capture failed (one surface)': {
+    failures: fails(1),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(1) },
+    expect: /1 surface failed to capture on the base/,
+  },
+  'base capture failed (two surfaces)': {
+    failures: fails(2),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(2) },
+    expect: /2 surfaces failed to capture on the base/,
+  },
+  'base capture failed (twelve surfaces, over the naming cap)': {
+    failures: fails(12),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(12) },
+    expect: /12 surfaces failed to capture on the base[\s\S]*and 2 more/,
+  },
+  'base capture failed + style': {
+    failures: fails(1),
+    before: STYLED(BLACK),
+    after: { ...STYLED(RED), ...heads(1) },
+    expect: /1 surface failed to capture on the base/,
+  },
+  'base capture failed + new surface': {
+    failures: fails(1),
+    before: PLAIN,
+    after: { ...PLAIN, ...heads(1), 'pricing@1280': page({ 'body > p': para }) },
+    expect: /1 new surface/,
+  },
+  'product-state blocked (structure)': {
+    opts: { requireStateIdentity: true },
+    before: { 'home@1280': page({ 'body > div.promo': promo, 'body > p': para }, { metadata: {} }) },
+    after: { 'home@1280': page({ 'body > p': para }, { metadata: {} }) },
+    expect: /This compare cannot certify/,
+  },
+  'product-state blocked (style + structure)': {
+    opts: { requireStateIdentity: true },
+    before: {
+      'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }, { metadata: {} }),
+    },
+    after: STYLED(RED),
+    expect: /This compare cannot certify/,
+  },
+  'reach gate holding, no style change': {
+    opts: { changeReach: 'gate' },
+    before: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h1')])) },
+    after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
+    expect: /Reach gate/,
+  },
+  'reach gate holding, with style changes': {
+    opts: { changeReach: 'gate' },
+    before: {
+      'home@1280': page(
+        { 'body > h1': title(BLACK), 'body > p': para },
+        reach([rule('.title', 'h1', { used: true }), rule('.unopened', 'h1')]),
+      ),
+    },
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(RED), 'body > p': para },
+        reach([rule('.title', 'h2', { used: true }), rule('.unopened', 'h2')]),
+      ),
+    },
+    expect: /Reach gate/,
+  },
+  'reach gate holding, with structure': {
+    opts: { changeReach: 'gate' },
+    before: { 'home@1280': page({ 'body > p': para, 'body > div.promo': promo }, reach([rule('.unopened', 'h1')])) },
+    after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
+    expect: /Reach gate/,
+  },
+  'reach gate holding only a missing served-CSS record': {
+    opts: { changeReach: 'gate' },
+    before: STYLED(BLACK),
+    after: {
+      'home@1280': page({ 'body > h1': title(RED), 'body > p': para }, reach([rule('.title', 'h2', { used: true })])),
+    },
+    expect: /Reach gate/,
+  },
+  // RV22-03 (QA22-02): with no served-CSS record on either side, the gap's reason and remedy are said once.
+  'reach gate, no served-CSS record on either side': {
+    opts: { changeReach: 'gate' },
+    before: STYLED(BLACK),
+    after: STYLED(RED),
+    expect: /\*\*Reach evidence gaps\*\*/,
+    expectNot: /ledger/,
+  },
+  'warn-level reach gaps (one side has no served-CSS record)': {
+    before: STYLED(BLACK),
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(RED), 'body > p': para },
+        reach([rule('.title', 'h2', { used: true }), rule('.ignored', 'h2', { outside: true })], { unreadable: 2 }),
+      ),
+    },
+    expect: /could not check every changed CSS rule/,
+  },
+  // RV22-01: a change whose only section is a state layer captured on one side has no element; with
+  // Change Reach on both sides the summary states no zero count.
+  'state layer on one side, Change Reach on both sides': {
+    before: {
+      'home@1280': page({ 'body > h1': title(BLACK) }, { stateLayers: ['hover'], ...reach([rule('.a', 'h1')]) }),
+    },
+    after: {
+      'home@1280': page(
+        { 'body > h1': title(BLACK) },
+        { stateLayers: ['hover', 'checked'], ...reach([rule('.a', 'h1')]) },
+      ),
+    },
+    expect: /^\*\*1 change to review\*\* on `home` at 1280px wide\.$/m,
+  },
+  'warn-level reach: never matched + unmeasured': {
+    before: {
+      'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h1'), rule('.ignored', 'h1', { outside: true })])),
+    },
+    after: {
+      'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h2'), rule('.ignored', 'h2', { outside: true })])),
+    },
+    expect: /never matched on a captured page/,
+  },
+  'incomparable product state': {
+    before: stated('checkout-loading')(BLACK),
+    after: stated('checkout-ready')(RED),
+    expect: /This compare cannot certify:\*\* 1 paired capture\(s\) declare a different product state/,
+  },
 };
+
+function manifest(dir, sha, failures) {
+  fs.writeFileSync(
+    path.join(dir, MAP_MANIFEST),
+    JSON.stringify({
+      version: 1,
+      packageVersion: '9.0.0',
+      sha,
+      dirty: false,
+      spec: 'test.spec.ts',
+      specHash: 'a'.repeat(64),
+      platform: 'linux',
+      arch: 'x64',
+      nodeMajor: '22',
+      screenshots: true,
+      har: false,
+      compatibilityKey: fixtureCompatibilityKey('rule5-matrix'),
+      createdAt: '2026-01-01T00:00:00.000Z',
+      ...(failures.length ? { surfaceCaptureFailures: failures } : {}),
+    }),
+  );
+}
 
 for (const [shape, spec] of Object.entries(SHAPES)) {
   test(`rule 5 holds for: ${shape}`, (t) => {
@@ -134,6 +297,14 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
       fs.mkdirSync(sideDir, { recursive: true });
       for (const [key, capture] of Object.entries(captures)) writeCapture(sideDir, key, capture, solidPng(1280, 400));
     }
+    for (const side of ['before', 'after']) {
+      if (spec.failures)
+        manifest(
+          path.join(dir, side),
+          (side === 'before' ? 'b' : 'c').repeat(40),
+          side === 'before' ? spec.failures : [],
+        );
+    }
     for (const layout of [undefined, 'visual-first']) {
       const outDir = path.join(dir, layout ?? 'default');
       generateStyleMapReport({
@@ -141,6 +312,7 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
         afterDir: path.join(dir, 'after'),
         outDir,
         ...(layout ? { layout } : {}),
+        ...(spec.opts ?? {}),
       });
       const md = visibleMd(fs.readFileSync(path.join(outDir, 'report.md'), 'utf8'));
       const html = htmlText(fs.readFileSync(path.join(outDir, 'report.html'), 'utf8'));

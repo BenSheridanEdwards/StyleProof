@@ -460,7 +460,7 @@ function renderReportBody(
 ) {
   const { view, baseline, content, migrationGallery, reach, surfaceKeyOf } = input;
   const { md } = out;
-  if (baseline.failures.length > 0) {
+  if (baseline.failures.length > 0 && ctx.layout !== 'visual-first') {
     md.detail(
       baselineFailureDetailLines(baseline.failures),
       `- ${baseline.failures.length} baseline capture failure receipt(s) summarized here; full bounded identities are in report.json`,
