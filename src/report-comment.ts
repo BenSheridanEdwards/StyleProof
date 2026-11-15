@@ -20,49 +20,122 @@ const APPROVAL_BOX = /^\s*- \[[ xX]\]/;
 /** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
 const HEAD_END = /^(?:## |<details>)/;
 const MORE_RESERVE = 200;
+/** Must match the hidden marker `src/report/sections.ts` writes on a new-surface heading. */
+const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
+/** Commit-bound public blob directory: owner/repo/blob/<40-hex-sha>/optional/dirs/. */
+const IMAGE_BASE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/(?:[\w.-]+\/)*$/;
+/** Crop files are stems plus an extension; `..` and slashes are never allowed. */
+const CROP_FILE = /^[A-Za-z0-9._-]+$/;
 
 type Section = { title: string; body: string[] };
 
-/** Split report.md into the lines above the first section heading and its change sections. */
+const isNewSurfaceHeading = (line: string): boolean => line.startsWith('### ') && line.includes(NEW_SURFACE_MARKER);
+
+const sectionTitle = (title: string): string => title.replace(NEW_SURFACE_MARKER, '').trimEnd();
+
+/** True when this heading opens a change section or a new-surface section. */
+function isCommentSection(lines: string[], i: number): boolean {
+  if (isNewSurfaceHeading(lines[i])) return true;
+  const data = lines.slice(i + 1).find((l) => l.trim()) ?? '';
+  return lines[i].startsWith('### ') && isSectionMetaLine(data);
+}
+
+/** Change sections end at their closer; new-surface sections have no closer, so they end at the next heading. */
+function sectionEnd(lines: string[], i: number): number {
+  if (isNewSurfaceHeading(lines[i])) {
+    const next = lines.findIndex((l, j) => j > i && l.startsWith('### '));
+    return next < 0 ? lines.length : next;
+  }
+  const end = lines.indexOf(SECTION_END, i);
+  return end < 0 ? lines.length : end;
+}
+
+/** Split report.md into the lines above the first section heading and its change and new-surface sections. */
 function parse(lines: string[]): { top: string[]; sections: Section[] } {
-  const first = lines.findIndex((l) => l.startsWith('### '));
-  const top = first < 0 ? lines : lines.slice(0, first);
+  const start = lines.findIndex((_, i) => isCommentSection(lines, i));
+  const top = start < 0 ? lines : lines.slice(0, start);
   const sections: Section[] = [];
-  for (let i = Math.max(first, 0); first >= 0 && i < lines.length; i++) {
-    const data = lines.slice(i + 1).find((l) => l.trim()) ?? '';
-    if (!lines[i].startsWith('### ') || !isSectionMetaLine(data)) continue;
-    const end = lines.indexOf(SECTION_END, i);
-    sections.push({ title: lines[i], body: lines.slice(i + 1, end < 0 ? lines.length : end) });
-    i = end < 0 ? lines.length : end;
+  for (let i = Math.max(start, 0); start >= 0 && i < lines.length; i++) {
+    if (!isCommentSection(lines, i)) continue;
+    const end = sectionEnd(lines, i);
+    sections.push({ title: sectionTitle(lines[i]), body: lines.slice(i + 1, end) });
+    i = end === lines.length || lines[end] === SECTION_END ? end : end - 1;
   }
   return { top, sections };
 }
 
+function verifiedImageBase(raw: string | undefined): string {
+  if (!raw || raw.includes('..')) return '';
+  return IMAGE_BASE.test(raw) ? raw : '';
+}
+
+const isSafeCrop = (file: string): boolean => CROP_FILE.test(file) && !file.includes('..');
+
+/** Rewrite recognised double-quoted crop images and markdown tiles onto `imageBase`. */
+function rebaseRecognisedImages(line: string, imageBase: string, allowMarkdown: boolean): string | null {
+  const abs = (file: string) => `${imageBase}crops/${file}?raw=1`;
+  let rewritten = line.replace(/src="crops\/([^"?]+)"/g, (m, file: string) =>
+    isSafeCrop(file) ? `src="${abs(file)}"` : m,
+  );
+  if (allowMarkdown) {
+    rewritten = rewritten.replace(/!\[([^\]]*)\]\(crops\/([^)]+)\)/g, (m, alt: string, file: string) =>
+      isSafeCrop(file) ? `![${alt}](${abs(file)})` : m,
+    );
+  }
+  const leftover =
+    /src="crops\//.test(rewritten) ||
+    /src='/.test(rewritten) ||
+    /\]\(crops\//.test(rewritten) ||
+    /src=["']https?:\/\/(?!github\.com\/)/.test(rewritten) ||
+    (!allowMarkdown && /!\[[^\]]*\]\(/.test(rewritten));
+  return leftover ? null : rewritten;
+}
+const hasImageMarkup = (line: string): boolean => /<img|!\[[^\]]*\]\(|crops\//.test(line);
+
+/** Drop HTML comments, including ones that span lines; unclosed comments are dropped to the end. */
+function withoutHtmlComments(lines: string[]): string[] {
+  return lines
+    .join('\n')
+    .replace(/<!--[\s\S]*?(-->|$)/g, '')
+    .split('\n');
+}
+
+/** Verified-image mode: rebase recognised crops, drop single-quoted, foreign, or leftover images. */
+function verifiedImageLine(line: string, imageBase: string, newSurface: boolean): string | null {
+  if (/src='/.test(line) || /src=["']https?:\/\/(?!github\.com\/)/.test(line)) return null;
+  if (!newSurface && /!\[[^\]]*\]\(/.test(line)) return null;
+  if (!hasImageMarkup(line)) return line;
+  return rebaseRecognisedImages(line, imageBase, newSurface);
+}
+
+/** Text-only mode: keep the Where caption, drop pair rows and any remaining image markup. */
+function textOnlyLine(line: string, body: string[], i: number): string | null {
+  const where = line.match(WHERE_LINE);
+  if (where) return `<sub>${where[2]}</sub>`;
+  if (PAIR_ROW.test(line) || hasImageMarkup(line)) return null;
+  // A state label stays only when it heads a note, not a pair table.
+  if (
+    STATE_LABEL.test(line) &&
+    body
+      .slice(i + 1)
+      .find((l) => l)
+      ?.startsWith('| Before')
+  )
+    return null;
+  return line;
+}
+
 /** One section for the comment: images when `images` is set (rebased onto `imageBase`), otherwise text only. */
-function sectionLines(section: Section, images: boolean, imageBase: string): string[] {
-  const out = [section.title];
-  section.body.forEach((line, i) => {
-    if (line.includes('<!--') || APPROVAL_BOX.test(line)) return;
-    if (images) {
-      const rebase = (_m: string, file: string) => `src="${imageBase}crops/${file}?raw=1"`;
-      out.push(imageBase ? line.replace(/src="crops\/([^"?]+)"/g, rebase) : line);
-      return;
-    }
-    const where = line.match(WHERE_LINE);
-    if (where) out.push(`<sub>${where[2]}</sub>`);
-    else if (PAIR_ROW.test(line)) return;
-    // A state label stays only when it heads a note, not a pair table.
-    else if (
-      STATE_LABEL.test(line) &&
-      section.body
-        .slice(i + 1)
-        .find((l) => l)
-        ?.startsWith('| Before')
-    )
-      return;
-    else out.push(line);
+function sectionLines(section: Section, images: boolean, imageBase: string, keepImages: boolean): string[] {
+  const body = withoutHtmlComments(section.body);
+  const newSurface = /· new surface$/.test(section.title);
+  const lines = body.map((line, i) => {
+    if (APPROVAL_BOX.test(line)) return null;
+    if (images && imageBase) return verifiedImageLine(line, imageBase, newSurface);
+    if (images && keepImages && !imageBase) return line;
+    return textOnlyLine(line, body, i);
   });
-  return tidy(out);
+  return tidy([section.title, ...lines.filter((l): l is string => l !== null)]);
 }
 
 /** Collapse repeated blank lines and trim the ends. */
@@ -77,8 +150,8 @@ function openingLines(top: string[]): string[] {
   // The report's own title is not a group heading: an unbound report opens with its warning above it.
   const end = top.findIndex((l, i) => i > 0 && HEAD_END.test(l) && !l.startsWith('## 🗺️'));
   return tidy(
-    (end < 0 ? top : top.slice(0, end))
-      .filter((l) => !l.includes('<!--') && !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
+    withoutHtmlComments(end < 0 ? top : top.slice(0, end))
+      .filter((l) => !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
       .map(pointAtFullReport),
   );
 }
@@ -130,12 +203,17 @@ export function reportCommentSummary(
     maxChars?: number;
   } = {},
 ): string {
-  const imageBase = /^https:\/\/github\.com\/[^\s"<>?#]+\/$/.test(options.imageBase ?? '') ? options.imageBase! : '';
-  const images = Boolean(imageBase || options.keepImages);
+  const imageBase = verifiedImageBase(options.imageBase);
+  const keepImages = Boolean(options.keepImages);
+  const images = Boolean(imageBase || keepImages);
   const { top, sections } = parse(markdown.split('\n'));
   const blocks: Block[] = [
     ...openingLines(top).map((text) => ({ text, sep: '\n', section: false })),
-    ...sections.map((s) => ({ text: sectionLines(s, images, imageBase).join('\n'), sep: '\n\n', section: true })),
+    ...sections.map((s) => ({
+      text: sectionLines(s, images, imageBase, keepImages).join('\n'),
+      sep: '\n\n',
+      section: true,
+    })),
   ];
   return cutToBudget(blocks, options.maxChars ?? COMMENT_SUMMARY_MAX_CHARS);
 }
