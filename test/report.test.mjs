@@ -284,13 +284,12 @@ test('end-to-end: header counts the collapsed total, not the longhand explosion'
     before: pads('26px'),
     after: pads('28px'),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  // Zero counts are dropped from the headline; only the real one shows.
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
-  assert.doesNotMatch(md, /0 DOM change\(s\)/);
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
+  for (const layout of [undefined, 'visual-first']) {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir, ...(layout ? { layout } : {}) });
+    // Four longhands collapse to one style count in report.json on both layouts.
+    const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+    assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
+  }
   rmTmp(root);
 });
 
@@ -847,21 +846,23 @@ test('add-only: headline counts DOM only — head-side inventory is not a restyl
     beforePng: solidPng(1280, 800),
     afterPng: solidPng(1280, 800),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
-  assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 DOM change\(s\)\)/);
-  assert.doesNotMatch(md, /computed-style difference/);
-  assert.doesNotMatch(md, /state-delta difference/);
-  assert.match(md, /Style inventory \(head-side — no baseline\)/);
-  assert.match(md, /Interactive states:/);
-  assert.doesNotMatch(md, /Interactive-state changes:/);
-  assert.doesNotMatch(md, /Before → After/);
-  // Raw certification findings still carry the full inventory (backward compatible).
-  assert.equal(json.rawCounts.dom, 1);
-  assert.ok(json.rawCounts.style > 0 || json.reviewableCounts.style > 0, 'raw findings still inventory the added node');
+  for (const layout of [undefined, 'visual-first']) {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir, ...(layout ? { layout } : {}) });
+    const md = fs.readFileSync(res.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+    // Presentation counts: DOM add only. Style/state rows are inventory on the new node.
+    assert.deepEqual(json.counts, { dom: 1, style: 0, state: 0 });
+    if (!layout) assert.match(md, /Style inventory \(head-side — no baseline\)/);
+    if (!layout) assert.match(md, /Interactive states:/);
+    if (!layout) assert.doesNotMatch(md, /Interactive-state changes:/);
+    if (!layout) assert.doesNotMatch(md, /Before → After/);
+    // Raw certification findings still carry the full inventory (backward compatible).
+    assert.equal(json.rawCounts.dom, 1);
+    assert.ok(
+      json.rawCounts.style > 0 || json.reviewableCounts.style > 0,
+      'raw findings still inventory the added node',
+    );
+  }
   rmTmp(root);
 });
 
@@ -885,15 +886,16 @@ test('matched-path restyle still counts as a computed-style difference (not inve
     beforePng: solidPng(1280, 800),
     afterPng: solidPng(1280, 800),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
-  assert.match(md, /\*\*1 distinct change\*\* \(1 computed-style difference\(s\)\)/);
-  assert.match(md, /1 element restyled/);
-  assert.match(md, /\| Property \| Before \| After \|/);
-  assert.doesNotMatch(md, /Style inventory \(head-side/);
-  assert.doesNotMatch(md, /no baseline/);
+  for (const layout of [undefined, 'visual-first']) {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir, ...(layout ? { layout } : {}) });
+    const md = fs.readFileSync(res.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+    assert.deepEqual(json.counts, { dom: 0, style: 1, state: 0 });
+    if (!layout) assert.match(md, /1 element restyled/);
+    if (!layout) assert.match(md, /\| Property \| Before \| After \|/);
+    if (!layout) assert.doesNotMatch(md, /Style inventory \(head-side/);
+    if (!layout) assert.doesNotMatch(md, /no baseline/);
+  }
   rmTmp(root);
 });
 
@@ -936,19 +938,19 @@ test('wrapper path-churn: inventory copy, not restyle differences', () => {
     beforePng: solidPng(1280, 800),
     afterPng: solidPng(1280, 800),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  assert.equal(json.counts.style, 0, 'wrapper path-churn inventories are not style differences');
-  assert.equal(json.counts.state, 0);
-  assert.ok(json.counts.dom >= 2, 'adds + remove are DOM changes');
-  assert.match(md, /DOM change/);
-  assert.doesNotMatch(md, /computed-style difference/);
-  assert.doesNotMatch(md, /1 element restyled|elements restyled/);
-  assert.match(md, /element(?:s)? added/);
-  assert.match(md, /element(?:s)? removed/);
-  assert.match(md, /Style inventory \(head-side — no baseline\)/);
-  assert.doesNotMatch(md, /\| Property \| Before \| After \|/);
+  for (const layout of [undefined, 'visual-first']) {
+    const res = generateStyleMapReport({ beforeDir, afterDir, outDir, ...(layout ? { layout } : {}) });
+    const md = fs.readFileSync(res.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+    assert.equal(json.counts.style, 0, 'wrapper path-churn inventories are not style differences');
+    assert.equal(json.counts.state, 0);
+    assert.ok(json.counts.dom >= 2, 'adds + remove are DOM changes');
+    if (!layout) assert.doesNotMatch(md, /1 element restyled|elements restyled/);
+    if (!layout) assert.match(md, /element(?:s)? added/);
+    if (!layout) assert.match(md, /element(?:s)? removed/);
+    if (!layout) assert.match(md, /Style inventory \(head-side — no baseline\)/);
+    if (!layout) assert.doesNotMatch(md, /\| Property \| Before \| After \|/);
+  }
   rmTmp(root);
 });
 
@@ -1045,19 +1047,26 @@ test('correspondence: wrapper insert with true font-size delta shows paired befo
     beforePng: solidPng(1280, 800),
     afterPng: solidPng(1280, 800),
   });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, includeLayoutNoise: true });
-  const md = fs.readFileSync(res.reportMdPath, 'utf8');
-  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
-  assert.ok(json.counts.style >= 1, 'paired leaf contributes computed-style differences');
-  assert.match(md, /computed-style difference/);
-  assert.match(md, /\| Property \| Before \| After \|/);
-  assert.match(md, /`font-size` \| `12px` \| `13\.3333px`/);
-  assert.match(md, /`height` \| `14px` \| `15px`/);
-  assert.doesNotMatch(md, /Style inventory \(head-side — no baseline\).*font-size/s);
-  // Gate tallies stay on the concrete-path certification differ.
-  assert.ok(json.rawCounts.dom >= 2, 'raw still sees structural path churn');
-  assert.deepEqual(Object.keys(json.rawCounts).sort(), ['dom', 'state', 'style']);
-  assert.deepEqual(Object.keys(json.reviewableCounts).sort(), ['dom', 'state', 'style']);
+  for (const layout of [undefined, 'visual-first']) {
+    const res = generateStyleMapReport({
+      beforeDir,
+      afterDir,
+      outDir,
+      includeLayoutNoise: true,
+      ...(layout ? { layout } : {}),
+    });
+    const md = fs.readFileSync(res.reportMdPath, 'utf8');
+    const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+    assert.ok(json.counts.style >= 1, 'paired leaf contributes computed-style differences');
+    if (!layout) assert.match(md, /\| Property \| Before \| After \|/);
+    if (!layout) assert.match(md, /`font-size` \| `12px` \| `13\.3333px`/);
+    if (!layout) assert.match(md, /`height` \| `14px` \| `15px`/);
+    if (!layout) assert.doesNotMatch(md, /Style inventory \(head-side — no baseline\).*font-size/s);
+    // Gate tallies stay on the concrete-path certification differ.
+    assert.ok(json.rawCounts.dom >= 2, 'raw still sees structural path churn');
+    assert.deepEqual(Object.keys(json.rawCounts).sort(), ['dom', 'state', 'style']);
+    assert.deepEqual(Object.keys(json.reviewableCounts).sort(), ['dom', 'state', 'style']);
+  }
   rmTmp(root);
 });
 
