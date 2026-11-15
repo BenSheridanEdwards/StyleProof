@@ -296,49 +296,15 @@ function summaryLines(input: HeadlineInput): string[] {
 
 /** The headline lines between the certification block and the per-surface detail. */
 export function reportHeadline(input: HeadlineInput): string[] {
-  const md = summaryLines(input);
-  if (input.whatChanged.length > 0) {
-    (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
-    input.whatChanged.forEach((appended) => md.push(appended));
-  }
-  if (input.volatileCount > 0) {
-    const candidates = input.liveCandidateLabels.length
-      ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
-      : '';
-    md.push(
-      '',
-      `_${input.volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates}_`,
-    );
-  }
-  const headOnly = input.headOnlyVolatile ?? [];
-  if (headOnly.length > 0) {
-    md.push(
-      '',
-      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
-    );
-    headOnly
-      .slice(0, 20)
-      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
-      .forEach((appended) => md.push(appended));
-    (headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []).forEach(
-      (appended) => md.push(appended),
-    );
-  }
-  const baseOnly = input.baseOnlyVolatile ?? [];
-  if (baseOnly.length > 0) {
-    md.push(
-      '',
-      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
-    );
-    baseOnly
-      .slice(0, 20)
-      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
-      .forEach((appended) => md.push(appended));
-    (baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []).forEach(
-      (appended) => md.push(appended),
-    );
-  }
-  return [...md, ...contentNoteLines(input)];
+  return headlineParts(input).lines;
+}
+
+export function headlineParts(input: HeadlineInput, visualFirst = false): { lines: string[]; summarised: boolean } {
+  const volatileOnly = visualFirst && hasOnlyVolatileNotes(input);
+  const md = volatileOnly ? [] : summaryLines(input);
+  const summarised = md.length > 0;
+  const lines = headlineDetailLines(input, md);
+  return { lines, summarised };
 }
 
 /** Content-layer pointers: shared chrome (#754), visible structure elevation, then advisory count. */
@@ -421,4 +387,70 @@ export function cropGapLines(
       `${n === 1 ? 'It is' : 'Each is'} still listed and counted` +
       (options.length ? `; ${options.join(', or ')} to show the crops.` : '.'),
   ];
+}
+
+export function reportOpening(
+  { lines: headline, summarised }: { lines: string[]; summarised: boolean },
+  productState: string[],
+): string[] {
+  if (!productState.length) return headline;
+  if (!summarised) return headline.length ? [...productState, '', ...headline] : productState;
+  const end = headline.indexOf('');
+  const lead = end < 0 ? headline : headline.slice(0, end);
+  return [...lead, '', ...productState, ...headline.slice(lead.length)];
+}
+
+function hasOnlyVolatileNotes(input: HeadlineInput): boolean {
+  return (
+    input.changeGroups.length === 0 &&
+    input.missing.length === 0 &&
+    input.reportConsistency.ok &&
+    input.baseline.surfaceFailures.length === 0 &&
+    !!(input.headOnlyVolatile?.length || input.baseOnlyVolatile?.length)
+  );
+}
+
+function headlineDetailLines(input: HeadlineInput, md: string[]): string[] {
+  if (input.whatChanged.length > 0) {
+    (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
+    input.whatChanged.forEach((appended) => md.push(appended));
+  }
+  if (input.volatileCount > 0) {
+    const candidates = input.liveCandidateLabels.length
+      ? ` Auto-detected live-state candidate(s): ${input.liveCandidateLabels.slice(0, 5).map(escapeInlineMarkdown).join('; ')}.`
+      : '';
+    md.push(
+      '',
+      `_${input.volatileCount} live region(s) auto-excluded as nondeterministic (a stream, ticker, or late-loading content) — changes inside them are NOT certified by this check.${candidates}_`,
+    );
+  }
+  const headOnly = input.headOnlyVolatile ?? [];
+  if (headOnly.length > 0) {
+    md.push(
+      '',
+      `✗ **${headOnly.length} subtree(s) newly volatile on head** — still mutating at capture settle on the head but settled and compared on the base, so they were excluded and whatever changed inside them is **not certified**. Stop the head-side churn (a timer, stream, or animation), fixture it, or \`ignore\` the region on both sides.`,
+    );
+    headOnly
+      .slice(0, 20)
+      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
+      .forEach((appended) => md.push(appended));
+    (headOnly.length > 20 ? [`- … and ${headOnly.length - 20} more (full list in report.json)`] : []).forEach(
+      (appended) => md.push(appended),
+    );
+  }
+  const baseOnly = input.baseOnlyVolatile ?? [];
+  if (baseOnly.length > 0) {
+    md.push(
+      '',
+      `⚠ **${baseOnly.length} subtree(s) volatile on the base only** — still mutating at capture settle on the base but settled on the head, so they were excluded and whatever the head renders inside them is **not checked**. Review the head rendering there and approve, or fixture the base-side churn so the next baseline compares it.`,
+    );
+    baseOnly
+      .slice(0, 20)
+      .map((v) => `- \`${safeKey(v.surface)}\` · ${codeValue(v.path)}`)
+      .forEach((appended) => md.push(appended));
+    (baseOnly.length > 20 ? [`- … and ${baseOnly.length - 20} more (full list in report.json)`] : []).forEach(
+      (appended) => md.push(appended),
+    );
+  }
+  return [...md, ...contentNoteLines(input)];
 }

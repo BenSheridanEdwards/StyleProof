@@ -329,3 +329,33 @@ export function evidenceSection(body: string[]): string[] {
   if (!lines.length) return [];
   return ['', '<details>', '<summary>Evidence (warnings & failures)</summary>', '', ...lines, '', '</details>'];
 }
+
+export function visualFirstProductStateWarningLines(
+  comparison: ComparabilitySummary,
+  legacyPairs?: LegacyPairAudit,
+): string[] {
+  // Product-state status is machine output (report.json `comparability`, the CLI); the report
+  // only says so when it stops certification, in plain words.
+  const undeclared = legacyPairs?.armed ? legacyPairs.undeclared.length : 0;
+  if (comparison.status === 'comparable' || comparison.status === 'not-required') return [];
+  if (!comparison.blocksCertification && undeclared === 0)
+    return [
+      '⚠ Product-state identity is unproven — visual-only, not certified as a same-state compare; declare `productState` on both sides.',
+      '',
+    ];
+  const { incomparable, requiredUnproven, globalRequiredUnproven, unproven } = comparison.counts;
+  const declare =
+    'Declare `productState {id, revision}` on both sides, or record it in `styleproof.product-state.json`.';
+  const lines = [
+    incomparable
+      ? `${incomparable} paired capture(s) declare a different product state on base and head, so their differences are not compared.`
+      : '',
+    requiredUnproven + globalRequiredUnproven || undeclared
+      ? `${requiredUnproven + globalRequiredUnproven || undeclared || unproven} paired capture(s) are not proven to show the same product state on both sides. ${declare}`
+      : '',
+  ].filter(Boolean);
+  return [
+    `⛔ **This compare cannot certify:** ${lines.join(' ') || `${unproven} paired capture(s) are not proven to show the same product state on both sides. ${declare}`}`,
+    '',
+  ];
+}
