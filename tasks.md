@@ -2,6 +2,8 @@
 
 ## Completed
 
+- Slice 28 review fix: preserve visual-first reach acknowledgements; TypeScript and 42 focused tests pass; current one-shot thread link unavailable; [PR #1392](https://github.com/BenSheridanEdwards/StyleProof/pull/1392).
+
 - Slice 25: visual-first opening order and cannot-certify/advisory line; focused checks pass, local one-shot, no PR.
 
 ## Queued
@@ -110,3 +112,5 @@
 - In progress: Slice 32 hostile section data, compact HTML and image budgets (current T3 thread; no PR).
 
 - Completed: Slice 26 — keep provenance, coverage and digest in report.json only (current T3 thread; no PR requested).
+
+- Completed: Slice 28 Reach gate line and gated visual-first details (current T3 build thread; no PR requested).

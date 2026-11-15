@@ -781,6 +781,32 @@ test('report publishes acknowledgement reasons and stale remedies', (t) => {
   assert.ok(output.json.reach.blocking > 0);
 });
 
+test('visual-first Reach gate retains stale-only and mixed acknowledgements', (t) => {
+  const dirs = fixture(t, [map()], [map(rule('.held', 'head'))]);
+  const key = ruleReachKey(report(dirs).json.reach.rules[0]);
+  const stale = `old.css·${'a'.repeat(64)}`;
+  const ledger = path.join(dirs.root, 'reach.json');
+  fs.writeFileSync(ledger, JSON.stringify({ [key]: 'Reviewed reason', [stale]: 'Old reason' }));
+  const previous = process.env.STYLEPROOF_REACH;
+  process.env.STYLEPROOF_REACH = ledger;
+  t.after(() => {
+    if (previous === undefined) delete process.env.STYLEPROOF_REACH;
+    else process.env.STYLEPROOF_REACH = previous;
+  });
+  const mixed = report(dirs, { layout: 'visual-first', changeReach: 'gate' });
+  assert.ok(mixed.md.includes(key));
+  assert.match(mixed.md, /## Acknowledged reach items/);
+  assert.ok(mixed.md.includes(stale));
+  const { md, json } = report(fixture(t), { layout: 'visual-first', changeReach: 'gate' });
+  assert.ok(json.reach.blocking > 0);
+  assert.equal(json.reach.rules.length, 0);
+  assert.equal(json.reach.gaps.filter((gap) => gap.kind === 'ledger').length, 0);
+  assert.equal((md.match(/✗ \*\*Reach gate\*\*/g) ?? []).length, 1);
+  assert.match(md, /## Stale reach acknowledgements/);
+  assert.ok(md.includes(stale));
+  assert.match(md, /Prune.*styleproof\.reach\.json/);
+});
+
 test('visual-first warn names unmatched rules without the reach strip', (t) => {
   const dirs = fixture(t, [map(rule('.panel', 'old'))], [map(rule('.panel', 'new'))]);
   const { md, json } = report(dirs, { layout: 'visual-first' });
@@ -800,3 +826,21 @@ test('visual-first warn combines missing records in reviewer words', (t) => {
     /ledger|\(s\)/,
   );
 });
+
+for (const hasChanges of [false, true]) {
+  test(`visual-first Reach gate says once that findings hold the check (changes: ${hasChanges})`, (t) => {
+    const base = map(rule('.unopened', 'base'));
+    const head = map(rule('.unopened', 'head'));
+    if (hasChanges) head.elements.body.style.color = 'rgb(255, 0, 0)';
+    const dirs = fixture(t, [base], [head]);
+    const { md, json } = report(dirs, { layout: 'visual-first', changeReach: 'gate' });
+    assert.equal((md.match(/✗ \*\*Reach gate\*\*/g) ?? []).length, 1);
+    assert.ok(md.includes(hasChanges ? 'They hold the check.' : 'Not a clean no-change: they hold the check.'));
+    if (hasChanges) assert.ok(!md.includes('Not a clean no-change'));
+    assert.ok(md.includes('| `.unopened` |'));
+    assert.ok(!md.includes('**Reach incomplete**'));
+    assert.ok(!md.includes('J2:'));
+    assert.ok(!md.includes('J3:'));
+    assert.equal(json.reach.blocking, 1);
+  });
+}

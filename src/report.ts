@@ -492,7 +492,13 @@ function renderReportBody(
       `- ${content.contentCount} advisory content/structure change(s); full image evidence remains in the published report artifacts.`,
     );
   }
-  const reachBlock = reach ? md.detail(reachSectionLines(reach), reachSummaryLine(reach)) : undefined;
+  const reachBlock =
+    reach && (ctx.layout !== 'visual-first' || reach.blocking > 0)
+      ? md.detail(
+          reachSectionLines(reach, ctx.layout === 'visual-first'),
+          reachSummaryLine(reach, ctx.layout === 'visual-first'),
+        )
+      : undefined;
   return { oneSided, changed, reachBlock };
 }
 
@@ -616,8 +622,14 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     },
     ctx.layout === 'visual-first',
   );
-  const warnHeadline = ctx.layout === 'visual-first' && reach?.blocking === 0;
-  const reachStrip = reach ? (warnHeadline ? reachHeadlineLines(reach) : reachStripLines(reach)) : [];
+  const warnHeadline = ctx.layout === 'visual-first';
+  const gateInHeadline = headline.lines.some((line) => line.includes('✗ **Reach gate**'));
+  const reachStrip =
+    reach && !(warnHeadline && gateInHeadline)
+      ? warnHeadline
+        ? reachHeadlineLines(reach)
+        : reachStripLines(reach)
+      : [];
   md.lines.push('## 🗺️ StyleProof report', '');
   const opening =
     ctx.layout === 'visual-first'
@@ -683,7 +695,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     content.total === 0 &&
     !migrationGallery &&
     !inventoryTouched &&
-    !(reach && reachSectionLines(reach).length > 0)
+    !(reach && reachSectionLines(reach, ctx.layout === 'visual-first').length > 0)
   ) {
     md.append(['', '_Nothing else — no other element or inventory changes in this compare._']);
   }
@@ -729,8 +741,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     reach.gaps = json.reach.gaps;
     reach.complete = false;
     if (reachBlock) {
-      reachBlock.full = reachSectionLines(reach);
-      reachBlock.summary = reachSummaryLine(reach);
+      reachBlock.full = reachSectionLines(reach, ctx.layout === 'visual-first');
+      reachBlock.summary = reachSummaryLine(reach, ctx.layout === 'visual-first');
     }
     const updatedStrip = warnHeadline ? reachHeadlineLines(reach) : reachStripLines(reach);
     for (const [index, line] of reachStrip.entries()) {

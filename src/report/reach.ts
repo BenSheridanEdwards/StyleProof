@@ -1,3 +1,4 @@
+import { reachGateLine } from './headline.js';
 import { auditReach, readReachAckFile, ruleReachKey } from '../reach-ledger.js';
 import {
   classifyClassReach,
@@ -426,6 +427,7 @@ function namedRules(rules: RuleReach[]): string {
 
 /** Plain non-blocking Change Reach warnings for the visual-first layout. */
 export function reachHeadlineLines(reach: ReportReach): string[] {
+  if (reach.blocking > 0) return [reachGateLine(reach.blocking, true)];
   const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
   const lines: string[] = [];
@@ -477,7 +479,18 @@ function ruleTable(rules: RuleReach[]): string[] {
   ];
 }
 
-export function reachSectionLines(reach: ReportReach): string[] {
+function reachIntroduction(reach: ReportReach, visualFirst: boolean): string {
+  return (
+    '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
+    (visualFirst
+      ? '_'
+      : reach.level === 'gate'
+        ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails; review-gate mode needs approval._"
+        : 'Reach findings do not change the verdict._')
+  );
+}
+
+export function reachSectionLines(reach: ReportReach, visualFirst = false): string[] {
   const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
   const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
   const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
@@ -501,7 +514,9 @@ export function reachSectionLines(reach: ReportReach): string[] {
         ]
       : []),
   ];
-  const scriptLines = [...acknowledgementLines, ...scriptSectionLines(reach), ...classSectionLines(reach)];
+  const scriptLines = visualFirst
+    ? acknowledgementLines
+    : [...acknowledgementLines, ...scriptSectionLines(reach), ...classSectionLines(reach)];
 
   if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return scriptLines;
 
@@ -509,10 +524,7 @@ export function reachSectionLines(reach: ReportReach): string[] {
     '',
     '## Changed but never matched',
     '',
-    '_Changed CSS rules no captured state matched, so the diff above cannot show them. Add a surface or state that matches each one. Source is the served stylesheet; the ledger does not record source maps yet. ' +
-      (reach.level === 'gate'
-        ? "Under `changeReach: 'gate'` these findings hold the verdict: certify mode fails; review-gate mode needs approval._"
-        : 'Reach findings do not change the verdict._'),
+    reachIntroduction(reach, visualFirst),
     '',
     ...ruleTable(never),
     ...(unmeasured.length
@@ -539,7 +551,9 @@ export function reachSectionLines(reach: ReportReach): string[] {
           '',
           '**Reach evidence gaps** — changed rules here cannot be listed',
           '',
-          ...ledger.map((gap) => `- ${gapReason(gap)} — ${gap.remedy}`),
+          ...(visualFirst
+            ? ledgerGapPhrases(ledger).map((phrase) => `- ${phrase}`)
+            : ledger.map((gap) => `- ${gapReason(gap)} — ${gap.remedy}`)),
         ]
       : []),
     '',
@@ -552,7 +566,8 @@ export function reachSectionLines(reach: ReportReach): string[] {
   ];
 }
 
-export function reachSummaryLine(reach: ReportReach): string {
+export function reachSummaryLine(reach: ReportReach, visualFirst = false): string {
+  if (visualFirst) return '- Changed but never matched: full list in report.json under `reach`';
   const gaps = reach.gaps.filter((gap) => gap.kind === 'ledger').length;
 
   const counted = gaps
