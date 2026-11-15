@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commentProblems, htmlText, reportProblems } from './rule5-detector.mjs';
+import {
+  countProblems,
+  capNoteProblems,
+  situationCounts,
+  commentProblems,
+  htmlText,
+  reportProblems,
+} from './rule5-detector.mjs';
 const LINK =
   '\n\n### 📊 [**View the side-by-side visual report →**](https://github.com/BenSheridanEdwards/StyleProof/blob/x/pr-1/report.md)\n\n---\n';
 test('a fact said twice in other words is caught (QA9-01 volatile triple)', () => {
@@ -130,4 +137,128 @@ test('an empty paragraph under the title is caught (QA10-04)', () => {
 test('approval wording inside HTML emphasis is caught in report.html (QA10-03)', () => {
   const html = '<main><p>The page is capped, <em>so approving this surface</em> accepts it.</p></main>';
   assert.ok(reportProblems('report.html', htmlText(html)).some((p) => /approval/.test(p)));
+});
+
+test('a comment pointing at tile captions it does not carry is caught (QA11-02)', () => {
+  const body =
+    '## 🗺️ StyleProof report\n\n📏 **1 page with nothing to compare against is only partly shown.** The tile captions say how much; the rest is not reviewed.' +
+    LINK;
+  assert.ok(commentProblems('comment', body).some((p) => /captions or tiles/.test(p)));
+});
+
+test('the detector sees one change said twice inside a counted clause (QA16-01, QA16-03)', () => {
+  const live =
+    'On the tag (Badge), when one of the 2 `input.opt` controls is checked, one changes the text colour from green to red, while the other changes the text colour from green to red.';
+  assert.ok(
+    reportProblems('report.md', `## Report\n\n### Tag\n\n${live}\n`).some((p) => /one change said twice/.test(p)),
+    'two owner groups that read alike',
+  );
+  // Different owners with overlapping changes each state their own; a different trigger is another fact.
+  for (const fine of [
+    'On the opt label, when one of the 2 `input.opt` controls is checked, one changes the text colour from green to red and the background from white to dark indigo, while the other changes the text colour from green to red.',
+    'On the Chip link, the text colour changes from green to red when hovered, and when one of the 2 `input.pick` controls is hovered, one changes the text colour from green to red, while the other changes the background from white to light yellow.',
+  ])
+    assert.deepEqual(
+      reportProblems('report.md', `## Report\n\n### Tag\n\n${fine}\n`).filter((p) => /one change said twice/.test(p)),
+      [],
+    );
+});
+
+test('a surface named for two different facts is allowed; named twice for one fact is not (RV11-10)', () => {
+  const md = [
+    '🆕 **1 new surface** with no baseline to compare: `long @ 1280`. Review it before it becomes part of the baseline.',
+    '',
+    '📏 **Only part of 1 page is shown:** `long @ 1280` (6400 of 8000px, full screenshot `long@1280.png` in the head capture). A new or removed page shows at most 8 screen heights; open the full screenshot to review the rest.',
+  ].join('\n');
+  assert.deepEqual(
+    reportProblems('report.md', md).filter((p) => /stated in two blocks/.test(p)),
+    [],
+  );
+});
+
+test('a count that disagrees with report.json is caught', () => {
+  const md =
+    '⚠️ **12 surfaces failed to capture on the base:** `p0@1280` at `x` and 3 more, all listed in report.json.';
+  const found = situationCounts(md, { baselineFailures: Array.from({ length: 12 }), surfaces: [] });
+  assert.ok(
+    found.some((p) => /names 1 failed surfaces and 3 more, but says 12/.test(p)),
+    found.join('\n'),
+  );
+});
+
+test('the size-cap note must say what to do and count the changes the full report names (QA18-05)', () => {
+  const section = (title, body) => [`### ${title}`, '', '<!-- styleproof-section %7B%7D -->', '', body, ''];
+  const report = ['## Report', '', ...section('A', 'a'), ...section('B', 'b'), ...section('C', 'c')].join('\n');
+  const note = (n) =>
+    `_This comment reached GitHub's size limit. ${n} more changes are listed in the full report: open it from the link at the end of this comment._`;
+  const comment = (n) => ['## Report', '', '### A', '', 'a', '', note(n)].join('\n');
+  assert.deepEqual(capNoteProblems(comment(2), report), []);
+  assert.ok(capNoteProblems(comment(3), report).length > 0, 'a count the full report does not bear out');
+  assert.ok(
+    capNoteProblems(['## Report', '', '### A', '', '_…and 2 more changes in the full report._'].join('\n'), report)
+      .length > 0,
+    'a bare "…and N more"',
+  );
+  assert.ok(capNoteProblems(['## Report', '', '### A', '', 'a'].join('\n'), report).length > 0, 'cut without a note');
+  // QA19-02: a new or removed surface's heading is no change section, so it does not count.
+  const withSurfaces = [
+    '## Report',
+    '',
+    '### `brand-new@1280` · new surface <!-- styleproof-new -->',
+    '',
+    '_brand-new @ 1280_',
+    '',
+    '### `old@1280` · removed surface <!-- styleproof-removed -->',
+    '',
+    ...section('A', 'a'),
+    ...section('B', 'b'),
+    ...section('C', 'c'),
+  ].join('\n');
+  assert.deepEqual(capNoteProblems(comment(2), withSurfaces), [], 'one-sided surfaces are not counted');
+  // A change the comment shows that the full report does not name is still caught.
+  assert.ok(
+    capNoteProblems(['## Report', '', '### Z', '', 'z', '', note(2)].join('\n'), report).some((p) => /"Z"/.test(p)),
+    'a cut change missing from the full report',
+  );
+  // RV19-09: the count-free note is valid only for a report with no change section.
+  const rest =
+    "_This comment reached GitHub's size limit. The rest is in the full report: open it from the link at the end of this comment._";
+  const noSections = ['## Report', '', '**0 changes to review**', '', '- a long opening line'].join('\n');
+  assert.deepEqual(capNoteProblems(['## Report', '', rest].join('\n'), noSections), [], 'no change section, no count');
+  assert.ok(
+    capNoteProblems(['## Report', '', rest].join('\n'), report).length > 0,
+    'a count-free note where the full report has change sections',
+  );
+  assert.ok(
+    capNoteProblems(['## Report', '', "_This comment reached GitHub's size limit._"].join('\n'), noSections).length > 0,
+    'a size-limit note that says neither the count nor where the rest is',
+  );
+});
+
+test('a summary line that states a count of 0 is caught (RV22-01)', () => {
+  for (const line of [
+    '**1 change to review** on `home` at 1280px wide: 0 elements, 0 changed CSS rules.',
+    '**1 change to review** on `home` at 1280px wide: 0 elements, 1 changed CSS rule.',
+    '**2 changes to review** on `home` at 1280px wide: 3 elements, 0 changed CSS rules.',
+  ])
+    assert.ok(
+      reportProblems('report.md', `## 🗺️ StyleProof report\n\n${line}\n`).some((p) => /states "0 /.test(p)),
+      line,
+    );
+  assert.deepEqual(
+    reportProblems('report.md', '## 🗺️ StyleProof report\n\n**1 change to review** on `home` at 1280px wide.\n'),
+    [],
+  );
+});
+
+test('summary counts are checked against report.json', () => {
+  const json = { surfaces: [{ regions: [{ paths: ['button'] }] }], reach: { rules: [{}] } };
+  const summary = '**1 change to review**: 1 element, 1 changed CSS rule.';
+  assert.deepEqual(countProblems(summary, json), []);
+  for (const [before, after, diagnostic] of [
+    ['1 change', '2 changes', /summary says 2 changes/],
+    ['1 element', '2 elements', /summary says 2 elements/],
+    ['1 changed', '2 changed', /summary says 2 rules/],
+  ])
+    assert.ok(countProblems(summary.replace(before, after), json).some((p) => diagnostic.test(p)));
 });

@@ -1,3 +1,4 @@
+import { repeatedChanges } from './repeated-changes.mjs';
 import { visibleText } from './visible-text.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -216,7 +217,9 @@ export function repeatedIdentifiers(text) {
   return [...out];
 }
 export function reportProblems(name, text) {
-  const out = [...repeats(text), ...contradictions(text)].map((p) => `${name}: ${p}`);
+  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text), ...zeroCounts(text)].map(
+    (p) => `${name}: ${p}`,
+  );
   if (name !== 'report.html') out.push(...repeatedIdentifiers(text).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
   if (code) out.push(`${name}: internal code ${code[0]}`);
@@ -229,7 +232,9 @@ export function commentProblems(name, body, { approvalMode = true } = {}) {
   const text = commentText(body);
   const [report, footer = ''] = text.split('\n### 📊');
   const approvalBox = body.includes('- [ ] **Approve all changes**') || body.includes('- [x] **Approve all changes**');
-  const out = [...repeats(text), ...contradictions(text)].map((p) => `${name}: ${p}`);
+  const out = [...repeats(text), ...repeatedChanges(text), ...contradictions(text), ...zeroCounts(text)].map(
+    (p) => `${name}: ${p}`,
+  );
   out.push(...repeatedIdentifiers(text.replace('\n### 📊', '\n\n### 📊')).map((p) => `${name}: ${p}`));
   const code = text.match(INTERNAL_CODE);
   if (code) out.push(`${name}: internal code ${code[0]}`);
@@ -261,6 +266,137 @@ export function danglingReferences(report) {
     /\b(?:(?:listed|named)(?: once)? (?:under|in)|under) (?:the )?(?:\*\*)?([A-Z][^.;,*\n]+?)(?:\*\*)?(?: section)?(?=[.;,)]|$)/gm,
   )) {
     if (!/full report|report\.json/i.test(m[1]) && !carried(m[1])) out.push(`"under ${m[1]}" is not in the comment`);
+  }
+  if (!/<sub>/.test(report))
+    for (const m of report.matchAll(/[^\n]*(?<!\p{L})(?:tiles?|captions?)(?!\p{L})[^\n]*/giu))
+      out.push(`points at captions or tiles the comment does not carry: "${m[0].trim().slice(0, 110)}"`);
+  // "listed/named under X", "a section under X", "under **X**".
+  for (const m of report.matchAll(
+    /\b(?:(?:listed|named)(?: once)? (?:under|in)|under) (?:the )?(?:\*\*)?([A-Z][^.;,*\n]+?)(?:\*\*)?(?: section)?(?=[.;,)]|$)/gm,
+  )) {
+    if (!/full report|report\.json/i.test(m[1]) && !carried(m[1])) out.push(`"under ${m[1]}" is not in the comment`);
+  }
+  return out;
+}
+
+function zeroCounts(text) {
+  const line = text.split('\n').find((l) => /\d+ changes? to review/.test(l)) ?? '';
+  const zero = line.match(/\b0 (?:elements?|changed CSS rules?)\b/);
+  return zero ? [`the summary line states "${zero[0]}"`] : [];
+}
+
+export function capNoteProblems(comment, reportMd) {
+  const out = [];
+  if (/…and \d+ more|\.\.\.and \d+ more/.test(comment)) out.push('a bare "…and N more" note');
+  const note =
+    /This comment reached GitHub's size limit\. (\d+) more changes? (?:is|are) listed in the full report: open it from the link at the end of this comment\./.exec(
+      comment,
+    );
+  const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => m[1].replace(/\s*<!--.*$/, '').trim());
+  // The full report's change sections: a heading followed by its section data, as the comment cuts
+  // them. A new or removed surface's heading is no change section, so it is never counted (QA19-02).
+  const sectionHeads = (text) =>
+    [...text.matchAll(/^### (?!📊)(.+)\n+<!-- styleproof-section /gm)].map((m) =>
+      m[1].replace(/\s*<!--.*$/, '').trim(),
+    );
+  const shown = heads(comment);
+  const all = sectionHeads(reportMd);
+  // The count-free note is right only when the full report has no change section to count (RV19-09).
+  const rest =
+    /This comment reached GitHub's size limit\. The rest is in the full report: open it from the link at the end of this comment\./.test(
+      comment,
+    );
+  if (!note) {
+    if (rest && all.length > 0)
+      out.push(`a size-limit note with no count, though the full report has ${all.length} sections`);
+    else if (/size limit/.test(comment) && !rest) out.push('a size-limit note without a count of the changes left out');
+    else if (shown.length !== all.length)
+      out.push(`the comment shows ${shown.length} of ${all.length} sections with no note`);
+    return out;
+  }
+  if (shown.length + Number(note[1]) !== all.length)
+    out.push(
+      `the note says ${note[1]} more, but the full report has ${all.length} sections and the comment shows ${shown.length}`,
+    );
+  for (const heading of new Set(shown)) if (!all.includes(heading)) out.push(`"${heading}" is not in the full report`);
+  return out;
+}
+
+/** The summary line's counts against report.json, and no zero rule claim with a missing record. */
+
+export function situationCounts(md, json) {
+  const out = [];
+  const failures = md.match(/\*\*(\d+) surfaces? failed to capture on the base:\*\* ([^\n]*)/);
+  if (failures) {
+    const total = Number(failures[1]);
+    const named = (failures[2].match(/` at `/g) ?? []).length;
+    const more = Number(failures[2].match(/ and (\d+) more/)?.[1] ?? 0);
+    if (total !== (json.baselineFailures ?? []).length)
+      out.push(`says ${total} failed surfaces, report.json has ${json.baselineFailures.length}`);
+    if (named + more !== total) out.push(`names ${named} failed surfaces and ${more} more, but says ${total}`);
+  }
+  const oneSided = (key) =>
+    (json.surfaces ?? []).filter((s) => s[key] && s.baselineStatus !== 'baseline-repair-needed').length;
+  const fresh = md.match(/\*\*(\d+) new surfaces?\*\*/);
+  if (fresh && Number(fresh[1]) !== oneSided('isNew'))
+    out.push(`says ${fresh[1]} new surfaces, report.json has ${oneSided('isNew')}`);
+  const gone = md.match(/\*\*(\d+) removed surfaces?\*\*/);
+  if (gone && Number(gone[1]) !== oneSided('isRemoved'))
+    out.push(`says ${gone[1]} removed surfaces, report.json has ${oneSided('isRemoved')}`);
+  // Changes missing crops: a count of changes, not image pairs (RV11-02). It is checked against the
+  // change sections report.json marks `cropOmitted` (one region per section), not against the
+  // renderer's own tally: the stated total equals the per-surface counts it lists; it is at least
+  // those sections; and with no content layer and no one-sided page it is exactly those sections.
+  const cap = md.match(/\*\*(\d+) changes? (?:is|are) missing crops\*\*([^\n]*)/);
+  if (cap) {
+    const total = Number(cap[1]);
+    const listed = [...cap[2].matchAll(/(\d+) on /g)].reduce((sum, m) => sum + Number(m[1]), 0);
+    const sections = (json.surfaces ?? []).flatMap((s) => s.regions ?? []).filter((r) => r.cropOmitted).length;
+    const oneSidedPages = (json.surfaces ?? []).filter((s) => s.isNew || s.isRemoved).length;
+    if (listed !== total) out.push(`says ${total} changes are missing crops, but lists ${listed}`);
+    if (total < sections) out.push(`says ${total} changes are missing crops, report.json has ${sections} sections`);
+    if (!json.content && !oneSidedPages && total !== sections)
+      out.push(
+        `says ${total} changes are missing crops, but ${sections} change sections are (pairs counted, not changes?)`,
+      );
+  }
+  // A section shown with its pair has its Where map, or report.json says a limit left a crop out
+  // (QA12-04): the map is never dropped silently.
+  for (const region of (json.surfaces ?? []).flatMap((s) => s.regions ?? [])) {
+    if (region.images?.after && region.after && !region.where && !region.cropOmitted)
+      out.push(`a section with a pair has no Where map and no cropOmitted (${region.paths?.[0] ?? '?'})`);
+  }
+  const visible = md.match(/\*\*(\d+) visible elements? (?:was|were) added or removed\*\*/);
+  if (visible && Number(visible[1]) !== (json.reviewableCounts?.dom ?? 0)) {
+    out.push(`says ${visible[1]} visible elements changed, report.json counts ${json.reviewableCounts?.dom ?? 0}`);
+  }
+  return out;
+}
+
+export function countProblems(md, json) {
+  const out = [];
+  const ledgerGap = (json.reach?.gaps ?? []).some((gap) => gap.kind === 'ledger');
+  if (ledgerGap && (json.reach.counts || json.reach.rules?.length === 0)) {
+    out.push('report.json claims rule counts though a served-CSS record is missing');
+  }
+  out.push(...situationCounts(visibleMd(md), json));
+  const line = visibleMd(md).match(
+    /\*\*(\d+) changes? to review\*\*(?:[^\n]*?: (\d+) elements?(?:, (\d+) changed CSS rules?)?)?/,
+  );
+  if (!line) return out;
+  const sections = (json.surfaces ?? []).reduce((n, s) => n + (s.regions ? Math.max(1, s.regions.length) : 1), 0);
+  if (Number(line[1]) !== sections) out.push(`summary says ${line[1]} changes, report.json has ${sections}`);
+  if (line[2] !== undefined) {
+    const elements = (json.surfaces ?? [])
+      .flatMap((s) => s.regions ?? [])
+      .reduce((n, r) => n + r.paths.filter((p) => p !== '(surface)').length, 0);
+    if (Number(line[2]) !== elements) out.push(`summary says ${line[2]} elements, report.json has ${elements}`);
+  }
+  if (line[3] !== undefined) {
+    if (ledgerGap) out.push(`summary counts ${line[3]} changed CSS rules though a served-CSS record is missing`);
+    else if (Number(line[3]) !== json.reach.rules.length) {
+      out.push(`summary says ${line[3]} rules, report.json has ${json.reach.rules.length}`);
+    }
   }
   return out;
 }
