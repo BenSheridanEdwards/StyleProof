@@ -488,3 +488,27 @@ describe('migration gallery: certification gates remain fail-closed (#566)', () 
     rmTmp(root);
   });
 });
+
+test('visual-first migration gallery points at Changes and named surfaces without lists', () => {
+  const root = mkTmp();
+  const beforeDir = path.join(root, 'before'),
+    afterDir = path.join(root, 'after');
+  writeCapture(beforeDir, 'style-changed@1280', styleChangedSurfaceBefore(), null);
+  writeCapture(afterDir, 'style-changed@1280', styleChangedSurfaceAfter(), null);
+  writeCapture(afterDir, 'new@1280', genuinelyNewSurface(), null);
+  writeMinimalManifest(beforeDir);
+  writeMinimalManifest(afterDir);
+  const result = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir: path.join(root, 'out'),
+    migration: true,
+    layout: 'visual-first',
+  });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8').split('## 🗺️ StyleProof Migration Report')[1];
+  assert.ok(md.includes('_Migration mode compares two heads where changes are expected._'));
+  assert.ok(md.includes('_1 surface(s) with computed-style differences; each change is a section under Changes._'));
+  assert.ok(md.includes('_1 surface(s) present only in head capture, named at the top of the report._'));
+  assert.doesNotMatch(md, /· \d+ finding\(s\)|^- `[^`]+`$/m);
+  rmTmp(root);
+});

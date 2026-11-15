@@ -41,7 +41,7 @@ function section(heading: string, intro: string, items: string[]): string[] {
   return items.length ? ['', heading, '', intro, '', ...items] : [];
 }
 
-export function renderMigrationGallerySections(g: MigrationGallery): string[] {
+export function renderMigrationGallerySections(g: MigrationGallery, layout?: string): string[] {
   const md: string[] = [];
   if (g.changedStyles.length || g.newSurfaces.length || g.newRemovedElements.length) {
     md.push(
@@ -50,20 +50,39 @@ export function renderMigrationGallerySections(g: MigrationGallery): string[] {
       '',
       '## 🗺️ StyleProof Migration Report',
       '',
-      '_Migration mode compares two heads where changes are expected. Review the sections below: ' +
-        'Changed styles, New surfaces, and New/removed elements._',
+      layout === 'visual-first'
+        ? '_Migration mode compares two heads where changes are expected._'
+        : '_Migration mode compares two heads where changes are expected. Review the sections below: ' +
+            'Changed styles, New surfaces, and New/removed elements._',
     );
   }
-  section(
-    `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
-    `_${g.changedStyles.length} surface(s) with computed-style differences._`,
-    g.changedStyles.map(({ surface, findingCount }) => `- \`${safeKey(surface)}\` · ${findingCount} finding(s)`),
-  ).forEach((appended) => md.push(appended));
-  section(
-    `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
-    `_${g.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
-    g.newSurfaces.map(({ surface }) => `- \`${safeKey(surface)}\``),
-  ).forEach((appended) => md.push(appended));
+  if (layout === 'visual-first') {
+    if (g.changedStyles.length)
+      md.push(
+        '',
+        `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
+        '',
+        `_${g.changedStyles.length} surface(s) with computed-style differences; each change is a section under Changes._`,
+      );
+    if (g.newSurfaces.length)
+      md.push(
+        '',
+        `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
+        '',
+        `_${g.newSurfaces.length} surface(s) present only in head capture, named at the top of the report._`,
+      );
+  } else {
+    section(
+      `### 🎨 ${MIGRATION_GALLERY_LABELS.changedStyles}`,
+      `_${g.changedStyles.length} surface(s) with computed-style differences._`,
+      g.changedStyles.map(({ surface, findingCount }) => `- \`${safeKey(surface)}\` · ${findingCount} finding(s)`),
+    ).forEach((appended) => md.push(appended));
+    section(
+      `### 🆕 ${MIGRATION_GALLERY_LABELS.newSurfaces}`,
+      `_${g.newSurfaces.length} surface(s) present only in head capture (genuinely new)._`,
+      g.newSurfaces.map(({ surface }) => `- \`${safeKey(surface)}\``),
+    ).forEach((appended) => md.push(appended));
+  }
   section(
     `### 🧱 ${MIGRATION_GALLERY_LABELS.newRemovedElements}`,
     '_Element-level structure changes within surfaces. Elevated from advisory — reviewable in migration mode._',
