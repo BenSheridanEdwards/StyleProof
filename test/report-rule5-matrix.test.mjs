@@ -5,7 +5,8 @@ import path from 'node:path';
 import { generateStyleMapReport } from '../dist/report.js';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
-import { htmlText, reportProblems, visibleMd } from './rule5-detector.mjs';
+import { commentStepExpressions, runActionComment } from './action-comment-harness.mjs';
+import { commentProblems, countProblems, htmlText, reportProblems, visibleMd } from './rule5-detector.mjs';
 
 // Part 1: style, structure and surfaces. Layout pins refer to visual-first.
 const BLACK = 'rgb(0, 0, 0)';
@@ -51,53 +52,66 @@ const stated = (id) => (color) => ({
     { metadata: { productState: { id, revision: 'fixture-v1' } } },
   ),
 });
+const reviewable = (inputs) => (inputs.certifyGate ? 'CERTIFICATION_FAILED' : 'STYLE_REVIEW_REQUIRED');
+const always = (state) => () => state;
+
 const SHAPES = {
   'empty (no changes)': {
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
     before: PLAIN,
     after: PLAIN,
     expect: /No reviewable computed-style changes/,
   },
   'style changes only': {
+    trust: reviewable,
     before: STYLED(BLACK),
     after: STYLED(RED),
     expect: /\*\*1 change to review\*\*/,
   },
   'structure only (one element)': {
+    trust: reviewable,
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > p': para }) },
     after: PLAIN,
     expect: /1 visible element was added or removed/,
   },
   'structure only (two elements)': {
+    trust: reviewable,
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > div.promo2': promo2, 'body > p': para }) },
     after: PLAIN,
     expect: /2 visible elements were added or removed\*\* — they need review\./,
   },
   'style + structure': {
+    trust: reviewable,
     before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }) },
     after: STYLED(RED),
     expect: /1 visible element was added or removed/,
   },
   'new surface': {
+    trust: reviewable,
     before: PLAIN,
     after: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
     expect: /1 new surface/,
   },
   'removed surface': {
+    trust: reviewable,
     before: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
     after: PLAIN,
     expect: /1 removed surface/,
   },
   'new + removed surfaces': {
+    trust: reviewable,
     before: { ...PLAIN, 'old@1280': page({ 'body > p': para }) },
     after: { ...PLAIN, 'pricing@1280': page({ 'body > p': para }) },
     expect: /1 removed surface/,
   },
   'removed surface + style': {
+    trust: reviewable,
     before: { ...STYLED(BLACK), 'pricing@1280': page({ 'body > p': para }) },
     after: STYLED(RED),
     expect: /1 removed surface/,
   },
   'style + structure + new surface': {
+    trust: reviewable,
     before: {
       'home@1280': page({
         'body > h1': title(BLACK),
@@ -110,11 +124,13 @@ const SHAPES = {
     expect: /1 new surface/,
   },
   'global chrome': {
+    trust: reviewable,
     before: chromeSurfaces(false),
     after: chromeSurfaces(true),
     expect: /visible element was added or removed/,
   },
   'style + structure + text': {
+    trust: reviewable,
     before: {
       'home@1280': page({
         'body > h1': title(BLACK),
@@ -126,52 +142,61 @@ const SHAPES = {
     expect: /visible element was added or removed/,
   },
   'text + style (no structure)': {
+    trust: reviewable,
     before: { 'home@1280': page({ 'body > h1': title(BLACK), 'body > p': { ...para, text: 'Old text' } }) },
     after: { 'home@1280': page({ 'body > h1': title(RED), 'body > p': { ...para, text: 'New text' } }) },
     expect: /\*\*1 change to review\*\*/,
   },
   'text only': {
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
     before: { 'home@1280': page({ 'body > p': { ...para, text: 'Old text' } }) },
     after: { 'home@1280': page({ 'body > p': { ...para, text: 'New text' } }) },
     expect: /No reviewable computed-style changes/,
   },
   'base capture failed (one surface)': {
+    trust: always('PARTIAL_BASELINE'),
     failures: fails(1),
     before: PLAIN,
     after: { ...PLAIN, ...heads(1) },
     expect: /1 surface failed to capture on the base/,
   },
   'base capture failed (two surfaces)': {
+    trust: always('PARTIAL_BASELINE'),
     failures: fails(2),
     before: PLAIN,
     after: { ...PLAIN, ...heads(2) },
     expect: /2 surfaces failed to capture on the base/,
   },
   'base capture failed (twelve surfaces, over the naming cap)': {
+    trust: always('PARTIAL_BASELINE'),
     failures: fails(12),
     before: PLAIN,
     after: { ...PLAIN, ...heads(12) },
     expect: /12 surfaces failed to capture on the base[\s\S]*and 2 more/,
   },
   'base capture failed + style': {
+    trust: always('PARTIAL_BASELINE'),
     failures: fails(1),
     before: STYLED(BLACK),
     after: { ...STYLED(RED), ...heads(1) },
     expect: /1 surface failed to capture on the base/,
   },
   'base capture failed + new surface': {
+    trust: always('PARTIAL_BASELINE'),
     failures: fails(1),
     before: PLAIN,
     after: { ...PLAIN, ...heads(1), 'pricing@1280': page({ 'body > p': para }) },
     expect: /1 new surface/,
   },
   'product-state blocked (structure)': {
+    trust: always('CERTIFICATION_FAILED'),
     opts: { requireStateIdentity: true },
     before: { 'home@1280': page({ 'body > div.promo': promo, 'body > p': para }, { metadata: {} }) },
     after: { 'home@1280': page({ 'body > p': para }, { metadata: {} }) },
     expect: /This compare cannot certify/,
   },
   'product-state blocked (style + structure)': {
+    trust: always('CERTIFICATION_FAILED'),
     opts: { requireStateIdentity: true },
     before: {
       'home@1280': page({ 'body > h1': title(BLACK), 'body > div.promo': promo, 'body > p': para }, { metadata: {} }),
@@ -180,12 +205,14 @@ const SHAPES = {
     expect: /This compare cannot certify/,
   },
   'reach gate holding, no style change': {
+    trust: reviewable,
     opts: { changeReach: 'gate' },
     before: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h1')])) },
     after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
     expect: /Reach gate/,
   },
   'reach gate holding, with style changes': {
+    trust: reviewable,
     opts: { changeReach: 'gate' },
     before: {
       'home@1280': page(
@@ -202,12 +229,14 @@ const SHAPES = {
     expect: /Reach gate/,
   },
   'reach gate holding, with structure': {
+    trust: reviewable,
     opts: { changeReach: 'gate' },
     before: { 'home@1280': page({ 'body > p': para, 'body > div.promo': promo }, reach([rule('.unopened', 'h1')])) },
     after: { 'home@1280': page({ 'body > p': para }, reach([rule('.unopened', 'h2')])) },
     expect: /Reach gate/,
   },
   'reach gate holding only a missing served-CSS record': {
+    trust: reviewable,
     opts: { changeReach: 'gate' },
     before: STYLED(BLACK),
     after: {
@@ -217,6 +246,7 @@ const SHAPES = {
   },
   // RV22-03 (QA22-02): with no served-CSS record on either side, the gap's reason and remedy are said once.
   'reach gate, no served-CSS record on either side': {
+    trust: reviewable,
     opts: { changeReach: 'gate' },
     before: STYLED(BLACK),
     after: STYLED(RED),
@@ -224,6 +254,7 @@ const SHAPES = {
     expectNot: /ledger/,
   },
   'warn-level reach gaps (one side has no served-CSS record)': {
+    trust: reviewable,
     before: STYLED(BLACK),
     after: {
       'home@1280': page(
@@ -236,6 +267,7 @@ const SHAPES = {
   // RV22-01: a change whose only section is a state layer captured on one side has no element; with
   // Change Reach on both sides the summary states no zero count.
   'state layer on one side, Change Reach on both sides': {
+    trust: reviewable,
     before: {
       'home@1280': page({ 'body > h1': title(BLACK) }, { stateLayers: ['hover'], ...reach([rule('.a', 'h1')]) }),
     },
@@ -248,6 +280,7 @@ const SHAPES = {
     expect: /^\*\*1 change to review\*\* on `home` at 1280px wide\.$/m,
   },
   'warn-level reach: never matched + unmeasured': {
+    trust: always('NO_REVIEWABLE_STYLE_CHANGES'),
     before: {
       'home@1280': page({ 'body > p': para }, reach([rule('.never', 'h1'), rule('.ignored', 'h1', { outside: true })])),
     },
@@ -257,11 +290,74 @@ const SHAPES = {
     expect: /never matched on a captured page/,
   },
   'incomparable product state': {
+    trust: always('CERTIFICATION_FAILED'),
     before: stated('checkout-loading')(BLACK),
     after: stated('checkout-ready')(RED),
     expect: /This compare cannot certify:\*\* 1 paired capture\(s\) declare a different product state/,
   },
 };
+
+/** Action inputs the comment step reads, from action.yml; each varies here or is pinned with a reason. */
+const MODES = [
+  { label: 'review-gate', mode: 'review-gate', requireApproval: true, failOnDiff: false },
+  { label: 'certify + fail-on-diff', mode: 'certify', requireApproval: false, failOnDiff: true },
+  { label: 'certify without fail-on-diff', mode: 'certify', requireApproval: false, failOnDiff: false },
+  { label: 'certify + require-approval', mode: 'certify', requireApproval: true, failOnDiff: true },
+  { label: 'migration', mode: 'migration', requireApproval: false, failOnDiff: false },
+  { label: 'advisory', mode: 'advisory', requireApproval: false, failOnDiff: false, blocking: 'advisory' },
+  // A runtime input, not a `${{ }}` expression: the commit already carries a valid approval
+  // receipt for this digest, so the box renders ticked and the footer says signed off.
+  {
+    label: 'review-gate, already approved',
+    mode: 'review-gate',
+    requireApproval: true,
+    failOnDiff: false,
+    approved: true,
+  },
+  {
+    label: 'migration, already approved',
+    mode: 'migration',
+    requireApproval: false,
+    failOnDiff: false,
+    approved: true,
+  },
+];
+const STORAGE = ['branch', 'artifact'];
+const VISIBILITY = [false, true];
+const UNTRUSTED = [false, true];
+const PINNED = {
+  'github.run_attempt': 'run receipt, not copy',
+  'github.run_id': 'run receipt, not copy',
+  'inputs.github-token': 'credential, never rendered',
+  'inputs.report-retention-days': 'one artifact expiry line; its value does not change wording',
+  'inputs.status-context': 'a name interpolated into the footer',
+  'steps.context.outputs.head-sha': 'receipt marker',
+  'steps.context.outputs.pr-number': 'link path',
+  'steps.delivery.outputs.upload': 'a skipped upload posts no report content',
+  'steps.publish.outputs.sha': 'link path',
+  'steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url': 'link path (follows storage)',
+  'steps.report-artifact.outputs.artifact-digest': 'receipt marker',
+  'steps.verdict.outputs.diff-digest': 'receipt marker',
+  'toJSON(inputs.comment-marker)': 'hidden marker',
+};
+const VARIED = [
+  'inputs.base-capture-failed',
+  "inputs.fail-on-diff == 'true' && inputs.require-approval != 'true' && inputs.mode == 'certify'",
+  'inputs.include-content',
+  'inputs.mode',
+  'inputs.report-storage',
+  'inputs.require-approval',
+  'steps.config.outputs.blocking',
+  'steps.context.outputs.untrusted-capture',
+  'steps.diff.outputs.changed',
+  'steps.report.outputs.content-changes',
+  'steps.verdict.outputs.state',
+];
+
+test('the matrix varies or pins every input the comment step reads', () => {
+  const unaccounted = commentStepExpressions().filter((e) => !VARIED.includes(e) && !(e in PINNED));
+  assert.deepEqual(unaccounted, []);
+});
 
 function manifest(dir, sha, failures) {
   fs.writeFileSync(
@@ -285,8 +381,22 @@ function manifest(dir, sha, failures) {
   );
 }
 
+function generate(dir, spec, { includeContent, migration }) {
+  const outDir = path.join(dir, `matrix-${includeContent}-${migration}`);
+  const result = generateStyleMapReport({
+    beforeDir: path.join(dir, 'before'),
+    afterDir: path.join(dir, 'after'),
+    outDir,
+    layout: 'visual-first',
+    includeContent,
+    migration,
+    ...(spec.opts ?? {}),
+  });
+  return { outDir, contentChanges: result.contentChanges ?? 0 };
+}
+
 for (const [shape, spec] of Object.entries(SHAPES)) {
-  test(`rule 5 holds for: ${shape}`, (t) => {
+  test(`rule 5 holds for: ${shape}`, async (t) => {
     const dir = mkTmp('styleproof-rule5-');
     t.after(() => rmTmp(dir));
     for (const [side, captures] of [
@@ -324,5 +434,56 @@ for (const [shape, spec] of Object.entries(SHAPES)) {
       if (layout) assert.deepEqual(reportProblems('report.md', md), [], `${shape}: ${layout ?? 'default'} markdown`);
       if (layout) assert.deepEqual(reportProblems('report.html', html), [], `${shape}: ${layout ?? 'default'} HTML`);
     }
+    const found = new Set();
+    for (const includeContent of [false, true]) {
+      for (const migration of [false, true]) {
+        const { outDir, contentChanges } = generate(dir, spec, { includeContent, migration });
+        const md = fs.readFileSync(path.join(outDir, 'report.md'), 'utf8');
+        const html = fs.readFileSync(path.join(outDir, 'report.html'), 'utf8');
+        const json = JSON.parse(fs.readFileSync(path.join(outDir, 'report.json'), 'utf8'));
+        const variant = `${includeContent ? 'content on' : 'content off'}${migration ? ', migration' : ''}`;
+        if (!includeContent && !migration)
+          assert.match(visibleMd(md), spec.expect, `${shape}: the fixture reaches its branch`);
+        const reportFound = [
+          ...reportProblems('report.md', visibleMd(md)),
+          ...reportProblems('report.html', htmlText(html)),
+          ...countProblems(md, json),
+        ];
+        for (const p of reportFound) found.add(`${p} [${variant}]`);
+        for (const inputs of MODES.filter((m) => (m.mode === 'migration') === migration)) {
+          for (const storage of STORAGE) {
+            for (const repositoryPrivate of VISIBILITY) {
+              for (const untrusted of UNTRUSTED) {
+                const certifyGate = inputs.mode === 'certify' && inputs.failOnDiff && !inputs.requireApproval;
+                const comment = await runActionComment({
+                  reportDir: outDir,
+                  ...inputs,
+                  trustState: spec.trust({ certifyGate }),
+                  storage,
+                  repositoryPrivate,
+                  untrusted,
+                  includeContent,
+                  contentChanges,
+                  ...(spec.action ?? {}),
+                });
+                const label = `${inputs.label}, ${storage}, ${repositoryPrivate ? 'private' : 'public'}${untrusted ? ', fork' : ''}, ${variant}`;
+                // Approval is the action only in review-gate, migration or with require-approval.
+                const approvalMode =
+                  inputs.mode !== 'advisory' &&
+                  (inputs.requireApproval || inputs.mode === 'review-gate' || inputs.mode === 'migration');
+                for (const p of commentProblems('comment', comment, { approvalMode })) found.add(`${p} [${label}]`);
+              }
+            }
+          }
+        }
+      }
+    }
+    // One line per distinct problem (inputs folded), so a failure stays readable.
+    const distinct = [...new Set([...found].map((p) => p.replace(/ \[[^\]]*\]$/, '')))];
+    assert.deepEqual(
+      distinct,
+      [],
+      `${shape}:\n${distinct.slice(0, 40).join('\n')}\n\nfirst inputs: ${[...found][0] ?? ''}`,
+    );
   });
 }
