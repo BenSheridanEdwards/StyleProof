@@ -515,7 +515,7 @@ export function reachSectionLines(reach: ReportReach, visualFirst = false): stri
       : []),
   ];
   const scriptLines = visualFirst
-    ? []
+    ? acknowledgementLines
     : [...acknowledgementLines, ...scriptSectionLines(reach), ...classSectionLines(reach)];
 
   if (never.length === 0 && unmeasured.length === 0 && blind.length === 0 && ledger.length === 0) return scriptLines;

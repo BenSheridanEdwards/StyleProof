@@ -2,6 +2,8 @@
 
 ## Completed
 
+- Slice 28 review fix: preserve visual-first reach acknowledgements; TypeScript and 42 focused tests pass; current one-shot thread link unavailable; [PR #1392](https://github.com/BenSheridanEdwards/StyleProof/pull/1392).
+
 - Slice 25: visual-first opening order and cannot-certify/advisory line; focused checks pass, local one-shot, no PR.
 
 ## Queued
