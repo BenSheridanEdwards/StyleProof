@@ -369,12 +369,7 @@ export function reportCommentSummary(
 ): string {
   const lines = markdown.split('\n');
   if (
-    !lines.some(
-      (line) =>
-        line.startsWith('<!-- styleproof-section ') ||
-        line.startsWith('<!-- styleproof-captured ') ||
-        (line.startsWith('### ') && line.includes(NEW_SURFACE_MARKER)),
-    )
+    !lines.some((line) => line.startsWith('<!-- styleproof-section ') || line.startsWith('<!-- styleproof-captured '))
   ) {
     const headEnd = lines.findIndex((line) => line.startsWith('### '));
     return headEnd > 0 ? lines.slice(0, headEnd).join('\n').trim() : '## 🗺️ StyleProof report';

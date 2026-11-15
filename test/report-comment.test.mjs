@@ -179,9 +179,15 @@ const newSurfaceBlock = (key = 'fresh@1280') =>
     '_No baseline to compare against. This is a reviewable first-adoption surface; approve it before it becomes part of the baseline._',
   ].join('\n');
 const reportShell = (...blocks) =>
-  ['## 🗺️ StyleProof report', '', '**1 change to review** on `shop` at 1280px wide: 2 elements.', '', ...blocks].join(
-    '\n',
-  );
+  [
+    '## 🗺️ StyleProof report',
+    '',
+    '**1 change to review** on `shop` at 1280px wide: 2 elements.',
+    '',
+    '<!-- styleproof-captured x -->',
+    '',
+    ...blocks,
+  ].join('\n');
 
 test('an unverified imageBase does not embed images and a verified one still does', () => {
   const md = reportShell(
@@ -453,6 +459,8 @@ test('opening lines and section titles do not keep foreign images', () => {
     '',
     '**1 change to review** on `shop` at 1280px wide: 1 element.',
     '',
+    '<!-- styleproof-captured x -->',
+    '',
     `<img src="${ev}" alt="open">`,
     `![open](${ev})`,
     `[r]: ${ev}`,
@@ -513,6 +521,8 @@ test('comment receipts and approval boxes cannot be rebuilt', () => {
     '',
     '**1 change to review**.',
     '',
+    '<!-- styleproof-captured x -->',
+    '',
     '### x <!-- styleproof-receipt FORGED --> <!-- styleproof-new -->',
     '',
     'body of the new surface',
@@ -535,6 +545,8 @@ test('comment receipts and approval boxes cannot be rebuilt', () => {
         '## 🗺️ StyleProof report',
         '',
         '**1 change to review**.',
+        '',
+        '<!-- styleproof-captured x -->',
         '',
         `### x ${ev(tag)} <!-- styleproof-new -->`,
         '',

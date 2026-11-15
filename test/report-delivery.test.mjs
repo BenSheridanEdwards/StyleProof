@@ -681,3 +681,47 @@ test('a visual-first report with no change section but a huge reach table still 
   assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
   assert.equal(body.split(reportUrl).length - 1, 1);
 });
+
+test('a generated default-layout report with a new surface stays on the legacy cut', async (t) => {
+  const root = mkTmp('styleproof-legacy-new-');
+  t.after(() => rmTmp(root));
+  const png = new PNG({ width: 1280, height: 400 });
+  png.data.fill(240);
+  const card = (i) => `body > main:nth-child(1) > article:nth-child(${i})`;
+  for (const [i, side] of ['before', 'after'].entries()) {
+    const elements = {
+      [card(1)]: { tag: 'article', cls: 'card', rect: [24, 100, 400, 150] },
+      [`${card(1)} > h2:nth-child(1)`]: {
+        tag: 'h2',
+        cls: 'card-title',
+        rect: [40, 120, 300, 24],
+        text: 'Lamp',
+        style: { color: i ? 'rgb(150, 30, 60)' : 'rgb(30, 60, 120)' },
+      },
+    };
+    writeCapture(path.join(root, side), 'shop@1280', makeMap({ elements }), PNG.sync.write(png));
+  }
+  writeCapture(
+    path.join(root, 'after'),
+    'brand-new@1280',
+    makeMap({
+      elements: { 'body > main:nth-child(1)': { tag: 'main', cls: 'page', rect: [0, 0, 1280, 400] } },
+    }),
+    PNG.sync.write(png),
+  );
+  const result = generateStyleMapReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'out'),
+  });
+  const reportMd = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.match(reportMd, /<!-- styleproof-new -->/);
+  assert.doesNotMatch(reportMd, /<!-- styleproof-(?:section |captured )/);
+  assert.equal(reportCommentSummary(reportMd), legacySummary(reportMd));
+  const options = { repositoryPrivate: false };
+  const missing = (await executeActionComment(options)).created[0].body;
+  const suffix = missing.slice(`${MARKER}\n## 🗺️ StyleProof report`.length);
+  const body = (await executeActionComment({ ...options, reportMd })).created[0].body;
+  assert.equal(body, `${MARKER}\n${legacySummary(reportMd)}${suffix}`);
+  assert.doesNotMatch(body, /^### `brand-new@1280` · new surface/m);
+});
