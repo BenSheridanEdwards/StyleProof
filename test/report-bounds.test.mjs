@@ -2,10 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import {
-  generateStructuralStyleMapReportForTesting as generateStyleMapReport,
-  summarizeProps,
-} from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as renderReport, summarizeProps } from '../dist/report.js';
+import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { codeValue } from '../dist/code-span.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 import { ReportMarkdown } from '../dist/report/sections.js';
@@ -19,6 +17,8 @@ import {
   writeCapture,
   highlightPixelsBySide,
 } from './helpers.mjs';
+
+const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 
 // ---------------------------------------- bounded report (always GitHub-renderable)
 

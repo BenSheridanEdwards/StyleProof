@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
 import { withSurfaceFailureTolerance } from '../dist/runner/self-check.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as renderReport } from '../dist/report.js';
+import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
   MAP_MANIFEST,
@@ -26,6 +27,8 @@ import {
   rmTmp,
   writeCapture,
 } from './helpers.mjs';
+
+const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const MAP = path.join(here, '..', 'bin', 'styleproof-map.mjs');

@@ -9,12 +9,15 @@ import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import { classifyScriptReach } from '../dist/script-join.js';
 import { changedScriptRanges, readScriptChanges } from '../dist/script-join-git.js';
 import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as renderReport } from '../dist/report.js';
+import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { DEFAULT_MAX_JSON_BYTES } from '../dist/report/sections.js';
 import { sha256 } from '../dist/node-util.js';
 import { resolveSettings } from '../dist/runner/settings.js';
 import { makeMap, writeCapture } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
+
+const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 
 const span = (line, start, end) => ({ start: { line, column: start }, end: { line, column: end } });
 const change = (text, line = 1, start = 0, end = text.length) => ({

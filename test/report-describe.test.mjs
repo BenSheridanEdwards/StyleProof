@@ -4,12 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
-  generateStructuralStyleMapReportForTesting as generateStyleMapReport,
+  generateStructuralStyleMapReportForTesting as renderReport,
   describeChange,
   colorName,
   tokenIndex,
   toHex,
 } from '../dist/report.js';
+import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import {
   makeMap,
   mkTmp,
@@ -20,6 +21,8 @@ import {
   sceneMap,
   highlightPixelsBySide,
 } from './helpers.mjs';
+
+const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 
 // ------------------------------------------------- describeChange / colorName
 // (plain-English summariser, re-exported from report.js so this stays a single
@@ -266,6 +269,21 @@ test('end-to-end: responsive grids (same track count, different px) collapse to 
   writeCapture(beforeDir, 'agents@1440', map('282px 228px', 'rgb(0, 0, 0)'), solidPng(1440, 400));
   writeCapture(afterDir, 'agents@1440', map('295px 228px', 'rgb(255, 0, 0)'), solidPng(1440, 400));
   const res = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const visual = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir: path.join(root, 'visual'),
+    layout: 'visual-first',
+  });
+  const visualJson = JSON.parse(fs.readFileSync(visual.reportJsonPath, 'utf8'));
+  assert.equal(json.surfaces.length, 1, 'responsive widths share one JSON surface group');
+  assert.ok(json.counts.style > 0);
+  assert.deepEqual(visualJson.counts, json.counts);
+  assert.deepEqual(
+    visualJson.surfaces.map(({ surface, regions }) => ({ surface, findings: regions.map((r) => r.findings) })),
+    json.surfaces.map(({ surface, regions }) => ({ surface, findings: regions.map((r) => r.findings) })),
+  );
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   assert.equal(
     (md.match(/^### (?:\*\*[^*]+\*\* )?`div\.netgrid`/gm) || []).length,
