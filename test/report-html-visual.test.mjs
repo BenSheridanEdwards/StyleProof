@@ -192,3 +192,19 @@ test('default no-change report with declared product state keeps legacy HTML chr
   assert.doesNotMatch(html, /<header class="top">/);
   assert.doesNotMatch(html, /data-set-theme=/);
 });
+
+test('visual-first comments carry clean pairs, Where geometry and budgeted whole pages', (t) => {
+  const { md } = fixture(t);
+  const line = md.split('\n').find((line) => line.startsWith('<!-- styleproof-section '));
+  const meta = JSON.parse(decodeURIComponent(line.slice('<!-- styleproof-section '.length, -4)));
+  assert.equal(meta.pairs.length, 1);
+  assert.ok(meta.pairs[0].width > 0);
+  assert.equal(meta.where[0].boxes.length, 2);
+  assert.equal(meta.pages.length, 1);
+  assert.match(meta.pages[0].after, /-head\.png$/);
+  const fallback = fixture(t, { maxCropFiles: 3 }).md;
+  const fallbackLine = fallback.split('\n').find((line) => line.startsWith('<!-- styleproof-section '));
+  const limited = JSON.parse(decodeURIComponent(fallbackLine.slice('<!-- styleproof-section '.length, -4)));
+  assert.equal(limited.pages.length, 0);
+  assert.ok(limited.where.length > 0);
+});
