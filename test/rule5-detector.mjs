@@ -287,13 +287,25 @@ export function capNoteProblems(comment, reportMd) {
     /This comment reached GitHub's size limit\. (\d+) more changes? (?:is|are) listed in the full report: open it from the link at the end of this comment\./.exec(
       comment,
     );
-  const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => m[1].replace(/\s*<!--.*$/, '').trim());
+  const headingText = (raw) => {
+    const cut = raw.indexOf('<!--');
+    return (cut === -1 ? raw : raw.slice(0, cut)).trim();
+  };
+  const heads = (text) => [...text.matchAll(/^### (?!📊)(.+)$/gm)].map((m) => headingText(m[1]));
   // The full report's change sections: a heading followed by its section data, as the comment cuts
   // them. A new or removed surface's heading is no change section, so it is never counted (QA19-02).
-  const sectionHeads = (text) =>
-    [...text.matchAll(/^### (?!📊)(.+)\n+<!-- styleproof-section /gm)].map((m) =>
-      m[1].replace(/\s*<!--.*$/, '').trim(),
-    );
+  const sectionHeads = (text) => {
+    const out = [];
+    const lines = text.split('\n');
+    for (let i = 0; i < lines.length; i++) {
+      const m = /^### (?!📊)(.+)$/.exec(lines[i]);
+      if (!m) continue;
+      let j = i + 1;
+      while (j < lines.length && lines[j] === '') j++;
+      if (j < lines.length && lines[j].startsWith('<!-- styleproof-section ')) out.push(headingText(m[1]));
+    }
+    return out;
+  };
   const shown = heads(comment);
   const all = sectionHeads(reportMd);
   // The count-free note is right only when the full report has no change section to count (RV19-09).
