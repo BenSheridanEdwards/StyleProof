@@ -51,7 +51,7 @@ for (const c of CASES) {
       afterPng: solidPng(1280, 800, [180, 180, 180]),
     });
     try {
-      const result = generateStyleMapReport({ beforeDir, afterDir, outDir });
+      const result = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'visual-first' });
       const htmlPath = path.join(outDir, 'report.html');
       expect(fs.existsSync(htmlPath)).toBe(true);
       expect(result.changedSurfaces).toBe(1);
@@ -68,9 +68,8 @@ for (const c of CASES) {
       );
       expect(dialogs).toEqual([]);
       expect(await page.locator('img[src="x"]').count()).toBe(0);
-      // The payload is still shown to the reviewer — as text, not dropped. Exact values sit
-      // in the folded property table, so open every fold before reading the text.
-      await page.evaluate(() => document.querySelectorAll('details').forEach((fold) => (fold.open = true)));
+      // The payload is still shown to the reviewer — as text, not dropped (inside Show the CSS).
+      await page.evaluate(() => document.querySelectorAll('details').forEach((d) => (d.open = true)));
       const text = await page.locator('main').innerText();
       expect(text).toContain(c.shown);
     } finally {

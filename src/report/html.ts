@@ -222,8 +222,7 @@ const decodeAttribute = (value: string) =>
     .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&');
 const attr = (value: string | number) => escapeHtml(String(value));
-const safeCrop = (src: string) =>
-  /^(?:(?:[^/"<>\s]+\/)*crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s]+)$/.test(src) && isSafeUrl(src);
+const safeCrop = (src: string) => /^(?:crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s]+)$/.test(src) && isSafeUrl(src);
 const stateWords = (state: string) =>
   state === 'rest' ? '' : STATE_WORDS[state] ? `while ${STATE_WORDS[state]}` : `in :${state}`;
 function whereFigure(meta: SectionMeta, index: number, alt: string, caption: string): string {
@@ -514,12 +513,23 @@ const THEME_SCRIPT = `<script>
 </script>`;
 
 function embedVisual(page: string, outDir: string, maxBytes: number): string {
+  const banner = (count: number) =>
+    `<p role="alert">${count} images omitted; use the original diff input for full findings.</p>`;
+  let remaining = maxBytes - Buffer.byteLength(page + banner(9999));
+  let omitted = 0;
+  const read = (src: string) => {
+    const decoded = decodeAttribute(src);
+    const data = safeCrop(decoded) ? readCropDataUrl(decoded, outDir, remaining) : null;
+    if (data) remaining -= Buffer.byteLength(data);
+    else omitted += 1;
+    return data;
+  };
   const defs: string[] = [];
   const ids = new Map<string, string>();
   page = page.replace(/<svg [^>]*>[\s\S]*?<\/svg>/g, (svg) => {
     const image = svg.match(/<image href="([^"]*)"[^>]*\/>/);
     if (!image) return svg;
-    const data = readCropDataUrl(decodeAttribute(image[1]), outDir, maxBytes);
+    const data = ids.has(image[1]) ? 'cached' : read(image[1]);
     if (!data) return '';
     let id = ids.get(image[1]);
     if (!id) {
@@ -530,7 +540,7 @@ function embedVisual(page: string, outDir: string, maxBytes: number): string {
     return svg.replace(image[0], `<use href="#${id}"/>`);
   });
   page = page.replace(/<img ([^>]*?)src="([^"]*)"([^>]*)>/g, (_m, pre, src, post) => {
-    const data = readCropDataUrl(decodeAttribute(src), outDir, maxBytes);
+    const data = read(src);
     return data ? `<img ${pre}src="${data}"${post}>` : `<span>image omitted</span>`;
   });
   if (defs.length)
@@ -538,8 +548,14 @@ function embedVisual(page: string, outDir: string, maxBytes: number): string {
       '<main>',
       `<main><svg width="0" height="0" aria-hidden="true"><defs>${defs.join('')}</defs></svg>`,
     );
+  if (omitted) page = page.replace('<main>', `<main>${banner(omitted)}`);
   if (Buffer.byteLength(page) > maxBytes) throw new Error('HTML byte budget cannot fit report text');
   return page;
+}
+
+function compactVisual(page: string, body: string, maxBytes: number): string {
+  if (Buffer.byteLength(page) <= maxBytes) return page;
+  return `<!doctype html><html lang="en"><meta charset="utf-8"><title>StyleProof report</title><main>${body}</main></html>`;
 }
 
 function pageHtml(body: string): string {
@@ -614,7 +630,7 @@ ${body}
 `;
   const visual = /<!-- styleproof-(?:section |captured )/.test(markdown) || options?.layout === 'visual-first';
   if (visual) page = pageHtml(renderPage(markdown.split('\n')));
-  if (visual && options) return embedVisual(page, options.outDir, maxBytes);
+  if (visual && options) return embedVisual(compactVisual(page, body, maxBytes), options.outDir, maxBytes);
   if (!options) return page;
   const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];
   const captions = images.map((image) => `<span>${image[2]} (image omitted)</span>`);
