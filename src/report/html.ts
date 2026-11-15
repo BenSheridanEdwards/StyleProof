@@ -1,6 +1,19 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { decodeSectionMeta, decodeCapturedMeta } from './section-meta.js';
+import { andList, STATE_WORDS } from './change-line.js';
+const RING_PAD = 8;
+const counted = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`;
+import {
+  decodeCapturedMeta,
+  decodeSectionMeta,
+  PAIR_ROW,
+  SECTION_END,
+  STATE_LABEL,
+  WHERE_LINE,
+  type CapturedMeta,
+  type SectionMeta,
+  type SectionMetaPage,
+} from './section-meta.js';
 
 /**
  * Render report.md to a self-contained report.html — the in-browser review
@@ -202,6 +215,160 @@ function readCropDataUrl(src: string, outDir: string, maxBytes: number): string 
   return `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`;
 }
 
+const decodeAttribute = (value: string) =>
+  value
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+const attr = (value: string | number) => escapeHtml(String(value));
+const safeCrop = (src: string) =>
+  /^(?:(?:[^/"<>\s]+\/)*crops\/[^/"<>\s]+\.png|https?:\/\/[^"<>\s]+)$/.test(src) && isSafeUrl(src);
+const stateWords = (state: string) =>
+  state === 'rest' ? '' : STATE_WORDS[state] ? `while ${STATE_WORDS[state]}` : `in :${state}`;
+function whereFigure(meta: SectionMeta, index: number, alt: string, caption: string): string {
+  const where = meta.where[index];
+  const page = meta.pages.find((p) => p.state === 'rest');
+  const href = page ? (where.side === 'after' ? page.after : page.before) : '';
+  const figcaption = `<figcaption>${inline(caption)}</figcaption>`;
+  if (!href || !safeCrop(href)) {
+    return safeCrop(where.image)
+      ? `<figure class="where"><img class="map" src="${attr(where.image)}" alt="${attr(alt)}">${figcaption}</figure>`
+      : `<figure class="where">${figcaption}</figure>`;
+  }
+  const [pw, ph] = where.page;
+  const [vx, vy, vw, vh] = where.view;
+  const boxes = where.boxes.map(([x, y, w, h]) => ({
+    x: x - RING_PAD,
+    y: y - RING_PAD,
+    w: w + 2 * RING_PAD,
+    h: h + 2 * RING_PAD,
+  }));
+  const rect = (b: { x: number; y: number; w: number; h: number }, extra: string) =>
+    `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" rx="6"${extra}/>`;
+  const mask = `mask-${attr(meta.id)}-${index}`;
+  return (
+    `<figure class="where"><svg viewBox="${vx} ${vy} ${vw} ${vh}" role="img" aria-label="${attr(alt)}" class="map" data-fallback="${attr(where.image)}">` +
+    `<defs><mask id="${mask}"><rect width="${pw}" height="${ph}" fill="#fff"/>${boxes.map((b) => rect(b, ' fill="#000"')).join('')}</mask></defs>` +
+    `<image href="${attr(href)}" width="${pw}" height="${ph}"/>` +
+    `<rect class="dim" width="${pw}" height="${ph}" fill="#fff" fill-opacity="0.55" mask="url(#${mask})"/>` +
+    boxes.map((b) => rect(b, ' class="ring" fill="none" stroke="#e0119d" stroke-width="3"')).join('') +
+    `</svg>${figcaption}</figure>`
+  );
+}
+function pairBlock(pair: SectionMeta['pairs'][number], lazy = false, label = stateWords(pair.state)) {
+  const tag = label ? `<span class="state">${escapeHtml(label)}</span>` : '';
+  const loading = lazy ? ' loading="lazy"' : '';
+  const side = (name: 'before' | 'after', src: string) => {
+    const [w, h] =
+      name === 'before' ? [pair.baseWidth ?? pair.width, pair.baseHeight ?? pair.height] : [pair.width, pair.height];
+    return safeCrop(src)
+      ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
+          `<img class="shot ${name}" src="${attr(src)}" width="${w}" height="${h}" alt="${attr(`${name === 'before' ? 'Before' : 'After'}: ${(pair.what ?? 'the whole page').replace(/\\\|/g, '|')}`)}"${loading}></figure>`
+      : '';
+  };
+  return `<div class="pair">${side('before', pair.before)}${side('after', pair.after)}</div>`;
+}
+function pagePairBlock(page: SectionMetaPage): string {
+  const label = `whole page ${stateWords(page.state)}`.trim();
+  const tag = `<span class="state">${escapeHtml(label)}</span>`;
+  const side = (name: 'before' | 'after', src: string, width: number, height: number) =>
+    safeCrop(src)
+      ? `<figure><figcaption><span class="side ${name}">${name === 'before' ? 'Before' : 'After'}</span>${tag}</figcaption>` +
+        `<svg class="shot ${name} page" viewBox="0 0 ${width} ${height}" role="img" aria-label="${attr(`${name === 'before' ? 'Before' : 'After'}: the ${label}`)}">` +
+        `<image href="${attr(src)}" width="${width}" height="${height}"/></svg></figure>`
+      : '';
+  return `<div class="pair">${side('before', page.before, page.baseWidth ?? page.width, page.baseHeight ?? page.height)}${side('after', page.after, page.width, page.height)}</div>`;
+}
+const PAGE_LINE = /^_On (.+)_$/;
+function sectionParts(body: string[]) {
+  const css: string[] = [];
+  const notes: string[] = [];
+  const wheres: Array<{ alt: string; caption: string }> = [];
+  let line = '';
+  let page = '';
+  let inCss = false;
+  body.forEach((text, i) => {
+    if (text === '<details>' && body[i + 1] === '<summary>Show the CSS</summary>') inCss = true;
+    if (inCss) {
+      css.push(text);
+      if (text === '</details>') inCss = false;
+      return;
+    }
+    const where = text.match(WHERE_LINE);
+    if (where) {
+      wheres.push({ alt: where[1].match(/ alt="([^"]*)"/)?.[1] ?? '', caption: where[2] });
+      return;
+    }
+    const pageLine = text.match(PAGE_LINE);
+    if (pageLine && !page) page = pageLine[1];
+    else if (
+      !line &&
+      text &&
+      !text.startsWith('<') &&
+      !text.startsWith('|') &&
+      !text.startsWith('_') &&
+      !STATE_LABEL.test(text)
+    )
+      line = text;
+    else if (!PAIR_ROW.test(text) && !STATE_LABEL.test(text)) notes.push(text);
+  });
+  return { line, page, wheres, notes, css: css.slice(2, -1) };
+}
+function cssTableHtml(html: string): string {
+  return html
+    .replace(
+      /<td><code>(#[0-9a-f]{6}|rgb\([0-9, ]+\))<\/code><\/td>/gi,
+      '<td><i class="sw" style="background:$1"></i><code>$1</code></td>',
+    )
+    .replace(/<tr>(<td><code>[^<]*<\/code> \(follows <code>color<\/code>\))/g, '<tr class="follower">$1');
+}
+function sectionCard(title: string, meta: SectionMeta, body: string[]): string {
+  const parts = sectionParts(body);
+  const figures = meta.where.map((_w, i) =>
+    whereFigure(
+      meta,
+      i,
+      decodeAttribute(parts.wheres[i]?.alt ?? 'Where on the page'),
+      decodeAttribute(parts.wheres[i]?.caption ?? ''),
+    ),
+  );
+  const page = parts.page && !figures.length ? `<p class="page">On ${inline(parts.page)}</p>` : '';
+  const [selector, ...cssRest] = (() => {
+    const first = parts.css.findIndex((l) => l.trim());
+    return first < 0 ? [''] : [parts.css[first], ...parts.css.slice(first + 1)];
+  })();
+  const paths = meta.paths.length
+    ? `<details class="paths"><summary>Element paths</summary><ol>${meta.paths.map((p) => `<li><code>${escapeHtml(p)}</code></li>`).join('')}${meta.more ? `<li>…and ${meta.more} more</li>` : ''}</ol></details>`
+    : '';
+  const css = parts.css.length
+    ? `<details class="more css"><summary>Show the CSS</summary><div class="more-body"><p class="selector">${inline(selector.startsWith('|') ? (meta.paths[0] ?? '') : selector)}</p>${cssTableHtml(renderBlocks(selector.startsWith('|') ? [selector, ...cssRest] : cssRest).join('\n'))}${paths}</div></details>`
+    : '';
+  const pages = meta.pages.length
+    ? `<details class="more pages"><summary>Show the whole page</summary><div class="more-body">${meta.pages
+        .map(pagePairBlock)
+        .join('')}</div></details>`
+    : '';
+  return [
+    `<section class="change" id="${attr(meta.id)}">`,
+    `<div class="head"><div><h2>${inline(title)}</h2><p class="line">${inline(parts.line)}</p>${page}</div>${figures.join('')}</div>`,
+    renderBlocks(parts.notes).join('\n'),
+    meta.pairs.map((pair) => pairBlock(pair)).join(''),
+    css,
+    pages,
+    '</section>',
+  ].join('\n');
+}
+function capturedSection(meta: CapturedMeta): string {
+  const items = meta.pages.map((p) => {
+    const widths = p.widths.length ? ` at ${andList(p.widths.map(String))}px wide` : '';
+    const states = p.states.length
+      ? `, at rest and in ${counted(p.states.length, 'forced state')}: ${p.states.map((s) => `<code>:${escapeHtml(s)}</code>`).join(', ')}`
+      : ', at rest';
+    return `The <strong>${escapeHtml(p.base)}</strong> page${widths}${states}.`;
+  });
+  return `<section class="coverage" aria-labelledby="coverage-title"><h2 id="coverage-title">What was captured</h2><ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul></section>`;
+}
 const TITLE_LINE = /^## 🗺️ StyleProof report$/;
 
 /** The verdict's opening: a count to review, a clean or scoped no-change, or what holds the check (RV19-07). */
@@ -231,28 +398,49 @@ function topBlock(lines: string[]) {
   };
 }
 
+type PageBody = { html: string[]; cards: Array<{ id: string; title: string }>; captured: CapturedMeta | null };
+function pageBody(lines: string[], start: number, notes: string[]): PageBody {
+  const body: PageBody = { html: [], cards: [], captured: null };
+  let generic = [...notes];
+  const flush = () => {
+    if (generic.length) body.html.push(renderBlocks(generic).join('\n'));
+    generic = [];
+  };
+  for (let i = start; i < lines.length; i++) {
+    const text = lines[i];
+    const next = lines.slice(i + 1).find((l) => l.trim()) ?? '';
+    const meta = text.startsWith('### ') ? decodeSectionMeta(next) : null;
+    const captured = decodeCapturedMeta(text);
+    if (captured) body.captured = captured;
+    else if (text === '## Changes') continue;
+    else if (!meta) generic.push(text);
+    else {
+      flush();
+      const end = lines.indexOf(SECTION_END, i);
+      const stop = end < 0 ? lines.length : end;
+      body.cards.push({ id: meta.id, title: text.slice(4) });
+      body.html.push(sectionCard(text.slice(4), meta, lines.slice(lines.indexOf(next, i) + 1, stop)));
+      i = stop;
+    }
+  }
+  flush();
+  return body;
+}
+const FOOTER =
+  '<footer>Made by StyleProof from the computed styles and screenshots it captured in a real browser. Every before/after image is an unedited crop of a capture; only the Where maps are marked.</footer>';
 function renderPage(lines: string[]): string {
   const top = topBlock(lines);
-  const cards: Array<{ id: string; title: string }> = [];
-  const body = [...top.notes, ...lines.slice(top.next)];
-  const html = renderBlocks(body)
-    .join('\n')
-    .replace(/<h3>(.*?)<\/h3>\n(<!-- styleproof-section [^\n]* -->)/g, (match, title, comment) => {
-      const meta = decodeSectionMeta(comment);
-      if (!meta) return match;
-      cards.push({ id: meta.id, title });
-      return `<h3 id="${escapeHtml(meta.id)}">${title}</h3>
-${comment}`;
-    });
-  const toc = cards.length
-    ? `<nav class="toc" aria-label="Changes">${cards.map((c) => `<a href="#${escapeHtml(c.id)}">${c.title}</a>`).join('')}</nav>`
+  const body = pageBody(lines, top.next, top.notes);
+  const toc = body.cards.length
+    ? `<nav class="toc" aria-label="Changes">${body.cards.map((c) => `<a href="#${attr(c.id)}">${inline(c.title)}</a>`).join('')}</nav>`
     : '';
-  return [
-    renderBlocks(top.lead).join('\n'),
-    `<header class="top"><div class="topbar"><h1>StyleProof report</h1>${THEME_SWITCH}</div>${top.summary ? `<p class="summary">${top.summary}</p>` : ''}${toc}</header>`,
-    html,
-    '<footer>Made by StyleProof from captured computed styles and screenshots.</footer>',
-  ].join('\n');
+  const summary = top.summary ? `<p class="summary">${top.summary}</p>` : '';
+  const header = top.titled
+    ? `<header class="top"><div class="topbar"><h1>StyleProof report</h1>${THEME_SWITCH}</div>${summary}${toc}</header>`
+    : '';
+  const lead = top.lead.some((l) => l.trim()) ? renderBlocks(top.lead).join('\n') : '';
+  const captured = body.captured ? capturedSection(body.captured) : '';
+  return [lead, header, ...body.html, captured, FOOTER].filter(Boolean).join('\n');
 }
 const THEME_SWITCH =
   '<div class="theme" role="group" aria-label="Colour theme">' +
@@ -290,6 +478,14 @@ header.top p.summary strong { color: var(--ink); }
 nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
 nav.toc a { display: inline-block; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: inherit; text-decoration: none; background: var(--panel); font-size: .9rem; }
 nav.toc a:focus-visible { outline: 2px solid var(--focus); }
+section.change, section.coverage { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-top: 20px; }
+.head, .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+figure { margin: 0; }
+.shot, .map { width: 100%; height: auto; }
+.side { font-weight: bold; }
+.more { margin-top: 16px; }
+.sw { display: inline-block; width: 1em; height: 1em; margin-right: 6px; }
+@media (max-width: 720px) { .head, .pair { grid-template-columns: 1fr; } }
 img { max-width: 100%; }
 .table-scroll { display: block; overflow-x: auto; }
 th, td { border: 1px solid var(--line); padding: 6px; }
@@ -316,6 +512,35 @@ const THEME_SCRIPT = `<script>
   });
 })();
 </script>`;
+
+function embedVisual(page: string, outDir: string, maxBytes: number): string {
+  const defs: string[] = [];
+  const ids = new Map<string, string>();
+  page = page.replace(/<svg [^>]*>[\s\S]*?<\/svg>/g, (svg) => {
+    const image = svg.match(/<image href="([^"]*)"[^>]*\/>/);
+    if (!image) return svg;
+    const data = readCropDataUrl(decodeAttribute(image[1]), outDir, maxBytes);
+    if (!data) return '';
+    let id = ids.get(image[1]);
+    if (!id) {
+      id = `sp-page-${ids.size + 1}`;
+      ids.set(image[1], id);
+      defs.push(image[0].replace('<image ', `<image id="${id}" `).replace(image[1], data));
+    }
+    return svg.replace(image[0], `<use href="#${id}"/>`);
+  });
+  page = page.replace(/<img ([^>]*?)src="([^"]*)"([^>]*)>/g, (_m, pre, src, post) => {
+    const data = readCropDataUrl(decodeAttribute(src), outDir, maxBytes);
+    return data ? `<img ${pre}src="${data}"${post}>` : `<span>image omitted</span>`;
+  });
+  if (defs.length)
+    page = page.replace(
+      '<main>',
+      `<main><svg width="0" height="0" aria-hidden="true"><defs>${defs.join('')}</defs></svg>`,
+    );
+  if (Buffer.byteLength(page) > maxBytes) throw new Error('HTML byte budget cannot fit report text');
+  return page;
+}
 
 function pageHtml(body: string): string {
   return `<!doctype html>
@@ -389,6 +614,7 @@ ${body}
 `;
   const visual = /<!-- styleproof-(?:section |captured )/.test(markdown) || options?.layout === 'visual-first';
   if (visual) page = pageHtml(renderPage(markdown.split('\n')));
+  if (visual && options) return embedVisual(page, options.outDir, maxBytes);
   if (!options) return page;
   const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];
   const captions = images.map((image) => `<span>${image[2]} (image omitted)</span>`);

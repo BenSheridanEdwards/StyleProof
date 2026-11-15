@@ -465,7 +465,7 @@ function statePair(ctx: RenderCtx, input: SectionInput, state: PairState) {
     pngB: pngs[1],
     rectsA: [],
     rectsB: [],
-    what: `${section.title}${state === 'rest' ? '' : ` in :${state}`}`,
+    what: `${section.paths.length > 1 ? 'the first' : 'the'} ${section.title.toLowerCase().replace(/s$/, '')}${state === 'rest' ? '' : ` in :${state}`}`,
     captions: { annotated: '', zoom: (factor) => `magnified ${factor}×` },
     alsoInView: input.alsoInView,
   })!;
@@ -535,7 +535,7 @@ function sectionPairs(ctx: RenderCtx, input: SectionInput) {
         after: pair.images.after,
         width: pair.size.w,
         height: pair.size.h,
-        what: input.section.title,
+        what: `${input.section.paths.length > 1 ? 'the first' : 'the'} ${input.section.title.toLowerCase().replace(/s$/, '')}`,
         ...(pair.size.base ? { baseWidth: pair.size.base.w, baseHeight: pair.size.base.h } : {}),
       });
   }
