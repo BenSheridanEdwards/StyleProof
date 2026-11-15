@@ -6,8 +6,7 @@
 <summary>Evidence (warnings & failures)</summary>
 
 **Certification**
-- **Inventory** — ⚠ not checked (no captured map carried an inventory — set `inventory: true` in the capture spec to arm the navigable-removal gate)
-- **Failed data request**: ✗ this page called an API that failed, so the screenshot is the fallback UI, not the real data. home called `/api/status` (HTTP 500). Fixture the API, or declare why the fallback is the intended capture.
+- **Inventory** — ⚠ 1 navigable affordance(s) removed, unacknowledged: route:/b
 
 </details>
 
