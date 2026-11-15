@@ -99,6 +99,96 @@ function ledgerGaps(maps: StyleMap[], side: 'base' | 'head'): ReachGap[] {
   return gaps;
 }
 
+const many = (n: number, one: string, more = `${one}s`) => `${n} ${n === 1 ? one : more}`;
+
+type Side = 'base' | 'head';
+/** One J1 gap, parsed from the exact record `ledgerGaps` writes: its kind, side, count and detail. */
+type LedgerPart = { kind: string; side: Side; n: number; detail: string };
+
+function ledgerPart(gap: ReachGap): LedgerPart | null {
+  const r = gap.reason;
+  let m: RegExpMatchArray | null;
+  if ((m = r.match(/^no (base|head) captures;/))) return { kind: 'none', side: m[1] as Side, n: 0, detail: '' };
+  if ((m = r.match(/^missing (base|head) ledger on (\d+) capture\(s\);/)))
+    return { kind: 'missing', side: m[1] as Side, n: Number(m[2]), detail: '' };
+  if ((m = r.match(/^served CSS reach is unknown on (\d+) (base|head) capture\(s\): (.*)$/)))
+    return { kind: 'unknown', side: m[2] as Side, n: Number(m[1]), detail: m[3] };
+  if ((m = r.match(/^(\d+) unreadable stylesheet\(s\) on (base|head);/)))
+    return { kind: 'unreadable', side: m[2] as Side, n: Number(m[1]), detail: '' };
+  return null;
+}
+
+/** "1 base capture", "1 capture on each side", "1 base capture and 2 head captures". */
+function onSides(parts: LedgerPart[], one: string): { text: string; single: boolean } {
+  if (parts.length === 1) return { text: many(parts[0].n, `${parts[0].side} ${one}`), single: parts[0].n === 1 };
+  const [base, head] = parts;
+  if (base.n === head.n) return { text: `${many(base.n, one)} on each side`, single: base.n === 1 };
+  return { text: `${many(base.n, `base ${one}`)} and ${many(head.n, `head ${one}`)}`, single: false };
+}
+
+/** "2 stylesheets on head", "1 stylesheet on each side", "2 stylesheets on base and 1 on head". */
+function sheetsOnSides([first, second]: LedgerPart[]): { text: string; single: boolean } {
+  if (!second) return { text: `${many(first.n, 'stylesheet')} on ${first.side}`, single: first.n === 1 };
+  if (first.n === second.n) return { text: `${many(first.n, 'stylesheet')} on each side`, single: false };
+  return { text: `${many(first.n, 'stylesheet')} on base and ${second.n} on head`, single: false };
+}
+
+/** Captures whose served CSS could not be read, each with its reason unless they share one. */
+function unknownWhere(parts: LedgerPart[]): string {
+  if (parts.every((p) => p.detail === parts[0].detail)) return `${onSides(parts, 'capture').text} (${parts[0].detail})`;
+  return parts.map((p) => `${many(p.n, `${p.side} capture`)} (${p.detail})`).join(' and ');
+}
+
+/** One kind of served-CSS gap on one or both sides, said once with one remedy. */
+const LEDGER_PHRASES: Record<string, (parts: LedgerPart[]) => string> = {
+  none: (parts) =>
+    `there are no ${parts.length > 1 ? 'base or head' : parts[0].side} captures — capture both sides with \`captureReach\``,
+  missing: (parts) => {
+    const { text, single } = onSides(parts, 'capture');
+    const has = single
+      ? 'has a missing or out-of-date record of the CSS it'
+      : 'have missing or out-of-date records of the CSS they';
+    return `${text} ${has} served — recapture ${parts.length > 1 ? 'both sides ' : ''}with \`captureReach\``;
+  },
+  unknown: (parts) =>
+    `StyleProof could not read the CSS served on ${unknownWhere(parts)} — simplify or remove that CSS, then recapture`,
+  unreadable: (parts) => {
+    const { text, single } = sheetsOnSides(parts);
+    return `${text} could not be read — make ${single ? 'it' : 'them'} readable (same-origin or CORS), then recapture`;
+  },
+};
+
+/**
+ * The J1 served-CSS gaps (`ledgerGaps`, or the incomplete-ledger gap) in reviewer words: no "(s)", no
+ * "ledger", and a gap both sides share said once with one remedy (RV22-03). The warn line and the
+ * gate section both use these; report.json keeps the exact per-side records.
+ */
+function ledgerGapPhrases(gaps: ReachGap[]): string[] {
+  const groups = new Map<string, LedgerPart[]>();
+  const out: Array<string | [string, LedgerPart[]]> = [];
+  for (const gap of gaps) {
+    const part = ledgerPart(gap);
+    if (!part) {
+      out.push(
+        gap.reason.startsWith('reach ledger incomplete;')
+          ? 'the record of served CSS is incomplete — recapture with `captureReach`'
+          : `${gap.side ? `${gap.side}: ` : ''}${gap.reason} — ${gap.remedy}`,
+      );
+      continue;
+    }
+    // Every gap of one kind shares its remedy, so it is said once for both sides (and every reason).
+    const key = part.kind;
+    const group = groups.get(key);
+    if (group) group.push(part);
+    else {
+      const parts = [part];
+      groups.set(key, parts);
+      out.push([part.kind, parts]);
+    }
+  }
+  return out.map((entry) => (typeof entry === 'string' ? entry : LEDGER_PHRASES[entry[0]](entry[1])));
+}
+
 /** Reach as report.json and the report API publish it. */
 export type PublishedReach = Omit<ReportReach, 'counts' | 'rules'> & Partial<Pick<ReportReach, 'counts' | 'rules'>>;
 
@@ -325,6 +415,55 @@ export function reachStripLines(reach: ReportReach): string[] {
     `**Reach incomplete** — ${parts.join('; ')}. Fix: ${[...new Set(remedies)].join('; ')}. ${reach.blocking > 0 ? unchecked.replace(" These are not held by `changeReach: 'gate'`.", " The findings above are held by `changeReach: 'gate'`; the unchecked items are not.") : unchecked}`,
     ...scriptStrip,
   ];
+}
+
+const MAX_NAMED_RULES = 5;
+
+function namedRules(rules: RuleReach[]): string {
+  const named = rules.slice(0, MAX_NAMED_RULES).map((rule) => codeValue(rule.key));
+  return `${named.join(', ')}${rules.length > MAX_NAMED_RULES ? ` and ${rules.length - MAX_NAMED_RULES} more` : ''}`;
+}
+
+/** Plain non-blocking Change Reach warnings for the visual-first layout. */
+export function reachHeadlineLines(reach: ReportReach): string[] {
+  const never = reach.rules.filter((rule) => rule.status === 'never-rendered');
+  const blind = reach.rules.filter((rule) => rule.status === 'blind-channel');
+  const lines: string[] = [];
+  if (never.length) {
+    const one = never.length === 1;
+    lines.push(
+      '',
+      `⚠️ **${never.length} changed CSS rule${one ? '' : 's'} never matched on a captured page:** ${namedRules(never)}. ` +
+        `Add a surface or state that shows ${one ? 'it' : 'them'}, or ${one ? 'it goes' : 'they go'} unreviewed.`,
+    );
+  }
+  if (blind.length) {
+    lines.push(
+      '',
+      `⚠️ **${blind.length} changed CSS rule${blind.length === 1 ? '' : 's'} computed styles cannot show:** ${namedRules(blind)}. Review ${blind.length === 1 ? 'it' : 'them'} in the diff.`,
+    );
+  }
+  const unchecked = uncheckedLine(reach);
+  if (unchecked) lines.push('', unchecked);
+  return lines;
+}
+
+/**
+ * The CSS reach could not check at warn level, so it is never silent (ADR 0009): changed rules
+ * that matched only elements StyleProof does not compare, and ledger gaps (missing or old
+ * ledgers, unreadable sheets, a side with no captures). One line; detail stays in report.json.
+ */
+function uncheckedLine(reach: ReportReach): string | null {
+  const unmeasured = reach.rules.filter((rule) => rule.status === 'unmeasured');
+  const parts = [
+    ...(unmeasured.length
+      ? [
+          `${unmeasured.length} changed CSS rule${unmeasured.length === 1 ? '' : 's'} matched only elements StyleProof does not compare (${namedRules(unmeasured)})`,
+        ]
+      : []),
+    ...ledgerGapPhrases(reach.gaps.filter((gap) => gap.kind === 'ledger')),
+  ];
+  return parts.length ? `⚠️ **Change Reach could not check every changed CSS rule:** ${parts.join('; ')}.` : null;
 }
 
 function ruleTable(rules: RuleReach[]): string[] {
