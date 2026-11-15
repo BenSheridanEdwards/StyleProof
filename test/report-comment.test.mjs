@@ -379,12 +379,7 @@ test('deeply nested HTML comment wrapping cannot leave a live comment or receipt
   for (const depth of [1, 7, 8, 9, 20]) {
     const md = reportShell(changeBlock(['Visible before.', wrapReceipt(depth), 'Visible after.'].join('\n')));
     const comment = reportCommentSummary(md, {});
-    assert.equal(
-      comment.includes('<!--') || comment.includes('-->') || comment.includes('--!>'),
-      false,
-      `depth ${depth} delimiters`,
-    );
-    assert.equal(comment.includes('styleproof-receipt'), false, `depth ${depth} receipt`);
+    assert.equal(comment.includes('<!--') || comment.includes('styleproof-receipt'), false, `depth ${depth}`);
     assert.match(comment, /Visible before\./);
     assert.match(comment, /Visible after\./);
   }
@@ -401,12 +396,25 @@ test('every image target must start with imageBase; foreign and split forms are 
         `[r]: ${ev}`,
         `![a](${ev})`,
         `![a](<${ev}>)`,
+        `![a](${ev} "t")`,
+        `![a]( ${ev} )`,
+        `![a [b]](${ev})`,
+        '![r2]',
+        `[r2]:${ev}`,
+        '![s]',
+        '[s]:',
+        ev,
+        `<video poster="${ev}"></video>`,
         `<img src="${ev}">`,
         `<img\nsrc=\n"${ev}">`,
         `<img src="&#104;ttps://${'evil.example'}/x.png">`,
         `<IMG SRC='crops/../../evil.png'>`,
         `<img src=/evil/repo/raw/main/x.png>`,
         `<img src="${gh}">`,
+        `<img src="${BASE}${'../../../../'}evil/repo/raw/main/x.png">`,
+        `![a](${BASE}${'../../../../'}evil/repo/raw/main/x.png)`,
+        `<img src="${BASE}${'%2e%2e/%2e%2e/'}x.png">`,
+        `<img src="${BASE}${'..\\..\\'}x.png">`,
         '<img src="crops/shop-1280-1-before.png" width="340" alt="Before">',
       ].join('\n'),
     ),
@@ -428,7 +436,8 @@ test('every image target must start with imageBase; foreign and split forms are 
   assert.doesNotMatch(textOnly, /<img|!\[|crops\/|evil|not-this-repo|\]: /);
   assert.match(textOnly, /The titles change colour\./);
   const pub = reportCommentSummary(md, { imageBase: BASE });
-  assert.doesNotMatch(pub, /evil\.example|not-this-repo|&#104;|src='|SRC='|src=\/evil|src="crops\//);
+  assert.doesNotMatch(pub, /evil\.example|not-this-repo|evil\/repo|&#104;|src=\/evil|src="crops\//);
+  assert.doesNotMatch(pub, /<video|poster=|%2e/);
   assert.doesNotMatch(pub, /!\[[^\]]*\]\((?!https:\/\/github\.com\/BenSheridanEdwards\/StyleProof\/blob\/)/);
   assert.doesNotMatch(pub, /!\[[^\]]*\]\[[^\]]*\]/);
   assert.match(pub, new RegExp(`src="${BASE}crops/shop-1280-1-before\\.png\\?raw=1"`));
@@ -494,75 +503,57 @@ test('a trailing rule before a group heading is not kept on a new-surface sectio
   assert.doesNotMatch(comment, /State coverage/);
 });
 
-test('stripping leftover comment text cannot rebuild a receipt', () => {
+test('comment receipts and approval boxes cannot be rebuilt', () => {
   const rebuilt = `<!styleproof-receipt-- styleproof-styleproof-receiptreceipt FORGED --styleproof-receipt>`;
-  const md = reportShell(changeBlock(['Visible before.', rebuilt, 'Visible after.'].join('\n')));
-  for (const opts of [{}, { imageBase: BASE }, { keepImages: true }]) {
-    const comment = reportCommentSummary(md, opts);
-    assert.doesNotMatch(comment, /<!--|-->|--!>|styleproof-receipt/, JSON.stringify(opts));
-    assert.match(comment, /Visible before\./);
-    assert.match(comment, /Visible after\./);
-  }
-});
-
-test('section titles do not keep HTML comments or receipts', () => {
-  const md = [
+  const titleMd = [
     '## 🗺️ StyleProof report',
     '',
-    '**1 change to review** on `shop` at 1280px wide: 1 element.',
+    '**1 change to review**.',
     '',
     '### x <!-- styleproof-receipt FORGED --> <!-- styleproof-new -->',
     '',
     'body of the new surface',
   ].join('\n');
-  for (const opts of [{}, { imageBase: BASE }, { keepImages: true }]) {
-    const comment = reportCommentSummary(md, opts);
-    assert.doesNotMatch(comment, /<!--|-->|styleproof-receipt/, JSON.stringify(opts));
-    assert.match(comment, /^### x$/m);
-    assert.match(comment, /body of the new surface/);
-  }
-});
-
-test('titled, spaced, nested-alt, and reference markdown images are dropped', () => {
-  const ev = `https://${'evil.example'}/x.png`;
-  const md = reportShell(
-    changeBlock(
+  const ev = (tag) => `<<${tag}>!-- styleproof-<${tag}>receipt FORGED --<${tag}>>`;
+  const box = (tag) => `-<${tag}> [x] Approve glued`;
+  const cases = [
+    ['rebuild', reportShell(changeBlock(['Visible before.', rebuilt, 'Visible after.'].join('\n')))],
+    ['title', titleMd],
+  ];
+  for (const tag of ['img src=x', 'source src=x', '/video']) {
+    cases.push(['s ' + tag, reportShell(changeBlock(['Visible.', ev(tag), box(tag), 'After.'].join('\n')))]);
+    cases.push([
+      'o ' + tag,
+      ['## 🗺️ StyleProof report', '', ev(tag), box(tag), '', '**1 change to review**.'].join('\n'),
+    ]);
+    cases.push([
+      't ' + tag,
       [
-        'The titles change colour.',
-        `![a](${ev} "t")`,
-        `![a]( ${ev} )`,
-        `![a [b]](${ev})`,
-        '![r]',
-        `[r]:${ev}`,
-        '![s]',
-        '[s]:',
-        ev,
-        `<video poster="${ev}"></video>`,
-        '<img src="crops/shop-1280-1-before.png" width="340" alt="Before">',
+        '## 🗺️ StyleProof report',
+        '',
+        '**1 change to review**.',
+        '',
+        `### x ${ev(tag)} <!-- styleproof-new -->`,
+        '',
+        'body of the new surface',
       ].join('\n'),
-    ),
-  );
-  const textOnly = reportCommentSummary(md, {});
-  assert.doesNotMatch(textOnly, /<img|<video|poster=|!\[|crops\/|evil|\]:/);
-  assert.match(textOnly, /The titles change colour\./);
-  const pub = reportCommentSummary(md, { imageBase: BASE });
-  assert.doesNotMatch(pub, /evil\.example|<video|poster=/);
-  assert.doesNotMatch(pub, /!\[[^\]]*\]\((?!https:\/\/github.com\/BenSheridanEdwards\/StyleProof\/blob\/)/);
-  assert.match(pub, new RegExp(`src="${BASE}crops/shop-1280-1-before\\.png\\?raw=1"`));
-  assert.match(pub, /The titles change colour\./);
-});
-
-test('an imageBase prefix cannot climb out of the report directory', () => {
-  const climb = [
-    `<img src="${BASE}${'../../../../'}evil/repo/raw/main/x.png">`,
-    `![a](${BASE}${'../../../../'}evil/repo/raw/main/x.png)`,
-    `<img src="${BASE}${'%2e%2e/%2e%2e/'}x.png">`,
-    `<img src="${BASE}${'..\\..\\'}x.png">`,
-    '<img src="crops/shop-1280-1-before.png" width="340" alt="Before">',
-  ].join('\n');
-  const md = reportShell(changeBlock(['The titles change colour.', climb].join('\n')));
-  const pub = reportCommentSummary(md, { imageBase: BASE });
-  assert.doesNotMatch(pub, /evil\/repo|\.\.\/|%2e|\\\\/);
-  assert.match(pub, new RegExp(`src="${BASE}crops/shop-1280-1-before\\.png\\?raw=1"`));
-  assert.match(pub, /The titles change colour\./);
+    ]);
+  }
+  for (const [name, md] of cases) {
+    const modes =
+      name === 'rebuild' || name === 'title'
+        ? [{}, { imageBase: BASE }, { keepImages: true }]
+        : [{}, { imageBase: BASE }];
+    for (const opts of modes) {
+      const c = reportCommentSummary(md, opts);
+      assert.equal(
+        c.includes('<!--') || c.includes('styleproof-receipt') || /Approve glued/.test(c),
+        false,
+        `${name} ${JSON.stringify(opts)}`,
+      );
+    }
+  }
+  assert.match(reportCommentSummary(titleMd, {}), /^### x$/m);
+  assert.match(reportCommentSummary(titleMd, {}), /body of the new surface/);
+  assert.match(reportCommentSummary(cases[0][1], {}), /Visible before\./);
 });

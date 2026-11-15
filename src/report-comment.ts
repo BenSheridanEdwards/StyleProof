@@ -96,10 +96,7 @@ const hasImageMarkup = (line: string): boolean =>
 function withoutHtmlComments(lines: string[]): string[] {
   let text = lines.join('\n');
   for (let i = 0; i < 64; i++) {
-    const next = text
-      .replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '')
-      .replace(/<!--|-->|--!>/g, '')
-      .replace(/styleproof-receipt/gi, '');
+    const next = text.replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '').replace(/styleproof-receipt/gi, '');
     if (next === text) break;
     text = next;
   }
@@ -118,11 +115,11 @@ function srcAllowed(value: string, imageBase: string): boolean {
 
 /** Keep a complete <img> only when its only src is a double-quoted imageBase URL. */
 function keepAllowedImgTag(tag: string, imageBase: string): string {
-  if (/\bsrcset\b/i.test(tag) || /src\s*=\s*'/i.test(tag)) return '';
+  if (/\bsrcset\b/i.test(tag) || /src\s*=\s*'/i.test(tag)) return ' ';
   const srcs = [...tag.matchAll(/\ssrc\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)];
-  if (srcs.length !== 1) return '';
+  if (srcs.length !== 1) return ' ';
   const value = srcs[0][1] ?? srcs[0][2] ?? srcs[0][3] ?? '';
-  return srcs[0][1] !== undefined && srcAllowed(value, imageBase) ? tag : '';
+  return srcs[0][1] !== undefined && srcAllowed(value, imageBase) ? tag : ' ';
 }
 
 const isAllowedSrcLine = (line: string, imageBase: string): boolean => {
@@ -201,14 +198,14 @@ function takeMarkdownImage(text: string, start: number, imageBase: string): { ke
   if (altEnd < 0) return { kept: '![', end: start + 2 };
   if (text[altEnd] === '(') {
     const dest = readParenDest(text, altEnd);
-    if (!dest) return { kept: '', end: altEnd };
-    return { kept: srcAllowed(dest.url, imageBase) ? text.slice(start, dest.end) : '', end: dest.end };
+    if (!dest) return { kept: ' ', end: altEnd };
+    return { kept: srcAllowed(dest.url, imageBase) ? text.slice(start, dest.end) : ' ', end: dest.end };
   }
   if (text[altEnd] === '[') {
     const refEnd = readBrackets(text, altEnd);
-    return { kept: '', end: refEnd < 0 ? altEnd : refEnd };
+    return { kept: ' ', end: refEnd < 0 ? altEnd : refEnd };
   }
-  return { kept: '', end: altEnd };
+  return { kept: ' ', end: altEnd };
 }
 
 function dropDisallowedMarkdown(text: string, imageBase: string): string {
@@ -233,8 +230,8 @@ function dropReferenceDefinitions(text: string): string {
 
 function dropForeignImages(text: string, imageBase: string): string {
   let out = text.replace(/<img\b[\s\S]*?>/gi, (tag) => keepAllowedImgTag(tag, imageBase));
-  out = out.replace(/<(?:source|video|picture)\b[\s\S]*?>/gi, '');
-  out = out.replace(/<\/(?:video|picture)>/gi, '');
+  out = out.replace(/<(?:source|video|picture)\b[\s\S]*?>/gi, ' ');
+  out = out.replace(/<\/(?:video|picture)>/gi, ' ');
   out = dropUnclosed(out, 'img');
   out = dropUnclosed(out, 'source');
   out = dropUnclosed(out, 'video');
@@ -298,7 +295,12 @@ function sectionLines(section: Section, images: boolean, imageBase: string, keep
   }
   const mapped = mapSectionLines(text.split('\n'), images, imageBase, keepUnverified);
   const raw = [title, ...mapped.filter((l): l is string => l !== null)];
-  return tidy(filterKeptImages(raw, imageBase, keepUnverified));
+  return finalizeBlock(filterKeptImages(raw, imageBase, keepUnverified));
+}
+
+/** Re-strip comments and approval boxes after image tags have been removed, so fragments cannot join. */
+function finalizeBlock(lines: string[]): string[] {
+  return tidy(withoutHtmlComments(lines).filter((l) => !APPROVAL_BOX.test(l) && !RULE_LINE.test(l)));
 }
 
 /** Collapse repeated blank lines and trim the ends. */
@@ -317,7 +319,7 @@ function openingLines(top: string[], imageBase: string, keepUnverified: boolean)
       .filter((l) => !APPROVAL_BOX.test(l) && !RULE_LINE.test(l))
       .map(pointAtFullReport),
   );
-  return tidy(filterKeptImages(lines, imageBase, keepUnverified));
+  return finalizeBlock(filterKeptImages(lines, imageBase, keepUnverified));
 }
 
 /**
