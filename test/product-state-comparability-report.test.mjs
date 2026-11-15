@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import zlib from 'node:zlib';
 import { generateStyleMapReport } from '../dist/report.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
 
@@ -113,5 +114,35 @@ test('matching explicit identity remains comparable across an ordinary copy edit
   assert.doesNotMatch(md, /Product-state identity unproven/);
   assert.equal(result.comparison.status, 'comparable');
   assert.match(md, /## Changes/);
+  rmTmp(dirs.root);
+});
+
+test('visual-first summary precedes blocking cannot-certify line', () => {
+  const dirs = reportFixture({});
+  const { md } = generate(dirs, { layout: 'visual-first', requireStateIdentity: true });
+  assert.match(md, /⛔ \*\*This compare cannot certify:/);
+  assert.ok(md.indexOf('Computed-style scope only:') < md.indexOf('⛔ **This compare cannot certify:'));
+  rmTmp(dirs.root);
+});
+
+test('visual-first changed unproven pair retains plain advisory', () => {
+  const dirs = reportFixture({});
+  const { md } = generate(dirs, { layout: 'visual-first' });
+  assert.match(md, /⚠ .*visual-only, not certified.*declare `productState`/);
+  assert.ok(md.indexOf('to review**') < md.indexOf('⚠ '));
+  rmTmp(dirs.root);
+});
+
+test('visual-first volatile-only report opens with cannot-certify (RV21-01)', () => {
+  const dirs = reportFixture({});
+  for (const dir of [dirs.beforeDir, dirs.afterDir]) {
+    const file = dir + '/' + fs.readdirSync(dir).find((name) => name.endsWith('.json.gz'));
+    const map = JSON.parse(zlib.gunzipSync(fs.readFileSync(file)).toString());
+    if (dir === dirs.afterDir) map.volatile = ['body > button.private-selector:nth-child(1)'];
+    fs.writeFileSync(file, zlib.gzipSync(JSON.stringify(map)));
+  }
+  const { md } = generate(dirs, { layout: 'visual-first', requireStateIdentity: true });
+  assert.match(md, /^## 🗺️ StyleProof report\n\n⛔ \*\*This compare cannot certify:/);
+  assert.match(md, /newly volatile on head/);
   rmTmp(dirs.root);
 });

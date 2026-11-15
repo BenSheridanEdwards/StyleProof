@@ -74,13 +74,15 @@ import {
   evidenceSection,
   liveTextFreezeLines,
   productStateWarningLines,
+  visualFirstProductStateWarningLines,
 } from './report/certification.js';
 import { buildDigest, digestLines } from './report/digest.js';
 import {
   baselineFailureDetailLines,
   oneSidedStatus,
   readBaselineInfo,
-  reportHeadline,
+  headlineParts,
+  reportOpening,
   type BaselineInfo,
   cropGapLines,
 } from './report/headline.js';
@@ -575,43 +577,49 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   // 3. Render report.md: verdict first (above the fold), then the product-state warning when it
   // fires — never the certification checklist first, and never a green product-state peer card.
   const md = new ReportMarkdown(opts.maxReportBytes ?? DEFAULT_MAX_REPORT_BYTES);
-  const headline = reportHeadline({
-    ...(ctx.layout === 'visual-first'
-      ? sectionSummary(
-          ctx,
-          view.changeGroups,
-          reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
-          surfaceKeyOf,
-          view.missing.map((p) => p.sd.surface),
-        )
-      : {}),
-    changeGroups: view.changeGroups,
-    missing: view.missing,
-    shown: view.shown,
-    changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
-    whatChanged: digestLines(digest),
-    volatileCount: diff.volatile,
-    headOnlyVolatile: diff.headOnlyVolatile,
-    baseOnlyVolatile: diff.baseOnlyVolatile,
-    liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
-    contentCount: content.contentCount,
-    globalChromeCount: content.globalChrome,
-    elevatedNavigableChromeAdds: elevation.chrome.count,
-    elevatedVisibleStructure: elevation.visible.count,
-    elevatedStructureDom: elevation.dom,
-    contentEvaluated: includeContent,
-    reportConsistency,
-    rawCounts: comparison.rawCounts,
-    baseline,
-    confidenceBlocked: confidence.counts.inaccessible > 0,
-    comparisonBlocked: comparison.blocksCertification,
-    reachBlocking: reach?.blocking ?? 0,
-    liveTextFreezeViolated: comparison.liveTextFreezeViolated,
-  });
+  const headline = headlineParts(
+    {
+      ...(ctx.layout === 'visual-first'
+        ? sectionSummary(
+            ctx,
+            view.changeGroups,
+            reach && !reach.gaps.some((gap) => gap.kind === 'ledger') ? reach.rules.length : undefined,
+            surfaceKeyOf,
+            view.missing.map((p) => p.sd.surface),
+          )
+        : {}),
+      changeGroups: view.changeGroups,
+      missing: view.missing,
+      shown: view.shown,
+      changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
+      whatChanged: digestLines(digest),
+      volatileCount: diff.volatile,
+      headOnlyVolatile: diff.headOnlyVolatile,
+      baseOnlyVolatile: diff.baseOnlyVolatile,
+      liveCandidateLabels: diff.volatile === 0 ? [] : collectLiveCandidateLabels(beforeDir, afterDir),
+      contentCount: content.contentCount,
+      globalChromeCount: content.globalChrome,
+      elevatedNavigableChromeAdds: elevation.chrome.count,
+      elevatedVisibleStructure: elevation.visible.count,
+      elevatedStructureDom: elevation.dom,
+      contentEvaluated: includeContent,
+      reportConsistency,
+      rawCounts: comparison.rawCounts,
+      baseline,
+      confidenceBlocked: confidence.counts.inaccessible > 0,
+      comparisonBlocked: comparison.blocksCertification,
+      reachBlocking: reach?.blocking ?? 0,
+      liveTextFreezeViolated: comparison.liveTextFreezeViolated,
+    },
+    ctx.layout === 'visual-first',
+  );
   const reachStrip = reach ? reachStripLines(reach) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
-  productStateWarningLines(comparison, gates.legacyPairs).forEach((appended) => md.lines.push(appended));
-  headline.forEach((appended) => md.lines.push(appended));
+  const opening =
+    ctx.layout === 'visual-first'
+      ? reportOpening(headline, visualFirstProductStateWarningLines(comparison, gates.legacyPairs))
+      : [...productStateWarningLines(comparison, gates.legacyPairs), ...headline.lines];
+  opening.forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
   stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();

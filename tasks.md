@@ -1,5 +1,9 @@
 # Tasks
 
+## Completed
+
+- Slice 25: visual-first opening order and cannot-certify/advisory line; focused checks pass, local one-shot, no PR.
+
 ## Queued
 
 - Refresh [pull request #1315](https://github.com/BenSheridanEdwards/StyleProof/pull/1315) after visual-first merges: move `[Unreleased]` into `[10.0.0]` and fix the date.
