@@ -9,6 +9,8 @@
 
 ## In progress
 
+- Slice 24: visual-first summary line in progress; one-shot thread link unavailable; no PR requested.
+
 - Slice 22: remaining state-attribution oracle cases; one-shot thread link unavailable; no PR requested.
 
 - Slice 21: state attribution oracle and QA18-02 start of its test (rejects "the first opt" / "the opt" beside a ×N clause); one-shot thread link unavailable; no PR requested.

@@ -1,11 +1,17 @@
-import { sectionLine } from './change-line.js';
+import { andList, sectionLine } from './change-line.js';
 import type { PNG } from 'pngjs';
 import { STATE_LAYER_NAMES, type ElementEntry, type Rect, type StyleMap } from '../capture.js';
 import type { DiffCounts, Finding } from '../diff.js';
 import { tokenIndex, type DescribeCtx } from '../describe.js';
 import { presentationBeforeMap } from '../path-correspondence.js';
-import { groupBySignature as groupByWidth, summarizeProps, surfaceWidth } from '../change-groups.js';
-import { buildChangeSections, cssDetailLines, renderChangeSection } from './change-sections.js';
+import {
+  groupBySignature as groupByWidth,
+  safeKey,
+  summarizeProps,
+  surfaceBase,
+  surfaceWidth,
+} from '../change-groups.js';
+import { SURFACE_SUBJECT, buildChangeSections, cssDetailLines, renderChangeSection } from './change-sections.js';
 import { annotationPaths } from './annotation-paths.js';
 import { claimSpacing, siblingSpacingChanges, spacingLines, type SiblingSpacingChange } from './sibling-spacing.js';
 import {
@@ -549,5 +555,60 @@ export function renderChangeGroup(ctx: RenderCtx, cg: ChangeGroup, seq: { crop: 
     md: [...rendered.flatMap((r) => r.md), ...outsideMd, ...spacingLines(unclaimed)],
     json: { ...json, regions, ...spacingJson(unclaimed), classification: sd.classification },
     findingCount,
+  };
+}
+
+/**
+ * " on `index` at 1280px wide: 9 elements, 4 changed CSS rules." The summary never states a count of 0:
+ * with no element the scope is pages and widths only, and a rule count of 0 is left out (RV22-01).
+ */
+function scopeText(keys: string[], base: (key: string) => string, elements: number, changedRules?: number): string {
+  const bases = [...new Set(keys.map(base))].sort();
+  const widths = [...new Set(keys.map(surfaceWidth))].filter(Boolean).sort((a, b) => a - b);
+  const where = bases.length <= 3 ? andList(bases.map((base) => codeValue(safeKey(base)))) : `${bases.length} pages`;
+  const wide =
+    widths.length === 0
+      ? ''
+      : widths.length <= 3
+        ? ` at ${andList(widths.map(String))}px wide`
+        : ` at ${widths.length} widths`;
+  if (!elements) return ` on ${where}${wide}.`;
+  const rules = changedRules ? `, ${changedRules} changed CSS rule${changedRules === 1 ? '' : 's'}` : '';
+  return ` on ${where}${wide}: ${elements} element${elements === 1 ? '' : 's'}${rules}.`;
+}
+
+/**
+ * How many change sections the report shows, and the summary's scope phrase for them. The scope
+ * also names the new and removed surfaces (`oneSided`), since the summary's count includes them (RV19-05).
+ */
+export function sectionSummary(
+  ctx: RenderCtx,
+  groups: ChangeGroup[],
+  changedRules?: number,
+  surfaceKeyOf: (captureKey: string) => string | undefined = () => undefined,
+  oneSided: string[] = [],
+): { sectionCount: number; scope: string } {
+  let sectionCount = 0;
+  let elements = 0;
+  for (const cg of groups) {
+    // A group with only folded size/position rows renders one block.
+    const sections = cg.rep.findings.length
+      ? buildChangeSections(cg.rep.findings, presentationMaps(ctx, cg.rep.sd.surface))
+      : [];
+    sectionCount += Math.max(1, sections.length);
+    // A state layer captured on one side is a change to review, but not an element.
+    elements += sections.reduce((n, s) => n + (s.paths[0] === SURFACE_SUBJECT ? 0 : s.paths.length), 0);
+  }
+  return {
+    sectionCount,
+    scope:
+      groups.length || oneSided.length
+        ? scopeText(
+            [...groups.flatMap((g) => g.surfaces), ...oneSided],
+            (key) => surfaceKeyOf(key) ?? surfaceBase(key),
+            elements,
+            changedRules,
+          )
+        : '',
   };
 }

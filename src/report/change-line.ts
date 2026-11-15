@@ -246,3 +246,7 @@ export function sectionLine(
     ...(size ? { size } : {}),
   });
 }
+
+/** "a", "a and b", "a, b and c". */
+export const andList = (items: string[]): string =>
+  items.length < 2 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
