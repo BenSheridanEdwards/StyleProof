@@ -104,3 +104,17 @@ for (const sectionCount of [1, 2]) {
     assert.ok(lines.includes(`**${sectionCount} change${sectionCount === 1 ? '' : 's'} to review** on ` + '`home`'));
   });
 }
+
+test('visual-first still names visible structure when a reach gate opens the report', () => {
+  const input = baseInput({ elevatedStructureDom: 2, reachBlocking: 3, contentEvaluated: true });
+  const { lines: visual } = headlineParts(input, true);
+  const vf = visual.join('\n');
+  assert.match(vf, /Reach gate/);
+  assert.match(vf, /2 visible elements were added or removed\*\* — they need review/);
+  assert.equal(vf.split('visible elements were added or removed').length - 1, 1, 'the structure fact is said once');
+  const { lines: legacy } = headlineParts(input, false);
+  const def = legacy.join('\n');
+  assert.match(def, /Reach gate/);
+  assert.match(def, /2 visible element addition\(s\)\/removal\(s\)/);
+  assert.doesNotMatch(def, /visible elements were added or removed/);
+});

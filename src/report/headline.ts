@@ -352,8 +352,7 @@ function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[]
   ];
 }
 
-function contentNoteLinesVisualFirst(input: HeadlineInput): string[] {
-  const structureSaid = input.changeGroups.length === 0 && input.missing.length === 0 && input.elevatedStructureDom > 0;
+function contentNoteLinesVisualFirst(input: HeadlineInput, structureSaid: boolean): string[] {
   const chrome = input.globalChromeCount ?? 0;
   const structure =
     input.elevatedStructureDom > 0 && chrome === 0 && !structureSaid
@@ -366,8 +365,8 @@ function contentNoteLinesVisualFirst(input: HeadlineInput): string[] {
   return [...chromeNoteLines(input, structureSaid), ...structure, ...content];
 }
 
-function contentNoteLines(input: HeadlineInput, visualFirst = false): string[] {
-  if (visualFirst) return contentNoteLinesVisualFirst(input);
+function contentNoteLines(input: HeadlineInput, visualFirst = false, structureSaid = false): string[] {
+  if (visualFirst) return contentNoteLinesVisualFirst(input, structureSaid);
   const md: string[] = [];
   const chrome = input.globalChromeCount ?? 0;
   const elevated = input.elevatedNavigableChromeAdds ?? 0;
@@ -511,7 +510,8 @@ function headlineDetailLines(input: HeadlineInput, md: string[], visualFirst = f
       (appended) => md.push(appended),
     );
   }
-  return [...md, ...contentNoteLines(input, visualFirst)];
+  const structureSaid = md.includes(visibleStructureLine(input.elevatedStructureDom));
+  return [...md, ...contentNoteLines(input, visualFirst, structureSaid)];
 }
 
 /** One Reach gate receipt for visual-first reports. */
