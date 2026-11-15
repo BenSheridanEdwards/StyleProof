@@ -1752,6 +1752,8 @@ test('end-to-end: state coverage is a separate exact recipe ledger without inven
   });
   const md = fs.readFileSync(generateStyleMapReport({ beforeDir, afterDir, outDir }).reportMdPath, 'utf8');
 
+  const visual = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'visual-first' });
+  assert.doesNotMatch(fs.readFileSync(visual.reportMdPath, 'utf8'), /## State coverage/);
   assert.match(md, /## State coverage/);
   assert.match(md, /Captured recipe states: 1 across 1 surface/);
   assert.match(md, /\| `dashboard` \| `toast-visible` \| `click` \| observation 250 ms \|/);
