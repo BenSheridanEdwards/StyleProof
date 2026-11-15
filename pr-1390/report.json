@@ -35,27 +35,27 @@
     "contentGeometryUncertain": false,
     "liveTextFreezeViolated": false,
     "incomparableSurfaces": 0,
-    "unprovenSurfaces": 0,
-    "requiredUnprovenSurfaces": 0,
+    "unprovenSurfaces": 1,
+    "requiredUnprovenSurfaces": 1,
     "globalRequiredUnprovenSurfaces": 0,
-    "status": "comparable",
+    "status": "unproven",
     "requireStateIdentity": false,
-    "blocksCertification": false,
+    "blocksCertification": true,
     "counts": {
-      "comparable": 1,
+      "comparable": 0,
       "incomparable": 0,
-      "unproven": 0,
+      "unproven": 1,
       "notRequired": 0,
-      "requiredUnproven": 0,
+      "requiredUnproven": 1,
       "globalRequiredUnproven": 0
     }
   },
   "comparability": [
     {
       "surface": "home@320",
-      "status": "comparable",
+      "status": "unproven",
       "required": true,
-      "reason": "explicit-state-match"
+      "reason": "state-identity-missing"
     }
   ],
   "reportConsistency": {
@@ -82,9 +82,13 @@
   },
   "legacyPairs": {
     "armed": true,
-    "legacyPairs": [],
+    "legacyPairs": [
+      "home@320"
+    ],
     "declared": [],
-    "undeclared": [],
+    "undeclared": [
+      "home@320"
+    ],
     "staleAcknowledgements": []
   },
   "sourceBinding": {
@@ -105,20 +109,20 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "74d8521f2eb6970252f09aac155aa3ae8398598eb6226a48418dbfd1c5ae2a84",
+      "digest": "c071d89b8f75b7ef3215fed0e7d1aa8433acb02ecaea01f036c0b1683d772544",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1578
+      "byteCount": 1482
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "aad0ce1d84bb37468e445fb08327b03c1362f7c46c459c6cb5e4220c9a80eeea",
+      "digest": "2234879c2f651ef06fdf9699a645bc44a8bbc4a968b207c1707a2ffb7f8601a1",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1566
+      "byteCount": 1482
     }
   },
-  "actionTrustState": "INVENTORY_REMOVAL_UNACKNOWLEDGED",
-  "reviewDigest": "5987d4d7a10a16a5fc2dbb55356d47a74fa62e32b3589dacac3bb71c1004c4ee",
+  "actionTrustState": "CERTIFICATION_FAILED",
+  "reviewDigest": "4079ca67b9c27384e10fe84ad34b78fca70abbfdbaa236d5479b5ef09e02c323",
   "untrustedCapture": false
 }
