@@ -143,7 +143,7 @@ function renderOneSided(
       `_Captured only in the **${side}** set; no screenshot saved (run captures with \`screenshots: true\`)._`,
     );
   }
-  md.push('', text.note(key));
+  if (ctx.layout !== 'visual-first') md.push('', text.note(key));
   return { md, json };
 }
 

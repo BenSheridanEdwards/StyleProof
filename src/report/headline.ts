@@ -162,12 +162,34 @@ const MISSING_SUMMARY: [OneSidedStatus, (n: number, names: string) => string][] 
   ],
 ];
 
-function missingSurfaceSummaryLines(missing: PreparedSurface[], failures: SurfaceCaptureFailure[]): string[] {
+function missingSurfaceLine(
+  status: OneSidedStatus,
+  n: number,
+  names: string,
+  visualFirst: boolean,
+  fallback: (n: number, names: string) => string,
+): string {
+  if (visualFirst && status === 'removed') {
+    return `🗑️ **${n} removed ${n === 1 ? 'surface' : 'surfaces'}** — in the baseline, not captured on head: ${names}. Review ${n === 1 ? 'it as a removal' : 'them as removals'}.`;
+  }
+  if (visualFirst && status === 'new') {
+    return `🆕 **${n} new ${n === 1 ? 'surface' : 'surfaces'}** with no baseline to compare: ${names}. Review ${n === 1 ? 'it before it becomes' : 'them before they become'} part of the baseline.`;
+  }
+  return fallback(n, names);
+}
+
+function missingSurfaceSummaryLines(
+  missing: PreparedSurface[],
+  failures: SurfaceCaptureFailure[],
+  visualFirst = false,
+): string[] {
   const md: string[] = [];
   for (const [status, text] of MISSING_SUMMARY) {
     const matching = missing.filter((p) => oneSidedStatus(p, failures) === status);
     if (matching.length === 0) continue;
-    md.push(text(matching.length, newSurfaceSummary(matching)));
+    const n = matching.length;
+    const names = newSurfaceSummary(matching);
+    md.push(missingSurfaceLine(status, n, names, visualFirst, text));
     (status === 'new' ? [] : ['']).forEach((appended) => md.push(appended));
   }
   return md;
@@ -235,14 +257,21 @@ function noChangedSurfaceSummary(input: HeadlineInput, visualFirst: boolean): st
       `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails; review-gate mode needs approval.`,
     ];
   }
-  const elevated = elevatedStructureSummary(input);
+  const elevated = elevatedStructureSummary(input, visualFirst);
   if (elevated) return elevated;
   return cleanScopeSummary(input);
 }
 
-function elevatedStructureSummary(input: HeadlineInput): string[] | undefined {
+function visibleStructureLine(n: number): string {
+  return n === 1
+    ? '🧱 **1 visible element was added or removed** — it needs review.'
+    : `🧱 **${n} visible elements were added or removed** — they need review.`;
+}
+
+function elevatedStructureSummary(input: HeadlineInput, visualFirst = false): string[] | undefined {
   const n = input.elevatedStructureDom;
   if (n <= 0) return undefined;
+  if (visualFirst) return [visibleStructureLine(n)];
   const title =
     n === 1
       ? '**1 visible element addition/removal needs review**'
@@ -280,7 +309,7 @@ function summaryLines(input: HeadlineInput, visualFirst: boolean): string[] {
       : verdictNeedsReview(reviewable),
     '',
     ...baselineFailureSummaryLines(baseline.failures),
-    ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures),
+    ...missingSurfaceSummaryLines(missing, baseline.surfaceFailures, visualFirst),
     ...undeclaredOnBaseLines(baseline.undeclaredOnBase ?? [], baseline.sha),
   ];
   if (changeGroups.length > 0) {
@@ -305,12 +334,39 @@ export function headlineParts(input: HeadlineInput, visualFirst = false): { line
   const volatileOnly = visualFirst && hasOnlyVolatileNotes(input);
   const md = volatileOnly ? [] : summaryLines(input, visualFirst);
   const summarised = md.length > 0;
-  const lines = headlineDetailLines(input, md);
+  const lines = headlineDetailLines(input, md, visualFirst);
   return { lines, summarised };
 }
 
 /** Content-layer pointers: shared chrome (#754), visible structure elevation, then advisory count. */
-function contentNoteLines(input: HeadlineInput): string[] {
+function chromeNoteLines(input: HeadlineInput, structureSaid: boolean): string[] {
+  const chrome = input.globalChromeCount ?? 0;
+  if (chrome <= 0 || structureSaid) return [];
+  const gating = (input.elevatedNavigableChromeAdds ?? 0) > 0 || (input.elevatedVisibleStructure ?? 0) > 0;
+  const verdictNote = !gating
+    ? " DOM structure does not change this check's verdict."
+    : ' Visible additions/removals need review.';
+  return [
+    '',
+    `🧱 **${chrome === 1 ? '1 global chrome element' : `${chrome} global chrome elements`}** added or removed on every surface base that renders its container, listed once under Global chrome below.${verdictNote}`,
+  ];
+}
+
+function contentNoteLinesVisualFirst(input: HeadlineInput, structureSaid: boolean): string[] {
+  const chrome = input.globalChromeCount ?? 0;
+  const structure =
+    input.elevatedStructureDom > 0 && chrome === 0 && !structureSaid
+      ? ['', visibleStructureLine(input.elevatedStructureDom)]
+      : [];
+  const content =
+    input.contentCount > 0 && (input.changeGroups.length > 0 || input.missing.length > 0)
+      ? ['', `📝 _${input.contentCount} content/structure change(s) below._`]
+      : [];
+  return [...chromeNoteLines(input, structureSaid), ...structure, ...content];
+}
+
+function contentNoteLines(input: HeadlineInput, visualFirst = false, structureSaid = false): string[] {
+  if (visualFirst) return contentNoteLinesVisualFirst(input, structureSaid);
   const md: string[] = [];
   const chrome = input.globalChromeCount ?? 0;
   const elevated = input.elevatedNavigableChromeAdds ?? 0;
@@ -412,7 +468,7 @@ function hasOnlyVolatileNotes(input: HeadlineInput): boolean {
   );
 }
 
-function headlineDetailLines(input: HeadlineInput, md: string[]): string[] {
+function headlineDetailLines(input: HeadlineInput, md: string[], visualFirst = false): string[] {
   if (input.whatChanged.length > 0) {
     (md[md.length - 1] === '' ? [] : ['']).forEach((appended) => md.push(appended));
     input.whatChanged.forEach((appended) => md.push(appended));
@@ -454,7 +510,8 @@ function headlineDetailLines(input: HeadlineInput, md: string[]): string[] {
       (appended) => md.push(appended),
     );
   }
-  return [...md, ...contentNoteLines(input)];
+  const structureSaid = md.includes(visibleStructureLine(input.elevatedStructureDom));
+  return [...md, ...contentNoteLines(input, visualFirst, structureSaid)];
 }
 
 /** One Reach gate receipt for visual-first reports. */
