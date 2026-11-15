@@ -533,6 +533,12 @@ test('report: an ancestor-reused baseline is stated in report.md and report.json
     assert.equal(reportJson.baselineProvenance.baseline, 'ancestor-reuse');
     assert.equal(reportJson.baselineProvenance.restoredSha, 'a'.repeat(40));
     assert.equal(reportJson.baselineProvenance.changedPathCount, 2);
+    const visual = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'visual-first' });
+    assert.doesNotMatch(fs.readFileSync(visual.reportMdPath, 'utf8'), /\*\*Baseline\*\*/);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(visual.reportJsonPath, 'utf8')).baselineProvenance,
+      reportJson.baselineProvenance,
+    );
   } finally {
     rmTmp(root);
   }

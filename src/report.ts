@@ -500,6 +500,7 @@ function evidenceLines(input: {
   certIssues: string[];
   liveText: LiveTextAudit;
   provenanceLine: string;
+  visualFirst: boolean;
   comparison: ReportComparison;
   gates: Gates;
   criticalObligations: DeclaredCriticalObligations | undefined;
@@ -507,11 +508,12 @@ function evidenceLines(input: {
   const { certIssues, liveText, provenanceLine, comparison, gates } = input;
   const comparabilityText = comparabilityLine(comparison, gates.legacyPairs);
   // Proven / not-required stay out of Evidence; the above-the-fold warning covers unproven cases.
-  const comparabilityEvidence = /✓ comparable|not required/.test(comparabilityText) ? [] : [comparabilityText, ''];
+  const comparabilityEvidence =
+    input.visualFirst || /✓ comparable|not required/.test(comparabilityText) ? [] : [comparabilityText, ''];
   return [
     ...certIssues,
     ...liveTextFreezeLines(liveText),
-    ...(provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
+    ...(!input.visualFirst && provenanceLine && !/✓/.test(provenanceLine) ? [provenanceLine, ''] : []),
     ...comparabilityEvidence,
     ...criticalObligationLines(gates.criticalStates, input.criticalObligations),
   ];
@@ -592,7 +594,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       missing: view.missing,
       shown: view.shown,
       changedScope: countChangedSurfaceScope(view.changeGroups, surfaceKeyOf),
-      whatChanged: digestLines(digest),
+      whatChanged: ctx.layout === 'visual-first' ? [] : digestLines(digest),
       volatileCount: diff.volatile,
       headOnlyVolatile: diff.headOnlyVolatile,
       baseOnlyVolatile: diff.baseOnlyVolatile,
@@ -621,7 +623,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       : [...productStateWarningLines(comparison, gates.legacyPairs), ...headline.lines];
   opening.forEach((appended) => md.lines.push(appended));
   reachStrip.forEach((appended) => md.lines.push(appended));
-  stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
+  if (ctx.layout !== 'visual-first') stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
   if (reach && !md.lines.includes(reachStrip[1])) {
@@ -755,6 +757,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
         certIssues,
         liveText,
         provenanceLine: baselineProvenanceLine(baselineProvenance),
+        visualFirst: ctx.layout === 'visual-first',
         comparison,
         gates,
         criticalObligations: opts.criticalObligations,

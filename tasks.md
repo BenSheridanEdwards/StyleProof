@@ -106,3 +106,5 @@
 - Done: Slice 23 live visual-first and attribution E2E port; both focused Chromium scenarios pass (current T3 thread; no PR requested).
 
 - In progress: Slice 32 hostile section data, compact HTML and image budgets (current T3 thread; no PR).
+
+- Completed: Slice 26 — keep provenance, coverage and digest in report.json only (current T3 thread; no PR requested).

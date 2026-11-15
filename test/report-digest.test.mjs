@@ -38,6 +38,12 @@ function report(dirs, generate = generateStyleMapReport) {
   const res = generate({ ...dirs });
   const md = fs.readFileSync(res.reportMdPath, 'utf8');
   const json = JSON.parse(fs.readFileSync(res.reportJsonPath, 'utf8'));
+  const visual = generate({ ...dirs, layout: 'visual-first' });
+  const visualMd = fs.readFileSync(visual.reportMdPath, 'utf8');
+  const visualJson = JSON.parse(fs.readFileSync(visual.reportJsonPath, 'utf8'));
+  assert.doesNotMatch(visualMd, /What changed/);
+  assert.doesNotMatch(commentSlice(visualMd), /What changed/);
+  assert.deepEqual(visualJson.digest, json.digest, 'visual-first preserves every digest phrase and count');
   rmTmp(dirs.root);
   return { md, json, slice: commentSlice(md) };
 }
