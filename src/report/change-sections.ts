@@ -413,7 +413,6 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
     const [pngA, pngB] = screenshotPair(ctx, surface, state === 'rest' ? '' : `.${state}`);
     if (!pngA || !pngB) continue;
     const stem = cropStem(surface, state === 'rest' ? 'page' : `page-${state}`);
-    // `-base` / `-head`, never `-before` / `-after`: those names mean clean crops.
     const page: SectionMetaPage = {
       state,
       before: `${stem}-base.png`,
@@ -424,8 +423,7 @@ function writeWholePages(ctx: RenderCtx, registry: SectionRegistry): Map<string,
         ? { baseWidth: pngA.width, baseHeight: pngA.height }
         : {}),
     };
-    // Optional context, never evidence: a page that does not fit is left out without counting an omitted crop.
-    // Its width and height stay the capture's: they are the SVG coordinates the Where boxes are drawn in.
+    // Context only: omitted pages are not counted as crop gaps; sizes stay the capture's.
     if (writeBudgetedPair(ctx, [page.before, pngA], [page.after, pngB], { context: true })) {
       written.set(`${surface}\0${state}`, page);
     }
