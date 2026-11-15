@@ -274,3 +274,79 @@ function markdownWithSection() {
     '<!-- styleproof-section-end -->',
   ].join('\n');
 }
+
+test('section data from report.md is escaped, and a forged image path is never loaded', () => {
+  const meta = {
+    v: 1,
+    id: 'x" onclick="alert(1)',
+    paths: ['<script>alert(1)</script>'],
+    more: 0,
+    pairs: [
+      { state: 'rest', before: 'javascript:alert(1)', after: 'crops/a.png', width: 10, height: 10, what: '"><script>' },
+    ],
+    where: [],
+    pages: [],
+  };
+  const html = renderReportHtml(
+    [
+      '## 🗺️ StyleProof report',
+      '',
+      '### Name',
+      '',
+      encodeSectionMeta(meta),
+      '',
+      'A line.',
+      '',
+      '<details>',
+      '<summary>Show the CSS</summary>',
+      '',
+      '`p` · 1 element restyled',
+      '',
+      '</details>',
+      '',
+      '<!-- styleproof-section-end -->',
+    ].join('\n'),
+  );
+  assert.equal(html.match(/<script\b/g)?.length, 1, 'only the theme script');
+  assert.doesNotMatch(html, /javascript:alert|id="x" onclick/);
+  assert.match(html, /<code>&lt;script&gt;alert\(1\)&lt;\/script&gt;<\/code>/);
+  assert.match(html, /alt="After: &quot;&gt;&lt;script&gt;"/);
+});
+
+test('a budget too small for the full design still keeps every word in a plain page', () => {
+  const root = mkTmp('styleproof-html-compact-');
+  try {
+    const md = '## 🗺️ StyleProof report\n\n**1 change to review** on `home` at 900px wide: 1 element.\n';
+    const full = renderReportHtml(md, { outDir: root, layout: 'visual-first', maxBytes: 2_000_000 });
+    const plain = renderReportHtml(md, { outDir: root, layout: 'visual-first', maxBytes: 2_500 });
+    assert.match(full, /data-set-theme/);
+    assert.ok(Buffer.byteLength(plain) <= 2_500);
+    assert.doesNotMatch(plain, /<script\b/);
+    assert.doesNotMatch(plain, /data-set-theme/, 'no theme buttons without the script that drives them (RV5-04)');
+    assert.match(plain, /1 change to review<\/strong> on <code>home<\/code>/);
+  } finally {
+    rmTmp(root);
+  }
+});
+
+test('visual images share the remaining budget and preserve report text', (t) => {
+  const root = mkTmp('styleproof-image-budget-');
+  t.after(() => rmTmp(root));
+  fs.mkdirSync(path.join(root, 'crops'));
+  const png = new PNG({ width: 300, height: 150 });
+  let seed = 1;
+  for (let i = 0; i < png.data.length; i++) {
+    seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+    png.data[i] = seed >>> 24;
+  }
+  const bytes = PNG.sync.write(png);
+  fs.writeFileSync(path.join(root, 'crops', 'noise.png'), bytes);
+  const md = '## Report\n\nEvery finding survives.\n\n![first](crops/noise.png)\n\n![second](crops/noise.png)';
+  for (const maxBytes of [200000, 400000, 2000000]) {
+    const html = renderReportHtml(md, { outDir: root, maxBytes, layout: 'visual-first' });
+    assert.ok(Buffer.byteLength(html) <= maxBytes);
+    assert.match(html, /Every finding survives/);
+    if (maxBytes < 2000000) assert.match(html, /images omitted/);
+    else assert.equal(html.match(/data:image\/png;base64,/g)?.length, 2);
+  }
+});
