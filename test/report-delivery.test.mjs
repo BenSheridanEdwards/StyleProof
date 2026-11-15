@@ -4,8 +4,12 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { PNG } from 'pngjs';
 import * as publicApi from '../dist/index.js';
+import { generateStyleMapReport } from '../dist/report.js';
+import { reportCommentSummary } from '../dist/report-comment.js';
 import { buildReportDelivery, buildArtifactReportDelivery } from '../dist/report-delivery.js';
+import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const actionYml = fs.readFileSync(path.join(root, 'action.yml'), 'utf8');
@@ -78,6 +82,7 @@ function actionCommentScript({
 }
 
 async function executeActionComment({
+  reportMd,
   repositoryPrivate,
   url,
   sha,
@@ -131,7 +136,11 @@ async function executeActionComment({
     warning: () => {},
   };
   const requireForScript = (specifier) => {
-    if (specifier === 'fs') return { existsSync: () => false };
+    if (specifier === 'fs')
+      return {
+        existsSync: (file) => file === 'styleproof-report/report.md' && reportMd !== undefined,
+        readFileSync: () => reportMd,
+      };
     return nativeRequire(specifier);
   };
   const previousActionPath = process.env.GITHUB_ACTION_PATH;
@@ -492,4 +501,183 @@ test('artifact report upload is overwrite-safe so same-run job re-runs republish
   assert.ok(step, 'action.yml should contain the report-artifact upload step');
   assert.match(step[0], /uses: actions\/upload-artifact@/);
   assert.match(step[0], /overwrite: true/);
+});
+
+const legacySummary = (md) => {
+  const lines = md.split('\n');
+  const end = lines.findIndex((l) => l.startsWith('### '));
+  return end > 0 ? lines.slice(0, end).join('\n').trim() : '## 🗺️ StyleProof report';
+};
+test('legacy comment golden preserves the Action cut and wrappers', async () => {
+  const options = { repositoryPrivate: false };
+  const missing = (await executeActionComment(options)).created[0].body;
+  const suffix = missing.slice(`${MARKER}\n## 🗺️ StyleProof report`.length);
+  for (const reportMd of [
+    '## 🗺️ StyleProof report\n\n## Changes\n\n### Card\nCSS',
+    '## 🗺️ StyleProof report\n\n**No visual changes.**',
+  ]) {
+    assert.equal(reportCommentSummary(reportMd), legacySummary(reportMd));
+    assert.equal(
+      (await executeActionComment({ ...options, reportMd })).created[0].body,
+      `${MARKER}\n${legacySummary(reportMd)}${suffix}`,
+    );
+  }
+});
+test('public delivery exposes the commit-bound image directory', () => {
+  for (const repositoryVisibility of ['public', 'private']) {
+    const delivery = buildReportDelivery({ repository, publicationSha, prNumber, reportUrl, repositoryVisibility });
+    assert.equal(
+      delivery.imageBase,
+      repositoryVisibility === 'public' ? reportUrl.slice(0, -'report.md'.length) : null,
+    );
+  }
+  assert.equal(
+    buildArtifactReportDelivery({ repository, reportUrl: `https://github.com/${repository}/actions/runs/9001` })
+      .imageBase,
+    null,
+  );
+});
+
+const SECTION_META = '<!-- styleproof-section x -->';
+const SECTION_REPORT = [
+  '## 🗺️ StyleProof report',
+  '',
+  '**1 change to review** on `shop` at 1280px wide: 2 elements.',
+  '',
+  '## Changes',
+  '',
+  '### Card titles',
+  '',
+  SECTION_META,
+  '',
+  'Both card titles (Lamp, Chair) change text colour from dark indigo to dark red.',
+  '',
+  '<img src="crops/shop-1-where.png" alt="Where" width="520"><br><sub>Where: 2 card titles on shop @ 1280</sub>',
+  '',
+  '| Before | After |',
+  '| --- | --- |',
+  '| <img src="crops/shop-1-before.png" alt="Before" width="400"> | <img src="crops/shop-1-after.png" alt="After" width="400"> |',
+  '<!-- styleproof-section-end -->',
+  '',
+].join('\n');
+
+function generatedLegacyReport(t) {
+  const root = mkTmp('styleproof-legacy-comment-');
+  t.after(() => rmTmp(root));
+  const card = (i) => `body > main:nth-child(1) > article:nth-child(${i})`;
+  for (const [i, side] of ['before', 'after'].entries()) {
+    const elements = {};
+    for (const n of [1, 2]) {
+      elements[card(n)] = { tag: 'article', cls: 'card', rect: [24 + (n - 1) * 420, 100, 400, 150] };
+      elements[`${card(n)} > h2:nth-child(1)`] = {
+        tag: 'h2',
+        cls: 'card-title',
+        rect: [40 + (n - 1) * 420, 120, 300, 24],
+        text: n === 1 ? 'Lamp' : 'Chair',
+        style: { color: i ? 'rgb(150, 30, 60)' : 'rgb(30, 60, 120)' },
+      };
+    }
+    const png = new PNG({ width: 1280, height: 400 });
+    png.data.fill(240);
+    writeCapture(path.join(root, side), 'shop@1280', makeMap({ elements }), PNG.sync.write(png));
+  }
+  const result = generateStyleMapReport({
+    beforeDir: path.join(root, 'before'),
+    afterDir: path.join(root, 'after'),
+    outDir: path.join(root, 'out'),
+  });
+  return fs.readFileSync(result.reportMdPath, 'utf8');
+}
+
+test('a generated legacy report comment is byte-identical to main', async (t) => {
+  const reportMd = generatedLegacyReport(t);
+  assert.doesNotMatch(reportMd, /<!-- styleproof-(?:section |captured |new -->)/);
+  assert.match(reportMd, /^### /m);
+  assert.equal(reportCommentSummary(reportMd), legacySummary(reportMd));
+  const options = { repositoryPrivate: false };
+  const missing = (await executeActionComment(options)).created[0].body;
+  const suffix = missing.slice(`${MARKER}\n## 🗺️ StyleProof report`.length);
+  const body = (await executeActionComment({ ...options, reportMd })).created[0].body;
+  assert.equal(body, `${MARKER}\n${legacySummary(reportMd)}${suffix}`);
+});
+
+test('a public branch-storage comment shows each section with commit-bound images', async () => {
+  const body = (await executeActionComment({ repositoryPrivate: false, reportMd: SECTION_REPORT })).created[0].body;
+  const base = `https://github.com/${repository}/blob/${publicationSha}/pr-42/`;
+  assert.match(body, /^### Card titles$/m);
+  assert.match(body, /^Both card titles \(Lamp, Chair\) change text colour from dark indigo to dark red\.$/m);
+  assert.ok(body.includes(`<img src="${base}crops/shop-1-before.png?raw=1"`));
+  assert.ok(body.includes(`<img src="${base}crops/shop-1-where.png?raw=1"`));
+  assert.doesNotMatch(body, /src="crops\/|raw\.githubusercontent|styleproof-section|^## Changes$/m);
+  assert.ok(body.startsWith(`${MARKER}\n## 🗺️ StyleProof report`));
+  assert.equal(body.split(reportUrl).length - 1, 1);
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+});
+
+test('private and artifact-storage comments carry the sections as text, never a broken image', async () => {
+  const privateBody = (await executeActionComment({ repositoryPrivate: true, reportMd: SECTION_REPORT })).created[0]
+    .body;
+  const artifactBody = (
+    await executeActionComment({
+      url: `https://github.com/${repository}/actions/runs/9001/artifacts/4451`,
+      reportStorage: 'artifact',
+      reportMd: SECTION_REPORT,
+    })
+  ).created[0].body;
+  for (const body of [privateBody, artifactBody]) {
+    assert.match(body, /^### Card titles$/m);
+    assert.match(body, /^Both card titles \(Lamp, Chair\) change text colour/m);
+    assert.match(body, /<sub>Where: 2 card titles on shop @ 1280<\/sub>/);
+    assert.doesNotMatch(body, /<img|crops\/|^\| Before \| After \|$/m);
+    assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+  }
+});
+
+test('a report with hundreds of sections still fits one GitHub comment', async () => {
+  const [head, section] = SECTION_REPORT.split('\n## Changes\n');
+  const huge = [head, '## Changes', ...Array.from({ length: 2000 }, () => section)].join('\n');
+  const body = (await executeActionComment({ repositoryPrivate: false, reportMd: huge })).created[0].body;
+  assert.ok(body.length <= 65_536, `${body.length} characters`);
+  assert.ok(body.startsWith(MARKER));
+  assert.match(
+    body,
+    /^_This comment reached GitHub's size limit\. \d+ more changes are listed in the full report: open it from the link at the end of this comment\._$/m,
+  );
+  const left = Number(body.match(/(\d+) more changes?/)[1]);
+  const shown = (body.match(/^### Card titles$/gm) ?? []).length;
+  assert.equal(left + shown, 2000);
+  const withSurface = huge.replace(
+    '\n## Changes\n',
+    '\n### `brand-new@1280` · new surface <!-- styleproof-new -->\n\n_brand-new @ 1280_\n\n## Changes\n',
+  );
+  const capped = (await executeActionComment({ repositoryPrivate: false, reportMd: withSurface })).created[0].body;
+  assert.match(capped, /This comment reached GitHub's size limit\. \d+ more changes are listed in the full report/);
+  assert.equal(body.split(reportUrl).length - 1, 1);
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+});
+
+test('a visual-first report with no change section but a huge reach table still fits one comment', async () => {
+  const rows = Array.from(
+    { length: 2000 },
+    (_, i) => `| \`.legacy-rule-${i}:hover > .child-${i}\` | \`/assets/legacy-${i}.css\` | never matched |`,
+  );
+  const reportMd = [
+    '## 🗺️ StyleProof report',
+    '',
+    '**No visual changes.**',
+    '',
+    '<!-- styleproof-captured x -->',
+    '',
+    '## Changed but never matched',
+    '',
+    '| Rule | Sheet | Status |',
+    '| --- | --- | --- |',
+    ...rows,
+  ].join('\n');
+  const body = (await executeActionComment({ repositoryPrivate: false, reportMd })).created[0].body;
+  assert.ok(body.length <= 65_536, `${body.length} characters`);
+  assert.match(body, /\*\*No visual changes\.\*\*/);
+  assert.doesNotMatch(body, /legacy-rule-0/, 'the reach table stays in the linked report');
+  assert.match(body, /- \[ \] \*\*Approve all changes\*\*/);
+  assert.equal(body.split(reportUrl).length - 1, 1);
 });

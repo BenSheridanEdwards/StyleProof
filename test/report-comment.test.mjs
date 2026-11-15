@@ -118,6 +118,7 @@ test('the opening block is capped too, even with no change section (RV2-02)', ()
   const md = [
     '## 🗺️ StyleProof report',
     '',
+    '<!-- styleproof-captured x -->',
     long,
     '',
     '<details>',
@@ -479,6 +480,8 @@ test('approval boxes with other list markers are stripped', () => {
     '1. [x] Approve all',
     '1) [x] Approve all',
     '> - [x] Approve all',
+    '1. - [x] Approve all',
+    '- - [x] Approve all',
   ];
   const md = reportShell(changeBlock(['The titles change colour.', ...boxes].join('\n')));
   const comment = reportCommentSummary(md, {});
