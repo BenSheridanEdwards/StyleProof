@@ -17,7 +17,7 @@ import { isSectionMetaLine, PAIR_ROW, SECTION_END, STATE_LABEL, WHERE_LINE } fro
 export const COMMENT_SUMMARY_MAX_CHARS = 50_000;
 
 /** GitHub also renders *, +, ordered, and quoted list markers as checkboxes. */
-const APPROVAL_BOX = /^\s*(?:>\s*)*(?:[-*+]|\d+\.)\s+\[[ xX]\]/;
+const APPROVAL_BOX = /^\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+\[[ xX]\]/;
 /** Where the comment's opening block ends: a report group heading or a fold (Evidence, reach tables). */
 const HEAD_END = /^(?:## |<details>)/;
 const MORE_RESERVE = 200;
@@ -27,7 +27,7 @@ const NEW_SURFACE_MARKER = '<!-- styleproof-new -->';
 const IMAGE_BASE = /^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/blob\/[0-9a-f]{40}\/(?:[\w.-]+\/)*$/;
 /** Crop files are stems plus an extension; `..` and slashes are never allowed. */
 const CROP_FILE = /^[A-Za-z0-9._-]+$/;
-const REF_DEF = /^\s*\[[^\]]+\]:\s+\S/;
+const REF_DEF = /^[ \t]{0,3}\[[^\]]+\]:/;
 const RULE_LINE = /^\s*---+\s*$/;
 /** Entity markers or markup in a src value mean it is not a plain imageBase URL. */
 const UNSAFE_SRC = /[<>&#]/;
@@ -89,23 +89,32 @@ function rebaseRecognisedImages(text: string, imageBase: string, allowMarkdown: 
   }
   return rewritten;
 }
-const hasImageMarkup = (line: string): boolean => /<img|<source|srcset|!\[[^\]]*\]\(|!\[[^\]]*\]\[|crops\//i.test(line);
+const hasImageMarkup = (line: string): boolean =>
+  /<img|<source|<video|<picture|srcset|poster\s*=|!\[|crops\//i.test(line);
 
 /** Drop HTML comments, including ones that span lines; unclosed comments are dropped to the end. */
 function withoutHtmlComments(lines: string[]): string[] {
   let text = lines.join('\n');
   for (let i = 0; i < 64; i++) {
-    const next = text.replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '');
+    const next = text
+      .replace(/<!--[\s\S]*?(?:-->|--!>|$)/g, '')
+      .replace(/<!--|-->|--!>/g, '')
+      .replace(/styleproof-receipt/gi, '');
     if (next === text) break;
     text = next;
   }
-  // Anything the cap left behind must not stay a live comment or a forged receipt.
-  text = text.replace(/<!--|-->|--!>/g, '').replace(/styleproof-receipt/gi, '');
-  return text.split('\n');
+  // <! is not used in the tags the comment keeps; escaping it stops a leftover
+  // fragment from becoming a live comment after the loop cap.
+  return text.replace(/<!/g, '&lt;!').split('\n');
 }
 
-const srcAllowed = (value: string, imageBase: string): boolean =>
-  Boolean(imageBase) && value.startsWith(imageBase) && !UNSAFE_SRC.test(value);
+/** Only the rebaser's own crop URL: imageBase + crops/<safe-file>?raw=1. */
+function srcAllowed(value: string, imageBase: string): boolean {
+  if (!imageBase || UNSAFE_SRC.test(value) || /[\\%]/.test(value)) return false;
+  const prefix = `${imageBase}crops/`;
+  if (!value.startsWith(prefix) || !value.endsWith('?raw=1')) return false;
+  return isSafeCrop(value.slice(prefix.length, -'?raw=1'.length));
+}
 
 /** Keep a complete <img> only when its only src is a double-quoted imageBase URL. */
 function keepAllowedImgTag(tag: string, imageBase: string): string {
@@ -124,12 +133,8 @@ const isAllowedSrcLine = (line: string, imageBase: string): boolean => {
   );
 };
 
-/**
- * After rebasing, keep only image targets that start with `imageBase`. An empty base drops
- * every image, including split tags, reference-style images, and reference definitions.
- */
-/** Drop an unclosed <img> or <source> that has no later `>`. Kept complete tags are left alone. */
-function dropUnclosed(text: string, tag: 'img' | 'source'): string {
+/** Drop an unclosed tag that has no later `>`. Kept complete tags are left alone. */
+function dropUnclosed(text: string, tag: string): string {
   const lower = text.toLowerCase();
   const open = `<${tag}`;
   let i = 0;
@@ -141,19 +146,104 @@ function dropUnclosed(text: string, tag: 'img' | 'source'): string {
   }
 }
 
+/** Read `[...]` starting at `[`, allowing one level of nested brackets. */
+function readBrackets(text: string, open: number): number {
+  if (text[open] !== '[') return -1;
+  let depth = 1;
+  for (let i = open + 1; i < text.length; i++) {
+    if (text[i] === '[') depth++;
+    else if (text[i] === ']') {
+      depth--;
+      if (depth === 0) return i + 1;
+    }
+  }
+  return -1;
+}
+
+const skipMdSpace = (text: string, i: number): number => {
+  while (text[i] === ' ' || text[i] === '\t' || text[i] === '\n') i++;
+  return i;
+};
+
+function readUrlToken(text: string, i: number): { url: string; end: number } | null {
+  if (text[i] === '<') {
+    const close = text.indexOf('>', i + 1);
+    return close < 0 ? null : { url: text.slice(i + 1, close), end: close + 1 };
+  }
+  const start = i;
+  while (i < text.length && !/[)\s]/.test(text[i])) i++;
+  return { url: text.slice(start, i), end: i };
+}
+
+function skipMdTitle(text: string, i: number): number {
+  if (text[i] === '"' || text[i] === "'") return text.indexOf(text[i], i + 1);
+  if (text[i] === '(') return text.indexOf(')', i + 1);
+  return i;
+}
+
+/** Read `(url)` / `(<url>)` / `( url "title" )` starting at `(`. */
+function readParenDest(text: string, open: number): { url: string; end: number } | null {
+  if (text[open] !== '(') return null;
+  const tok = readUrlToken(text, skipMdSpace(text, open + 1));
+  if (!tok) return null;
+  let i = skipMdSpace(text, tok.end);
+  if (text[i] === '"' || text[i] === "'" || text[i] === '(') {
+    const titleEnd = skipMdTitle(text, i);
+    if (titleEnd < 0) return null;
+    i = skipMdSpace(text, titleEnd + (titleEnd === i ? 0 : 1));
+  }
+  return text[i] === ')' ? { url: tok.url, end: i + 1 } : null;
+}
+
+/** One markdown image at `start` (`![`). Keep it only when the dest is an allowed crop URL. */
+function takeMarkdownImage(text: string, start: number, imageBase: string): { kept: string; end: number } {
+  const altEnd = readBrackets(text, start + 1);
+  if (altEnd < 0) return { kept: '![', end: start + 2 };
+  if (text[altEnd] === '(') {
+    const dest = readParenDest(text, altEnd);
+    if (!dest) return { kept: '', end: altEnd };
+    return { kept: srcAllowed(dest.url, imageBase) ? text.slice(start, dest.end) : '', end: dest.end };
+  }
+  if (text[altEnd] === '[') {
+    const refEnd = readBrackets(text, altEnd);
+    return { kept: '', end: refEnd < 0 ? altEnd : refEnd };
+  }
+  return { kept: '', end: altEnd };
+}
+
+function dropDisallowedMarkdown(text: string, imageBase: string): string {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf('![', i);
+    if (start < 0) {
+      out += text.slice(i);
+      break;
+    }
+    const taken = takeMarkdownImage(text, start, imageBase);
+    out += text.slice(i, start) + taken.kept;
+    i = taken.end;
+  }
+  return out;
+}
+
+function dropReferenceDefinitions(text: string): string {
+  return text.replace(/^[ \t]{0,3}\[[^\]\n]+\]:[ \t]*(?:\S[^\n]*|[ \t]*\n[ \t]*\S[^\n]*)/gm, '');
+}
+
 function dropForeignImages(text: string, imageBase: string): string {
   let out = text.replace(/<img\b[\s\S]*?>/gi, (tag) => keepAllowedImgTag(tag, imageBase));
-  out = out.replace(/<source\b[\s\S]*?>/gi, '');
+  out = out.replace(/<(?:source|video|picture)\b[\s\S]*?>/gi, '');
+  out = out.replace(/<\/(?:video|picture)>/gi, '');
   out = dropUnclosed(out, 'img');
   out = dropUnclosed(out, 'source');
-  out = out.replace(/!\[[^\]]*\]\((?:<([^>]+)>|([^)\s]+))\)/g, (m, bracketed?: string, plain?: string) => {
-    const url = bracketed ?? plain ?? '';
-    return srcAllowed(url, imageBase) ? m : '';
-  });
-  out = out.replace(/!\[[^\]]*\]\[[^\]]*\]/g, '');
+  out = dropUnclosed(out, 'video');
+  out = dropUnclosed(out, 'picture');
+  out = dropDisallowedMarkdown(out, imageBase);
+  out = dropReferenceDefinitions(out);
   out = out
     .split('\n')
-    .filter((line) => !REF_DEF.test(line) && isAllowedSrcLine(line, imageBase))
+    .filter((line) => !REF_DEF.test(line) && !/poster\s*=/i.test(line) && isAllowedSrcLine(line, imageBase))
     .join('\n');
   return out;
 }
@@ -196,8 +286,10 @@ function mapSectionLines(
 
 /** One section for the comment: images when `images` is set (rebased onto `imageBase`), otherwise text only. */
 function sectionLines(section: Section, images: boolean, imageBase: string, keepImages: boolean): string[] {
-  const body = withoutHtmlComments(section.body);
-  const newSurface = /· new surface$/.test(section.title);
+  const stripped = withoutHtmlComments([section.title, ...section.body]);
+  const title = (stripped[0] ?? '').trimEnd();
+  const body = stripped.slice(1);
+  const newSurface = /· new surface$/.test(title);
   const keepUnverified = Boolean(images && keepImages && !imageBase);
   let text = body.join('\n');
   if (!keepUnverified) {
@@ -205,7 +297,7 @@ function sectionLines(section: Section, images: boolean, imageBase: string, keep
     text = dropForeignImages(text, imageBase);
   }
   const mapped = mapSectionLines(text.split('\n'), images, imageBase, keepUnverified);
-  const raw = [section.title, ...mapped.filter((l): l is string => l !== null)];
+  const raw = [title, ...mapped.filter((l): l is string => l !== null)];
   return tidy(filterKeptImages(raw, imageBase, keepUnverified));
 }
 
