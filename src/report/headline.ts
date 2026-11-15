@@ -206,7 +206,7 @@ function consistencyFailureLines(input: HeadlineInput): string[] | undefined {
 
 const NO_CHANGE = '✓ No reviewable computed-style changes among semantically matched elements.';
 
-function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
+function noChangedSurfaceSummary(input: HeadlineInput, visualFirst: boolean): string[] | undefined {
   const failure = consistencyFailureLines(input);
   if (failure) return failure;
   // Baseline capture failures are reviewable evidence even with zero restyles — surface them
@@ -230,6 +230,7 @@ function noChangedSurfaceSummary(input: HeadlineInput): string[] | undefined {
     ];
   }
   if (input.reachBlocking > 0) {
+    if (visualFirst) return [reachGateLine(input.reachBlocking, false)];
     return [
       `✗ **Reach gate** — ${input.reachBlocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). Not a clean no-change: certify mode fails; review-gate mode needs approval.`,
     ];
@@ -267,9 +268,10 @@ function verdictNeedsReview(n: number): string {
   return n === 1 ? '**1 change needs review**' : `**${n} changes need review**`;
 }
 
-function summaryLines(input: HeadlineInput): string[] {
+function summaryLines(input: HeadlineInput, visualFirst: boolean): string[] {
   const { changeGroups, missing, shown, changedScope, baseline } = input;
-  const noChange = changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input) : undefined;
+  const noChange =
+    changeGroups.length === 0 && missing.length === 0 ? noChangedSurfaceSummary(input, visualFirst) : undefined;
   if (noChange) return noChange;
   const reviewable = changeGroups.length + missing.length;
   const md = [
@@ -301,7 +303,7 @@ export function reportHeadline(input: HeadlineInput): string[] {
 
 export function headlineParts(input: HeadlineInput, visualFirst = false): { lines: string[]; summarised: boolean } {
   const volatileOnly = visualFirst && hasOnlyVolatileNotes(input);
-  const md = volatileOnly ? [] : summaryLines(input);
+  const md = volatileOnly ? [] : summaryLines(input, visualFirst);
   const summarised = md.length > 0;
   const lines = headlineDetailLines(input, md);
   return { lines, summarised };
@@ -453,4 +455,12 @@ function headlineDetailLines(input: HeadlineInput, md: string[]): string[] {
     );
   }
   return [...md, ...contentNoteLines(input)];
+}
+
+/** One Reach gate receipt for visual-first reports. */
+export function reachGateLine(blocking: number, hasChanges: boolean): string {
+  return (
+    `✗ **Reach gate** — ${blocking} changed CSS rule(s) or reach evidence gap(s) were never matched in a captured state (see **Changed but never matched**). ` +
+    (hasChanges ? 'They hold the check.' : 'Not a clean no-change: they hold the check.')
+  );
 }

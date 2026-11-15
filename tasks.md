@@ -110,3 +110,5 @@
 - In progress: Slice 32 hostile section data, compact HTML and image budgets (current T3 thread; no PR).
 
 - Completed: Slice 26 — keep provenance, coverage and digest in report.json only (current T3 thread; no PR requested).
+
+- Completed: Slice 28 Reach gate line and gated visual-first details (current T3 build thread; no PR requested).

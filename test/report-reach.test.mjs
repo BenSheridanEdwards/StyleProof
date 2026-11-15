@@ -800,3 +800,21 @@ test('visual-first warn combines missing records in reviewer words', (t) => {
     /ledger|\(s\)/,
   );
 });
+
+for (const hasChanges of [false, true]) {
+  test(`visual-first Reach gate says once that findings hold the check (changes: ${hasChanges})`, (t) => {
+    const base = map(rule('.unopened', 'base'));
+    const head = map(rule('.unopened', 'head'));
+    if (hasChanges) head.elements.body.style.color = 'rgb(255, 0, 0)';
+    const dirs = fixture(t, [base], [head]);
+    const { md, json } = report(dirs, { layout: 'visual-first', changeReach: 'gate' });
+    assert.equal((md.match(/✗ \*\*Reach gate\*\*/g) ?? []).length, 1);
+    assert.ok(md.includes(hasChanges ? 'They hold the check.' : 'Not a clean no-change: they hold the check.'));
+    if (hasChanges) assert.ok(!md.includes('Not a clean no-change'));
+    assert.ok(md.includes('| `.unopened` |'));
+    assert.ok(!md.includes('**Reach incomplete**'));
+    assert.ok(!md.includes('J2:'));
+    assert.ok(!md.includes('J3:'));
+    assert.equal(json.reach.blocking, 1);
+  });
+}
