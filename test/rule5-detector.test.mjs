@@ -89,6 +89,14 @@ test('pointers at places the comment does not carry are caught (QA10-03)', () =>
     [],
   );
 });
+
+test('an under-X pointer is reported once', () => {
+  const found = commentProblems(
+    'comment',
+    '## 🗺️ StyleProof report\n\nThe rest is listed under Layout shifts.' + LINK,
+  ).filter((p) => /under Layout shifts/.test(p));
+  assert.equal(found.length, 1, found.join('\n'));
+});
 const section = (title, line, extra = []) => [`### ${title}`, '', line, '', ...extra, ''].join('\n');
 test('parallel per-section lines are allowed by rule; a note repeated per section is not (QA10-03)', () => {
   const parallel = [

@@ -262,11 +262,6 @@ export function danglingReferences(report) {
     const target = m[1].trim();
     if (!/full report/i.test(target + m[2]) && !carried(target)) out.push(`"see ${target}" is not in the comment`);
   }
-  for (const m of report.matchAll(
-    /\b(?:(?:listed|named)(?: once)? (?:under|in)|under) (?:the )?(?:\*\*)?([A-Z][^.;,*\n]+?)(?:\*\*)?(?: section)?(?=[.;,)]|$)/gm,
-  )) {
-    if (!/full report|report\.json/i.test(m[1]) && !carried(m[1])) out.push(`"under ${m[1]}" is not in the comment`);
-  }
   if (!/<sub>/.test(report))
     for (const m of report.matchAll(/[^\n]*(?<!\p{L})(?:tiles?|captions?)(?!\p{L})[^\n]*/giu))
       out.push(`points at captions or tiles the comment does not carry: "${m[0].trim().slice(0, 110)}"`);
