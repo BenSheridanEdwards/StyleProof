@@ -93,6 +93,7 @@ import {
   type PublishedReach,
   reachSectionLines,
   reachStripLines,
+  reachHeadlineLines,
   reachSummaryLine,
   type ReportReach,
 } from './report/reach.js';
@@ -615,7 +616,8 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
     },
     ctx.layout === 'visual-first',
   );
-  const reachStrip = reach ? reachStripLines(reach) : [];
+  const warnHeadline = ctx.layout === 'visual-first' && reach?.blocking === 0;
+  const reachStrip = reach ? (warnHeadline ? reachHeadlineLines(reach) : reachStripLines(reach)) : [];
   md.lines.push('## 🗺️ StyleProof report', '');
   const opening =
     ctx.layout === 'visual-first'
@@ -626,7 +628,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
   if (ctx.layout !== 'visual-first') stateCoverageLines(ctx).forEach((appended) => md.lines.push(appended));
   md.trimToBudget();
   // A byte cap must never leave the verdict visible while silently dropping reach evidence.
-  if (reach && !md.lines.includes(reachStrip[1])) {
+  if (reachStrip[1] && !md.lines.includes(reachStrip[1])) {
     throw new Error('report byte budget cannot show reach status; increase maxReportBytes');
   }
 
@@ -730,7 +732,7 @@ function generateStyleMapReportInternal(opts: ReportOptions, includeStructure: b
       reachBlock.full = reachSectionLines(reach);
       reachBlock.summary = reachSummaryLine(reach);
     }
-    const updatedStrip = reachStripLines(reach);
+    const updatedStrip = warnHeadline ? reachHeadlineLines(reach) : reachStripLines(reach);
     for (const [index, line] of reachStrip.entries()) {
       const position = md.lines.indexOf(line);
       if (position >= 0 && line) md.lines[position] = updatedStrip[index];

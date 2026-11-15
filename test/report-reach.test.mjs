@@ -780,3 +780,23 @@ test('report publishes acknowledgement reasons and stale remedies', (t) => {
   assert.match(output.md, /hash of the current changed range/);
   assert.ok(output.json.reach.blocking > 0);
 });
+
+test('visual-first warn names unmatched rules without the reach strip', (t) => {
+  const dirs = fixture(t, [map(rule('.panel', 'old'))], [map(rule('.panel', 'new'))]);
+  const { md, json } = report(dirs, { layout: 'visual-first' });
+  assert.match(md, /⚠️ \*\*1 changed CSS rule never matched on a captured page:/);
+  assert.doesNotMatch(md.split('## Changed but never matched')[0], /\*\*Reach incomplete\*\*|\*\*J[23]/);
+  assert.ok(json.reach.gaps.length);
+});
+
+test('visual-first warn combines missing records in reviewer words', (t) => {
+  const old = { ...map(), reach: { ...map().reach, version: 1 } };
+  const dirs = fixture(t, [old], [old]);
+  const { md } = report(dirs, { layout: 'visual-first' });
+  assert.equal(md.split('Change Reach could not check every changed CSS rule:').length - 1, 1);
+  assert.match(md, /1 capture on each side has a missing or out-of-date record/);
+  assert.doesNotMatch(
+    md.split('Change Reach could not check every changed CSS rule:')[1].split('\n')[0],
+    /ledger|\(s\)/,
+  );
+});
