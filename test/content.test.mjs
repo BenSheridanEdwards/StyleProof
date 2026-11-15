@@ -926,3 +926,130 @@ test('content report names a pixel-identical location instead of an identical be
 
   rmTmp(dirs.root);
 });
+
+const vfReport = (dirs, extra = {}) =>
+  generateStyleMapReport({
+    beforeDir: dirs.beforeDir,
+    afterDir: dirs.afterDir,
+    outDir: dirs.outDir,
+    includeContent: true,
+    layout: 'visual-first',
+    ...extra,
+  });
+
+const tonePair = (surface, before, after) =>
+  pairFixture({
+    surface,
+    before,
+    after,
+    beforePng: solidPng(500, 240, [239, 68, 68]),
+    afterPng: solidPng(500, 240, [59, 130, 246]),
+  });
+
+test('visual-first content uses clean pairs and Where maps with one cap summary', () => {
+  const map = (prefix) =>
+    makeMap({
+      elements: {
+        body: { tag: 'body', rect: [0, 0, 500, 240] },
+        'body > span:nth-child(1)': { tag: 'span', cls: 'one', rect: [20, 30, 80, 20], text: `${prefix} one` },
+        'body > span:nth-child(2)': { tag: 'span', cls: 'two', rect: [20, 90, 80, 20], text: `${prefix} two` },
+        'body > span:nth-child(3)': { tag: 'span', cls: 'three', rect: [20, 150, 80, 20], text: `${prefix} three` },
+      },
+    });
+  const dirs = tonePair('crop-budget@500', map('Old'), map('New'));
+  const result = vfReport(dirs, { maxCrops: 1, zoomBelow: 0 });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  const names = fs.readdirSync(path.join(dirs.outDir, 'crops')).sort();
+  assert.equal((md.match(/past the `--max-crops` limit/g) ?? []).length, 1);
+  assert.equal(names.filter((name) => /-(before|after)\.png$/.test(name)).length, 2);
+  assert.equal(result.contentChanges, 3);
+  assert.match(md, /\| <img /);
+  assert.match(md, /Where/);
+  assert.doesNotMatch(md, /_Crop omitted:/);
+  rmTmp(dirs.root);
+});
+
+test('visual-first shifted text uses a Where map for corresponding sides', () => {
+  const body = { tag: 'body', rect: [0, 0, 500, 240] };
+  const label = (text) => ({ tag: 'div', cls: 'label', ownTextLength: 3, text, rect: [40, 65, 70, 20] });
+  const dirs = tonePair(
+    'shifted-text@500',
+    makeMap({ elements: { body, 'body > div:nth-child(1)': label('Old') } }),
+    makeMap({
+      elements: {
+        body,
+        'body > div:nth-child(1)': {
+          tag: 'div',
+          cls: 'inserted',
+          ownTextLength: 3,
+          text: 'Add',
+          rect: [330, 65, 70, 20],
+        },
+        'body > div:nth-child(2)': label('New'),
+      },
+    }),
+  );
+  const md = fs.readFileSync(vfReport(dirs, { zoomBelow: 0 }).reportMdPath, 'utf8');
+  assert.match(md, /Where/);
+  assert.match(md, /\| <img /);
+  rmTmp(dirs.root);
+});
+
+test('visual-first content says no distinct crop once', () => {
+  const dirs = tmpDirs();
+  const png = solidPng(400, 200);
+  const before = makeMap({
+    elements: {
+      body: { tag: 'body' },
+      'body > div:nth-child(1)': { tag: 'div', cls: 'a', rect: [10, 10, 200, 40] },
+      'body > div:nth-child(2)': { tag: 'div', cls: 'b', rect: [10, 60, 200, 40] },
+    },
+  });
+  writeCapture(dirs.beforeDir, 'landing@1280', before, png);
+  writeCapture(dirs.afterDir, 'landing@1280', makeMap({ elements: { body: { tag: 'body' } } }), png);
+  const result = generateStyleMapReport({
+    beforeDir: dirs.beforeDir,
+    afterDir: dirs.afterDir,
+    outDir: path.join(dirs.root, 'out'),
+    includeContent: true,
+    layout: 'visual-first',
+  });
+  const md = fs.readFileSync(result.reportMdPath, 'utf8');
+  assert.equal(result.contentChanges, 2);
+  assert.equal((md.match(/No distinct before\/after crop/g) ?? []).length, 1);
+  rmTmp(dirs.root);
+});
+
+test('visual-first style sections precede content sections', () => {
+  const map = (color, text) =>
+    makeMap({
+      elements: {
+        'body > button:nth-child(1)': { tag: 'button', cls: 'cta', rect: [20, 20, 100, 30], text, style: { color } },
+      },
+    });
+  const dirs = tonePair('mixed@500', map('red', 'Old'), map('blue', 'New'));
+  const md = fs.readFileSync(vfReport(dirs).reportMdPath, 'utf8');
+  assert.ok(md.indexOf('<!-- styleproof-section') >= 0);
+  assert.ok(md.indexOf('## 📝 Content') > md.lastIndexOf('<!-- styleproof-section'));
+  rmTmp(dirs.root);
+});
+
+test('visual-first Global chrome uses clean pairs and shorter intro', () => {
+  const before = makeMap({ elements: { 'body > nav:nth-child(1)': { tag: 'nav', rect: [0, 0, 500, 100] } } });
+  const after = structuredClone(before);
+  after.elements['body > nav:nth-child(1) > a:nth-child(1)'] = {
+    tag: 'a',
+    cls: 'link',
+    rect: [20, 20, 80, 20],
+    text: 'Next',
+  };
+  const dirs = tonePair('chrome@500', before, after);
+  writeCapture(dirs.beforeDir, 'chrome-two@500', before, solidPng(500, 240, [255, 0, 0]));
+  writeCapture(dirs.afterDir, 'chrome-two@500', after, solidPng(500, 240, [0, 0, 255]));
+  const md = fs.readFileSync(vfReport(dirs).reportMdPath, 'utf8');
+  assert.match(md, /Global chrome/);
+  assert.match(md, /wherever its container renders/);
+  assert.match(md, /\| <img /);
+  assert.match(md, /Where/);
+  rmTmp(dirs.root);
+});

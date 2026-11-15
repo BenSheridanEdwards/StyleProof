@@ -481,7 +481,7 @@ function renderReportBody(
   if (migrationGallery) {
     const g = migrationGallery;
     md.detail(
-      renderMigrationGallerySections(g),
+      renderMigrationGallerySections(g, ctx.layout),
       `- Migration gallery: ${g.changedStyles.length} changed styles, ${g.newSurfaces.length} new surfaces, ${g.newRemovedElements.length} surfaces with element changes`,
     );
   }
