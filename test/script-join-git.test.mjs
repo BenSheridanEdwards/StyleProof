@@ -149,7 +149,9 @@ test('git paths with whitespace and renames retain source identities and numeric
 });
 
 test('reports retain J2 source ranges and grouped reasons in JSON, Markdown and HTML without holding gate', async (t) => {
-  const { generateStyleMapReport } = await import('../dist/report.js');
+  const { generateStyleMapReport: renderReport } = await import('../dist/report.js');
+  const { withLayoutNeutralReportFacts } = await import('./assert-layout-neutral-report-facts.mjs');
+  const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
   const { makeMap, writeCapture } = await import('./helpers.mjs');
   const { sha256 } = await import('../dist/node-util.js');
   const f = fixture(t);

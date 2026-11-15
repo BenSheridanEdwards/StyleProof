@@ -139,6 +139,9 @@ test('report decodes each screenshot once per surface', async (t) => {
 
       read.mock.restore();
       const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
+      const visual = generateReport({ ...dirs, outDir: dirs.outDir + '-visual', layout: 'visual-first' });
+      const visualJson = JSON.parse(fs.readFileSync(visual.reportJsonPath, 'utf8'));
+      assert.deepEqual(visualJson.counts, json.counts);
       assert.equal(json.surfaces.length, 1);
       assert.equal(json.surfaces[0].regions.length, 2, 'separated changes exercise repeated state crops');
 
