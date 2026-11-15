@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { decodeSectionMeta, decodeCapturedMeta } from './section-meta.js';
 
 /**
  * Render report.md to a self-contained report.html — the in-browser review
@@ -201,7 +202,145 @@ function readCropDataUrl(src: string, outDir: string, maxBytes: number): string 
   return `data:image/png;base64,${fs.readFileSync(filename).toString('base64')}`;
 }
 
-export function renderReportHtml(markdown: string, options?: { outDir: string; maxBytes?: number }): string {
+const TITLE_LINE = /^## 🗺️ StyleProof report$/;
+
+/** The verdict's opening: a count to review, a clean or scoped no-change, or what holds the check (RV19-07). */
+const SUMMARY_LINE =
+  /^(?:\*\*\d+ changes? to review\*\*|✓|✗ |⛔ |🧱 \*\*|⚠️? (?:\*\*|UNVERIFIED)|Computed-style scope)/;
+
+/**
+ * The lines above the first heading: the summary line goes to the header, the rest stay as notes.
+ * A note written above the title (the unbound source-binding warning) leads the page, before the header.
+ */
+function topBlock(lines: string[]) {
+  const title = lines.findIndex((l) => /^#{1,3} /.test(l));
+  const titled = title >= 0 && TITLE_LINE.test(lines[title]);
+  if (!titled) return { titled, lead: [] as string[], summary: '', notes: [] as string[], next: 0 };
+  const end = lines.findIndex((l, n) => n > title && (/^#{2,3} /.test(l) || decodeCapturedMeta(l) !== null));
+  const top = lines.slice(title + 1, end < 0 ? lines.length : end);
+  // Only the opening paragraph can be the verdict, and only when it is that one line: a later line, or
+  // the lead of a list, stays where report.md puts it, so the page keeps report.md's order (RV20-01).
+  const first = top.findIndex((l) => l.trim());
+  const at = first >= 0 && SUMMARY_LINE.test(top[first]) && !top[first + 1]?.trim() ? first : -1;
+  return {
+    titled,
+    lead: lines.slice(0, title),
+    summary: at >= 0 ? inline(top[at]) : '',
+    notes: top.filter((_l, n) => n !== at),
+    next: title + 1 + top.length,
+  };
+}
+
+function renderPage(lines: string[]): string {
+  const top = topBlock(lines);
+  const cards: Array<{ id: string; title: string }> = [];
+  const body = [...top.notes, ...lines.slice(top.next)];
+  const html = renderBlocks(body)
+    .join('\n')
+    .replace(/<h3>(.*?)<\/h3>\n(<!-- styleproof-section [^\n]* -->)/g, (match, title, comment) => {
+      const meta = decodeSectionMeta(comment);
+      if (!meta) return match;
+      cards.push({ id: meta.id, title });
+      return `<h3 id="${escapeHtml(meta.id)}">${title}</h3>
+${comment}`;
+    });
+  const toc = cards.length
+    ? `<nav class="toc" aria-label="Changes">${cards.map((c) => `<a href="#${escapeHtml(c.id)}">${c.title}</a>`).join('')}</nav>`
+    : '';
+  return [
+    renderBlocks(top.lead).join('\n'),
+    `<header class="top"><div class="topbar"><h1>StyleProof report</h1>${THEME_SWITCH}</div>${top.summary ? `<p class="summary">${top.summary}</p>` : ''}${toc}</header>`,
+    html,
+    '<footer>Made by StyleProof from captured computed styles and screenshots.</footer>',
+  ].join('\n');
+}
+const THEME_SWITCH =
+  '<div class="theme" role="group" aria-label="Colour theme">' +
+  ['auto', 'light', 'dark']
+    .map(
+      (t) =>
+        `<button type="button" data-set-theme="${t}" aria-pressed="false">${t[0].toUpperCase()}${t.slice(1)}</button>`,
+    )
+    .join('') +
+  '</div>';
+
+// Light is the default; dark applies by system preference unless light is forced, or whenever dark is forced.
+const LIGHT =
+  '--bg: #f6f7f9; --panel: #fff; --ink: #14171c; --muted: #535b67; --line: #d5dae1; --link: #0b57c2; --focus: #0b57c2; --before: #7a4f00; --before-bg: #fff3d6; --after: #0a6436; --after-bg: #dcf5e6; --ring: #e0119d; --dim: rgb(255 255 255 / .55);';
+const DARK =
+  '--bg: #0f1216; --panel: #171b21; --ink: #e8ebef; --muted: #9aa3ae; --line: #2a3038; --link: #8ab4ff; --focus: #8ab4ff; --before-bg: #3a2b0a; --before: #f3c46b; --after-bg: #0e3320; --after: #74dba3; --ring: #e0119d; --dim: rgb(255 255 255 / .5);';
+
+const STYLE = `
+:root { color-scheme: light; ${LIGHT} }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { color-scheme: dark; ${DARK} } }
+:root[data-theme="dark"] { color-scheme: dark; ${DARK} }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--link); }
+main { max-width: 1120px; margin: 0 auto; padding: 24px 16px 64px; }
+.topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+header.top h1 { font-size: 1.25rem; margin: 0; }
+header.top p.summary { margin: 4px 0 0; color: var(--muted); }
+header.top p.summary strong { color: var(--ink); }
+.theme { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.theme button { font: inherit; font-size: .85rem; padding: 4px 12px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+.theme button + button { border-left: 1px solid var(--line); }
+.theme button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.theme button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+nav.toc { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 8px; }
+nav.toc a { display: inline-block; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; color: inherit; text-decoration: none; background: var(--panel); font-size: .9rem; }
+nav.toc a:focus-visible { outline: 2px solid var(--focus); }
+img { max-width: 100%; }
+.table-scroll { display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--line); padding: 6px; }
+code { background: var(--panel); }
+footer { color: var(--muted); margin-top: 32px; }
+`;
+const THEME_SCRIPT = `<script>
+(() => {
+  const root = document.documentElement;
+  const fromUrl = new URLSearchParams(location.search).get('theme');
+  let saved = null;
+  try { saved = localStorage.getItem('styleproof-report-theme'); } catch {}
+  const apply = (theme) => {
+    if (theme === 'light' || theme === 'dark') root.dataset.theme = theme; else delete root.dataset.theme;
+    document.querySelectorAll('[data-set-theme]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.setTheme === (theme || 'auto'))));
+  };
+  apply(fromUrl || saved || 'auto');
+  addEventListener('DOMContentLoaded', () => {
+    apply(root.dataset.theme || 'auto');
+    document.querySelectorAll('[data-set-theme]').forEach((b) => b.addEventListener('click', () => {
+      apply(b.dataset.setTheme);
+      try { localStorage.setItem('styleproof-report-theme', b.dataset.setTheme); } catch {}
+    }));
+  });
+})();
+</script>`;
+
+function pageHtml(body: string): string {
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StyleProof report</title>
+${THEME_SCRIPT}
+<style>${STYLE}
+</style>
+</head>
+<body>
+<main>
+${body}
+</main>
+</body>
+</html>
+`;
+}
+
+export function renderReportHtml(
+  markdown: string,
+  options?: { outDir: string; maxBytes?: number; layout?: 'visual-first' },
+): string {
   const maxBytes = options?.maxBytes ?? 2_000_000;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('HTML byte budget must be a positive integer');
   const body = renderBlocks(markdown.split('\n')).join('\n');
@@ -248,6 +387,8 @@ ${body}
 </body>
 </html>
 `;
+  const visual = /<!-- styleproof-(?:section |captured )/.test(markdown) || options?.layout === 'visual-first';
+  if (visual) page = pageHtml(renderPage(markdown.split('\n')));
   if (!options) return page;
   const images = [...page.matchAll(/<img src="([^"]*)" alt="([^"]*)" loading="lazy">/g)];
   const captions = images.map((image) => `<span>${image[2]} (image omitted)</span>`);
