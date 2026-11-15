@@ -116,3 +116,5 @@
 - Completed: Slice 26 — keep provenance, coverage and digest in report.json only (current T3 thread; no PR requested).
 
 - Completed: Slice 28 Reach gate line and gated visual-first details (current T3 build thread; no PR requested).
+
+- Completed locally: Slice 34 — port PR comment change sections; current T3 thread, no PR (requested local commit only).
