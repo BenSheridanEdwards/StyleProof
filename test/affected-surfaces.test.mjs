@@ -660,3 +660,36 @@ test('context recovery widens a resolved dependency even when its static importe
     'the resolved graph selects no surface; context recovery adds the home surface',
   );
 });
+
+test('CSS Module element rules require recapturing non-importing surfaces', () => {
+  const css = '.card { padding: 4px }\nh1 { font-size: 80px }\nbutton, a:hover { color: red }';
+  assert.equal(classifyStyleChange('Card.module.css', read(css)), 'all');
+  assert.equal(
+    affectedSurfaces({
+      changedFiles: ['Card.module.css'],
+      surfaces: { Home: 'Home.tsx', About: 'About.tsx' },
+      graph: [{ from: 'Home.tsx', to: 'Card.module.css' }],
+      files: ['Home.tsx', 'About.tsx', 'Card.module.css'],
+      readFile: (file) => (file === 'Card.module.css' ? css : ''),
+    }),
+    'all',
+  );
+});
+
+test('CSS Module selector starts fail closed except local classes and ids', () => {
+  for (const selector of [
+    'h1',
+    'button',
+    'a:hover',
+    'ul li',
+    '[hidden]',
+    '.card, button',
+    'html',
+    'body',
+    '*',
+    ':root',
+  ]) {
+    assert.equal(classifyStyleChange('Card.module.css', read(`${selector} { color: red }`)), 'all', selector);
+  }
+  assert.equal(classifyStyleChange('Card.module.css', read('.card, #title { color: red }')), 'scope');
+});

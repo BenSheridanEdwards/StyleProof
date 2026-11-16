@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `styleproof-init --mode review-gate` or `--mode certify` no longer writes `blocking: 'advisory'` into a new `styleproof.config.ts`, so the announced gate holds (#1412).
 - Map-store checkout of a partial clone now uses the bounded, never-prompting git path, so a stall fails after `gitTimeoutMs` and can be retried as infra (#1410).
 - Crawl class coverage now keeps escaped CSS class names (`md:flex`, `w-1/2`) in the defined vocabulary and ignores dotted text inside attribute selectors (#1409).
+- A CSS Module that contains an unscoped element or attribute selector is now classified as `all` for selective remap, so non-importing surfaces are recaptured (#1413).
 
 - Refs #1006: reach reports list acknowledged ranges with reasons and stale keys with pruning and replacement instructions; report JSON publishes both groups.
 

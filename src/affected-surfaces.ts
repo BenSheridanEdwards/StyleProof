@@ -73,7 +73,16 @@ const isSfc = (f: string) => /\.(vue|svelte|astro)$/.test(f);
 
 // A CSS Module escapes its hashed scope via `:global`, cross-module `composes … from`,
 // genuinely global selectors, or any Sass/CSS load.
-const moduleEscapes = (src: string) => MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src);
+function moduleEscapes(src: string): boolean {
+  if (MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src)) return true;
+  // Comments cannot hide the start of a selector. Treat ambiguous syntax and
+  // at-rules conservatively; only class/id-led rule headers prove local scope.
+  const uncommented = src.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
+  for (const rule of uncommented.matchAll(/(?:^|[{};])([^{};]*)\{/g)) {
+    if (rule[1].split(',').some((selector) => !/^[.#][\w-]/.test(selector.trim()))) return true;
+  }
+  return false;
+}
 
 /** Per file kind: does this source's style scope stay bounded to its importers? No test → never. */
 const SCOPED_WHEN: [matches: (file: string) => boolean, scoped?: (src: string) => boolean][] = [
