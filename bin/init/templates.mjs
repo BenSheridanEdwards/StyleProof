@@ -207,6 +207,7 @@ export const styleproofConfigTemplate = (
   workspaceMarker,
   unclassifiedEntries,
   belowGitRoot,
+  gate = 'advisory',
 ) => `import { defineConfig } from 'styleproof';
 
 /**
@@ -215,14 +216,18 @@ export const styleproofConfigTemplate = (
  * For all available options, see the StyleProof docs or hover over defineConfig().
  */
 export default defineConfig({
-  // Advisory mode: posts comments and artifacts without holding style findings.
+${
+  gate === 'advisory'
+    ? `  // Advisory mode: posts comments and artifacts without holding style findings.
   // To require approval, remove blocking: 'advisory', then run
   // styleproof-init --upgrade --mode review-gate and require the StyleProof
   // status check in branch protection or a ruleset. The StyleProof status is
   // the gate; true and false values of blocking do not fail the job (10.0.0).
   blocking: 'advisory',
 
-  // Not read by the Action: the workflow's require-approval input or
+`
+    : ''
+}  // Not read by the Action: the workflow's require-approval input or
   // mode: review-gate turns on the approval gate.
   requireApproval: true,
 

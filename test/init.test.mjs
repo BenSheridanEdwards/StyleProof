@@ -1990,3 +1990,22 @@ test('styleproof-init: scaffolds the lint-artifacts workflow to block committed 
     rmTmp(root);
   }
 });
+
+for (const mode of ['advisory', 'review-gate', 'certify']) {
+  test(`styleproof-init: config respects --mode ${mode}`, () => {
+    const root = mkTmp();
+    try {
+      const result = runInit(root, ['--mode', mode, '--dir', 'e2e/styleproof.spec.ts']);
+      assert.equal(result.status, 0, result.stderr);
+      const config = readFile(root, 'styleproof.config.ts');
+      const advisory = /^\s*blocking: 'advisory',/m;
+      if (mode === 'advisory') assert.match(config, advisory);
+      else assert.doesNotMatch(config, advisory);
+      if (mode === 'review-gate') {
+        assert.match(readFile(root, '.github/workflows/styleproof.yml'), /require-approval: true/);
+      }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
