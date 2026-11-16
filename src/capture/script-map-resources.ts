@@ -168,7 +168,7 @@ export async function readSiblingMap(
     if (map?.version !== 3) return undefined;
     if (
       map.file !== undefined &&
-      (typeof map.file !== 'string' || new URL(map.file, url).pathname !== new URL(scriptUrl).pathname)
+      (typeof map.file !== 'string' || map.file.split('/').pop() !== new URL(scriptUrl).pathname.split('/').pop())
     )
       return undefined;
     return { text, url: url.href };

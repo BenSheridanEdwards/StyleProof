@@ -42,6 +42,7 @@ function hiddenPage(script: string, mapBody: string, status = 200) {
 
 for (const [name, body, status, expected] of [
   ['a hidden sibling map is measured', JSON.stringify(map), 200, 'mapped'],
+  ['nested file is mapped', JSON.stringify({ ...map, file: 'static/js/app.js' }), 200, 'mapped'],
   ['a missing sibling stays source map absent', '', 404, 'unmeasured'],
   ['HTML sibling fallback stays source map absent', '<html>fallback</html>', 200, 'unmeasured'],
   ['non-JSON sibling stays source map absent', 'no json', 200, 'unmeasured'],
