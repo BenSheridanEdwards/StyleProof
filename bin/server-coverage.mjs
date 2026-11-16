@@ -35,19 +35,33 @@ export function serverCoverageConfig(server, directory, reuseExistingServer) {
   };
 }
 
+function readCoverageEntries(file) {
+  try {
+    const entries = JSON.parse(fs.readFileSync(file, 'utf8')).result;
+    return Array.isArray(entries) ? entries : [];
+  } catch {
+    // Incomplete shutdown files are not execution evidence.
+    return [];
+  }
+}
+
+function tryResolveServerScript(entry, projectRoot) {
+  try {
+    return resolveServerScript(entry, projectRoot);
+  } catch {
+    // One unreadable script or map must not discard later entries.
+  }
+}
+
 /** Read only local app scripts. Missing or unreadable maps never prove execution. */
 export function readServerCoverage(directory, projectRoot) {
   if (!fs.existsSync(directory)) return [];
   const scripts = [];
   for (const name of fs.readdirSync(directory)) {
     if (!name.endsWith('.json')) continue;
-    try {
-      for (const entry of JSON.parse(fs.readFileSync(path.join(directory, name), 'utf8')).result) {
-        const script = resolveServerScript(entry, projectRoot);
-        if (script) scripts.push(script);
-      }
-    } catch {
-      // Incomplete shutdown files are not execution evidence.
+    for (const entry of readCoverageEntries(path.join(directory, name))) {
+      const script = tryResolveServerScript(entry, projectRoot);
+      if (script) scripts.push(script);
     }
   }
   return scripts;
