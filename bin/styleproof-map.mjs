@@ -282,7 +282,8 @@ function runVariantCrawl(captureEnvironment) {
   if (crawl.strict) crawlArgs.push('--strict');
   const command = process.platform === 'win32' ? 'styleproof-variants.cmd' : 'styleproof-variants';
   let result = spawnSync(command, crawlArgs, { stdio: 'inherit', env: captureEnvironment });
-  if (result.error?.code === 'ENOENT') result = runBin('styleproof-variants', crawlArgs, { env: captureEnvironment });
+  if (result.error?.code === 'ENOENT' || (process.platform === 'win32' && result.error?.code === 'EINVAL'))
+    result = runBin('styleproof-variants', crawlArgs, { env: captureEnvironment });
   if (result.error) fail(NAME, `could not run styleproof-variants\n${result.error.message}`);
   return result.status ?? 1;
 }
