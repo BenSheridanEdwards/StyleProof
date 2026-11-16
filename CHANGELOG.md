@@ -12,6 +12,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - An unreadable source map in a server V8 coverage file no longer discards later scripts in that file (#1415).
 - Generated close-prune jobs skip fork pull requests, where the token is read-only, and leave those report folders to the daily sweep (#1416).
 - `styleproof-init --mode review-gate` or `--mode certify` no longer writes `blocking: 'advisory'` into a new `styleproof.config.ts`, so the announced gate holds (#1412).
+- Map-store checkout of a partial clone now uses the bounded, never-prompting git path, so a stall fails after `gitTimeoutMs` and can be retried as infra (#1410).
 
 - Refs #1006: reach reports list acknowledged ranges with reasons and stale keys with pruning and replacement instructions; report JSON publishes both groups.
 

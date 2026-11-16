@@ -189,11 +189,11 @@ export function removeTempWorkspace(dir: string | undefined): void {
   }
 }
 
-function checkoutSparseSegment(tmp: string, branch: string, segment: string): void {
-  const sparse = git(tmp, ['sparse-checkout', 'set', segment], 1 << 20);
-  const checkout = sparse.status === 0 ? git(tmp, ['checkout', '-q', branch], 1 << 20) : sparse;
+function checkoutSparseSegment(tmp: string, branch: string, segment: string, gitTimeoutMs: number): void {
+  const sparse = networkGit(tmp, ['sparse-checkout', 'set', segment], gitTimeoutMs);
+  const checkout = sparse.status === 0 ? networkGit(tmp, ['checkout', '-q', branch], gitTimeoutMs) : sparse;
   if (checkout.status !== 0)
-    throw new MapStoreError(checkout.stderr.trim() || `could not check out ${segment} from map store`);
+    throw new MapStoreError(gitFailureMessage(checkout, `could not check out ${segment} from map store`));
 }
 
 /** A temporary clone of the store branch (or a fresh repository when the branch does not
@@ -224,7 +224,7 @@ export function checkoutMapStore(
     }
     // Lazy fetches go back through the promisor remote, so the clone must carry the same auth.
     for (const { key, value } of headers) git(tmp, ['config', '--local', '--add', key, value]);
-    if (options.sparseSegment && branchExists) checkoutSparseSegment(tmp, branch, options.sparseSegment);
+    if (options.sparseSegment && branchExists) checkoutSparseSegment(tmp, branch, options.sparseSegment, gitTimeoutMs);
     return tmp;
   } catch (error) {
     removeTempWorkspace(tmp);
