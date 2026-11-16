@@ -137,3 +137,47 @@ async function readCdpResource(client: CDPSession, url: string): Promise<string>
     await client.send('IO.close', { handle: resource.stream }).catch(() => {});
   }
 }
+
+function siblingMapUrl(scriptUrl: string, pageUrl: string): URL | undefined {
+  const url = new URL(scriptUrl);
+  if (!['http:', 'https:', 'file:'].includes(url.protocol)) return undefined;
+  if (url.protocol === 'file:' && new URL(pageUrl).protocol !== 'file:') return undefined;
+  // Inline and document-URL scripts would probe "/.map" or "index.html.map" and can collide with a real script's sources.
+  if (!url.pathname || url.pathname.endsWith('/')) return undefined;
+  const name = url.pathname.slice(url.pathname.lastIndexOf('/') + 1);
+  if (/\.html?$/i.test(name)) return undefined;
+  url.pathname += '.map';
+  url.search = '';
+  url.hash = '';
+  return url;
+}
+
+/** Hidden maps are optional evidence; ordinary probe failures mean absence. */
+export async function readSiblingMap(
+  page: Page,
+  client: CDPSession,
+  scriptUrl: string,
+  deadline: number,
+): Promise<{ text: string; url: string } | undefined> {
+  const url = siblingMapUrl(scriptUrl, page.url());
+  if (!url) return undefined;
+  if (performance.now() >= deadline) throw new MapReadTimeout();
+  try {
+    const text = await readResource(page, client, url.href, scriptUrl, deadline);
+    const map = JSON.parse(text);
+    if (map?.version !== 3) return undefined;
+    if (
+      map.file !== undefined &&
+      (typeof map.file !== 'string' || new URL(map.file, url).pathname !== new URL(scriptUrl).pathname)
+    )
+      return undefined;
+    return { text, url: url.href };
+  } catch (error) {
+    if (
+      error instanceof ScriptEvidenceError &&
+      (error instanceof MapReadTimeout || error.message.includes('size limit'))
+    )
+      throw error;
+    return undefined;
+  }
+}
