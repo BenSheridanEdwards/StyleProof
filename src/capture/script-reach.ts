@@ -5,7 +5,7 @@ import {
   ownershipReason,
 } from './script-coverage-ownership.js';
 /** Navigation-window script coverage. Reader failures are evidence gaps, never capture failures. */
-import { MAP_READ_BUDGET_MS, beforeDeadline, readResource } from './script-map-resources.js';
+import { MAP_READ_BUDGET_MS, beforeDeadline, readResource, readSiblingMap } from './script-map-resources.js';
 import { applyMediaState } from '../media-states.js';
 import { sourceIdentities, storedScriptUrl } from '../script-reach-identity.js';
 import { STYLEPROOF_SCRIPT_URL } from './script-evaluation.js';
@@ -83,9 +83,10 @@ async function resolveScript(
       ...scriptSource.matchAll(/\/\/[#@]\s*sourceMappingURL=([^\s]+)|\/\*[#@]\s*sourceMappingURL=([^\s*]+)\s*\*\//g),
     ].at(-1);
     const reference = input.headers.get(script.url) || script.sourceMapURL || directive?.[1] || directive?.[2];
-    if (!reference) return { url, status: 'unmeasured', reason: 'source map absent' };
-    const mapUrl = new URL(reference, script.url).href;
-    const map = JSON.parse(await readResource(page, client, mapUrl, script.url, deadline));
+    const sibling = reference ? undefined : await readSiblingMap(page, client, script.url, deadline);
+    if (!reference && !sibling) return { url, status: 'unmeasured', reason: 'source map absent' };
+    const mapUrl = sibling ? sibling.url : new URL(reference!, script.url).href;
+    const map = JSON.parse(sibling ? sibling.text : await readResource(page, client, mapUrl, script.url, deadline));
     const resolvedMapUrl = mapUrl.startsWith('data:') ? script.url : mapUrl;
     const files = mapScriptCoverage(entry, scriptSource, map, resolvedMapUrl, {
       deadline,

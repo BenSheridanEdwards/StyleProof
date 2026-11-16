@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { captureStyleMap, trackScriptReach } from '../dist/capture.js';
 
 const root = new URL('./fixtures/script-reach/', import.meta.url);
@@ -7,9 +7,18 @@ const root = new URL('./fixtures/script-reach/', import.meta.url);
 test.beforeEach(async ({ page }) => {
   await page.route('https://script.test/**', async (route) => {
     const name = new URL(route.request().url()).pathname.slice(1) || 'index.html';
+    const file = new URL(name, root);
+    if (!existsSync(file)) {
+      await route.fulfill({ status: 404, body: '' });
+      return;
+    }
     await route.fulfill({
-      body: readFileSync(new URL(name, root)),
-      contentType: name.endsWith('.html') ? 'text/html' : 'application/javascript',
+      body: readFileSync(file),
+      contentType: name.endsWith('.html')
+        ? 'text/html'
+        : name.endsWith('.map')
+          ? 'application/json'
+          : 'application/javascript',
     });
   });
 });
