@@ -528,7 +528,7 @@ const ancestorRoots =
   unclassifiedEntries.length || !detectedRoots.length ? [] : [...new Set([...detectedRoots, '.gitignore'])];
 scaffoldFile(
   'styleproof.config.ts',
-  styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries, belowGitRoot),
+  styleproofConfigTemplate(ancestorRoots, ancestorWorkspace, unclassifiedEntries, belowGitRoot, scaffold.gate),
   {
     note: 'typed config with defineConfig()',
   },
