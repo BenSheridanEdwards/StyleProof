@@ -144,7 +144,7 @@ if (specRefProvided && specRefIfMissing) fail(NAME, '--spec-ref and --spec-ref-i
 if (!process.env.CI && !opts.force) {
   fail(
     NAME,
-    'refusing to run outside CI — the flow may run `git checkout --force` on --head and\\nuses ephemeral worktrees for --base. Pass --force if you really mean it.',
+    'refusing to run outside CI — the flow may run `git checkout --force` on --head and\nuses ephemeral worktrees for --base. Pass --force if you really mean it.',
   );
 }
 
