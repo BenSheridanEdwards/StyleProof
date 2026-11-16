@@ -66,6 +66,7 @@ const res = generateStyleMapReport({
   minHeight: 72,
   minWidth: 240,
   zoomBelow: 0,
+  layout: 'legacy',
 });
 fs.rmSync(res.reportJsonPath, { force: true });
 fs.rmSync(work, { recursive: true, force: true });
