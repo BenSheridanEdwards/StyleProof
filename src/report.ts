@@ -229,6 +229,7 @@ export type ReportResult = {
 
 function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
   const { beforeDir, afterDir, outDir, imageBaseUrl = '' } = opts;
+  const layout = opts.layout === 'legacy' ? 'legacy' : 'visual-first';
   return {
     beforeDir,
     afterDir,
@@ -236,16 +237,16 @@ function buildContext(opts: ReportOptions, liveText: LiveTextAudit): RenderCtx {
     img: (rel) => (imageBaseUrl ? `${imageBaseUrl.replace(/\/$/, '')}/${rel}` : rel),
     load: createMapLoader(),
     liveText,
-    layout: opts.layout === 'visual-first' ? 'visual-first' : 'legacy',
-    ...(opts.layout === 'visual-first' ? { sections: createSectionRegistry() } : {}),
+    layout,
+    ...(layout !== 'legacy' ? { sections: createSectionRegistry() } : {}),
     padBy: opts.pad ?? 12,
     minWidth: opts.minWidth ?? 320,
     minHeight: opts.minHeight ?? 180,
     maxHeight: opts.maxHeight ?? 1600,
-    zoomBelow: opts.zoomBelow ?? 64,
+    zoomBelow: layout === 'legacy' ? (opts.zoomBelow ?? 64) : 0,
     maxCrops: opts.maxCrops ?? 8,
     crops: createCropBudget(opts.maxCropFiles ?? 60, opts.maxCropBytes ?? 900_000),
-    foldDetailsAt: opts.foldDetailsAt ?? 0,
+    foldDetailsAt: layout === 'legacy' ? (opts.foldDetailsAt ?? 0) : 0,
     includeNoise: opts.includeLayoutNoise === true,
     requireStateIdentity: opts.requireStateIdentity === true,
   };

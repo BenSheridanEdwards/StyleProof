@@ -236,7 +236,13 @@ function render(outDir) {
 
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
-  const res = generateStyleMapReport({ beforeDir, afterDir, outDir, includeContent: true });
+  const res = generateStyleMapReport({
+    beforeDir,
+    afterDir,
+    outDir,
+    includeContent: true,
+    layout: 'legacy',
+  });
   fs.rmSync(res.reportJsonPath, { force: true }); // commit the human report + images only
   fs.rmSync(work, { recursive: true, force: true });
   return res.reportMdPath;

@@ -6,8 +6,11 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStyleMapReport } from '../dist/index.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/index.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { humanLabel, summarizePropsWithFollowOns } from '../dist/change-groups.js';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 function solidPng(w, h, rgb = [200, 200, 200]) {
   const png = new PNG({ width: w, height: h });

@@ -2,7 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { generateStructuralStyleMapReportForTesting as renderReport, summarizeProps } from '../dist/report.js';
+import {
+  generateStructuralStyleMapReportForTesting as renderReportWithoutLayoutDefault,
+  summarizeProps,
+} from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { codeValue } from '../dist/code-span.js';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
@@ -17,6 +21,8 @@ import {
   writeCapture,
   highlightPixelsBySide,
 } from './helpers.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 

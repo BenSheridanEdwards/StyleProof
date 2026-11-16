@@ -5,9 +5,12 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { ruleReachKey } from '../dist/reach-ledger.js';
 import { reachSummaryLine } from '../dist/report/reach.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { fixtureCommitSha, makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const rule = (key, hash, extra = {}) => ({ key, hash, sheet: 0, ...extra });
 const map = (...rules) => ({

@@ -4,8 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { annotationPaths } from '../dist/report/annotation-paths.js';
-import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
+
+const generateReport = withLegacyReportLayout(generateReportWithoutLayoutDefault);
 
 const sibling = (n) => `body > main > button:nth-child(${n})`;
 const NAV = 'body > nav';
@@ -195,7 +198,7 @@ test('report output and every crop are byte-identical to an uncached run across 
   const dirs = fixture(t, 900, true);
   const uncached = await uncachedReport(dirs.root);
   const uncachedDir = path.join(dirs.root, 'uncached-report');
-  uncached({ ...dirs, outDir: uncachedDir, includeContent: true });
+  uncached({ ...dirs, outDir: uncachedDir, includeContent: true, layout: 'legacy' });
   const expected = reportTree(uncachedDir);
   const markdown = fs.readFileSync(path.join(uncachedDir, 'report.md'), 'utf8');
   assert.match(markdown, /Global chrome — 2 element changes/);

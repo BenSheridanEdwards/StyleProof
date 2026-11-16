@@ -2,8 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
+
+const generateReport = withLegacyReportLayout(generateReportWithoutLayoutDefault);
 
 const checkbox = 'body > input:nth-child(1)';
 const label = 'body > label:nth-child(2)';

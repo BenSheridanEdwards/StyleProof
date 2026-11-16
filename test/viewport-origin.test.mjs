@@ -6,11 +6,14 @@ import { PNG } from 'pngjs';
 import { isVisibleCapturedElement } from '../dist/visible-structure-gate.js';
 import { hasExposedChangedEntry } from '../dist/report/shared.js';
 import { MISLEADING_CROP_REASON } from '../dist/report/crop-pair.js';
-import { generateStructuralStyleMapReportForTesting as renderReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as renderReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { saveStyleMap, loadStyleMap } from '../dist/capture.js';
 import { hashDeterminismMap } from '../dist/determinism-oracle.js';
 import { makeMap, mkTmp, pairFixture, rmTmp, solidPng } from './helpers.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 

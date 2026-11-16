@@ -20,8 +20,11 @@ import {
   readBaselineProvenance,
   writeBaselineProvenance,
 } from '../dist/map-store.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, mkTmp, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 // ── Nearest-ancestor baseline reuse (#367, conservative variant) ────────────────
 // The reuse rule must be wrong only in the safe direction: reuse fires ONLY when

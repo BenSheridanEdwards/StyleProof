@@ -3,8 +3,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { diffStyleMapDirs } from '../dist/diff.js';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, pairFixture, rmTmp } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const card = (top, bg) => ({
   tag: 'section',

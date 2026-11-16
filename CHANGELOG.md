@@ -14,6 +14,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - `styleproof-init --mode review-gate` or `--mode certify` no longer writes `blocking: 'advisory'` into a new `styleproof.config.ts`, so the announced gate holds (#1412).
 - Map-store checkout of a partial clone now uses the bounded, never-prompting git path, so a stall fails after `gitTimeoutMs` and can be retried as infra (#1410).
 - Crawl class coverage now keeps escaped CSS class names (`md:flex`, `w-1/2`) in the defined vocabulary and ignores dotted text inside attribute selectors (#1409).
+- **BREAKING:** Reports now use the visual-first layout by default. See Migration step 6.
 
 - Refs #1006: reach reports list acknowledged ranges with reasons and stale keys with pruning and replacement instructions; report JSON publishes both groups.
 
@@ -253,6 +254,21 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
    content-addressed) now produce a style finding for every affected image. Add an
    `ignore` selector for those images, or make their URLs stable across builds.
    Edits inside a referenced `@keyframes` block now fail the gate too.
+
+6. **The report defaults to the visual-first layout.** Pass `layout: 'legacy'` to
+   keep the previous layout. Consumers of `styleproof-report` JSON: region crops
+   now live on `images.before` / `images.after` and `stateImages[state].before` /
+   `.after`; `composite`, `annotated` and `zoom` are gone and nothing is drawn on
+   the crops. A region whose crop a limit left out has `cropOmitted: 'budget'` or
+   `cropOmitted: 'max-crops'`; `visualEvidence: 'not-rendered'` now means only that
+   the element is not visible in the capture. Read highlight boxes from `where[]`
+   (`{ image, side, boxes }`, `boxes` as `[x, y, width, height]` in page pixels).
+   Expect one region per change section (elements that share a label and the same
+   change), not one per overlapping crop area, so counts can differ. For a forced
+   state that restyles another element, `paths` names the restyled element; the
+   driver is named in report.md. `zoomBelow` and `foldDetailsAt` are accepted and
+   ignored under the default layout. Tools that parse report.md should read
+   report.json instead.
 
 ### Changed
 

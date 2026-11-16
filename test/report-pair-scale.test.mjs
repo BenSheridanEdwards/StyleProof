@@ -3,9 +3,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStructuralStyleMapReportForTesting as generateReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 
 import { makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
+
+const generateReport = withLegacyReportLayout(generateReportWithoutLayoutDefault);
 
 // RV2-03: only one side of this pair is over the 300 KB per-file cap (noise does not compress).
 // Halving that side alone would show a blur difference the change did not cause.

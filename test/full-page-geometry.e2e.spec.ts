@@ -234,7 +234,7 @@ for (const mode of ['standards', 'quirks']) {
         const out = path.join(root, 'report');
         for (const [bin, args, receipt] of [
           ['styleproof-diff', ['--allow-unasserted', '--json', json], json],
-          ['styleproof-report', ['--out', out], path.join(out, 'report.json')],
+          ['styleproof-report', ['--out', out, '--layout', 'legacy'], path.join(out, 'report.json')],
         ] as const) {
           // Diagnostic diff mode permits these bundles without a coverage/determinism ledger.
           // The unchanged control proves exit 1 is caused by the banner finding.

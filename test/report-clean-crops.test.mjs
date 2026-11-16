@@ -3,8 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { PNG } from 'pngjs';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, writeCapture, mkTmp, rmTmp } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const element = 'body > button:nth-child(1)';
 const rect = [210, 230, 80, 40];
@@ -113,7 +116,7 @@ test('visual-first crop of a page smaller than the minimum crop is the whole cap
   }
 });
 
-test("default and layout:'legacy' write today's report byte for byte", (t) => {
+test("omitted layout and an unknown layout value write visual-first; layout:'legacy' keeps the previous crops", (t) => {
   const root = mkTmp();
   t.after(() => rmTmp(root));
   const beforeDir = path.join(root, 'before');
@@ -126,18 +129,26 @@ test("default and layout:'legacy' write today's report byte for byte", (t) => {
     writeCapture(dir, 'index@600', map, PNG.sync.write(capture([index, 40, 60])));
     fs.writeFileSync(path.join(dir, 'index@600.hover.png'), PNG.sync.write(capture([index, 30, 50])));
   }
-  const outputs = [undefined, 'legacy', 'bogus'].map((layout, index) => {
-    const outDir = path.join(root, `out-${index}`);
-    generateStyleMapReport({ beforeDir, afterDir, outDir, ...(layout === undefined ? {} : { layout }) });
+  const visualDirs = [undefined, 'bogus'].map((layout, index) => {
+    const outDir = path.join(root, `visual-${index}`);
+    generateStyleMapReportWithoutLayoutDefault({
+      beforeDir,
+      afterDir,
+      outDir,
+      ...(layout === undefined ? {} : { layout }),
+    });
     return outDir;
   });
-  const names = fs.readdirSync(path.join(outputs[0], 'crops')).sort();
-  assert.ok(names.some((name) => name.endsWith('-composite.png')));
-  assert.ok(names.every((name) => !/-(before|after)\.png$/.test(name)));
-  for (const out of outputs.slice(1)) {
-    assert.deepEqual(fs.readdirSync(path.join(out, 'crops')).sort(), names);
-    for (const file of ['report.md', 'report.json', ...names.map((name) => `crops/${name}`)]) {
-      assert.deepEqual(fs.readFileSync(path.join(out, file)), fs.readFileSync(path.join(outputs[0], file)));
-    }
+  const legacyDir = path.join(root, 'legacy');
+  generateStyleMapReportWithoutLayoutDefault({ beforeDir, afterDir, outDir: legacyDir, layout: 'legacy' });
+  const visualNames = fs.readdirSync(path.join(visualDirs[0], 'crops')).sort();
+  assert.ok(visualNames.some((name) => /-(before|after)\.png$/.test(name)));
+  assert.ok(visualNames.every((name) => !name.endsWith('-composite.png')));
+  assert.deepEqual(fs.readdirSync(path.join(visualDirs[1], 'crops')).sort(), visualNames);
+  const legacyNames = fs.readdirSync(path.join(legacyDir, 'crops')).sort();
+  assert.ok(legacyNames.some((name) => name.endsWith('-composite.png')));
+  assert.ok(legacyNames.every((name) => !/-(before|after)\.png$/.test(name)));
+  for (const file of ['report.md', 'report.json', ...visualNames.map((name) => `crops/${name}`)]) {
+    assert.deepEqual(fs.readFileSync(path.join(visualDirs[1], file)), fs.readFileSync(path.join(visualDirs[0], file)));
   }
 });

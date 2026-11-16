@@ -4,12 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
-  generateStructuralStyleMapReportForTesting as renderReport,
+  generateStructuralStyleMapReportForTesting as renderReportWithoutLayoutDefault,
   describeChange,
   colorName,
   tokenIndex,
   toHex,
 } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import {
   makeMap,
@@ -21,6 +22,8 @@ import {
   sceneMap,
   highlightPixelsBySide,
 } from './helpers.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 

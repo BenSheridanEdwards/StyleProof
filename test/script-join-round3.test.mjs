@@ -14,11 +14,14 @@ import { readScriptChanges } from '../dist/script-join-git.js';
 import { assertDeterministicScriptReach } from '../dist/runner/self-check.js';
 import { scriptProjectRootPrefix } from '../dist/capture/script-project-root.js';
 import { trackScriptReach } from '../dist/capture/script-reach.js';
-import { generateStyleMapReport as renderReport } from '../dist/report.js';
+import { generateStyleMapReport as renderReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { DEFAULT_MAX_JSON_BYTES } from '../dist/report/sections.js';
 import { makeMap, writeCapture } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 

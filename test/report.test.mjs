@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import {
-  generateStructuralStyleMapReportForTesting as generateStyleMapReport,
+  generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault,
   assessReportConsistency,
   summarizeProps,
   prettyLabel,
 } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { escapeInlineMarkdown } from '../dist/code-span.js';
 import * as reportShared from '../dist/report/shared.js';
 import { safeKey } from '../dist/surface-keys.js';
@@ -20,6 +21,8 @@ import {
   derivedLonghandCount,
 } from '../dist/findings-clean.js';
 import { makeMap, mkTmp, rmTmp, solidPng, pairFixture, tmpDirs, writeCapture, sceneMap } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 // NOTE: summarizeProps and prettyLabel must be exported from report.ts (and
 // re-exported from index.ts) for these direct unit tests. See the drafted

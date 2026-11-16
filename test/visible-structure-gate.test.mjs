@@ -7,7 +7,8 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
 import {
   isVisibleCapturedElement,
@@ -15,6 +16,8 @@ import {
   withElevatedVisibleStructureCounts,
 } from '../dist/visible-structure-gate.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIFF = path.join(ROOT, 'bin/styleproof-diff.mjs');

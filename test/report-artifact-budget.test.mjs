@@ -4,7 +4,8 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { PNG } from 'pngjs';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import {
   DEFAULT_MAX_ARTIFACT_BYTES,
   DEFAULT_MAX_JSON_BYTES,
@@ -12,6 +13,8 @@ import {
 } from '../dist/report/sections.js';
 import { tmpDirs, makeMap, writeCapture, solidPng, rmTmp, spawnSyncBounded } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const artifactFiles = ['report.html', 'report.md', 'report.json'];
 

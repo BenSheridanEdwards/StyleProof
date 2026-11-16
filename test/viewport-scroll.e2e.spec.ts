@@ -115,7 +115,7 @@ for (const axis of ['vertical', 'horizontal'] as const) {
         const out = path.join(root, `${change}-report`);
         const report = spawnSync(
           process.execPath,
-          [path.join(ROOT, 'bin/styleproof-report.mjs'), ...args, '--out', out],
+          [path.join(ROOT, 'bin/styleproof-report.mjs'), ...args, '--out', out, '--layout', 'legacy'],
           { cwd: root, encoding: 'utf8', timeout: 30_000 },
         );
         expect([diff.status, report.status], diff.stderr || report.stderr || diff.stdout).toEqual([1, 1]);
@@ -128,7 +128,15 @@ for (const axis of ['vertical', 'horizontal'] as const) {
         expect(report.stdout).not.toContain('no reviewable computed-style changes');
         const withContent = spawnSync(
           process.execPath,
-          [path.join(ROOT, 'bin/styleproof-report.mjs'), ...args, '--out', out, '--include-content'],
+          [
+            path.join(ROOT, 'bin/styleproof-report.mjs'),
+            ...args,
+            '--out',
+            out,
+            '--layout',
+            'legacy',
+            '--include-content',
+          ],
           { cwd: root, encoding: 'utf8', timeout: 30_000 },
         );
         expect(withContent.status, withContent.stderr || withContent.stdout).toBe(1);
@@ -226,6 +234,7 @@ test('horizontal-scrolled style changes retain real screenshot crops', async ({ 
       beforeDir: path.join(root, 'base'),
       afterDir: path.join(root, 'head'),
       outDir: path.join(root, 'report'),
+      layout: 'legacy',
     });
     const receipt = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));
     expect(receipt.surfaces[0].regions.length).toBeGreaterThan(0);

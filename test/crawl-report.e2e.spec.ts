@@ -115,6 +115,7 @@ test('crawl-to-report: full pipeline produces valid report.json and report.md', 
       afterDir: afterOut,
       outDir: reportOut,
       baselineSurfaceFailures: [],
+      layout: 'legacy',
     });
 
     expect(fs.existsSync(result.reportJsonPath)).toBe(true);
@@ -152,6 +153,7 @@ test('crawl-to-report: identical captures produce identical comparison', async (
       afterDir: afterOut,
       outDir: reportOut,
       baselineSurfaceFailures: [],
+      layout: 'legacy',
     });
 
     const json = JSON.parse(fs.readFileSync(result.reportJsonPath, 'utf8'));

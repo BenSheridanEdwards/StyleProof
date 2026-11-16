@@ -121,10 +121,14 @@ test('report CLI labels unbound clean output and durable markdown as unverified 
   const capture = fixture({});
   try {
     const out = path.join(capture.root, 'report-unverified');
-    const result = spawnSync(process.execPath, [REPORT, capture.before, capture.after, '--out', out], {
-      cwd: capture.root,
-      encoding: 'utf8',
-    });
+    const result = spawnSync(
+      process.execPath,
+      [REPORT, capture.before, capture.after, '--out', out, '--layout', 'legacy'],
+      {
+        cwd: capture.root,
+        encoding: 'utf8',
+      },
+    );
     assert.equal(result.status, 1, result.stderr || result.stdout);
     assert.match(result.stdout, /UNVERIFIED DIAGNOSTIC/i);
     assert.doesNotMatch(result.stdout, /✓ no reviewable/i);
@@ -182,6 +186,8 @@ test('diff and report independently emit the same canonical source-binding recei
       capture.after,
       '--out',
       out,
+      '--layout',
+      'legacy',
       '--expected-before-sha',
       BASE_SHA,
       '--expected-after-sha',
@@ -221,7 +227,16 @@ test('diff and report independently emit the same canonical source-binding recei
     ]) {
       const partialReport = spawnSync(
         process.execPath,
-        [REPORT, capture.before, capture.after, '--out', path.join(capture.root, 'partial-report'), ...partial],
+        [
+          REPORT,
+          capture.before,
+          capture.after,
+          '--out',
+          path.join(capture.root, 'partial-report'),
+          '--layout',
+          'legacy',
+          ...partial,
+        ],
         { cwd: capture.root, encoding: 'utf8' },
       );
       assert.equal(partialReport.status, 2, partialReport.stderr || partialReport.stdout);
@@ -365,7 +380,7 @@ test('unbound report lists a pair with no product-state declared advisory-only, 
     const out = path.join(capture.root, 'report-advisory');
     const result = spawnSync(
       process.execPath,
-      [REPORT, capture.before, capture.after, '--out', out, '--include-layout-noise'],
+      [REPORT, capture.before, capture.after, '--out', out, '--layout', 'legacy', '--include-layout-noise'],
       { cwd: capture.root, encoding: 'utf8' },
     );
     assert.equal(result.status, 1, result.stderr || result.stdout);
@@ -396,7 +411,7 @@ test('--require-state-identity keeps an unbound pair with no product-state decla
     const out = path.join(capture.root, 'report-strict');
     const report = spawnSync(
       process.execPath,
-      [REPORT, capture.before, capture.after, '--out', out, '--require-state-identity'],
+      [REPORT, capture.before, capture.after, '--out', out, '--layout', 'legacy', '--require-state-identity'],
       { cwd: capture.root, encoding: 'utf8' },
     );
     assert.equal(report.status, 1, report.stderr || report.stdout);
@@ -421,10 +436,14 @@ test('unbound diff and report keep a pair with no product-state declared hidden 
     assert.doesNotMatch(diff.stdout, /rgb\(200, 228, 232\)/);
 
     const out = path.join(capture.root, 'report-critical');
-    const report = spawnSync(process.execPath, [REPORT, capture.before, capture.after, '--out', out], {
-      cwd: capture.root,
-      encoding: 'utf8',
-    });
+    const report = spawnSync(
+      process.execPath,
+      [REPORT, capture.before, capture.after, '--out', out, '--layout', 'legacy'],
+      {
+        cwd: capture.root,
+        encoding: 'utf8',
+      },
+    );
     assert.equal(report.status, 1, report.stderr || report.stdout);
     assert.doesNotMatch(fs.readFileSync(path.join(out, 'report.md'), 'utf8'), /#c8e4e8/);
   } finally {
@@ -450,6 +469,8 @@ test('source-bound diff and report keep a pair with no product-state declared fa
         capture.after,
         '--out',
         out,
+        '--layout',
+        'legacy',
         '--expected-before-sha',
         BASE_SHA,
         '--expected-after-sha',

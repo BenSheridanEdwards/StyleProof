@@ -63,6 +63,7 @@ function report(head: string) {
     beforeDir: path.join(directory, 'base'),
     afterDir: path.join(directory, head),
     outDir: path.join(directory, `report-${head}`),
+    layout: 'legacy',
   });
 
   return { result, md: fs.readFileSync(result.reportMdPath, 'utf8') };

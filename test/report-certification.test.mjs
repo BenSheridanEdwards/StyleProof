@@ -5,7 +5,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { generateStyleMapReport } from '../dist/index.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/index.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { COVERAGE_LEDGER } from '../dist/coverage.js';
 
 const nav = (keys) => keys.map((k) => ({ key: `nav-button:${k}`, kind: 'nav-button', label: k.toUpperCase() }));
@@ -280,6 +281,8 @@ test('a clean healthy bundle (no residue, not armed) omits the data-residue line
 // carries the confidence line, the headline stays the visual verdict, and a green
 // on one never implies the other.
 import { writeConfidenceLedger, buildConfidenceLedger, CONFIDENCE_LEDGER } from '../dist/confidence-ledger.js';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 test('a healthy asserted bundle hides Confidence ✓ complete in Markdown; report.json still carries it', () => {
   const { root, base, head, out } = bundle({

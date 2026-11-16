@@ -4,8 +4,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { PNG } from 'pngjs';
 import { createCropBudget, cropBudgetNote, writeBudgetedPng } from '../dist/report/crop-budget.js';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { tmpDirs, makeMap, writeCapture, solidPng, rmTmp } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 function noisePng(width, height, seed) {
   const png = new PNG({ width, height });

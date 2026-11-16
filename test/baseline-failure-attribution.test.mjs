@@ -26,8 +26,11 @@ import {
   parseBaselineFailureReceipts,
 } from '../dist/map-store.js';
 import { classifyStyleProofVerdict } from '../dist/verdict.js';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { mkTmp, rmTmp, makeMap, solidPng, fixtureCompatibilityKey, fixtureCommitSha } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const DIFF = path.join(here, '..', 'bin', 'styleproof-diff.mjs');

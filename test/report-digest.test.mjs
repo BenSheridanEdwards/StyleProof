@@ -1,8 +1,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { describeChange, generateStructuralStyleMapReportForTesting, generateStyleMapReport } from '../dist/report.js';
+import {
+  describeChange,
+  generateStructuralStyleMapReportForTesting as generateStructuralStyleMapReportForTestingWithoutLayoutDefault,
+  generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault,
+} from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, pairFixture, rmTmp, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStructuralStyleMapReportForTesting = withLegacyReportLayout(
+  generateStructuralStyleMapReportForTestingWithoutLayoutDefault,
+);
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const BUTTON = 'body > div:nth-child(1) > button:nth-child(1)';
 const CARET = 'body > div:nth-child(1) > span:nth-child(2)';

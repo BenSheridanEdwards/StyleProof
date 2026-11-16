@@ -368,8 +368,18 @@ test('styleproof-report and styleproof-diff exit without process.exit() after a 
 
     const trusted = ['--expected-before-sha', sha, '--expected-after-sha', sha];
     const cases = [
-      { name: 'clean report', bin: REPORT, args: ['base', 'same', '--out', 'clean-report', ...trusted], status: 0 },
-      { name: 'changed report', bin: REPORT, args: ['base', 'changed', '--out', 'changed-report'], status: 1 },
+      {
+        name: 'clean report',
+        bin: REPORT,
+        args: ['base', 'same', '--out', 'clean-report', '--layout', 'legacy', ...trusted],
+        status: 0,
+      },
+      {
+        name: 'changed report',
+        bin: REPORT,
+        args: ['base', 'changed', '--out', 'changed-report', '--layout', 'legacy'],
+        status: 1,
+      },
       { name: 'clean diff', bin: DIFF, args: ['base', 'same', '--allow-unasserted', ...trusted], status: 0 },
       { name: 'changed diff', bin: DIFF, args: ['base', 'changed', '--allow-unasserted'], status: 1 },
     ];
@@ -404,7 +414,7 @@ test('styleproof-report two-directory diagnostic shows a demo colour change with
     expect(head.status, head.stderr).toBe(0);
 
     const out = path.join(dir, 'report');
-    const report = run(dir, 'node', [REPORT, 'base', 'head', '--out', out]);
+    const report = run(dir, 'node', [REPORT, 'base', 'head', '--out', out, '--layout', 'legacy']);
     expect(report.status, report.stderr).toBe(1);
     const markdown = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
     expect(markdown).toContain('UNVERIFIED DIAGNOSTIC');
