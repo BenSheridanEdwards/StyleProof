@@ -430,7 +430,12 @@ for (const scenario of scenarios) {
       let report;
       process.chdir(root);
       try {
-        report = generateStyleMapReport({ beforeDir: dirs[0], afterDir: dirs[1], outDir: path.join(root, 'report') });
+        report = generateStyleMapReport({
+          beforeDir: dirs[0],
+          afterDir: dirs[1],
+          outDir: path.join(root, 'report'),
+          layout: 'legacy',
+        });
       } finally {
         process.chdir(previous);
       }

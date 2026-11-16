@@ -233,7 +233,7 @@ test('dogfood: liveStates split the demo and report only loaded-to-loaded restyl
     'loaded compares to loaded and catches the deliberate status-card restyle',
   ).toBe(true);
 
-  const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'legacy' });
   expect(report.changedSurfaces).toBe(1);
   expect(report.totalFindings).toBeGreaterThan(0);
 
@@ -308,7 +308,7 @@ test('dogfood: popups capture semantic dialog, dropdown, listbox and toast state
   expect(changedBackground(listboxBefore, listboxAfter), 'the listbox dropdown background change is caught').toBe(true);
   expect(changedBackground(toastBefore, toastAfter), 'the hot-toast background change is caught').toBe(true);
 
-  const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'legacy' });
   expect(report.changedSurfaces).toBe(4);
   const md = fs.readFileSync(report.reportMdPath, 'utf8');
   expect(md).toContain('demo-popup-popup-01 @ 720 · popup `popup-01`');

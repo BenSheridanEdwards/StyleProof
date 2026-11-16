@@ -112,7 +112,7 @@ test('Phase 1: known demo CSS delta maps through capture → diff → report and
   const findings = diffStyleMaps(beforeMap, afterMap);
   assertPhase1CssDiffFinding(findings, beforePath!, afterPath!, oracle);
 
-  const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
+  const report = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'legacy' });
   expect(report.changedSurfaces).toBeGreaterThan(0);
   expect(report.totalFindings).toBeGreaterThan(0);
 
@@ -126,7 +126,11 @@ test('Phase 1: known demo CSS delta maps through capture → diff → report and
   expect(diff.out).toMatch(/background/);
 
   const reportOut = path.join(HARNESS_ROOT, 'phase1-cli-report');
-  const reportCli = runCli(REPORT_BIN, ['phase1-base', 'phase1-head', '--out', 'phase1-cli-report'], HARNESS_ROOT);
+  const reportCli = runCli(
+    REPORT_BIN,
+    ['phase1-base', 'phase1-head', '--out', 'phase1-cli-report', '--layout', 'legacy'],
+    HARNESS_ROOT,
+  );
   expect(reportCli.status, `styleproof-report must flag the known CSS delta\n${reportCli.out}`).toBe(1);
 
   const cliReportMd = fs.readFileSync(path.join(reportOut, 'report.md'), 'utf8');

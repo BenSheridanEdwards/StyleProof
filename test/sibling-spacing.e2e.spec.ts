@@ -47,7 +47,7 @@ async function report(page: Page, headFixture: string): Promise<{ md: string; js
   }
   await captureFixture(page, path.join(root, 'base'), 'before.html');
   await captureFixture(page, path.join(root, 'head'), headFixture);
-  const run = spawnSyncToCompletion('node', [REPORT_BIN, 'base', 'head', '--out', 'report'], {
+  const run = spawnSyncToCompletion('node', [REPORT_BIN, 'base', 'head', '--out', 'report', '--layout', 'legacy'], {
     cwd: root,
     encoding: 'utf8',
   });

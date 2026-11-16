@@ -593,7 +593,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
 
     // The report a reviewer actually reads (the real styleproof-report bin) must name it
     // too. Like the diff, the report bin exits 1 when there are changes (2 = usage error).
-    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report'], root);
+    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report', '--layout', 'legacy'], root);
     expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
     const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
     expect(md, 'the report names the changed property').toMatch(/background/);
@@ -624,7 +624,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     expect(diff.status, `styleproof-diff blocks the re-nested restyle\n${diff.out}`).toBe(1);
     expect(diff.out).toMatch(/background-color/);
 
-    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report'], root);
+    const report = run(REPORT_BIN, ['base', 'head', '--out', 'report', '--layout', 'legacy'], root);
     expect(report.status, `styleproof-report ran and flagged the change\n${report.out}`).toBe(1);
     const md = fs.readFileSync(path.join(root, 'report', 'report.md'), 'utf8');
     expect(md, 'the report names the changed property').toMatch(/background-color/);
@@ -745,7 +745,7 @@ test.describe('the PR gate + report surface the change through the real CLIs', (
     }
 
     const outDir = path.join(root, 'out');
-    const report = run(REPORT_BIN, [base, head, '--out', outDir], root);
+    const report = run(REPORT_BIN, [base, head, '--out', outDir, '--layout', 'legacy'], root);
     // No --expected-*-sha, so the binding is unverified: a diagnostic, not a green.
     expect(report.status, `an unverified compare still fails closed\n${report.out}`).toBe(1);
     expect(report.out).toMatch(/UNVERIFIED DIAGNOSTIC: no reviewable computed-style changes/);

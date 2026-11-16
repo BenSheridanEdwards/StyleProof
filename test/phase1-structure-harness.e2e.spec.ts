@@ -117,6 +117,7 @@ test('Phase 1: known demo structure delta maps through capture → diff → repo
     outDir,
     migration: true,
     gateMode: 'migration',
+    layout: 'legacy',
   });
   expect(report.migrationGallery?.newRemovedElements?.length ?? 0).toBeGreaterThan(0);
 
@@ -138,7 +139,15 @@ test('Phase 1: known demo structure delta maps through capture → diff → repo
   const reportOut = path.join(HARNESS_ROOT, 'phase1-structure-cli-report');
   const reportCli = runCli(
     REPORT_BIN,
-    ['--migration', 'phase1-structure-base', 'phase1-structure-head', '--out', 'phase1-structure-cli-report'],
+    [
+      '--migration',
+      'phase1-structure-base',
+      'phase1-structure-head',
+      '--out',
+      'phase1-structure-cli-report',
+      '--layout',
+      'legacy',
+    ],
     HARNESS_ROOT,
   );
   expect(reportCli.status, `styleproof-report --migration must flag the known structure delta\n${reportCli.out}`).toBe(

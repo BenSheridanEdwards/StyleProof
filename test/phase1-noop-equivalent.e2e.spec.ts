@@ -160,7 +160,7 @@ for (const caseDef of oracle.cases) {
     const findings = diffStyleMaps(beforeMap, afterMap);
     assertPhase1NoopDiffFindings(findings, caseDef.id);
 
-    const report = generateStyleMapReport({ beforeDir, afterDir, outDir });
+    const report = generateStyleMapReport({ beforeDir, afterDir, outDir, layout: 'legacy' });
     expect(report.changedSurfaces, `${caseDef.id} changedSurfaces`).toBe(0);
     expect(report.totalFindings, `${caseDef.id} totalFindings`).toBe(0);
 
@@ -172,7 +172,11 @@ for (const caseDef of oracle.cases) {
     expect(diff.status, `styleproof-diff must certify the no-op case\n${diff.out}`).toBe(0);
     expect(diff.out).toMatch(/0 reviewable computed-style changes/i);
 
-    const reportCli = runCli(REPORT_BIN, [dirs.base, dirs.head, '--out', dirs.cliReport], HARNESS_ROOT);
+    const reportCli = runCli(
+      REPORT_BIN,
+      [dirs.base, dirs.head, '--out', dirs.cliReport, '--layout', 'legacy'],
+      HARNESS_ROOT,
+    );
     expect(reportCli.status, `styleproof-report must not error on no-op\n${reportCli.out}`).not.toBe(2);
     expect(reportCli.out, 'report CLI must not claim reviewable style changes on no-op').toMatch(
       /no reviewable computed-style changes/i,
