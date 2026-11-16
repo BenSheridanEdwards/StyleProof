@@ -8,6 +8,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 - styleproof-ci's outside-CI refusal now prints a real line break instead of a literal `\n` (#1411).
+- `styleproof-map` can start the pre-map variant crawl on Windows when Node refuses a direct `.cmd` spawn (EINVAL); it falls back to the bundled bin (#1414).
 
 - Refs #1006: reach reports list acknowledged ranges with reasons and stale keys with pruning and replacement instructions; report JSON publishes both groups.
 
