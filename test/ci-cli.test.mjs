@@ -611,6 +611,8 @@ test('styleproof-ci: refuses to run outside CI without --force (it force-checkou
   const res = runCi(['--base', 'a'.repeat(40), '--head', 'b'.repeat(40)]);
   assert.equal(res.status, 2);
   assert.match(res.stderr, /refusing to run outside CI/);
+  assert.match(res.stderr, /on --head and\nuses ephemeral worktrees for --base/);
+  assert.doesNotMatch(res.stderr, /\\n/);
   assert.match(res.stderr, /--force/);
 });
 
