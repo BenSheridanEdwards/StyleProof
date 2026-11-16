@@ -12,7 +12,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { gzipSync } from 'node:zlib';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 function mkTmp(prefix = 'styleproof-advisory-parity-') {
   return fs.mkdtempSync(path.join(os.tmpdir(), prefix));

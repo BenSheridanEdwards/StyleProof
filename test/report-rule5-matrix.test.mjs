@@ -2,11 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { fixtureCompatibilityKey, makeMap, mkTmp, rmTmp, solidPng, writeCapture } from './helpers.mjs';
 import { commentStepExpressions, runActionComment } from './action-comment-harness.mjs';
 import { commentProblems, countProblems, htmlText, reportProblems, visibleMd } from './rule5-detector.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 // Part 1: style, structure and surfaces. Layout pins refer to visual-first.
 const BLACK = 'rgb(0, 0, 0)';

@@ -9,13 +9,16 @@ import { compactScriptEvidence } from '../dist/script-reach-storage.js';
 import { classifyScriptReach } from '../dist/script-join.js';
 import { changedScriptRanges, readScriptChanges } from '../dist/script-join-git.js';
 import { assessReachMaps, reachSectionLines } from '../dist/report/reach.js';
-import { generateStyleMapReport as renderReport } from '../dist/report.js';
+import { generateStyleMapReport as renderReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { DEFAULT_MAX_JSON_BYTES } from '../dist/report/sections.js';
 import { sha256 } from '../dist/node-util.js';
 import { resolveSettings } from '../dist/runner/settings.js';
 import { makeMap, writeCapture } from './helpers.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 

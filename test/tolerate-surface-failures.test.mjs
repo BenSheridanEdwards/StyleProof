@@ -6,7 +6,8 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isSelfCheckCaptureFailure } from '../dist/runner.js';
 import { withSurfaceFailureTolerance } from '../dist/runner/self-check.js';
-import { generateStyleMapReport as renderReport } from '../dist/report.js';
+import { generateStyleMapReport as renderReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { withLayoutNeutralReportFacts } from './assert-layout-neutral-report-facts.mjs';
 import { removeSurfaceCaptureArtifacts } from '../dist/crawl-surfaces.js';
 import {
@@ -27,6 +28,8 @@ import {
   rmTmp,
   writeCapture,
 } from './helpers.mjs';
+
+const renderReport = withLegacyReportLayout(renderReportWithoutLayoutDefault);
 
 const generateStyleMapReport = withLayoutNeutralReportFacts(renderReport);
 
@@ -1017,7 +1020,7 @@ test('styleproof-report surfaces baseline capture failure callout', () => {
     surfaceCaptureFailures: [{ key: 'about@1280', reason: 'base nav timeout', kind: 'capture' }],
   });
   writeManifest(B, 'head-sha', 'same-env-key');
-  const r = run(REPORT, [A, B, '--out', out]);
+  const r = run(REPORT, [A, B, '--out', out, '--layout', 'legacy']);
   assert.equal(r.status, 1, 'new surfaces make the report exit 1');
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   assert.match(md, /baseline capture failure/i);
@@ -1045,7 +1048,7 @@ test('styleproof-report persists the complete bounded baseline-failure receipt w
   writeManifest(A, 'base-sha', 'same-env-key', { surfaceCaptureFailures: failures });
   writeManifest(B, 'head-sha', 'same-env-key');
 
-  const r = run(REPORT, [A, B, '--out', out]);
+  const r = run(REPORT, [A, B, '--out', out, '--layout', 'legacy']);
   assert.equal(r.status, 1, r.stderr + r.stdout);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   const json = JSON.parse(fs.readFileSync(path.join(out, 'report.json'), 'utf8'));
@@ -1091,7 +1094,7 @@ test('styleproof-report marks only a matching failed baseline surface as repair 
   });
   writeManifest(B, 'head-sha', 'same-env-key');
 
-  const r = run(REPORT, [A, B, '--out', out]);
+  const r = run(REPORT, [A, B, '--out', out, '--layout', 'legacy']);
   assert.equal(r.status, 1, r.stderr + r.stdout);
   assert.match(r.stdout, /1 new surface\(s\) with no baseline/);
   assert.doesNotMatch(r.stdout, /2 new surface\(s\)/);
@@ -1127,7 +1130,7 @@ test('styleproof-report fails closed for repair debt without misreporting it as 
   });
   writeManifest(B, 'head-sha', 'same-env-key');
 
-  const r = run(REPORT, [A, B, '--out', out]);
+  const r = run(REPORT, [A, B, '--out', out, '--layout', 'legacy']);
   assert.equal(r.status, 1, r.stderr + r.stdout);
   assert.match(r.stdout, /1 removed or baseline-repair-debt surface\(s\)/);
   assert.doesNotMatch(r.stdout, /new surface\(s\)/);
@@ -1226,7 +1229,7 @@ test('styleproof-report never echoes untrusted baseline failure details', () => 
     surfaceCaptureFailures: [{ key: `home@1280-${marker}`, reason: `**pwned** <script> ${marker}`, kind: 'capture' }],
   });
   writeManifest(B, 'head-sha', 'same-env-key');
-  run(REPORT, [A, B, '--out', out]);
+  run(REPORT, [A, B, '--out', out, '--layout', 'legacy']);
   const md = fs.readFileSync(path.join(out, 'report.md'), 'utf8');
   const json = fs.readFileSync(path.join(out, 'report.json'), 'utf8');
   assert.match(md, /baseline capture failure/i);

@@ -1,10 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { foldedGeometryFindings, renderCropChanges } from '../dist/report/markdown.js';
 import { cleanFindingsForDisplay, derivedLonghandCount } from '../dist/findings-clean.js';
 import { makeMap, pairFixture, rmTmp, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const element = (tag, rect, style, cls = tag) => ({ tag, cls, rect, style });
 const prop = (prop, before = '10px', after = '20px') => ({ prop, before, after });

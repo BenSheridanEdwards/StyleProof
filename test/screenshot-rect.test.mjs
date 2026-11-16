@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { pixelDiffSurface } from '../dist/pixel-diff.js';
 import { fillRect } from '../dist/png-util.js';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const SURFACE = 'home@200';
 const TARGET = 'body > div:nth-child(1)';

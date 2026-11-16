@@ -14,9 +14,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { generateStructuralStyleMapReportForTesting as generateStyleMapReport } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { MAP_MANIFEST } from '../dist/map-store.js';
 import { mkTmp, rmTmp, makeMap, solidPng, fixtureCompatibilityKey } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const writeCapture = (dir, surface, map, png = null) => {
   fs.mkdirSync(dir, { recursive: true });

@@ -2,7 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { makeMap, pairFixture, solidPng, rmTmp } from './helpers.mjs';
-import { generateStructuralStyleMapReportForTesting as report } from '../dist/report.js';
+import { generateStructuralStyleMapReportForTesting as reportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
+
+const report = withLegacyReportLayout(reportWithoutLayoutDefault);
 
 const caret = 'body > header:nth-child(1) > span:nth-child(1)';
 const cta = 'body > main:nth-child(2) > button:nth-child(1)';

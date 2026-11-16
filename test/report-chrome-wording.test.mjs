@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import {
-  generateStyleMapReport as generateContentReport,
-  generateStructuralStyleMapReportForTesting as generateStyleMapReport,
+  generateStyleMapReport as generateContentReportWithoutLayoutDefault,
+  generateStructuralStyleMapReportForTesting as generateStyleMapReportWithoutLayoutDefault,
 } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { stampCertifyingFixture } from './certifying-fixture.mjs';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateContentReport = withLegacyReportLayout(generateContentReportWithoutLayoutDefault);
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 // #1150: a change on an element inside <main> that every page renders is promoted by the
 // structural shared-chrome rule, but it is not a nav, header or footer, so the wording must not say so.

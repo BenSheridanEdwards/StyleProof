@@ -4,8 +4,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
 import { diffContentMaps, diffContentDirs, diffStyleMaps } from '../dist/diff.js';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, pairFixture, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 // ------------------------------------------------------------- diffContentMaps
 

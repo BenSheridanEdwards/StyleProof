@@ -2,8 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import zlib from 'node:zlib';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { makeMap, rmTmp, solidPng, tmpDirs, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 function reportFixture({ beforeState, afterState, beforeText = 'Save', afterText = beforeText }) {
   const dirs = tmpDirs();

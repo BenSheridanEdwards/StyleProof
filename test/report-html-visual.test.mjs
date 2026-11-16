@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { PNG } from 'pngjs';
-import { generateStyleMapReport } from '../dist/report.js';
+import { generateStyleMapReport as generateStyleMapReportWithoutLayoutDefault } from '../dist/report.js';
+import { withLegacyReportLayout } from './with-legacy-report-layout.mjs';
 import { renderReportHtml } from '../dist/report/html.js';
 import { encodeSectionMeta } from '../dist/report/section-meta.js';
 import { makeMap, mkTmp, rmTmp, writeCapture } from './helpers.mjs';
+
+const generateStyleMapReport = withLegacyReportLayout(generateStyleMapReportWithoutLayoutDefault);
 
 const title = (i) => `body > section:nth-child(1) > h2:nth-child(${i})`;
 

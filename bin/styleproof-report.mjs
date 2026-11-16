@@ -36,6 +36,10 @@ const cli = defineCli({
     'include-content': {
       help: 'render the opt-in content layer: an advisory section of elements whose text changed, each with a before/after crop. Needs captures taken with captureText:true; never affects the check',
     },
+    layout: {
+      value: 'name',
+      help: "report layout: 'visual-first' (default) or 'legacy'",
+    },
   },
   notes: [
     'exit: 0 no changes, 1 report generated, 2 usage error.',
@@ -102,6 +106,7 @@ const { result, sourceBinding, evidenceBinding } = withCaptureDirs(NAME, inputs,
     minHeight: numeric('min-height'),
     includeLayoutNoise: Boolean(opts['include-layout-noise']),
     includeContent,
+    layout: opts.layout === 'legacy' || opts.layout === 'visual-first' ? opts.layout : undefined,
     requireStateIdentity: inputs.requireStateIdentity,
     changeReach: inputs.changeReach,
     diagnostic: binding.status !== 'bound',
