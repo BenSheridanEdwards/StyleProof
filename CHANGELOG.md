@@ -13,6 +13,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - Generated close-prune jobs skip fork pull requests, where the token is read-only, and leave those report folders to the daily sweep (#1416).
 - `styleproof-init --mode review-gate` or `--mode certify` no longer writes `blocking: 'advisory'` into a new `styleproof.config.ts`, so the announced gate holds (#1412).
 - Map-store checkout of a partial clone now uses the bounded, never-prompting git path, so a stall fails after `gitTimeoutMs` and can be retried as infra (#1410).
+- Crawl class coverage now keeps escaped CSS class names (`md:flex`, `w-1/2`) in the defined vocabulary and ignores dotted text inside attribute selectors (#1409).
 
 - Refs #1006: reach reports list acknowledged ranges with reasons and stale keys with pruning and replacement instructions; report JSON publishes both groups.
 
