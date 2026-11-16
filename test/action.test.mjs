@@ -1545,6 +1545,17 @@ test('dogfood workflow runs the local composite action against every trust-state
   );
   assert.match(dogfoodYml, /steps\.legacy-undeclared\.outputs\.trust-state }}' = 'CERTIFICATION_FAILED'/);
   assert.match(dogfoodYml, /steps\.legacy-undeclared\.outcome }}' = 'failure'/);
+  // Product-state facts live in report.json (both layouts). Visible lines are
+  // layout-neutral prefixes only, so they still hold after the visual-first switch.
+  assert.match(dogfoodYml, /grep -E '\^⚠' styleproof-report\/report\.md/);
+  assert.match(dogfoodYml, /grep -E '\^⛔ ' styleproof-report\/report\.md/);
+  assert.match(dogfoodYml, /grep -F '"status": "unproven"' styleproof-report\/report\.json/);
+  assert.match(dogfoodYml, /grep -F '"blocksCertification": false' styleproof-report\/report\.json/);
+  assert.match(dogfoodYml, /grep -F '"blocksCertification": true' styleproof-report\/report\.json/);
+  assert.match(dogfoodYml, /grep -F '"declared": \[' styleproof-report\/report\.json/);
+  assert.match(dogfoodYml, /grep -F '"undeclared": \[' styleproof-report\/report\.json/);
+  assert.doesNotMatch(dogfoodYml, /acknowledged pair with no product-state declared/);
+  assert.doesNotMatch(dogfoodYml, /visual-only, not a certified same-state compare/);
 });
 
 test('composite action delegates closed-set certification policy to the shared typed verdict', () => {

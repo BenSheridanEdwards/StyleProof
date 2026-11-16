@@ -243,8 +243,9 @@ jobs:
           test '${{ steps.legacy-declared.outputs.changed }}' = 'false'
           test '${{ steps.legacy-declared.outputs.trust-state }}' = 'NO_REVIEWABLE_STYLE_CHANGES'
           test -z '${{ steps.legacy-declared.outputs.report-url }}'
-          grep -E 'acknowledged pair with no product-state declared' styleproof-report/report.md
-          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
+          grep -E '^⚠' styleproof-report/report.md
+          grep -F '"status": "unproven"' styleproof-report/report.json
+          grep -F '"blocksCertification": false' styleproof-report/report.json
           grep -F '"declared": [' styleproof-report/report.json
           grep -F 'home@320' styleproof-report/report.json
 
@@ -264,8 +265,11 @@ jobs:
         run: |
           test '${{ steps.legacy-undeclared.outcome }}' = 'failure'
           test '${{ steps.legacy-undeclared.outputs.trust-state }}' = 'CERTIFICATION_FAILED'
-          grep -E '⛔ .*[(]pair with no product-state declared[)]' styleproof-report/report.md
-          grep -F 'visual-only, not a certified same-state compare' styleproof-report/report.md
+          grep -E '^⛔ ' styleproof-report/report.md
+          grep -F '"status": "unproven"' styleproof-report/report.json
+          grep -F '"blocksCertification": true' styleproof-report/report.json
+          grep -F '"undeclared": [' styleproof-report/report.json
+          grep -F 'home@320' styleproof-report/report.json
 
       - id: certfail
         continue-on-error: true
