@@ -351,7 +351,7 @@ const pruneAndSweepJobs = ({ PM, scaffold }) => `  prune:
     # PR closed: drop its pr-<n>/ folder from the report branch so the branch
     # never grows without bound. Runs only default-branch package bytes — never
     # PR-controlled product code — under an explicit write permission.
-    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: write
