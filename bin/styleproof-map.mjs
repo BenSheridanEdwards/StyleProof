@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { captureSourceMapsEnv } from './capture-env.mjs';
 import { persistServerCoverage } from './server-coverage.mjs';
 // Capture this branch's computed-style map by running Playwright against the
 // StyleProof spec (or restore a published map by SHA), stamp the manifest, and
@@ -423,7 +424,7 @@ if (workerSelection) {
 
 // The spec process clock is frozen alongside the browser clock so module-level `new Date()` fixtures match across sides.
 const captureEnv = (label) => ({
-  ...env,
+  ...captureSourceMapsEnv(env),
   STYLEMAP_DIR: label,
   STYLEPROOF_BASEDIR: baseDir,
   STYLEPROOF_SCREENSHOTS: screenshots,

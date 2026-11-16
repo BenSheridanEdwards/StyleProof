@@ -1336,7 +1336,7 @@ test('styleproof-init: Vite projects get a production preview command without ne
 
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.match(config, /npm run build && npx vite preview --host 127\.0\.0\.1 --port 4173/);
-    assert.match(config, /env: \{ PORT: "4173" \}/);
+    assert.match(config, /env: \{ PORT: "4173", STYLEPROOF_CAPTURE_SOURCE_MAPS: '1' \}/);
     assert.doesNotMatch(config, /npm run start/);
   } finally {
     rmTmp(root);
@@ -1940,6 +1940,7 @@ test('styleproof-init: external-server mode omits the generated webServer comman
     assert.equal(result.status, 0, result.stderr);
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.doesNotMatch(config, /webServer:/);
+    assert.doesNotMatch(config, /STYLEPROOF_CAPTURE_SOURCE_MAPS/);
     assert.match(config, /baseURL: process\.env\.BASE_URL \|\| "http:\/\/127\.0\.0\.1:4321"/);
   } finally {
     rmTmp(root);
@@ -2009,3 +2010,24 @@ for (const mode of ['advisory', 'review-gate', 'certify']) {
     }
   });
 }
+test('workflow templates remain byte-identical to origin/main', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const baselinePath = path.join(here, '../bin/init/.1002-workflow-baseline.mjs');
+  fs.writeFileSync(baselinePath, execFileSync('git', ['show', 'origin/main:bin/init/templates.mjs']));
+  try {
+    const baseline = await import(baselinePath);
+    const current = await import('../bin/init/templates.mjs');
+    for (const workflow of ['single', 'split']) {
+      const ctx = {
+        scaffold: { workflow, storage: 'artifact', gate: 'advisory', branch: 'main' },
+        PM: current.PACKAGE_MANAGERS.npm,
+      };
+      for (const name of ['ciWorkflow', 'reportWorkflow', 'lintArtifactsTemplate']) {
+        assert.equal(current[name](ctx), baseline[name](ctx), name + ': ' + workflow);
+      }
+      assert.equal(current.APPROVE_WORKFLOW, baseline.APPROVE_WORKFLOW);
+    }
+  } finally {
+    fs.unlinkSync(baselinePath);
+  }
+});
