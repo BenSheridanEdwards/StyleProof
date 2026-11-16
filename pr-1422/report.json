@@ -52,24 +52,30 @@
   },
   "comparability": [
     {
+      "surface": "about@320",
+      "status": "not-required",
+      "required": false,
+      "reason": "missing-before"
+    },
+    {
       "surface": "home@320",
       "status": "comparable",
       "required": true,
       "reason": "explicit-state-match"
-    },
-    {
-      "surface": "pricing@320",
-      "status": "not-required",
-      "required": false,
-      "reason": "missing-before"
     }
   ],
   "reportConsistency": {
     "ok": true,
     "reason": "aligned"
   },
-  "baselineFailures": [],
-  "partialBaseline": false,
+  "baselineFailures": [
+    {
+      "key": "about@auto",
+      "reason": "capture_failed",
+      "sha": "eb25ac5274c5fc1567b5e60b3d2aeb7a2e96a756"
+    }
+  ],
+  "partialBaseline": true,
   "content": {
     "evaluated": false,
     "changes": 0,
@@ -77,15 +83,15 @@
   },
   "surfaces": [
     {
-      "surface": "pricing@320",
+      "surface": "about@320",
       "missing": "before",
-      "isNew": true,
+      "isNew": false,
       "isRemoved": false,
-      "baselineStatus": "new",
-      "classification": "genuinely-new",
-      "image": "crops/pricing-320-1-new.png",
+      "baselineStatus": "capture-failed",
+      "classification": "baseline-repair-debt",
+      "image": "crops/about-320-1-new.png",
       "images": [
-        "crops/pricing-320-1-new.png"
+        "crops/about-320-1-new.png"
       ],
       "shownHeight": 180,
       "capturedHeight": 180
@@ -110,8 +116,8 @@
   },
   "digest": [
     {
-      "surface": "pricing@320",
-      "status": "new",
+      "surface": "about@320",
+      "status": "capture-failed",
       "elements": [],
       "more": 0
     }
@@ -134,20 +140,20 @@
     "version": 1,
     "before": {
       "algorithm": "sha256",
-      "digest": "2babe3be1af462c1474c242ed9abccfa92c02ff6344e113e6be0065e57f4c17f",
+      "digest": "5d9c12df3cd8e88e73e5712a04dbcd4c4b42b9a50b73463069f5ae7860d64fb3",
       "fileCount": 5,
       "mapCount": 1,
-      "byteCount": 1525
+      "byteCount": 1676
     },
     "after": {
       "algorithm": "sha256",
-      "digest": "0f78ef0715447ddb0a226dcf65ccd7a08ead9823767b881ea665a5cf03b99c2e",
+      "digest": "32d4d2eccafa40ef20a86f0a985d6b35052a8f685edcdbbbb6b20441407d4dc2",
       "fileCount": 7,
       "mapCount": 2,
-      "byteCount": 2451
+      "byteCount": 2447
     }
   },
-  "actionTrustState": "STYLE_REVIEW_REQUIRED",
-  "reviewDigest": "795927165189c3f8747db7ec4231a7c3636cfa9a6d2e8dab0e621f24a9fdf850",
+  "actionTrustState": "PARTIAL_BASELINE",
+  "reviewDigest": "62f874d6ebb420356762b619349a08d271edeeed1232304a7b8e7e9e0d299450",
   "untrustedCapture": false
 }
