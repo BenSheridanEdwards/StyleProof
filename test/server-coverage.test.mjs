@@ -183,3 +183,62 @@ test('inherited coverage remains owned by the runner', async () => {
   }
   assert.equal(process.env.NODE_V8_COVERAGE, previous);
 });
+
+for (const failure of ['missing-script', 'missing-map', 'invalid-data', 'malformed-map']) {
+  test(`bad server entry (${failure}) preserves both neighbours`, async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const { pathToFileURL } = await import('node:url');
+    const { readServerCoverage } = await import('../bin/server-coverage.mjs');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'server-entry-'));
+    try {
+      const directory = path.join(root, 'coverage');
+      fs.mkdirSync(directory);
+      const map = { version: 3, sources: ['page.js'], sourcesContent: ['hello'], names: [], mappings: 'AAAA' };
+      const reference = 'data:application/json;base64,' + Buffer.from(JSON.stringify(map)).toString('base64');
+      const entries = ['before.js', 'bad.js', 'after.js'].map((name) => {
+        const filename = path.join(root, name);
+        let source = 'hello\n//# sourceMappingURL=' + reference;
+        if (name === 'bad.js') {
+          if (failure === 'missing-map') source = 'hello\n//# sourceMappingURL=missing.map';
+          if (failure === 'invalid-data') source = 'hello\n//# sourceMappingURL=data:application/json,not-base64';
+          if (failure === 'malformed-map')
+            source = 'hello\n//# sourceMappingURL=data:application/json;base64,' + Buffer.from('{').toString('base64');
+        }
+        if (name !== 'bad.js' || failure !== 'missing-script') fs.writeFileSync(filename, source);
+        return {
+          url: pathToFileURL(filename).href,
+          functions: [
+            { functionName: '', ranges: [{ startOffset: 0, endOffset: 5, count: 1 }], isBlockCoverage: true },
+          ],
+        };
+      });
+      fs.writeFileSync(path.join(directory, 'coverage.json'), JSON.stringify({ result: entries }));
+      const scripts = readServerCoverage(directory, root);
+      assert.deepEqual(
+        scripts.map((script) => script.url),
+        ['before.js', 'after.js'],
+      );
+      for (const script of scripts) assert.ok(script.files.length > 0);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const raw of ['{"result":[', 'not JSON']) {
+  test(`invalid coverage JSON supplies no execution evidence: ${raw}`, async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const os = await import('node:os');
+    const { readServerCoverage } = await import('../bin/server-coverage.mjs');
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'server-json-'));
+    try {
+      fs.writeFileSync(path.join(root, 'coverage.json'), raw);
+      assert.deepEqual(readServerCoverage(root, root), []);
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  });
+}
