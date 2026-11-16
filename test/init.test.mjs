@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -2010,10 +2010,51 @@ for (const mode of ['advisory', 'review-gate', 'certify']) {
     }
   });
 }
-test('workflow templates remain byte-identical to origin/main', async () => {
-  const { execFileSync } = await import('node:child_process');
+function baseTemplates(cwd, env = process.env) {
+  const event = env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) : {};
+  const sha = env.GITHUB_BASE_SHA || event.pull_request?.base?.sha;
+  const ref = sha || 'origin/main';
+  if (sha && !/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid PR base SHA');
+  const args = ['show', ref + ':bin/init/templates.mjs'];
+  try {
+    return execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch {
+    execFileSync('git', ['fetch', '--depth=1', 'origin', sha || 'main'], { cwd });
+    return execFileSync('git', ['show', (sha || 'FETCH_HEAD') + ':bin/init/templates.mjs'], { cwd });
+  }
+}
+
+test('workflow baseline resolves the real PR base without origin/main', () => {
+  const remote = mkTmp();
+  const checkout = mkTmp();
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  try {
+    git(remote, 'init');
+    git(checkout, 'init');
+    fs.mkdirSync(path.join(remote, 'bin/init'), { recursive: true });
+    fs.writeFileSync(path.join(remote, 'bin/init/templates.mjs'), 'export const base = true;');
+    git(remote, 'add', '.');
+    git(remote, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'base');
+    const sha = git(remote, 'rev-parse', 'HEAD').toString().trim();
+    fs.writeFileSync(path.join(remote, 'bin/init/templates.mjs'), 'export const head = true;');
+    git(remote, 'add', '.');
+    git(remote, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'head');
+    git(checkout, 'remote', 'add', 'origin', remote);
+    git(checkout, 'fetch', '--depth=1', 'origin', 'HEAD');
+    git(checkout, 'checkout', '--detach', 'FETCH_HEAD');
+    const event = path.join(checkout, 'event.json');
+    fs.writeFileSync(event, JSON.stringify({ pull_request: { base: { sha } } }));
+    assert.throws(() => git(checkout, 'rev-parse', '--verify', 'origin/main'));
+    assert.equal(baseTemplates(checkout, { GITHUB_EVENT_PATH: event }).toString(), 'export const base = true;');
+  } finally {
+    rmTmp(checkout);
+    rmTmp(remote);
+  }
+});
+
+test('workflow templates remain byte-identical to main base', async () => {
   const baselinePath = path.join(here, '../bin/init/.1002-workflow-baseline.mjs');
-  fs.writeFileSync(baselinePath, execFileSync('git', ['show', 'origin/main:bin/init/templates.mjs']));
+  fs.writeFileSync(baselinePath, baseTemplates(path.join(here, '..')));
   try {
     const baseline = await import(baselinePath);
     const current = await import('../bin/init/templates.mjs');
