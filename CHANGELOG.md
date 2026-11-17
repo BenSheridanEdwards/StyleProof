@@ -7,7 +7,7 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-- Selective remap re-captures non-importing surfaces for global selectors in CSS Modules, including selectors following URL or quoted content. Ambiguous style syntax fails closed (#1413).
+- Selective remap re-captures non-importing surfaces for global selectors in CSS Modules, including selectors following URL or quoted content. Unresolved Sass interpolation and ambiguous style syntax fail closed (#1413).
 
 - styleproof-ci's outside-CI refusal now prints a real line break instead of a literal `\n` (#1411).
 - `styleproof-map` can start the pre-map variant crawl on Windows when Node refuses a direct `.cmd` spawn (EINVAL); it falls back to the bundled bin (#1414).

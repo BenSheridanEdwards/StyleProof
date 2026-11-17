@@ -17,7 +17,7 @@
 
 ## In progress
 
-- Repair URL/comment handling in [PR #1430](https://github.com/BenSheridanEdwards/StyleProof/pull/1430), fixing #1413 with exported classifier and affected-surface regressions. [Thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5).
+- Repair URL/comment handling and unresolved Sass selector interpolation in [PR #1430](https://github.com/BenSheridanEdwards/StyleProof/pull/1430), fixing #1413 with exported classifier and affected-surface regressions. [Thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5).
 
 - Slice 27: Change Reach warn lines; one-shot local build, no PR.
 

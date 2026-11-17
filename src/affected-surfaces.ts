@@ -45,8 +45,8 @@ const GLOBAL_CSS =
 // CSS-in-JS global APIs. Soundness depends on this list being complete for the
 // libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
-// `:global(...)` escape hatch or cross-module composition pulls in outside scope.
-const MODULE_ESCAPES = /:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
+// Sass selector interpolation, `:global(...)`, or cross-module composition can escape local scope.
+const MODULE_ESCAPES = /#\{|:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
 // `@use`/`@forward`/`@import` pull another sheet into a CSS-module file; the JS
 // import graph cannot bound them, so any occurrence fails closed.
 const SASS_LOAD = /@(?:use|forward|import)\b/;
