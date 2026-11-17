@@ -2284,7 +2284,11 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /fullyParallel: true/, 'scaffolds parallel surface capture');
     assert.match(config, /testDir: "\.\/e2e"/, 'scopes Playwright discovery to the StyleProof spec directory');
     assert.match(config, /testMatch: "styleproof\.spec\.ts"/, 'scopes Playwright discovery to the StyleProof spec');
-    assert.match(config, /env: \{ PORT: "3000" \}/, 'passes the configured port to production servers');
+    assert.match(
+      config,
+      /env: \{ PORT: "3000", STYLEPROOF_CAPTURE_SOURCE_MAPS: process\.env\.STYLEPROOF_CAPTURE_SOURCE_MAPS \?\? '1' \}/,
+      'passes the configured port to production servers',
+    );
   } finally {
     rmTmp(dir);
   }

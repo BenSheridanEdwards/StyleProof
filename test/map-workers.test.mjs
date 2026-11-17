@@ -24,7 +24,7 @@ test('default capture workers leave two CPUs free, with at least half available'
   }
 });
 
-function capture(t, { args = [], workers, configFile, config } = {}) {
+function capture(t, { args = [], workers, configFile, config, sourceMaps } = {}) {
   const root = mkNonGitTmp('styleproof-workers-');
   t.after(() => rmTmp(root));
   fs.mkdirSync(path.join(root, 'e2e'));
@@ -33,13 +33,15 @@ function capture(t, { args = [], workers, configFile, config } = {}) {
   fs.mkdirSync(bin);
   fs.writeFileSync(
     path.join(bin, 'playwright'),
-    '#!/bin/sh\nprintf "%s\\n" "$@" > capture-argv\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"\ntouch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
+    '#!/bin/sh\nprintf "%s" "${STYLEPROOF_CAPTURE_SOURCE_MAPS-unset}" > capture-env\nprintf "%s\\n" "$@" > capture-argv\nmkdir -p "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR"\ntouch "$STYLEPROOF_BASEDIR/$STYLEMAP_DIR/home@1280.json"\n',
     { mode: 0o755 },
   );
 
   if (configFile && config !== undefined) fs.writeFileSync(path.join(root, configFile), config);
   const env = { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}` };
   delete env.STYLEPROOF_WORKERS;
+  delete env.STYLEPROOF_CAPTURE_SOURCE_MAPS;
+  if (sourceMaps !== undefined) env.STYLEPROOF_CAPTURE_SOURCE_MAPS = sourceMaps;
 
   if (workers !== undefined) env.STYLEPROOF_WORKERS = workers;
 
@@ -57,7 +59,13 @@ function capture(t, { args = [], workers, configFile, config } = {}) {
     assert.equal(fs.existsSync(argv[wrapperIndex + 1]), false, 'capture wrapper is removed');
     argv.splice(wrapperIndex, 2);
   }
-  return { ...result, argv };
+  return {
+    ...result,
+    argv,
+    sourceMaps: fs.existsSync(path.join(root, 'capture-env'))
+      ? fs.readFileSync(path.join(root, 'capture-env'), 'utf8')
+      : undefined,
+  };
 }
 
 function assertCapture(result, extraArgs, log) {
@@ -142,3 +150,11 @@ test('STYLEPROOF_WORKERS overrides config workers', (t) => {
     'workers=5 (STYLEPROOF_WORKERS)',
   );
 });
+
+for (const value of [undefined, '0', '1', '']) {
+  test(`capture source maps env preserves ${JSON.stringify(value)}`, (t) => {
+    const result = capture(t, { sourceMaps: value });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.sourceMaps, value === undefined ? '1' : value);
+  });
+}

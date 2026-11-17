@@ -17,6 +17,8 @@
 
 ## In progress
 
+- Source-map opt-out repaired and full verification passed at the actual generated build/server boundary in [PR #1429](https://github.com/BenSheridanEdwards/StyleProof/pull/1429), with regression evidence and independent review. [Thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5).
+
 - Slice 27: Change Reach warn lines; one-shot local build, no PR.
 
 - Slice 31: change-card metadata and rendering; focused checks passed, hooks-on commit pending; one-shot thread link unavailable; no PR requested.

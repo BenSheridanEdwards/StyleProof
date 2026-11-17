@@ -701,7 +701,10 @@ with a different project root, record clipped sources as unknown. Missing conten
 hash mismatches and scheme-prefixed traversal stay unknown. Clipped keys still invalidate on collision. Any script-evidence drift during a
 self-check records script reach unknown, including storage-dependent first and repeat visits.
 Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
-build; missing maps read `unmeasured`. The window runs from navigation through
+build; missing maps read `unmeasured`. `styleproof-map` and generated Playwright
+capture servers default `STYLEPROOF_CAPTURE_SOURCE_MAPS` to `1` only when it is
+unset; an exported `0` or empty value is preserved through the build/server
+process. Framework settings must opt into reading that variable. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
 does not prove a value rendered. J2 joins changed script ranges against the actual base
 and head map manifests' SHAs, including a reused ancestor baseline. Removed ranges

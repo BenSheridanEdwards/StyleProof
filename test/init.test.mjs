@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { captureRelevantChangedPaths } from '../dist/ancestor-baseline.js';
-import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
+import { mkNonGitTmp, mkTmp, rmTmp, spawnSyncToCompletion } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
@@ -1336,7 +1337,10 @@ test('styleproof-init: Vite projects get a production preview command without ne
 
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.match(config, /npm run build && npx vite preview --host 127\.0\.0\.1 --port 4173/);
-    assert.match(config, /env: \{ PORT: "4173" \}/);
+    assert.match(
+      config,
+      /env: \{ PORT: "4173", STYLEPROOF_CAPTURE_SOURCE_MAPS: process\.env\.STYLEPROOF_CAPTURE_SOURCE_MAPS \?\? '1' \}/,
+    );
     assert.doesNotMatch(config, /npm run start/);
   } finally {
     rmTmp(root);
@@ -1940,6 +1944,7 @@ test('styleproof-init: external-server mode omits the generated webServer comman
     assert.equal(result.status, 0, result.stderr);
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.doesNotMatch(config, /webServer:/);
+    assert.doesNotMatch(config, /STYLEPROOF_CAPTURE_SOURCE_MAPS/);
     assert.match(config, /baseURL: process\.env\.BASE_URL \|\| "http:\/\/127\.0\.0\.1:4321"/);
   } finally {
     rmTmp(root);
@@ -2004,6 +2009,125 @@ for (const mode of ['advisory', 'review-gate', 'certify']) {
       if (mode === 'review-gate') {
         assert.match(readFile(root, '.github/workflows/styleproof.yml'), /require-approval: true/);
       }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}
+function baseTemplates(cwd, env = process.env) {
+  const event = env.GITHUB_EVENT_PATH ? JSON.parse(fs.readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) : {};
+  const sha = env.GITHUB_BASE_SHA || event.pull_request?.base?.sha;
+  const ref = sha || 'origin/main';
+  if (sha && !/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid PR base SHA');
+  const args = ['show', ref + ':bin/init/templates.mjs'];
+  try {
+    return execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  } catch {
+    execFileSync('git', ['fetch', '--depth=1', 'origin', sha || 'main'], { cwd });
+    return execFileSync('git', ['show', (sha || 'FETCH_HEAD') + ':bin/init/templates.mjs'], { cwd });
+  }
+}
+
+test('workflow baseline resolves the real PR base without origin/main', () => {
+  const remote = mkTmp();
+  const checkout = mkTmp();
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  try {
+    git(remote, 'init');
+    git(checkout, 'init');
+    fs.mkdirSync(path.join(remote, 'bin/init'), { recursive: true });
+    fs.writeFileSync(path.join(remote, 'bin/init/templates.mjs'), 'export const base = true;');
+    git(remote, 'add', '.');
+    git(remote, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'base');
+    const sha = git(remote, 'rev-parse', 'HEAD').toString().trim();
+    fs.writeFileSync(path.join(remote, 'bin/init/templates.mjs'), 'export const head = true;');
+    git(remote, 'add', '.');
+    git(remote, '-c', 'user.name=Test', '-c', 'user.email=test@example.com', 'commit', '-m', 'head');
+    git(checkout, 'remote', 'add', 'origin', remote);
+    git(checkout, 'fetch', '--depth=1', 'origin', 'HEAD');
+    git(checkout, 'checkout', '--detach', 'FETCH_HEAD');
+    const event = path.join(checkout, 'event.json');
+    fs.writeFileSync(event, JSON.stringify({ pull_request: { base: { sha } } }));
+    assert.throws(() => git(checkout, 'rev-parse', '--verify', 'origin/main'));
+    assert.equal(baseTemplates(checkout, { GITHUB_EVENT_PATH: event }).toString(), 'export const base = true;');
+  } finally {
+    rmTmp(checkout);
+    rmTmp(remote);
+  }
+});
+
+test('workflow templates remain byte-identical to main base', async () => {
+  const baselinePath = path.join(here, '../bin/init/.1002-workflow-baseline.mjs');
+  fs.writeFileSync(baselinePath, baseTemplates(path.join(here, '..')));
+  try {
+    const baseline = await import(baselinePath);
+    const current = await import('../bin/init/templates.mjs');
+    for (const workflow of ['single', 'split']) {
+      const ctx = {
+        scaffold: { workflow, storage: 'artifact', gate: 'advisory', branch: 'main' },
+        PM: current.PACKAGE_MANAGERS.npm,
+      };
+      for (const name of ['ciWorkflow', 'reportWorkflow', 'lintArtifactsTemplate']) {
+        assert.equal(current[name](ctx), baseline[name](ctx), name + ': ' + workflow);
+      }
+      assert.equal(current.APPROVE_WORKFLOW, baseline.APPROVE_WORKFLOW);
+    }
+  } finally {
+    fs.unlinkSync(baselinePath);
+  }
+});
+
+for (const [value, expected] of [
+  [undefined, '1'],
+  ['0', '0'],
+  ['', ''],
+  ['1', '1'],
+]) {
+  test(`generated webServer preserves the caller source-map value ${JSON.stringify(value)}`, async () => {
+    const root = mkTmp();
+    const probe = http.createServer();
+    await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const port = probe.address().port;
+    await new Promise((resolve) => probe.close(resolve));
+    try {
+      const url = `http://127.0.0.1:${port}`;
+      const result = runInit(root, ['--base-url', url, '--server-command', 'node server.mjs']);
+      assert.equal(result.status, 0, result.stderr);
+      fs.mkdirSync(path.join(root, 'node_modules/@playwright'), { recursive: true });
+      fs.symlinkSync(
+        path.resolve(here, '../node_modules/@playwright/test'),
+        path.join(root, 'node_modules/@playwright/test'),
+        'dir',
+      );
+      fs.writeFileSync(
+        path.join(root, 'e2e/styleproof.spec.ts'),
+        "import { test } from '@playwright/test'; test('server boundary', () => {});",
+      );
+      fs.writeFileSync(
+        path.join(root, 'server.mjs'),
+        `
+import http from 'node:http';
+import fs from 'node:fs';
+fs.writeFileSync('server-env.json', JSON.stringify(process.env.STYLEPROOF_CAPTURE_SOURCE_MAPS));
+http.createServer((_req, res) => res.end('ready')).listen(process.env.PORT, '127.0.0.1');
+`,
+      );
+      const env = { ...process.env, BASE_URL: url, STYLEPROOF_PRODUCT_STATE: '' };
+      if (value === undefined) delete env.STYLEPROOF_CAPTURE_SOURCE_MAPS;
+      else env.STYLEPROOF_CAPTURE_SOURCE_MAPS = value;
+      const run = spawnSyncToCompletion(
+        process.execPath,
+        [
+          path.resolve(here, '../node_modules/playwright/cli.js'),
+          'test',
+          '--config',
+          'playwright.styleproof.config.ts',
+          '--workers=1',
+        ],
+        { cwd: root, env, encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stdout + run.stderr);
+      assert.equal(JSON.parse(readFile(root, 'server-env.json')), expected);
     } finally {
       rmTmp(root);
     }
