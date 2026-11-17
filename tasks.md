@@ -17,8 +17,6 @@
 
 ## In progress
 
-- Part of #1002: add truthful manual capture-build source-map remedies and J2 strip warnings; framework/config/check stages remain behind stage 2 landing. [Thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5). PR pending.
-
 - Slice 27: Change Reach warn lines; one-shot local build, no PR.
 
 - Slice 31: change-card metadata and rendering; focused checks passed, hooks-on commit pending; one-shot thread link unavailable; no PR requested.
@@ -77,7 +75,9 @@
 
 ## Waiting
 
-- Shared security hold: current audit fails for picomatch 4.0.5; no compatible validated remedy is available for GHSA-fc5q-39xc-vjpf. Preserve PRs #1429/#1430/#1432/#1433 and audit/release-age controls; dependency regex remediation is a separate scope.
+- Part of #1002: J2 manual capture-build remedies, missing-map strip counts and truncation preservation delivered in [PR #1434](https://github.com/BenSheridanEdwards/StyleProof/pull/1434). Functional verify: 7,090 tests; 71 focused; normal push: 1,267 Chromium tests and one existing project-selection skip. Security-held; framework/config/check stages still await #1429 landing. [Thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5).
+
+- Shared security hold: current audit fails for picomatch 4.0.5; no compatible validated remedy is available for GHSA-fc5q-39xc-vjpf. Preserve PRs #1429/#1430/#1432/#1433/#1434 and audit/release-age controls; dependency regex remediation is a separate scope.
 
 - Refs #1004: address B2 and F1 review regressions on [PR #1357](https://github.com/BenSheridanEdwards/StyleProof/pull/1357); focused validation in progress. Current thread link unavailable.
 
