@@ -261,7 +261,7 @@ export function playwrightConfigTemplate({ specPath, baseUrl, command }) {
       : `  webServer: {
     command: ${JSON.stringify(command)},
     url: process.env.BASE_URL || ${JSON.stringify(baseUrl)},
-    env: { PORT: ${JSON.stringify(portFromBaseUrl(baseUrl))}, STYLEPROOF_CAPTURE_SOURCE_MAPS: '1' },
+    env: { PORT: ${JSON.stringify(portFromBaseUrl(baseUrl))}, STYLEPROOF_CAPTURE_SOURCE_MAPS: process.env.STYLEPROOF_CAPTURE_SOURCE_MAPS ?? '1' },
     reuseExistingServer: false,
     timeout: 600_000, // a cold production build can take a few minutes
   },

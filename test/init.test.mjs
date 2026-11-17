@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import http from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { captureRelevantChangedPaths } from '../dist/ancestor-baseline.js';
-import { mkNonGitTmp, mkTmp, rmTmp } from './helpers.mjs';
+import { mkNonGitTmp, mkTmp, rmTmp, spawnSyncToCompletion } from './helpers.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const INIT = path.join(here, '..', 'bin', 'styleproof-init.mjs');
@@ -1336,7 +1337,10 @@ test('styleproof-init: Vite projects get a production preview command without ne
 
     const config = readFile(root, 'playwright.styleproof.config.ts');
     assert.match(config, /npm run build && npx vite preview --host 127\.0\.0\.1 --port 4173/);
-    assert.match(config, /env: \{ PORT: "4173", STYLEPROOF_CAPTURE_SOURCE_MAPS: '1' \}/);
+    assert.match(
+      config,
+      /env: \{ PORT: "4173", STYLEPROOF_CAPTURE_SOURCE_MAPS: process\.env\.STYLEPROOF_CAPTURE_SOURCE_MAPS \?\? '1' \}/,
+    );
     assert.doesNotMatch(config, /npm run start/);
   } finally {
     rmTmp(root);
@@ -2072,3 +2076,60 @@ test('workflow templates remain byte-identical to main base', async () => {
     fs.unlinkSync(baselinePath);
   }
 });
+
+for (const [value, expected] of [
+  [undefined, '1'],
+  ['0', '0'],
+  ['', ''],
+  ['1', '1'],
+]) {
+  test(`generated webServer preserves the caller source-map value ${JSON.stringify(value)}`, async () => {
+    const root = mkTmp();
+    const probe = http.createServer();
+    await new Promise((resolve) => probe.listen(0, '127.0.0.1', resolve));
+    const port = probe.address().port;
+    await new Promise((resolve) => probe.close(resolve));
+    try {
+      const url = `http://127.0.0.1:${port}`;
+      const result = runInit(root, ['--base-url', url, '--server-command', 'node server.mjs']);
+      assert.equal(result.status, 0, result.stderr);
+      fs.mkdirSync(path.join(root, 'node_modules/@playwright'), { recursive: true });
+      fs.symlinkSync(
+        path.resolve(here, '../node_modules/@playwright/test'),
+        path.join(root, 'node_modules/@playwright/test'),
+        'dir',
+      );
+      fs.writeFileSync(
+        path.join(root, 'e2e/styleproof.spec.ts'),
+        "import { test } from '@playwright/test'; test('server boundary', () => {});",
+      );
+      fs.writeFileSync(
+        path.join(root, 'server.mjs'),
+        `
+import http from 'node:http';
+import fs from 'node:fs';
+fs.writeFileSync('server-env.json', JSON.stringify(process.env.STYLEPROOF_CAPTURE_SOURCE_MAPS));
+http.createServer((_req, res) => res.end('ready')).listen(process.env.PORT, '127.0.0.1');
+`,
+      );
+      const env = { ...process.env, BASE_URL: url, STYLEPROOF_PRODUCT_STATE: '' };
+      if (value === undefined) delete env.STYLEPROOF_CAPTURE_SOURCE_MAPS;
+      else env.STYLEPROOF_CAPTURE_SOURCE_MAPS = value;
+      const run = spawnSyncToCompletion(
+        process.execPath,
+        [
+          path.resolve(here, '../node_modules/playwright/cli.js'),
+          'test',
+          '--config',
+          'playwright.styleproof.config.ts',
+          '--workers=1',
+        ],
+        { cwd: root, env, encoding: 'utf8' },
+      );
+      assert.equal(run.status, 0, run.stdout + run.stderr);
+      assert.equal(JSON.parse(readFile(root, 'server-env.json')), expected);
+    } finally {
+      rmTmp(root);
+    }
+  });
+}

@@ -2286,7 +2286,7 @@ test('init scaffolds a dedicated StyleProof Playwright config that serves a PROD
     assert.match(config, /testMatch: "styleproof\.spec\.ts"/, 'scopes Playwright discovery to the StyleProof spec');
     assert.match(
       config,
-      /env: \{ PORT: "3000", STYLEPROOF_CAPTURE_SOURCE_MAPS: '1' \}/,
+      /env: \{ PORT: "3000", STYLEPROOF_CAPTURE_SOURCE_MAPS: process\.env\.STYLEPROOF_CAPTURE_SOURCE_MAPS \?\? '1' \}/,
       'passes the configured port to production servers',
     );
   } finally {
