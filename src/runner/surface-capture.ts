@@ -132,10 +132,14 @@ export async function detectSurfaceWidths(
     }
     return widths;
   } finally {
-    residue.dispose();
-    await stop();
-    // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
-    await page.unroute(s.replayUrl);
+    try {
+      await surface.cleanup?.(page);
+    } finally {
+      residue.dispose();
+      await stop();
+      // Drop every route on the replay URL (other URL patterns' routes survive); each width pins its own HAR.
+      await page.unroute(s.replayUrl);
+    }
   }
 }
 
@@ -267,14 +271,18 @@ export async function captureSurface(
     // Popup discovery runs OUTSIDE the per-surface window; each interaction is bounded by `popups.timeoutMs`.
     await capturePopupSurfaces(page, surface, { width, height }, s);
   } finally {
-    requests.dispose();
-    residue.dispose();
-    await servedRules?.dispose();
-    // Screenshot and rule-tracking CDP sessions can clear Chromium's print emulation on detach.
-    // Best-effort on cleanup: a closed page must not replace the capture's own error or skip unrouting.
-    await restoreDeclaredMediaState(page, declared.metadata).catch(() => undefined);
-    await stop();
-    await page.unroute(s.replayUrl);
+    try {
+      await declared.cleanup?.(page);
+    } finally {
+      requests.dispose();
+      residue.dispose();
+      await servedRules?.dispose();
+      // Screenshot and rule-tracking CDP sessions can clear Chromium's print emulation on detach.
+      // Best-effort on cleanup: a closed page must not replace the capture's own error or skip unrouting.
+      await restoreDeclaredMediaState(page, declared.metadata).catch(() => undefined);
+      await stop();
+      await page.unroute(s.replayUrl);
+    }
   }
 }
 
