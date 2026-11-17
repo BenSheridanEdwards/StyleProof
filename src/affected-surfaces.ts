@@ -45,8 +45,8 @@ const GLOBAL_CSS =
 // CSS-in-JS global APIs. Soundness depends on this list being complete for the
 // libraries in use: an unlisted global API in a .tsx would be misread as scoped.
 const CSSJS_GLOBAL = /\b(createGlobalStyle|injectGlobal|globalStyle|globalCss|createGlobalTheme)\b/;
-// `:global(...)` escape hatch or cross-module composition pulls in outside scope.
-const MODULE_ESCAPES = /:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
+// Sass selector interpolation, `:global(...)`, or cross-module composition can escape local scope.
+const MODULE_ESCAPES = /#\{|:global\b|\bcompose[sd]?\b[^;]*\bfrom\b/;
 // `@use`/`@forward`/`@import` pull another sheet into a CSS-module file; the JS
 // import graph cannot bound them, so any occurrence fails closed.
 const SASS_LOAD = /@(?:use|forward|import)\b/;
@@ -71,15 +71,37 @@ const isWrapper = (f: string) => WRAPPERS.some((wrapper) => wrapper.test(f));
 // A single-file component's `<style>` can be global (unscoped Vue, Svelte `:global`, Astro `is:global`).
 const isSfc = (f: string) => /\.(vue|svelte|astro)$/.test(f);
 
+const STYLE_MODULE_TOKENS =
+  /\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\\r\n\f])*"|'(?:\\[\s\S]|[^'\\\r\n\f])*'|url\((?:\\[\s\S]|"(?:\\[\s\S]|[^"\\\r\n\f])*"|'(?:\\[\s\S]|[^'\\\r\n\f])*'|[^)"'\\])*\)|\/\/[^\r\n]*/gi;
+
 // A CSS Module escapes its hashed scope via `:global`, cross-module `composes … from`,
 // genuinely global selectors, or any Sass/CSS load.
-const moduleEscapes = (src: string) => MODULE_ESCAPES.test(src) || GLOBAL_CSS.test(src) || SASS_LOAD.test(src);
+function moduleEscapes(src: string, file: string): boolean {
+  // Indented syntax has no brace-delimited headers to prove local scope.
+  if (/\.(?:sass|styl)$/.test(file)) return true;
+  if ([MODULE_ESCAPES, GLOBAL_CSS, SASS_LOAD].some((pattern) => pattern.test(src))) return true;
+  let uncertain = false;
+  const uncommented = src.replace(STYLE_MODULE_TOKENS, (token, offset: number) => {
+    if (token.startsWith('//')) {
+      const before = src.slice(src.lastIndexOf('\n', offset - 1) + 1, offset).trim();
+      // CSS has no line comments. For preprocessors, accept only clear comment boundaries.
+      if (file.endsWith('.css') || (before && !/[;{}]$/.test(before))) uncertain = true;
+    }
+    return ' ';
+  });
+  // Escaped syntax and unparsed directives cannot prove the import-only bound.
+  if (uncertain || /["'\\@]/.test(uncommented) || uncommented.includes('/*')) return true;
+  for (const rule of uncommented.matchAll(/(?:^|[{};])([^{};]*)\{/g)) {
+    if (rule[1].split(',').some((selector) => !/^[.#][\w-]/.test(selector.trim()))) return true;
+  }
+  return false;
+}
 
 /** Per file kind: does this source's style scope stay bounded to its importers? No test → never. */
-const SCOPED_WHEN: [matches: (file: string) => boolean, scoped?: (src: string) => boolean][] = [
+const SCOPED_WHEN: [matches: (file: string) => boolean, scoped?: (src: string, file: string) => boolean][] = [
   [isConfig], // design-system config cascades to every surface
   [isCode, (src) => !CSSJS_GLOBAL.test(src)], // .tsx: global CSS-in-JS or colocated scope
-  [isCssModule, (src) => !moduleEscapes(src)],
+  [isCssModule, (src, file) => !moduleEscapes(src, file)],
   [isStyleSheet], // vanilla stylesheet: global class namespace
 ];
 
@@ -97,7 +119,7 @@ export function classifyStyleChange(file: string, readFile: (p: string) => strin
   } catch {
     return 'all';
   }
-  return src != null && scoped(src) ? 'scope' : 'all';
+  return src != null && scoped(src, file) ? 'scope' : 'all';
 }
 
 // `import(` with a non-string-literal argument, capturing the argument text.

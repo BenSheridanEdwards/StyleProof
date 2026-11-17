@@ -252,6 +252,8 @@ wrapper (Next `layout`/`_app`, SPA `App`/`main`, Remix `root`, SvelteKit
 surface also re-capture everything. SPA page changes stay selective, and test, story,
 script, or undeclared-route importers alone do not force a full re-capture.
 
+CSS Modules with bare element or attribute selectors re-capture every surface, including non-importers. URL and string contents do not hide a later global selector. Ordinary local class/id rules stay selective; unresolved Sass interpolation, ambiguous syntax and indented Sass/Stylus fail closed.
+
 StyleProof is not a screenshot diff. Screenshots appear in the report so humans
 can see the change, but the gate compares browser-computed CSS: resolved
 longhands, pseudo-elements, layout boxes, motion longhands, and forced
