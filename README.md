@@ -701,7 +701,7 @@ with a different project root, record clipped sources as unknown. Missing conten
 hash mismatches and scheme-prefixed traversal stay unknown. Clipped keys still invalidate on collision. Any script-evidence drift during a
 self-check records script reach unknown, including storage-dependent first and repeat visits.
 Stored URLs omit queries/fragments; source keys omit checkout paths and bundler namespaces. Enable source maps in the capture
-build; missing maps read `unmeasured`. The window runs from navigation through
+build; missing maps read `unmeasured`. The strip calls out missing maps and J2 gaps name capture-build settings: Next.js `productionBrowserSourceMaps: true`, Vite `build.sourcemap: 'hidden'`, or webpack `devtool: 'hidden-source-map'`. Configure these manually, gated on `STYLEPROOF_CAPTURE_SOURCE_MAPS=1`, and export that variable when starting the capture build/server. With measured head maps and only base maps missing, the remedy points to the next normal baseline capture with those source-map settings. J2 remains warn-only. The window runs from navigation through
 the map read, so transient loading branches count as executed. Execution alone
 does not prove a value rendered. J2 joins changed script ranges against the actual base
 and head map manifests' SHAs, including a reused ancestor baseline. Removed ranges

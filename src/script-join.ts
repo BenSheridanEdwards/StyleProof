@@ -153,7 +153,56 @@ function mappedFiles(
   }
 }
 
-function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): EvidenceSide {
+function sourceMapGap(
+  maps: readonly StyleMap[],
+  other: readonly StyleMap[],
+  side: 'base' | 'head',
+  reason: string,
+): ScriptJoinGap {
+  const scripts = maps
+    .flatMap((map) => map.scriptReach?.scripts ?? [])
+    .filter((script) => script.status !== 'mapped' && script.reason === 'source map absent');
+  const gap = scriptJoinGap(reason, side);
+  if (!scripts.length) return gap;
+  const urls = [...new Set(scripts.map((script) => script.url))];
+  gap.reason += ` (${urls.length} script(s))`;
+  const headMapped =
+    side === 'base' &&
+    other.length > 0 &&
+    other.every(
+      (map) =>
+        map.scriptReach?.version === 1 &&
+        map.scriptReach.status === 'measured' &&
+        map.scriptReach.scripts.every(
+          (script) =>
+            script.status === 'mapped' ||
+            (script.nonAppSourcesOnly && script.status === 'unmeasured' && script.reason === 'no mapped app sources'),
+        ),
+    ) &&
+    other.some((map) => map.scriptReach?.scripts.some((script) => script.status === 'mapped'));
+  if (headMapped) {
+    gap.remedy =
+      'base was captured without source maps; head maps are available. The next normal baseline capture with these source-map settings refreshes this evidence';
+    return gap;
+  }
+  const paths = urls.map((url) => {
+    try {
+      return new URL(url, 'https://capture.invalid').pathname;
+    } catch {
+      return '';
+    }
+  });
+  const next = paths.some((pathname) => pathname.includes('/_next/static/'));
+  const otherBundler = paths.some((pathname) => !pathname.includes('/_next/static/'));
+  const settings = [
+    ...(next ? ['Next.js `productionBrowserSourceMaps: true`'] : []),
+    ...(otherBundler ? ["Vite `build.sourcemap: 'hidden'` or webpack `devtool: 'hidden-source-map'`"] : []),
+  ];
+  gap.remedy = `enable ${settings.join(' or ')} for capture builds only; gate the setting on \`STYLEPROOF_CAPTURE_SOURCE_MAPS=1\` and export that variable when starting the capture server`;
+  return gap;
+}
+
+function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head', other: readonly StyleMap[]): EvidenceSide {
   const files = new Map<string, ScriptSourceEvidence[]>();
   const reasons: string[] = [];
   const gaps: ScriptJoinGap[] = [];
@@ -185,7 +234,10 @@ function evidenceSide(maps: readonly StyleMap[], side: 'base' | 'head'): Evidenc
 
   const sortedReasons = [...new Set(reasons)].sort(compareSourceKeys);
 
-  for (const reason of sortedReasons) gaps.push(scriptJoinGap(`${side} script evidence: ${reason}`, side));
+  for (const reason of sortedReasons) {
+    const message = `${side} script evidence: ${reason}`;
+    gaps.push(reason === 'source map absent' ? sourceMapGap(maps, other, side, message) : scriptJoinGap(message, side));
+  }
 
   return {
     files: new Map([...files].map(([key, sources]) => [key, indexScriptSources(sources)])),
@@ -348,7 +400,7 @@ export function classifyScriptReach(
   changes: readonly ScriptChange[],
   proofs: readonly SourceCorroboration[] = [],
 ): ScriptJoinResult {
-  const sides = { base: evidenceSide(base, 'base'), head: evidenceSide(head, 'head') };
+  const sides = { base: evidenceSide(base, 'base', head), head: evidenceSide(head, 'head', base) };
 
   return {
     units: changes

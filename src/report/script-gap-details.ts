@@ -19,14 +19,25 @@ export function scriptGapPathCount(gaps: readonly ReachGap[]): number {
 const preview = (value: string, length: number): string =>
   value.length > length ? Array.from(value).slice(0, length).join('') + '…' : value;
 
+export function missingMapScriptCount(gaps: readonly ReachGap[]): number {
+  return gaps.reduce(
+    (sum, gap) =>
+      sum + (gap.join === 'J2' ? Number(gap.reason.match(/source map absent \((\d+) script\(s\)\)/)?.[1] ?? 0) : 0),
+    0,
+  );
+}
+
 export function gapRecordNotice(gaps: readonly ReachGap[], omitted: number): ScriptJoinGap {
+  const absent = missingMapScriptCount(gaps);
   const first = gaps
     .filter((gap) => gap.join === 'J2')
     .slice(0, 2)
     .map((gap) => preview(gap.reason, 120))
     .join('; ');
   return {
-    ...scriptJoinGap(`J2 gaps truncated: ${omitted} more omitted from report.json; first: ${first}`),
+    ...scriptJoinGap(
+      `J2 gaps truncated: ${omitted} more omitted from report.json${absent ? `; source map absent (${absent} script(s))` : ''}; first: ${first}`,
+    ),
     remedy: 'review the remaining J2 evidence gaps; report.json shares a 64 KB J2 detail budget after style findings',
   };
 }

@@ -26,6 +26,18 @@ styleproof setup --external-server --base-url https://preview.example.test
 
 The URL must be reachable when capture runs. `--server-command` and `--external-server` are mutually exclusive. Pass the same choice when invoking `styleproof-init --check` or `styleproof-init --upgrade` directly so validation and refreshed workflow metadata match the generated setup.
 
+## Capture-build source maps
+
+When J2 reports missing source maps, configure the capture build manually. Keep these settings behind `process.env.STYLEPROOF_CAPTURE_SOURCE_MAPS === '1'` and export `STYLEPROOF_CAPTURE_SOURCE_MAPS=1` when starting that build/server.
+
+| Framework | Capture setting                     |
+| --------- | ----------------------------------- |
+| Next.js   | `productionBrowserSourceMaps: true` |
+| Vite      | `build.sourcemap: 'hidden'`         |
+| webpack   | `devtool: 'hidden-source-map'`      |
+
+The report strip calls out missing maps; J2 gaps name the setting inferred from the captured script URLs. Next.js paths include `/_next/static/`; other paths receive Vite/webpack guidance. If only the base lacks maps and measured head maps are available, the remedy points to the next normal baseline capture with those source-map settings. These are advisory evidence gaps; J2 remains warn-only.
+
 ## Merge-base comparison
 
 Capture directories recognize only `<key>@<width>.json` and `<key>@<width>.json.gz`
