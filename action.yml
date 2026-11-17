@@ -41,7 +41,7 @@ inputs:
       until pruned).
     default: 'artifact'
   report-upload:
-    description: 'When to publish a report: on-change skips trusted clean runs without included content changes; always publishes every defined verdict, including clean runs.'
+    description: 'When to publish a report: on-change skips trusted clean runs; always publishes every verdict; on-failure publishes evidence failures and failing certify diffs, skipping successful advisory/content-only runs. Untrusted captures still publish. on-failure is incompatible with review-gate, migration or require-approval.'
     default: 'on-change'
   report-max-bytes:
     description: 'Maximum combined bytes of report.html, report.md and report.json in artifact mode; html gets what md and json leave. Positive integer.'
@@ -753,16 +753,31 @@ runs:
       env:
         STYLEPROOF_REPORT_UPLOAD: ${{ inputs.report-upload }}
         STYLEPROOF_INCLUDE_CONTENT: ${{ inputs.include-content }}
+        STYLEPROOF_MODE: ${{ inputs.mode }}
+        STYLEPROOF_FAIL_ON_DIFF: ${{ inputs.fail-on-diff }}
+        STYLEPROOF_REQUIRE_APPROVAL: ${{ inputs.require-approval }}
       with:
         script: |
           const policy = process.env.STYLEPROOF_REPORT_UPLOAD;
-          if (!['on-change', 'always'].includes(policy)) {
-            throw new Error('report-upload must be on-change or always');
+          // Match GitHub expression equality, which ignores string case.
+          const mode = (process.env.STYLEPROOF_MODE ?? '').toLowerCase();
+          const requireApproval = (process.env.STYLEPROOF_REQUIRE_APPROVAL ?? '').toLowerCase() === 'true';
+          const failOnDiff = (process.env.STYLEPROOF_FAIL_ON_DIFF ?? '').toLowerCase() === 'true';
+          if (!['on-change', 'always', 'on-failure'].includes(policy)) {
+            throw new Error('report-upload must be on-change, always or on-failure');
           }
-          const upload = policy === 'always' ||
-            '${{ steps.verdict.outputs.state }}' !== 'NO_REVIEWABLE_STYLE_CHANGES' ||
-            '${{ steps.context.outputs.untrusted-capture }}' === 'true' ||
-            (process.env.STYLEPROOF_INCLUDE_CONTENT === 'true' && Number('${{ steps.report.outputs.content-changes }}') > 0);
+          if (policy === 'on-failure' && (requireApproval ||
+              ['review-gate', 'migration'].includes(mode))) {
+            throw new Error('report-upload: on-failure cannot hide the evidence needed for approval');
+          }
+          const state = '${{ steps.verdict.outputs.state }}';
+          const untrusted = '${{ steps.context.outputs.untrusted-capture }}' === 'true';
+          const styleFailure = state === 'STYLE_REVIEW_REQUIRED' && mode === 'certify' && failOnDiff;
+          const evidenceFailure = !['NO_REVIEWABLE_STYLE_CHANGES', 'STYLE_REVIEW_REQUIRED'].includes(state);
+          const upload = policy === 'always' || untrusted || (policy === 'on-failure'
+            ? evidenceFailure || styleFailure
+            : state !== 'NO_REVIEWABLE_STYLE_CHANGES' ||
+              (process.env.STYLEPROOF_INCLUDE_CONTENT === 'true' && Number('${{ steps.report.outputs.content-changes }}') > 0));
           core.setOutput('upload', upload ? 'true' : 'false');
 
     # Report images use RELATIVE paths so they render from the committed file (do
@@ -915,6 +930,7 @@ runs:
       uses: actions/upload-artifact@v6
       with:
         name: ${{ steps.validate.outputs.artifact-name }}
+        compression-level: 9
         path: |
           styleproof-report/report.html
           styleproof-report/report.md
@@ -994,7 +1010,7 @@ runs:
           const url = '${{ steps.publish.outputs.url || steps.report-artifact.outputs.artifact-url }}' ||
             `https://github.com/${repository}/actions/runs/${runId}`;
           const delivery = !upload
-            ? { markdown: '_Nothing changed, so no report was uploaded. The verdict is in the run summary._' }
+            ? { markdown: '_Report publication was skipped by the upload policy. The verdict is in the run summary._' }
             : reportStorage === 'branch'
             ? (() => {
                 const publicationSha = '${{ steps.publish.outputs.sha }}';

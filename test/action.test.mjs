@@ -862,6 +862,9 @@ test('composite action gates publication and receipt binding on the trusted deli
 });
 
 const deliveryValues = {
+  'inputs.mode': 'certify',
+  'inputs.fail-on-diff': 'true',
+  'inputs.require-approval': 'false',
   'inputs.report-upload': 'on-change',
   'inputs.include-content': 'false',
   'steps.verdict.outputs.state': 'NO_REVIEWABLE_STYLE_CHANGES',
@@ -947,7 +950,9 @@ for (const storage of ['artifact', 'branch']) {
       assert.equal(comments.length, 1);
       assert.match(comments[0], /No changes detected/);
       assert.ok(
-        comments[0].includes('_Nothing changed, so no report was uploaded. The verdict is in the run summary._'),
+        comments[0].includes(
+          '_Report publication was skipped by the upload policy. The verdict is in the run summary._',
+        ),
       );
       assert.doesNotMatch(
         comments[0],
@@ -2502,4 +2507,73 @@ test('an artifact budget failure reports publication failure even when upload is
     'steps.status.outcome': 'skipped',
   });
   assert.equal(outputs.state, 'REPORT_PUBLICATION_FAILED');
+});
+
+for (const [label, overrides, upload] of [
+  ['clean', {}, 'false'],
+  [
+    'uppercase failing boolean',
+    { 'inputs.fail-on-diff': 'TRUE', 'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED' },
+    'true',
+  ],
+  [
+    'mixed-case certify mode',
+    { 'inputs.mode': 'CeRtIfY', 'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED' },
+    'true',
+  ],
+  ['advisory content', { 'inputs.include-content': 'true', 'steps.report.outputs.content-changes': '2' }, 'false'],
+  ['certify style failure', { 'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED' }, 'true'],
+  [
+    'advisory style change',
+    { 'inputs.mode': 'advisory', 'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED' },
+    'false',
+  ],
+  [
+    'non-failing certify style change',
+    { 'inputs.fail-on-diff': 'false', 'steps.verdict.outputs.state': 'STYLE_REVIEW_REQUIRED' },
+    'false',
+  ],
+  ['evidence failure', { 'inputs.mode': 'advisory', 'steps.verdict.outputs.state': 'CERTIFICATION_FAILED' }, 'true'],
+  ['missing verdict', { 'steps.verdict.outputs.state': '' }, 'true'],
+  ['untrusted clean capture', { 'steps.context.outputs.untrusted-capture': 'true' }, 'true'],
+]) {
+  test(`failure-only publication: ${label}`, async () => {
+    assert.equal(
+      (
+        await runActionProgram('delivery', {
+          ...deliveryValues,
+          'inputs.report-upload': 'on-failure',
+          ...overrides,
+        })
+      ).upload,
+      upload,
+    );
+  });
+}
+for (const overrides of [
+  { 'inputs.mode': 'review-gate' },
+  { 'inputs.mode': 'migration' },
+  { 'inputs.require-approval': 'true' },
+  { 'inputs.require-approval': 'TRUE', 'inputs.fail-on-diff': 'false' },
+  { 'inputs.mode': 'REVIEW-GATE' },
+  { 'inputs.mode': 'MIGRATION' },
+]) {
+  test(`failure-only publication preserves required review evidence: ${JSON.stringify(overrides)}`, async () => {
+    await assert.rejects(
+      runActionProgram('delivery', {
+        ...deliveryValues,
+        'inputs.report-upload': 'on-failure',
+        ...overrides,
+      }),
+      /evidence needed for approval/,
+    );
+  });
+}
+test('report upload explicitly compresses only the single bounded report bundle', () => {
+  const step = actionYml.match(/- id: report-artifact[\s\S]*?(?=\n {4}-)/)[0];
+  assert.match(step, /compression-level: 9/);
+  assert.match(
+    step,
+    /path: \|\n {10}styleproof-report\/report.html\n {10}styleproof-report\/report.md\n {10}styleproof-report\/report.json\n/,
+  );
 });

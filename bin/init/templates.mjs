@@ -537,6 +537,7 @@ ${captureStep(ctx)}
       - uses: actions/upload-artifact@v6
         with:
           name: styleproof-stylemaps
+          compression-level: 6
           path: \${{ runner.temp }}/styleproof-maps
           retention-days: 3
           if-no-files-found: error

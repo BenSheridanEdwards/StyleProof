@@ -10,12 +10,17 @@
 
 ## Queued
 
+- Repair Astra P2 on [PR #1429](https://github.com/BenSheridanEdwards/StyleProof/pull/1429): generated webServer must preserve explicit source-map opt-outs at the server boundary.
+- Repair Astra P2 on [PR #1430](https://github.com/BenSheridanEdwards/StyleProof/pull/1430): CSS URL text must not hide a later global element selector. Both repairs follow the current artifact candidate; same issue-sweep thread.
+
 - Refresh [pull request #1315](https://github.com/BenSheridanEdwards/StyleProof/pull/1315) after visual-first merges: move `[Unreleased]` into `[10.0.0]` and fix the date.
-- File the follow-up issues: QA3-02, QA3-03, RV5-06, RV5-08, QA11-01; the [pull request #1317](https://github.com/BenSheridanEdwards/StyleProof/pull/1317) nits and the missing `--version` flag; visual-first QA15-02, QA15-03 and the large-page render slowdown; artifact-storage items 1 to 4 plus the `png.ts` crop size after 10.0.0.
+- File the follow-up issues: QA3-02, QA3-03, RV5-06, RV5-08, QA11-01; the [pull request #1317](https://github.com/BenSheridanEdwards/StyleProof/pull/1317) nits and the missing `--version` flag; visual-first QA15-02, QA15-03 and the large-page render slowdown; the `png.ts` crop size after 10.0.0. Artifact-storage follow-up is now filed as #1418 and is tracked below.
 - [Issue #1324](https://github.com/BenSheridanEdwards/StyleProof/issues/1324): counted-clause wording, after 10.0.0.
 - [Issue #1319](https://github.com/BenSheridanEdwards/StyleProof/issues/1319): GitHub ignores `.gitattributes` `merge=union` for `CHANGELOG.md`.
 
 ## In progress
+
+- #1418: finish small-by-default report artifact delivery (failure-only option, compression, size notice); current [T3 thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5); PR pending.
 
 - Slice 27: Change Reach warn lines; one-shot local build, no PR.
 
@@ -74,6 +79,8 @@
 - Narrower veto fix for label-rename pairing. Mini thread 0dffec52 (`thread:project:cdcc779a-c17f-4d69-996f-c3904aff19ff:0dffec52-7358-410f-b7e5-b93d80033603`). [Pull request #1322](https://github.com/BenSheridanEdwards/StyleProof/pull/1322).
 
 ## Waiting
+
+- #1417: implementation and local gates passed; [PR #1432](https://github.com/BenSheridanEdwards/StyleProof/pull/1432), head `c876a6479c9d3611fdbde95b66182c5cba2932b3`; hosted checks pending. Same T3 issue-sweep thread.
 
 - Refs #1004: address B2 and F1 review regressions on [PR #1357](https://github.com/BenSheridanEdwards/StyleProof/pull/1357); focused validation in progress. Current thread link unavailable.
 

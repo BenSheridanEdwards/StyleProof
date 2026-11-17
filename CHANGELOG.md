@@ -7,6 +7,8 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+- Artifact report uploads support `report-upload: on-failure`, explicit compression, and a visible size warning above a 1 MB initial uncompressed estimate. Approval workflows keep their review evidence; generated split captures retain one short-lived compressed map transfer (#1418).
+
 - styleproof-ci's outside-CI refusal now prints a real line break instead of a literal `\n` (#1411).
 - `styleproof-map` can start the pre-map variant crawl on Windows when Node refuses a direct `.cmd` spawn (EINVAL); it falls back to the bundled bin (#1414).
 - An unreadable source map in a server V8 coverage file no longer discards later scripts in that file (#1415).

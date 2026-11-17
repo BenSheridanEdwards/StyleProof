@@ -1,0 +1,8 @@
+# Active issue sweep — 17 Nov 2026
+
+- #1417: PR #1432, head c876a6479c9d3611fdbde95b66182c5cba2932b3. Final full verify: 7,072 passed. Pre-push full browser: 1,273 passed, 1 skipped. Astra P2 teardown finding fixed with red-then-green regressions; hosted checks pending. PR body ordering failure fixed and direct validator passed.
+- #1418: fresh origin/main branch. Fourteen new regressions failed before implementation; one existing default remained passing. Affected action/init/HTML suites now pass 250 tests with one Node test worker. Astra found one P2 publication-boolean mismatch; normalized the new flags/modes to match GitHub comparisons. Five regressions failed before the fix; 32 publication checks pass afterward. Renderer proof captured and visually inspected (synthetic receipt fixture, no certification claim); Final full verify passed 7092 tests; normal hooks and hosted checks follow.
+- #1002: preserve the staged plan; env injection owned by #1429. Config/check slices wait for that prerequisite; J2 guidance can be prepared independently.
+- Explicit release, post-v10, queue and human-signoff holds remain unchanged (#1313, #1315, #1423, #1427, #1324/#1326/#1328/#1329). Effective hooks checked directly: `.husky/_` from repo config, no config.worktree override; normal gates executed.
+
+- Extra independent review of existing heads #1429 (`7bd85f895`) and #1430 (`811f62f7`) found one P2 each: webServer env overrides opt-outs; CSS URL `//` hides a later global selector. Repair both after pushing the artifact candidate. Neither old head is merge-ready despite green hosted checks.

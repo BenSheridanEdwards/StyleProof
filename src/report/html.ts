@@ -670,11 +670,21 @@ ${body}
   return page;
 }
 
+type ArtifactHtmlOptions = { outDir: string; maxBytes: number; receiptBytes: number; htmlMaxBytes?: number };
+
+/** Disclose a large initial bundle estimate without dropping the existing receipts or byte budget. */
+export function renderArtifactHtml(markdown: string, options: ArtifactHtmlOptions): string {
+  const html = renderBoundedArtifactHtml(markdown, options);
+  const bytes = Buffer.byteLength(html) + options.receiptBytes;
+  if (bytes <= 1_000_000) return html;
+  return renderBoundedArtifactHtml(
+    `${markdown}\n\n_Artifact size warning: initial report bundle estimate ${bytes} bytes before ZIP compression (over 1 MB). Keep report-retention-days short and avoid duplicate raw capture uploads._`,
+    options,
+  );
+}
+
 /** Preserve receipts when their remaining budget cannot hold the HTML text. */
-export function renderArtifactHtml(
-  markdown: string,
-  options: { outDir: string; maxBytes: number; receiptBytes: number; htmlMaxBytes?: number },
-): string {
+function renderBoundedArtifactHtml(markdown: string, options: ArtifactHtmlOptions): string {
   const htmlMaxBytes = Math.min(options.htmlMaxBytes ?? 2_000_000, options.maxBytes);
   const remaining = options.maxBytes - options.receiptBytes;
 
