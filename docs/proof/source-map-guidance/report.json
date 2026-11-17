@@ -1,0 +1,56 @@
+{
+  "synthetic": true,
+  "cases": [
+    {
+      "name": "Next.js head maps absent",
+      "gaps": [
+        {
+          "join": "J2",
+          "status": "unmeasured",
+          "kind": "execution",
+          "reason": "head script evidence: source map absent (1 script(s))",
+          "remedy": "enable Next.js `productionBrowserSourceMaps: true` for capture builds only; gate the setting on `STYLEPROOF_CAPTURE_SOURCE_MAPS=1` and export that variable when starting the capture server",
+          "side": "head"
+        }
+      ]
+    },
+    {
+      "name": "Other bundler head maps absent",
+      "gaps": [
+        {
+          "join": "J2",
+          "status": "unmeasured",
+          "kind": "execution",
+          "reason": "head script evidence: source map absent (1 script(s))",
+          "remedy": "enable Vite `build.sourcemap: 'hidden'` or webpack `devtool: 'hidden-source-map'` for capture builds only; gate the setting on `STYLEPROOF_CAPTURE_SOURCE_MAPS=1` and export that variable when starting the capture server",
+          "side": "head"
+        }
+      ]
+    },
+    {
+      "name": "Base maps absent; head maps available",
+      "gaps": [
+        {
+          "join": "J2",
+          "status": "unmeasured",
+          "kind": "execution",
+          "reason": "base script evidence: source map absent (1 script(s))",
+          "remedy": "base was captured without source maps; head maps are available. The next normal baseline capture with these source-map settings refreshes this evidence",
+          "side": "base"
+        }
+      ]
+    },
+    {
+      "name": "Missing-map count after detail truncation",
+      "gaps": [
+        {
+          "join": "J2",
+          "status": "unmeasured",
+          "kind": "execution",
+          "reason": "J2 gaps truncated: 2 more omitted from report.json; source map absent (5 script(s)); first: base script evidence: source map absent (2 script(s)); head script evidence: source map absent (3 script(s))",
+          "remedy": "review the remaining J2 evidence gaps; report.json shares a 64 KB J2 detail budget after style findings"
+        }
+      ]
+    }
+  ]
+}

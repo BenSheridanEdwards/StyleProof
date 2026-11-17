@@ -1486,6 +1486,8 @@ Custom-property fonts resolve by union over every possible declared or registere
 
 ### Script execution evidence (J2)
 
+Missing source maps add a notice to the strip and a J2 remedy naming capture-build settings. Next.js script paths receive `productionBrowserSourceMaps` guidance; other script paths name Vite hidden maps and webpack hidden-source-map. Configure them manually behind `STYLEPROOF_CAPTURE_SOURCE_MAPS=1`, exported for the capture build/server. A base-only gap with measured head maps instead points to the next normal baseline capture with those source-map settings. URL counts are deduplicated within each revision side and survive report detail truncation. This does not change J2's warn-only policy.
+
 `captureScriptReach: true` independently enables J2 on `defineStyleMapCapture`,
 `defineCrawlCapture` and `CaptureOptions`; default is off. Neither reach setting
 has a CLI flag. Binary V8 coverage runs before each `go()` through the map read,

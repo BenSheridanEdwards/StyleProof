@@ -10,7 +10,7 @@ import {
 } from '../class-join.js';
 import { classSectionLines, classSummary } from './class-units.js';
 import { scriptUnitRanges } from './script-units.js';
-import { scriptGapLines } from './script-gap-details.js';
+import { missingMapScriptCount, scriptGapLines } from './script-gap-details.js';
 import { readScriptChanges, type ScriptChanges } from '../script-join-git.js';
 import {
   classifyScriptReach,
@@ -592,9 +592,12 @@ function scriptSummary(reach: ReportReach): string {
 }
 
 function scriptStripLines(reach: ReportReach): string[] {
+  const absent = reach.gaps.filter((gap) => gap.join === 'J2' && gap.reason.includes('source map absent'));
+  const count = missingMapScriptCount(reach.gaps);
+  const notice = absent.length ? ` Source maps absent${count ? ` on ${count} script(s)` : ''} — see J2 gaps.` : '';
   return [
     '',
-    `**J2 script reach (warn-only)**${scriptSummary(reach).replace('; J2:', ' —')}. Navigation-window execution includes transient loading code; running a value does not prove rendering.`,
+    `**J2 script reach (warn-only)**${scriptSummary(reach).replace('; J2:', ' —')}. Navigation-window execution includes transient loading code; running a value does not prove rendering.${notice}`,
   ];
 }
 
