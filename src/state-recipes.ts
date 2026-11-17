@@ -3,7 +3,7 @@
  * and one-shot 400-599 route errors, with stable keys and the destructive-action guard.
  * A recipe collection is a set of INDEPENDENT state variants, never an action sequence.
  */
-import type { Locator, Page } from '@playwright/test';
+import type { Locator, Page, Route } from '@playwright/test';
 import { DANGER_SOURCE, DANGER_TEXT_SOURCE, normalizeDangerText } from './danger.js';
 import { realNow } from './spec-clock.js';
 import {
@@ -434,6 +434,14 @@ async function driveInteraction(page: Page, recipe: InteractionStateRecipe): Pro
   return liveLabel;
 }
 
+/** Install a validated route recipe and retain the exact handler for capture-scoped cleanup. */
+export async function installStateRecipeRoute(page: Page, recipe: RouteStateRecipe): Promise<() => Promise<void>> {
+  const fulfill = { status: recipe.status, body: '', contentType: 'text/plain' };
+  const handler = (route: Route): Promise<void> => route.fulfill(fulfill);
+  await page.route(recipe.urlPattern, handler, { times: 1 });
+  return () => page.unroute(recipe.urlPattern, handler);
+}
+
 /**
  * Apply a recipe on a live page: shape errors, a declared or live label matching the
  * destructive guard, and driver failures all throw `StateRecipeError`. Live target
@@ -448,8 +456,7 @@ export async function applyStateRecipe(page: Page, raw: unknown): Promise<Applie
   const recipe = classified.recipe;
   try {
     if (recipe.action === 'route') {
-      const fulfill = { status: recipe.status, body: '', contentType: 'text/plain' };
-      await page.route(recipe.urlPattern, (route) => route.fulfill(fulfill), { times: 1 });
+      await installStateRecipeRoute(page, recipe);
       return applied(recipe);
     }
     const liveLabel = await driveInteraction(page, recipe);

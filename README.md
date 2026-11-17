@@ -648,6 +648,8 @@ evidence; a visual PASS does not clear those residuals.
 
 ## The boundary
 
+Route state recipes scope their one-shot network mock to that capture. Unused mocks are removed before another surface uses the shared crawl page, including after failed captures.
+
 StyleProof compares the states it captured. A conditional branch the fixture
 never drove can still produce identical base and head maps, but **Change Reach
 names the un-exercised-state gap when reach evidence is collected**. A clean

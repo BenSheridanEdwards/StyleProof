@@ -17,6 +17,8 @@
 
 ## In progress
 
+- Active-issue sweep 17 Nov: fix #1417 route-recipe cleanup, assess #1418 artifact storage and remaining #1002 staged source-map setup. Preserve all issue-specific release/queue/signoff holds. [T3 thread](t3-thread://v2/ff5e723c-72ed-4a43-a941-deab3df7dddc/mcp:launch:e052fa7dd59d3911291e5ab771bce5ddcf275910b0b1e59a7552ff92cb1046b5); PRs pending.
+
 - Slice 27: Change Reach warn lines; one-shot local build, no PR.
 
 - Slice 31: change-card metadata and rendering; focused checks passed, hooks-on commit pending; one-shot thread link unavailable; no PR requested.

@@ -1,9 +1,11 @@
 import { validateProductStateIdentity } from '../capture.js';
+import type { Page } from '@playwright/test';
 import type { CaptureMetadata } from '../capture/types.js';
 import { applyMediaState, validateMediaStates } from '../media-states.js';
 import {
   applyStateRecipe,
   classifyStateRecipe,
+  installStateRecipeRoute,
   parseStateRecipes,
   stateRecipeKey,
   StateRecipeError,
@@ -76,19 +78,34 @@ function expandStateRecipe(surface: Surface, recipe: StateRecipe): ExpandedSurfa
   const stateKey = stateRecipeKey(recipe);
   const productState = validateProductStateIdentity(surface.productState);
   const isRoute = recipe.action === 'route';
+  const cleanups = new WeakMap<Page, () => Promise<void>>();
+  const cleanup = async (page: Page): Promise<void> => {
+    const dispose = cleanups.get(page);
+    if (dispose) {
+      await dispose();
+      cleanups.delete(page);
+    }
+  };
   return {
     ...inherited(surface),
     key: `${surface.key}-${stateKey}`,
     // Route recipes install their network outcome BEFORE the parent navigates; interaction
     // recipes start from the parent baseline.
+    cleanup,
     go: async (page) => {
-      if (isRoute) {
-        await applyStateRecipe(page, recipe);
-        // Park the pointer so route-state setup cannot inherit a sticky hover from navigation.
-        await page.mouse.move(-1, -1);
+      await cleanup(page);
+      try {
+        if (recipe.action === 'route') {
+          cleanups.set(page, await installStateRecipeRoute(page, recipe));
+          // Park the pointer so route-state setup cannot inherit a sticky hover from navigation.
+          await page.mouse.move(-1, -1);
+        }
+        await surface.go(page);
+        if (!isRoute) await applyStateRecipe(page, recipe);
+      } catch (error) {
+        await cleanup(page);
+        throw error;
       }
-      await surface.go(page);
-      if (!isRoute) await applyStateRecipe(page, recipe);
     },
     ...(!isRoute && recipe.observeSelector
       ? { requiredVisibleState: { selector: recipe.observeSelector, stateKey } }

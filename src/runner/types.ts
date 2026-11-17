@@ -132,6 +132,8 @@ export type Settings = Required<
 export type ExpandedSurface = Omit<Surface, 'variants' | 'liveStates' | 'stateRecipes' | 'productState'> & {
   metadata?: CaptureMetadata;
   requiredVisibleState?: { selector: string; stateKey: string };
+  /** Release runner-owned setup, including unconsumed one-shot recipe routes. */
+  cleanup?: (page: Page) => Promise<void>;
 };
 
 /** Static heartbeat ordinal of one capture unit (assigned at define time, stable across workers). */
