@@ -2009,3 +2009,23 @@ for (const mode of ['advisory', 'review-gate', 'certify']) {
     }
   });
 }
+
+for (const workflow of ['single', 'split']) {
+  test(`styleproof-init: ${workflow} keeps capture uploads unsharded and bounded`, () => {
+    const root = mkTmp();
+    try {
+      const result = runInit(root, ['--workflow', workflow]);
+      assert.equal(result.status, 0, result.stderr);
+      const capture = readFile(root, '.github/workflows/styleproof.yml');
+      assert.doesNotMatch(capture, /matrix:|--shard[= ]/);
+      if (workflow === 'single') assert.doesNotMatch(capture, /actions\/upload-artifact/);
+      else {
+        assert.equal((capture.match(/uses: actions\/upload-artifact@/g) ?? []).length, 1);
+        assert.match(capture, /name: styleproof-stylemaps\n {10}compression-level: 6/);
+        assert.match(capture, /retention-days: 3/);
+      }
+    } finally {
+      rmTmp(root);
+    }
+  });
+}

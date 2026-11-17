@@ -342,3 +342,12 @@ test('omitted HTML images do not promise complete findings in capped JSON', () =
   assert.match(html, /1 image omitted/);
   assert.doesNotMatch(html, /report.json holds the full data/);
 });
+
+test('artifact HTML warns about large initial bundle estimates without relaxing the byte budget', () => {
+  const options = { outDir: '.', maxBytes: 2_000_000, receiptBytes: 1_100_000 };
+  const html = renderArtifactHtml('# Report', options);
+  assert.match(html, /Artifact size warning: initial report bundle estimate \d+ bytes before ZIP compression/);
+  assert.match(html, /Keep report-retention-days short/);
+  assert.ok(Buffer.byteLength(html) + options.receiptBytes <= options.maxBytes);
+  assert.doesNotMatch(renderArtifactHtml('# Report', { ...options, receiptBytes: 100 }), /Artifact size warning/);
+});

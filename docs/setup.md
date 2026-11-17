@@ -98,3 +98,21 @@ claimed A. Existing source-binding, report-publication and approval guards remai
 unchanged.
 
 GitHub API contract: [Compare two commits](https://docs.github.com/rest/commits/commits#compare-two-commits).
+
+## Keeping artifact storage small
+
+The default single workflow compares and renders in one job. It publishes one bounded report bundle, not every raw capture or a second upload for every shard. Trusted clean runs are skipped by `report-upload: on-change`; style-review and evidence-failure reports remain available. The Action uploads only `report.html`, `report.md` and `report.json`, with compression level 9. The existing receipt-preservation exception can exceed the combined report budget; its warning stays visible.
+
+Prefer this single workflow unless you need the split trust boundary. The opt-in split workflow transfers one complete map bundle with compression level 6 and three-day retention. That transfer is required by the trusted comparison stage, so report publication policy does not remove it. Avoid adding a raw `.styleproof/**` upload to every capture shard.
+
+For a custom workflow's StyleProof Action step, failure-only publication can reduce successful-run storage:
+
+```yaml
+with:
+  report-upload: on-failure
+  report-retention-days: 3
+```
+
+Here, failure means an evidence-failure verdict or a certify-mode style diff with `fail-on-diff: true`. Successful advisory style/content changes skip publication. Untrusted captures still publish their evidence. This option is rejected with review-gate, migration or `require-approval`, because approval needs a reviewable report. A failure before report generation cannot upload a report that does not exist; use a separate `if: failure()` diagnostic upload if you need those raw logs or screenshots. Keep it short-lived and configure Playwright diagnostic screenshots as `only-on-failure`.
+
+The report HTML warns when the initial report bundle estimate exceeds 1 MB before ZIP compression. This is an uncompressed estimate, not a measurement of the uploaded ZIP. Inspect actual artifact sizes in Actions, keep retention short enough for your review cycle, and preserve required coverage rather than dropping important states to save bytes. Generated workflow wrappers remain machine-owned; use `styleproof-init --upgrade` to refresh them after upgrading the package.
