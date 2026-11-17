@@ -693,3 +693,64 @@ test('CSS Module selector starts fail closed except local classes and ids', () =
   }
   assert.equal(classifyStyleChange('Card.module.css', read('.card, #title { color: red }')), 'scope');
 });
+
+for (const [name, value] of [
+  ['quoted HTTPS URL', 'url("https://assets.example.test/a.png")'],
+  ['unquoted HTTPS URL', 'url(https://assets.example.test/a.png)'],
+  ['protocol-relative URL', 'url(//assets.example.test/a.png)'],
+  ['URL containing comment markers', 'url("https://assets.example.test/a/*marker*/b.png")'],
+]) {
+  test('CSS Module URL preserves a later global selector: ' + name, () => {
+    const css = '.card { background: ' + value + '; } h1 { font-size: 80px }';
+    assert.equal(classifyStyleChange('Card.module.css', read(css)), 'all');
+    assert.equal(
+      affectedSurfaces({
+        changedFiles: ['Card.module.css'],
+        surfaces: { Home: 'Home.tsx', About: 'About.tsx' },
+        graph: [{ from: 'Home.tsx', to: 'Card.module.css' }],
+        files: ['Home.tsx', 'About.tsx', 'Card.module.css'],
+        readFile: (file) => (file === 'Card.module.css' ? css : ''),
+      }),
+      'all',
+    );
+    assert.equal(classifyStyleChange('Card.module.css', read('.card { background: ' + value + '; }')), 'scope');
+  });
+}
+test('CSS Module strings cannot hide a later global selector or invent a rule header', () => {
+  assert.equal(
+    classifyStyleChange(
+      'Card.module.css',
+      read('.card::after { content: "https://assets.example.test"; } h1 { color: red }'),
+    ),
+    'all',
+  );
+  assert.equal(classifyStyleChange('Card.module.css', read('.card::after { content: "h1 { color: red }"; }')), 'scope');
+});
+test('ambiguous slash values and unparsed preprocessor syntax fail closed', () => {
+  for (const css of [
+    '.card { --endpoint: https://assets.example.test; } h1 { color: red }',
+    '.card { --endpoint: //assets.example.test; } h1 { color: red }',
+    '.card { background: u\\72l(//assets.example.test/a.png); } h1 { color: red }',
+    '@include shared; .card { color: red }',
+  ])
+    assert.equal(classifyStyleChange('Card.module.css', read(css)), 'all', css);
+  for (const extension of ['sass', 'styl'])
+    assert.equal(
+      classifyStyleChange('Card.module.' + extension, read('.card\n  color: red\nh1\n  color: blue')),
+      'all',
+    );
+});
+test('preprocessor line comments and quoted braces preserve ordinary local scope', () => {
+  assert.equal(classifyStyleChange('Card.module.scss', read('// "} fake { "\n.card { color: red }')), 'scope');
+  assert.equal(
+    classifyStyleChange('Card.module.scss', read('.card { color: red; } // "} fake {"\nh1 { color: blue }')),
+    'all',
+  );
+});
+
+test('malformed quoted CSS cannot conceal global rules after newline recovery', () => {
+  assert.equal(
+    classifyStyleChange('Card.module.css', read('.card { content: "broken\n; } h1 { color: red } /* recovery */ "')),
+    'all',
+  );
+});
